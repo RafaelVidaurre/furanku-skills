@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="An interactive field guide to the testing-best-practices agent skill.">
+  <link rel="icon" href="data:,">
+  <title>Testing Best Practices — Tests are evidence</title>
+  <style>
+    :root {
+      --paper: #f1efe8;
+      --paper-deep: #e4e0d5;
+      --ink: #11110f;
+      --muted: #68675f;
+      --line: rgba(17, 17, 15, 0.2);
+      --signal: #c9ff45;
+      --signal-deep: #9ed413;
+      --white: #fbfaf6;
+      --max: 1240px;
+      --gutter: clamp(20px, 4vw, 64px);
+      --header-h: 72px;
+      --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.55;
+      text-rendering: optimizeLegibility;
+    }
+    body::selection { background: var(--signal); color: var(--ink); }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; }
+    svg { display: block; }
+
+    .progress {
+      position: fixed;
+      inset: 0 auto auto 0;
+      z-index: 100;
+      width: 0;
+      height: 3px;
+      background: var(--signal);
+      transition: width 80ms linear;
+    }
+
+    .site-header {
+      position: absolute;
+      inset: 0 0 auto;
+      z-index: 20;
+      height: var(--header-h);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 var(--gutter);
+      color: var(--white);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font: 700 12px/1 var(--mono);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .brand-mark {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--signal);
+      box-shadow: 0 0 0 5px rgba(201, 255, 69, 0.13);
+    }
+    .header-links { display: flex; align-items: center; gap: 26px; }
+    .header-links a {
+      font: 600 11px/1 var(--mono);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.82;
+      transition: opacity 160ms ease;
+    }
+    .header-links a:hover { opacity: 1; }
+
+    .hero {
+      position: relative;
+      min-height: 100svh;
+      overflow: hidden;
+      display: grid;
+      align-items: end;
+      padding: calc(var(--header-h) + 48px) var(--gutter) clamp(48px, 8vh, 96px);
+      color: var(--white);
+      background: var(--ink);
+    }
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.16;
+      background-image:
+        linear-gradient(rgba(255,255,255,.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.08) 1px, transparent 1px);
+      background-size: clamp(42px, 5vw, 80px) clamp(42px, 5vw, 80px);
+      mask-image: linear-gradient(to bottom, black, transparent 82%);
+    }
+    .hero-inner {
+      position: relative;
+      z-index: 2;
+      width: min(100%, var(--max));
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
+      align-items: end;
+      gap: clamp(48px, 8vw, 120px);
+    }
+    .eyebrow {
+      margin: 0 0 24px;
+      font: 650 12px/1.2 var(--mono);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--signal);
+    }
+    .hero h1 {
+      max-width: 780px;
+      margin: 0;
+      font-size: clamp(64px, 9.5vw, 150px);
+      font-weight: 760;
+      line-height: 0.84;
+      letter-spacing: -0.075em;
+    }
+    .hero h1 span { display: block; color: var(--signal); }
+    .hero-copy {
+      max-width: 550px;
+      margin: 32px 0 0;
+      font-size: clamp(18px, 1.6vw, 24px);
+      line-height: 1.35;
+      color: rgba(251, 250, 246, 0.72);
+    }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 36px; }
+    .button {
+      min-height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 0 18px;
+      border: 1px solid rgba(255,255,255,.32);
+      font: 650 11px/1 var(--mono);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      transition: background 180ms ease, color 180ms ease, transform 180ms ease;
+    }
+    .button.primary { color: var(--ink); border-color: var(--signal); background: var(--signal); }
+    .button:hover { transform: translateY(-2px); background: var(--white); color: var(--ink); }
+
+    .signal-graphic { position: relative; min-height: 480px; }
+    .signal-graphic svg { width: 100%; height: 100%; overflow: visible; }
+    .signal-line {
+      fill: none;
+      stroke: rgba(251,250,246,.25);
+      stroke-width: 1;
+      stroke-dasharray: 6 8;
+      animation: dash 14s linear infinite;
+    }
+    .signal-line.hot { stroke: var(--signal); stroke-width: 1.5; }
+    .signal-node circle {
+      fill: var(--ink);
+      stroke: rgba(251,250,246,.5);
+      stroke-width: 1;
+      transition: fill 180ms ease, stroke 180ms ease, transform 180ms ease;
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+    .signal-node text {
+      fill: var(--white);
+      font: 600 11px var(--mono);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .signal-node.hot circle { fill: var(--signal); stroke: var(--signal); animation: pulse 2.8s ease-in-out infinite; }
+    .signal-node.hot text { fill: var(--ink); }
+    .signal-node:hover circle { fill: var(--white); stroke: var(--white); transform: scale(1.06); }
+    .signal-node:hover text { fill: var(--ink); }
+    .graphic-caption {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      max-width: 260px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255,255,255,.3);
+      color: rgba(251,250,246,.55);
+      font: 500 11px/1.5 var(--mono);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    .hero .reveal { opacity: 0; transform: translateY(24px); animation: hero-in .75s cubic-bezier(.2,.8,.2,1) forwards; }
+    .hero .reveal:nth-child(2) { animation-delay: .08s; }
+    .hero .reveal:nth-child(3) { animation-delay: .16s; }
+    .hero .reveal:nth-child(4) { animation-delay: .24s; }
+
+    main { overflow: clip; }
+    .section { padding: clamp(88px, 13vw, 180px) var(--gutter); border-bottom: 1px solid var(--line); }
+    .section-inner { width: min(100%, var(--max)); margin: 0 auto; }
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(180px, .42fr) minmax(0, 1fr);
+      gap: clamp(36px, 8vw, 140px);
+      align-items: start;
+      margin-bottom: clamp(56px, 8vw, 112px);
+    }
+    .section-kicker {
+      margin: 0;
+      font: 650 11px/1.4 var(--mono);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .section-kicker::before { content: ""; display: inline-block; width: 34px; height: 2px; margin: 0 12px 3px 0; background: var(--signal-deep); }
+    .section h2 {
+      max-width: 980px;
+      margin: 0;
+      font-size: clamp(42px, 6.3vw, 92px);
+      font-weight: 740;
+      line-height: .96;
+      letter-spacing: -.055em;
+    }
+    .section-lede {
+      max-width: 780px;
+      margin: 30px 0 0;
+      color: var(--muted);
+      font-size: clamp(18px, 1.6vw, 23px);
+      line-height: 1.45;
+    }
+
+    .evidence-list { border-top: 1px solid var(--ink); }
+    .evidence-row {
+      display: grid;
+      grid-template-columns: 72px minmax(180px, .5fr) minmax(0, 1fr);
+      gap: clamp(18px, 4vw, 64px);
+      align-items: baseline;
+      padding: 26px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .evidence-row .index { font: 600 12px var(--mono); color: var(--muted); }
+    .evidence-row h3 { margin: 0; font-size: clamp(22px, 2.5vw, 36px); line-height: 1; letter-spacing: -.03em; }
+    .evidence-row p { max-width: 650px; margin: 0; color: var(--muted); }
+
+    .workflow { background: var(--paper-deep); }
+    .workflow-grid {
+      display: grid;
+      grid-template-columns: minmax(260px, .55fr) minmax(0, 1fr);
+      gap: clamp(54px, 10vw, 160px);
+      align-items: start;
+    }
+    .workflow-aside { position: sticky; top: 42px; }
+    .workflow-aside .big-number {
+      display: block;
+      font-size: clamp(110px, 15vw, 230px);
+      font-weight: 760;
+      line-height: .75;
+      letter-spacing: -.08em;
+      color: var(--signal-deep);
+    }
+    .workflow-aside p { max-width: 330px; margin: 38px 0 0; color: var(--muted); font-size: 18px; }
+    .workflow-steps { border-top: 1px solid var(--ink); }
+    .workflow-step { padding: 36px 0 42px; border-bottom: 1px solid var(--line); }
+    .step-top { display: grid; grid-template-columns: 56px 1fr; gap: 20px; align-items: start; }
+    .step-number { font: 650 12px var(--mono); color: var(--muted); padding-top: 8px; }
+    .workflow-step h3 { margin: 0; font-size: clamp(26px, 3vw, 43px); line-height: 1; letter-spacing: -.035em; }
+    .workflow-step > p { max-width: 700px; margin: 20px 0 0 76px; color: var(--muted); }
+    .complete {
+      max-width: 700px;
+      margin: 20px 0 0 76px;
+      padding: 14px 0 0;
+      border-top: 1px dashed rgba(17,17,15,.25);
+      font: 560 12px/1.55 var(--mono);
+    }
+    .complete strong { color: var(--signal-deep); text-transform: uppercase; letter-spacing: .05em; }
+
+    .scope-section { background: var(--white); }
+    .scope-list { border-top: 2px solid var(--ink); }
+    .scope-row {
+      display: grid;
+      grid-template-columns: minmax(190px, .48fr) minmax(240px, .75fr) 42px;
+      gap: clamp(20px, 5vw, 74px);
+      align-items: center;
+      min-height: 108px;
+      border-bottom: 1px solid var(--line);
+    }
+    .scope-row h3 { margin: 0; font-size: clamp(22px, 2.5vw, 34px); letter-spacing: -.03em; }
+    .scope-row p { margin: 0; color: var(--muted); }
+    .scope-row .arrow { font-size: 26px; transition: transform 160ms ease; }
+    .scope-row:hover .arrow { transform: translateX(7px); }
+    .doctrine-note {
+      margin-top: 64px;
+      padding: 32px 0;
+      display: grid;
+      grid-template-columns: minmax(220px, .5fr) 1fr;
+      gap: clamp(30px, 8vw, 130px);
+      border-top: 1px solid var(--ink);
+      border-bottom: 1px solid var(--ink);
+    }
+    .doctrine-note h3 { margin: 0; font-size: clamp(28px, 3.8vw, 54px); line-height: 1; letter-spacing: -.04em; }
+    .doctrine-note p { max-width: 680px; margin: 0; color: var(--muted); font-size: 18px; }
+    .policy-list { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 20px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .07em; }
+    .policy-list span::before { content: "/"; margin-right: 8px; color: var(--signal-deep); }
+
+    .craft-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 clamp(48px, 9vw, 150px); }
+    .craft-column h3 { margin: 0 0 26px; font-size: clamp(30px, 4vw, 56px); letter-spacing: -.045em; }
+    .rule-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--ink); }
+    .rule-list li { position: relative; padding: 20px 0 20px 32px; border-bottom: 1px solid var(--line); color: var(--muted); }
+    .rule-list li::before { content: "•"; position: absolute; left: 2px; top: 17px; color: var(--signal-deep); font-size: 22px; }
+
+    .seam-section { color: var(--white); background: var(--ink); }
+    .seam-section .section-kicker, .seam-section .section-lede { color: rgba(251,250,246,.62); }
+    .seam-explorer { display: grid; grid-template-columns: minmax(230px, .42fr) minmax(0, 1fr); gap: clamp(48px, 9vw, 140px); align-items: start; }
+    .seam-tabs { display: flex; flex-direction: column; border-top: 1px solid rgba(255,255,255,.3); }
+    .seam-tab {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 42px 1fr;
+      gap: 14px;
+      padding: 19px 0;
+      color: rgba(251,250,246,.52);
+      background: transparent;
+      border: 0;
+      border-bottom: 1px solid rgba(255,255,255,.18);
+      text-align: left;
+      cursor: pointer;
+      transition: color 180ms ease, padding-left 180ms ease;
+    }
+    .seam-tab span:first-child { font: 600 11px var(--mono); }
+    .seam-tab span:last-child { font-size: 18px; font-weight: 650; }
+    .seam-tab:hover, .seam-tab.active { color: var(--signal); padding-left: 8px; }
+    .seam-detail { min-height: 440px; padding-top: 4px; }
+    .seam-detail .detail-label { margin: 0 0 22px; font: 650 11px var(--mono); color: var(--signal); text-transform: uppercase; letter-spacing: .1em; }
+    .seam-detail h3 { max-width: 700px; margin: 0; font-size: clamp(38px, 5vw, 72px); line-height: .98; letter-spacing: -.05em; }
+    .seam-detail > p { max-width: 720px; margin: 28px 0 0; color: rgba(251,250,246,.62); font-size: 18px; }
+    .detail-points { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 18px 48px; margin-top: 42px; }
+    .detail-point { padding-top: 14px; border-top: 1px solid rgba(255,255,255,.25); }
+    .detail-point strong { display: block; margin-bottom: 6px; color: var(--white); font: 650 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+    .detail-point span { color: rgba(251,250,246,.58); }
+    .seam-detail.swap { animation: swap-in .32s ease both; }
+    .seam-principles { margin-top: 72px; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); border-top: 1px solid rgba(255,255,255,.3); }
+    .seam-principle { padding: 26px 28px 0 0; }
+    .seam-principle + .seam-principle { padding-left: 28px; border-left: 1px solid rgba(255,255,255,.18); }
+    .seam-principle strong { display: block; margin-bottom: 12px; color: var(--signal); font: 650 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+    .seam-principle p { margin: 0; color: rgba(251,250,246,.62); }
+
+    .ladder { border-top: 2px solid var(--ink); }
+    .ladder-row {
+      display: grid;
+      grid-template-columns: 70px minmax(150px,.42fr) minmax(0,1fr) minmax(180px,.45fr);
+      gap: clamp(18px, 4vw, 54px);
+      padding: 25px 0;
+      border-bottom: 1px solid var(--line);
+      align-items: baseline;
+    }
+    .ladder-row .rank { font: 600 11px var(--mono); color: var(--muted); }
+    .ladder-row h3 { margin: 0; font-size: clamp(23px,2.8vw,38px); letter-spacing: -.035em; }
+    .ladder-row p { margin: 0; color: var(--muted); }
+    .ladder-row .cost { font: 550 11px/1.5 var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .property-note { margin-top: 70px; display: grid; grid-template-columns: .55fr 1fr; gap: clamp(40px, 9vw, 140px); align-items: start; }
+    .property-note h3 { margin: 0; font-size: clamp(34px, 5vw, 70px); line-height: .98; letter-spacing: -.05em; }
+    .property-note div > p { margin: 0 0 18px; color: var(--muted); font-size: 18px; }
+
+    .health-section { background: var(--signal); }
+    .health-section .section-kicker { color: rgba(17,17,15,.62); }
+    .health-section .section-kicker::before { background: var(--ink); }
+    .health-grid { display: grid; grid-template-columns: minmax(260px,.7fr) minmax(0,1.3fr); gap: clamp(50px, 10vw, 150px); }
+    .health-manifesto { position: sticky; top: 40px; }
+    .health-manifesto p { max-width: 430px; margin: 0; font-size: clamp(25px, 3vw, 42px); line-height: 1.12; letter-spacing: -.035em; }
+    .health-list { border-top: 2px solid var(--ink); }
+    .health-row { display: grid; grid-template-columns: minmax(145px,.4fr) 1fr; gap: 32px; padding: 22px 0; border-bottom: 1px solid rgba(17,17,15,.25); }
+    .health-row strong { font: 650 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+    .health-row span { color: rgba(17,17,15,.7); }
+    .health-playbook { margin-top: 72px; border-top: 2px solid var(--ink); }
+    .health-action { display: grid; grid-template-columns: 42px minmax(150px,.36fr) 1fr; gap: 24px; padding: 24px 0; border-bottom: 1px solid rgba(17,17,15,.25); }
+    .health-action .rank, .health-action strong { font: 650 11px/1.5 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+    .health-action p { margin: 0; color: rgba(17,17,15,.7); }
+
+    .checklist-section { background: var(--white); }
+    .checklist { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); margin: 0; padding: 0; border-top: 2px solid var(--ink); list-style: none; }
+    .checklist > li { border-bottom: 1px solid var(--line); }
+    .checklist > li:nth-child(odd) { border-right: 1px solid var(--line); }
+    .check-item {
+      position: relative;
+      min-height: 84px;
+      display: grid;
+      grid-template-columns: 30px 1fr;
+      gap: 18px;
+      align-items: center;
+      padding: 18px 28px 18px 0;
+      cursor: pointer;
+      user-select: none;
+    }
+    .checklist > li:nth-child(even) .check-item { padding-left: 28px; }
+    .check-item input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    .check-item:focus-within { outline: 2px solid var(--ink); outline-offset: -2px; }
+    .check-box { width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid var(--ink); transition: background 160ms ease, transform 160ms ease; }
+    .check-box::after { content: "✓"; opacity: 0; transform: scale(.5); transition: opacity 160ms ease, transform 160ms ease; }
+    .check-item input:checked + .check-box { background: var(--signal); transform: rotate(-3deg); }
+    .check-item input:checked + .check-box::after { opacity: 1; transform: scale(1); }
+    .check-item span:last-child { font-weight: 580; }
+    .check-item input:checked ~ span:last-child { text-decoration: line-through; text-decoration-thickness: 1px; color: var(--muted); }
+
+    .finale {
+      position: relative;
+      min-height: 72svh;
+      display: grid;
+      align-items: center;
+      padding: 110px var(--gutter);
+      color: var(--white);
+      background: var(--ink);
+      overflow: hidden;
+    }
+    .finale::after {
+      content: "EVIDENCE";
+      position: absolute;
+      right: -0.04em;
+      bottom: -0.22em;
+      font-size: clamp(110px, 22vw, 360px);
+      font-weight: 780;
+      line-height: .8;
+      letter-spacing: -.08em;
+      color: rgba(255,255,255,.045);
+      pointer-events: none;
+    }
+    .finale-inner { position: relative; z-index: 2; width: min(100%,var(--max)); margin: 0 auto; }
+    .finale h2 { max-width: 950px; margin: 0; font-size: clamp(54px, 8vw, 120px); line-height: .9; letter-spacing: -.065em; }
+    .finale h2 span { color: var(--signal); }
+    .finale p { max-width: 640px; margin: 34px 0 0; color: rgba(251,250,246,.62); font-size: 20px; }
+    .finale .hero-actions { margin-top: 42px; }
+
+    .reveal-on-scroll { opacity: 1; transform: none; }
+    .reveal-on-scroll.visible { animation: reveal-in .65s cubic-bezier(.2,.8,.2,1) both; }
+
+    @keyframes dash { to { stroke-dashoffset: -160; } }
+    @keyframes pulse { 0%,100% { filter: drop-shadow(0 0 0 rgba(201,255,69,0)); } 50% { filter: drop-shadow(0 0 12px rgba(201,255,69,.75)); } }
+    @keyframes hero-in { to { opacity: 1; transform: translateY(0); } }
+    @keyframes reveal-in { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes swap-in { from { opacity: .25; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    @media (max-width: 900px) {
+      :root { --header-h: 62px; }
+      .header-links a:first-child { display: none; }
+      .hero-inner, .section-head, .workflow-grid, .seam-explorer, .health-grid { grid-template-columns: 1fr; }
+      .hero { align-items: center; }
+      .hero-inner { padding-top: 56px; }
+      .signal-graphic { min-height: 320px; max-width: 600px; width: 100%; justify-self: end; }
+      .graphic-caption { bottom: -8px; }
+      .section-head { gap: 28px; }
+      .workflow-aside, .health-manifesto { position: static; }
+      .workflow-aside { display: grid; grid-template-columns: auto 1fr; align-items: end; gap: 30px; }
+      .workflow-aside p { margin: 0; }
+      .doctrine-note, .property-note { grid-template-columns: 1fr; }
+      .seam-principles { grid-template-columns: 1fr; }
+      .seam-principle, .seam-principle + .seam-principle { padding: 24px 0; border-left: 0; border-bottom: 1px solid rgba(255,255,255,.18); }
+      .seam-detail { min-height: 0; }
+    }
+
+    @media (max-width: 660px) {
+      .site-header { padding: 0 20px; }
+      .header-links { gap: 14px; }
+      .header-links a { font-size: 10px; }
+      .hero h1 { font-size: clamp(58px, 20vw, 92px); }
+      .signal-graphic { min-height: 260px; }
+      .graphic-caption { display: none; }
+      .evidence-row { grid-template-columns: 42px 1fr; gap: 12px; }
+      .evidence-row p { grid-column: 2; }
+      .craft-grid, .detail-points, .checklist { grid-template-columns: 1fr; }
+      .craft-column + .craft-column { margin-top: 64px; }
+      .scope-row { grid-template-columns: 1fr 32px; gap: 12px; padding: 20px 0; }
+      .scope-row p { grid-column: 1; }
+      .scope-row .arrow { grid-column: 2; grid-row: 1 / span 2; }
+      .ladder-row { grid-template-columns: 42px 1fr; }
+      .ladder-row p, .ladder-row .cost { grid-column: 2; }
+      .workflow-step > p, .complete { margin-left: 0; }
+      .workflow-aside { grid-template-columns: 1fr; }
+      .workflow-aside .big-number { font-size: 120px; }
+      .health-grid { gap: 54px; }
+      .health-action { grid-template-columns: 34px 1fr; gap: 12px; }
+      .health-action p { grid-column: 2; }
+      .checklist > li:nth-child(odd) { border-right: 0; }
+      .check-item, .checklist > li:nth-child(even) .check-item { padding-left: 0; }
+      .finale { min-height: 80svh; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+      .reveal-on-scroll { opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="progress" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <a class="brand" href="#top"><span class="brand-mark"></span> testing-best-practices</a>
+    <nav class="header-links" aria-label="Primary">
+      <a href="#workflow">Workflow</a>
+      <a href="#seams">Integration</a>
+      <a href="../skills/testing-best-practices/SKILL.md">View skill ↗</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-inner">
+        <div>
+          <p class="eyebrow reveal">A field guide for coding agents</p>
+          <h1 id="hero-title" class="reveal">Tests are <span>evidence.</span></h1>
+          <p class="hero-copy reveal">Choose the smallest credible test. Protect behavior, control uncertainty, and make every failure worth reading.</p>
+          <div class="hero-actions reveal">
+            <a class="button primary" href="#evidence">Explore the guide <span>↓</span></a>
+            <a class="button" href="../research/unit-testing-best-practices.md">Read the research ↗</a>
+          </div>
+        </div>
+
+        <div class="signal-graphic">
+          <svg viewBox="0 0 560 520" role="img" aria-labelledby="graph-title">
+            <title id="graph-title">Evidence graph</title>
+            <path class="signal-line hot" d="M110 112 C210 40 340 62 450 130"/>
+            <path class="signal-line" d="M110 112 C70 240 130 360 260 420"/>
+            <path class="signal-line" d="M450 130 C520 250 450 370 260 420"/>
+            <path class="signal-line hot" d="M110 112 C240 190 322 174 450 130"/>
+            <path class="signal-line" d="M260 420 C240 330 250 270 292 226"/>
+            <path class="signal-line" d="M450 130 C390 212 356 224 292 226"/>
+            <path class="signal-line" d="M110 112 C162 205 205 230 292 226"/>
+            <g class="signal-node hot" transform="translate(110 112)">
+              <circle r="58"/><text text-anchor="middle" dominant-baseline="central">BEHAVIOR</text>
+            </g>
+            <g class="signal-node" transform="translate(450 130)">
+              <circle r="52"/><text text-anchor="middle" dominant-baseline="central">RISK</text>
+            </g>
+            <g class="signal-node" transform="translate(292 226)">
+              <circle r="48"/><text text-anchor="middle" dominant-baseline="central">SCOPE</text>
+            </g>
+            <g class="signal-node" transform="translate(260 420)">
+              <circle r="60"/><text text-anchor="middle" dominant-baseline="central">FIDELITY</text>
+            </g>
+            <circle cx="292" cy="226" r="86" fill="none" stroke="rgba(201,255,69,.3)" stroke-dasharray="2 9"/>
+          </svg>
+          <div class="graphic-caption">Strongest relevant confidence<br>for the lowest feedback<br>and maintenance cost.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="evidence">
+      <div class="section-inner">
+        <div class="section-head reveal-on-scroll">
+          <p class="section-kicker">01 / Evidence model</p>
+          <div>
+            <h2>A test earns trust six ways.</h2>
+            <p class="section-lede">Quality is a balance, not a slogan. More realism can cost determinism; more isolation can cost fidelity. Make the trade-off visible.</p>
+          </div>
+        </div>
+        <div class="evidence-list">
+          <article class="evidence-row reveal-on-scroll"><span class="index">01</span><h3>Relevance</h3><p>Protect behavior a caller, user, or operator actually relies on.</p></article>
+          <article class="evidence-row reveal-on-scroll"><span class="index">02</span><h3>Sensitivity</h3><p>Fail when the plausible regression it targets is present.</p></article>
+          <article class="evidence-row reveal-on-scroll"><span class="index">03</span><h3>Determinism</h3><p>Give the same result for unchanged code, inputs, and declared environment.</p></article>
+          <article class="evidence-row reveal-on-scroll"><span class="index">04</span><h3>Diagnosis</h3><p>Identify the broken guarantee and provide enough context to begin repair.</p></article>
+          <article class="evidence-row reveal-on-scroll"><span class="index">05</span><h3>Resilience</h3><p>Survive behavior-preserving refactors and harmless orchestration changes.</p></article>
+          <article class="evidence-row reveal-on-scroll"><span class="index">06</span><h3>Economy</h3><p>Return confidence worth its runtime, infrastructure, and maintenance cost.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section workflow" id="workflow">
+      <div class="section-inner">
+        <div class="section-head reveal-on-scroll">
+          <p class="section-kicker">02 / Operating loop</p>
+          <div>
+            <h2>One repeatable process. No imposed methodology.</h2>
+          </div>
+        </div>
+        <div class="workflow-grid">
+          <div class="workflow-aside reveal-on-scroll">
+            <span class="big-number">6</span>
+            <p>Each step ends at a checkable boundary. Project conventions decide the framework, sequencing, and style.</p>
+          </div>
+          <div class="workflow-steps">
+            <article class="workflow-step reveal-on-scroll"><div class="step-top"><span class="step-number">01</span><h3>Frame the evidence</h3></div><p>Name the behavior, target failure, observable outcome, and controllable boundary.</p><div class="complete"><strong>Complete when</strong> the evidence fits “Given state, when action, then observable outcome.”</div></article>
+            <article class="workflow-step reveal-on-scroll"><div class="step-top"><span class="step-number">02</span><h3>Choose the smallest credible test</h3></div><p>Include only participants needed to expose the risk. State every substitution and fidelity gap.</p><div class="complete"><strong>Complete when</strong> included and omitted participants each have a reason.</div></article>
+            <article class="workflow-step reveal-on-scroll"><div class="step-top"><span class="step-number">03</span><h3>Select cases by risk</h3></div><p>Use representative cases, meaningful partitions, boundaries, failures, regressions, and invariants where they change the evidence.</p><div class="complete"><strong>Complete when</strong> removing a case would remove a distinct contract or risk.</div></article>
+            <article class="workflow-step reveal-on-scroll"><div class="step-top"><span class="step-number">04</span><h3>Make the test trustworthy</h3></div><p>Keep decisive setup, action, and expectation visible. Control uncertainty and isolate mutable state.</p><div class="complete"><strong>Complete when</strong> the test repeats, survives refactors, and explains its failure.</div></article>
+            <article class="workflow-step reveal-on-scroll"><div class="step-top"><span class="step-number">05</span><h3>Challenge the signal</h3></div><p>Run the focused suite and establish sensitivity through an observed failure, safe perturbation, mutation, or causal review.</p><div class="complete"><strong>Complete when</strong> intended behavior passes and the target defect credibly fails.</div></article>
+            <article class="workflow-step reveal-on-scroll"><div class="step-top"><span class="step-number">06</span><h3>Leave the suite healthier</h3></div><p>Keep scope, speed, ownership, and maintenance cost proportional to the evidence gained.</p><div class="complete"><strong>Complete when</strong> no unexplained flake, hidden shared state, or duplicate evidence remains.</div></article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section scope-section" id="scope">
+      <div class="section-inner">
+        <div class="section-head reveal-on-scroll">
+          <p class="section-kicker">03 / Scope</p>
+          <div><h2>Choose evidence, not a layer.</h2><p class="section-lede">Start with the failure you need to detect. The labels below are candidates—not a mandatory pyramid or portfolio.</p></div>
+        </div>
+        <div class="scope-list">
+          <article class="scope-row reveal-on-scroll"><h3>Narrow / in-process</h3><p>Local decisions, transformations, state transitions, and domain invariants.</p><span class="arrow">→</span></article>
+          <article class="scope-row reveal-on-scroll"><h3>Boundary / integration</h3><p>Mapping, serialization, storage, filesystem, process, framework, or runtime wiring.</p><span class="arrow">→</span></article>
+          <article class="scope-row reveal-on-scroll"><h3>Compatibility / contract</h3><p>Independently versioned requests, responses, messages, and tolerated variation.</p><span class="arrow">→</span></article>
+          <article class="scope-row reveal-on-scroll"><h3>Focused system / journey</h3><p>Deployment configuration, topology, or emergent behavior that exists only together.</p><span class="arrow">→</span></article>
+        </div>
+        <div class="doctrine-note reveal-on-scroll">
+          <h3>Local policy stays local.</h3>
+          <div><p>The skill supplies quality criteria—not a replacement process. The repository and team decide their sequencing, test taxonomy, ratios, targets, isolation philosophy, and framework idioms.</p><div class="policy-list"><span>Coverage targets</span><span>Test ratios</span><span>Test-first sequencing</span><span>Mocking style</span><span>Framework choice</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="craft">
+      <div class="section-inner">
+        <div class="section-head reveal-on-scroll">
+          <p class="section-kicker">04 / Test craft</p>
+          <div><h2>Readable at rest. Useful in failure.</h2><p class="section-lede">A test is executable documentation only when its cause, action, and expected outcome remain visible.</p></div>
+        </div>
+        <div class="craft-grid">
+          <div class="craft-column reveal-on-scroll">
+            <h3>Protect behavior</h3>
+            <ul class="rule-list">
+              <li>Use the supported interface of the tested unit—not its private assembly.</li>
+              <li>Assert return values, exposed state, domain events, and meaningful side effects.</li>
+              <li>Use interaction checks when the interaction itself is the contract.</li>
+              <li>Keep one coherent behavior per test; use as many assertions as that outcome needs.</li>
+              <li>Derive expected values independently with straight-line, inspectable logic.</li>
+              <li>Name the scenario or action and expected result.</li>
+            </ul>
+          </div>
+          <div class="craft-column reveal-on-scroll">
+            <h3>Select cases that discriminate</h3>
+            <ul class="rule-list">
+              <li>Begin with one representative ordinary case.</li>
+              <li>Add equivalence partitions and boundaries where behavior changes.</li>
+              <li>Cover absence, invalidity, and state transitions named by the contract.</li>
+              <li>Preserve the smallest example of every escaped defect.</li>
+              <li>Use properties for broad laws; inspect generator distributions and replay failures.</li>
+              <li>Parameterize shared behavior, not unrelated stories that merely look alike.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section seam-section" id="seams">
+      <div class="section-inner">
+        <div class="section-head reveal-on-scroll">
+          <p class="section-kicker">05 / Integration seams</p>
+          <div><h2>Cross a boundary deliberately.</h2><p class="section-lede">Name the participants, seam, real and substituted behavior, data lifecycle, and failure that the integration test can expose.</p></div>
+        </div>
+        <div class="seam-explorer">
+          <div class="seam-tabs" role="tablist" aria-label="Integration seam types">
+            <button class="seam-tab active" id="tab-store" type="button" role="tab" aria-controls="seam-panel" aria-selected="true" tabindex="0" data-seam="store"><span>01</span><span>Data store</span></button>
+            <button class="seam-tab" id="tab-api" type="button" role="tab" aria-controls="seam-panel" aria-selected="false" tabindex="-1" data-seam="api"><span>02</span><span>API / contract</span></button>
+            <button class="seam-tab" id="tab-async" type="button" role="tab" aria-controls="seam-panel" aria-selected="false" tabindex="-1" data-seam="async"><span>03</span><span>Async / queue</span></button>
+            <button class="seam-tab" id="tab-migration" type="button" role="tab" aria-controls="seam-panel" aria-selected="false" tabindex="-1" data-seam="migration"><span>04</span><span>Migration</span></button>
+            <button class="seam-tab" id="tab-third" type="button" role="tab" aria-controls="seam-panel" aria-selected="false" tabindex="-1" data-seam="third"><span>05</span><span>Third party</span></button>
+          </div>
+          <article class="seam-detail" id="seam-panel" role="tabpanel" aria-labelledby="tab-store" aria-live="polite">
+            <p class="detail-label">Data store / fidelity</p>
+            <h3>Use the real semantics your claim depends on.</h3>
+            <p>Substitute engines can differ in collation, queries, types, constraints, transactions, locking, and vendor behavior. Include the production engine and relevant version when those semantics carry the risk.</p>
+            <div class="detail-points">
+              <div class="detail-point"><strong>Observe</strong><span>Application mapping and results through the supported read/write path.</span></div>
+              <div class="detail-point"><strong>Isolate</strong><span>Fresh schema, unique namespace, disposable instance, or fitting transaction boundary.</span></div>
+              <div class="detail-point"><strong>Capture</strong><span>Engine version, migration state, configuration, and decisive records.</span></div>
+              <div class="detail-point"><strong>Complete</strong><span>Every store-specific behavior the change relies on is exercised.</span></div>
+            </div>
+          </article>
+        </div>
+        <div class="seam-principles reveal-on-scroll">
+          <div class="seam-principle"><strong>Balance</strong><p>Use enough production fidelity to expose the risk and enough hermetic control to make the result attributable.</p></div>
+          <div class="seam-principle"><strong>Own</strong><p>Control dependency versions, readiness, data, identifiers, parallel isolation, and cleanup—including partial failure.</p></div>
+          <div class="seam-principle"><strong>Diagnose</strong><p>Capture the seam, versions, configuration, correlation IDs, redacted traffic, last state, deadline, and reproduction command.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="doubles">
+      <div class="section-inner">
+        <div class="section-head reveal-on-scroll">
+          <p class="section-kicker">06 / Fidelity</p>
+          <div><h2>Every double needs a reason.</h2><p class="section-lede">Choose the highest-fidelity practical collaborator. State what control it buys and what confidence it leaves behind.</p></div>
+        </div>
+        <div class="ladder">
+          <article class="ladder-row reveal-on-scroll"><span class="rank">01</span><h3>Real implementation</h3><p>Best when fast, deterministic, safe, and easy to construct.</p><span class="cost">Cost: setup or runtime</span></article>
+          <article class="ladder-row reveal-on-scroll"><span class="rank">02</span><h3>Maintained fake</h3><p>Reusable lightweight behavior that preserves the contract and is contract-tested.</p><span class="cost">Cost: drift and ownership</span></article>
+          <article class="ladder-row reveal-on-scroll"><span class="rank">03</span><h3>Scenario stub</h3><p>A precise value or rare error that makes a difficult case reachable.</p><span class="cost">Cost: duplicated assumptions</span></article>
+          <article class="ladder-row reveal-on-scroll"><span class="rank">04</span><h3>Interaction check</h3><p>Useful when the call, count, absence, or ordering is itself observable behavior.</p><span class="cost">Cost: orchestration coupling</span></article>
+        </div>
+        <div class="property-note reveal-on-scroll"><h3>Examples tell stories.<br>Properties test laws.</h3><div><p>Use properties for round trips, idempotence, conservation, ordering, monotonicity, model equivalence, and output validity.</p><p>Make the invariant implementation-independent. Inspect generated distributions, preserve seeds, shrink counterexamples, and keep explicit edges that random generation may miss.</p></div></div>
+      </div>
+    </section>
+
+    <section class="section health-section" id="health">
+      <div class="section-inner">
+        <div class="section-head reveal-on-scroll"><p class="section-kicker">07 / Suite health</p><div><h2>Trust is a portfolio, not a percentage.</h2></div></div>
+        <div class="health-grid">
+          <div class="health-manifesto reveal-on-scroll"><p>Metrics matter when they change a decision. A single number cannot certify a test suite.</p></div>
+          <div class="health-list">
+            <div class="health-row reveal-on-scroll"><strong>Behavior inventory</strong><span>Which important contracts and risks have evidence?</span></div>
+            <div class="health-row reveal-on-scroll"><strong>Coverage gaps</strong><span>Which changed or critical code is never exercised?</span></div>
+            <div class="health-row reveal-on-scroll"><strong>Mutation</strong><span>Which plausible faults survive the current assertions?</span></div>
+            <div class="health-row reveal-on-scroll"><strong>Runtime</strong><span>Which tests control local, presubmit, or release feedback?</span></div>
+            <div class="health-row reveal-on-scroll"><strong>Flakiness</strong><span>Which tests disagree with themselves for unchanged code?</span></div>
+            <div class="health-row reveal-on-scroll"><strong>Diagnosis</strong><span>How quickly can a failure be reproduced and localized?</span></div>
+            <div class="health-row reveal-on-scroll"><strong>Churn</strong><span>Which tests change during behavior-preserving refactors?</span></div>
+            <div class="health-row reveal-on-scroll"><strong>Escaped defects</strong><span>Which missing scenario, seam, or level let the bug pass?</span></div>
+          </div>
+        </div>
+        <div class="health-playbook reveal-on-scroll">
+          <div class="health-action"><span class="rank">01</span><strong>Classify first</strong><p>Decide whether a failure comes from product behavior, an intentional contract change, the test, the environment, or nondeterminism before editing either side.</p></div>
+          <div class="health-action"><span class="rank">02</span><strong>Repair flakes</strong><p>Capture seed, order, timing, load, versions, and artifacts; remove shared state, guessed sleeps, unowned resources, and work that outlives cleanup.</p></div>
+          <div class="health-action"><span class="rank">03</span><strong>Protect feedback</strong><p>Place evidence in the earliest execution tier where its decision value justifies its cost; track queue time, percentiles, and outliers.</p></div>
+          <div class="health-action"><span class="rank">04</span><strong>Prune carefully</strong><p>Narrow broad regressions when fidelity remains equal, retain distinct seam risks, and remove duplicates or obsolete cases only after their behavior remains protected.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section checklist-section" id="checklist">
+      <div class="section-inner">
+        <div class="section-head reveal-on-scroll"><p class="section-kicker">08 / Review</p><div><h2>Twelve checks before “done.”</h2><p class="section-lede">Click through the list. Completion means evidence is relevant, sensitive, repeatable, and explainable—not merely green.</p></div></div>
+        <ul class="checklist">
+          <li><label class="check-item"><input type="checkbox"><span class="check-box" aria-hidden="true"></span><span>Behavior and target failure are named.</span></label></li>
+          <li><label class="check-item"><input type="checkbox"><span class="check-box" aria-hidden="true"></span><span>The smallest credible scope is used.</span></label></li>
+          <li><label class="check-item"><input type="checkbox"><span class="check-box" aria-hidden="true"></span><span>Every real or substituted participant has a reason.</span></label></li>
+          <li><label class="check-item"><input type="checkbox"><span class="check-box" aria-hidden="true"></span><span>Cases each protect a distinct risk.</span></label></li>
+          <li><label class="check-item"><input type="checkbox"><span class="check-box" aria-hidden="true"></span><span>Expected values come from the contract.</span></label></li>
+          <li><label class="check-item"><input type="checkbox"><span class="check-box" aria-hidden="true"></span><span>Time, randomness, state, and environment are controlled.</span></label></li>
+          <li><label class="check-item"><input type="checkbox"><span class="check-box" aria-hidden="true"></span><span>Mutable data is fresh or isolated.</span></label></li>
+          <li><label class="check-item"><input type="checkbox"><span class="check-box" aria-hidden="true"></span><span>The oracle observes the promised outcome.</span></label></li>
+          <li><label class="check-item"><input type="checkbox"><span class="check-box" aria-hidden="true"></span><span>Failure output shows expected, actual, and context.</span></label></li>
+          <li><label class="check-item"><input type="checkbox"><span class="check-box" aria-hidden="true"></span><span>Sensitivity to the target defect is credible.</span></label></li>
+          <li><label class="check-item"><input type="checkbox"><span class="check-box" aria-hidden="true"></span><span>Relevant commands pass with no unexplained result.</span></label></li>
+          <li><label class="check-item"><input type="checkbox"><span class="check-box" aria-hidden="true"></span><span>No unnecessary scope, flake, or duplicate evidence remains.</span></label></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="finale">
+      <div class="finale-inner reveal-on-scroll">
+        <p class="eyebrow">testing-best-practices</p>
+        <h2>Make every green test <span>mean something.</span></h2>
+        <p>A methodology-agnostic skill for agents that write, review, choose, and repair automated tests.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="../skills/testing-best-practices/SKILL.md">Open the skill ↗</a>
+          <a class="button" href="../research/integration-testing-best-practices.md">Read integration research ↗</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const seamContent = {
+      store: {
+        label: 'Data store / fidelity',
+        title: 'Use the real semantics your claim depends on.',
+        body: 'Substitute engines can differ in collation, queries, types, constraints, transactions, locking, and vendor behavior. Include the production engine and relevant version when those semantics carry the risk.',
+        points: [
+          ['Observe', 'Application mapping and results through the supported read/write path.'],
+          ['Isolate', 'Fresh schema, unique namespace, disposable instance, or fitting transaction boundary.'],
+          ['Capture', 'Engine version, migration state, configuration, and decisive records.'],
+          ['Complete', 'Every store-specific behavior the change relies on is exercised.']
+        ]
+      },
+      api: {
+        label: 'API / compatibility',
+        title: 'Separate shared language from functional effect.',
+        body: 'Contract evidence checks whether consumer and provider agree. Functional integration evidence checks whether the collaboration produces the promised state change. Keep both claims explicit.',
+        points: [
+          ['Contract', 'Exercise real consumer code and verify minimal expectations against the provider.'],
+          ['Tolerate', 'Match only fields and semantics the consumer actually requires.'],
+          ['Effect', 'Add an integrated path for persistence, messages, or downstream state.'],
+          ['Version', 'Test the compatibility promises of independently released participants.']
+        ]
+      },
+      async: {
+        label: 'Async / condition',
+        title: 'Wait for state, not guessed time.',
+        body: 'Subscribe to completion or poll an observable terminal condition with a bounded deadline. A fixed sleep is simultaneously slower than success and shorter than some valid runs.',
+        points: [
+          ['Signal', 'Prefer completion events or notifications when the system exposes them.'],
+          ['Poll', 'Use a useful cadence and bounded deadline as the fallback.'],
+          ['Report', 'Include elapsed time and the last observed state on timeout.'],
+          ['Failure', 'Exercise duplicates, delays, ordering, retry exhaustion, and recovery by risk.']
+        ]
+      },
+      migration: {
+        label: 'Migration / evolution',
+        title: 'Test the path, not only the destination.',
+        body: 'An empty latest schema proves little about an upgrade. Start from a representative supported baseline and apply the same ordered artifacts used in deployment.',
+        points: [
+          ['Baseline', 'Provision a supported prior state with representative data.'],
+          ['Apply', 'Run the production migration path and compatible application configuration.'],
+          ['Verify', 'Check schema expectations and caller-visible behavior.'],
+          ['Strategy', 'Exercise rollback or roll-forward only when the release process promises it.']
+        ]
+      },
+      third: {
+        label: 'Third party / control',
+        title: 'State the gap you cannot own.',
+        body: 'External availability, cost, rate limits, and behavior sit outside the suite. Use a provider-supported sandbox or contract-verified simulation for frequent evidence, then add a narrow compatibility probe where permitted.',
+        points: [
+          ['Frequent', 'Use a safe sandbox, simulator, or recorded protocol fixture.'],
+          ['Probe', 'Keep live compatibility checks narrow, rate-aware, and separately safeguarded.'],
+          ['Data', 'Use synthetic identities and keep secrets out of fixtures and diagnostics.'],
+          ['Gap', 'Document what remains unproved because the provider is outside test control.']
+        ]
+      }
+    };
+
+    const detail = document.querySelector('.seam-detail');
+    const seamTabs = [...document.querySelectorAll('.seam-tab')];
+    const selectSeam = (tab) => {
+        const content = seamContent[tab.dataset.seam];
+        seamTabs.forEach((item) => {
+          item.classList.toggle('active', item === tab);
+          item.setAttribute('aria-selected', String(item === tab));
+          item.tabIndex = item === tab ? 0 : -1;
+        });
+        detail.setAttribute('aria-labelledby', tab.id);
+        detail.classList.remove('swap');
+        void detail.offsetWidth;
+        detail.innerHTML = `
+          <p class="detail-label">${content.label}</p>
+          <h3>${content.title}</h3>
+          <p>${content.body}</p>
+          <div class="detail-points">
+            ${content.points.map(([title, copy]) => `<div class="detail-point"><strong>${title}</strong><span>${copy}</span></div>`).join('')}
+          </div>`;
+        detail.classList.add('swap');
+    };
+
+    seamTabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => selectSeam(tab));
+      tab.addEventListener('keydown', (event) => {
+        const keys = ['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft', 'Home', 'End'];
+        if (!keys.includes(event.key)) return;
+        event.preventDefault();
+        const nextIndex = event.key === 'Home' ? 0
+          : event.key === 'End' ? seamTabs.length - 1
+          : (index + (event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : -1) + seamTabs.length) % seamTabs.length;
+        seamTabs[nextIndex].focus();
+        selectSeam(seamTabs[nextIndex]);
+      });
+    });
+
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.13 });
+    document.querySelectorAll('.reveal-on-scroll').forEach((item) => revealObserver.observe(item));
+
+    const progress = document.querySelector('.progress');
+    const updateProgress = () => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      progress.style.width = `${max > 0 ? (window.scrollY / max) * 100 : 0}%`;
+    };
+    window.addEventListener('scroll', updateProgress, { passive: true });
+    updateProgress();
+  </script>
+</body>
+</html>
