@@ -4,6 +4,15 @@ Read this file when setup is evaluating direct harness commands or when the conf
 
 Raw mode is a supervised job runner built from one-shot agent commands, isolated workspaces, operating-system processes, and Commander's private ledger. The examples below are discovery seeds. The installed CLI's current help and a live probe determine the actual command.
 
+## Contents
+
+- [Qualification](#qualification)
+- [Current command seeds](#current-command-seeds)
+- [Detached job directory](#detached-job-directory)
+- [Non-blocking observation](#non-blocking-observation)
+- [Follow-up and recovery](#follow-up-and-recovery)
+- [Captain operation](#captain-operation)
+
 ## Qualification
 
 Start with the machine's visible commands and extend the list from installed skills, project guidance, and the user's tools:
@@ -30,7 +39,7 @@ Adapt these only after checking the installed version:
 | Pi | `pi -p <prompt>` from the workspace | `--model <model> --thinking <effort>` |
 | OpenCode | `opencode run --dir <workspace> <prompt>` | `-m <provider/model> --variant <effort>` |
 
-Use read-only or plan permissions for Captains and reviewers. Give a Sargeant the narrowest write and tool authority that can deliver its brief. When a harness cannot express the Captain boundary technically, use an isolated coordination directory and make the project available read-only where the environment supports it; record the remaining enforcement gap during setup.
+Give reviewers read-only or plan permissions. Give a Captain write access to its private coordination state and authority to launch and observe child jobs while keeping project deliverables read-only. Give a Sergeant the narrowest write and tool authority that can deliver its brief. When a harness cannot express a role boundary technically, isolate its workspace and record the enforcement gap during setup.
 
 Use prompt files for long command packets. Shell-quote every path and argument, keep secrets out of command lines and logs, and run from the intended workspace so project instructions resolve correctly.
 
@@ -66,9 +75,9 @@ nohup sh -c '
 printf '%s\n' "$!" >"$job_dir/pid"
 ```
 
-This wrapper is a shape, not a copy-paste command: substitute an argument-safe invocation, and account for harnesses whose prompt flag does not read stdin. If the environment already provides durable background agents or a terminal/session manager, prefer its verified identity and completion interface over a bare PID.
+Treat this wrapper as a schematic: substitute an argument-safe invocation and account for harnesses whose prompt flag does not read stdin. Prefer a verified durable-agent or terminal/session interface when the environment provides one.
 
-Record the job and PID or session in the ledger immediately. During qualification, prove that stopping this identity also stops any child process the harness creates. If it does not, use a verified harness session or terminal/process-group manager instead of the wrapper PID. Return control after confirming the process survived startup long enough to create observable state; delivery continues in the background.
+Record the job and PID or session in the ledger immediately. During qualification, prove that stopping this identity also stops every child process the harness creates; otherwise select a verified harness session or terminal/process-group manager. Return control after confirming the process survived startup long enough to create observable state; delivery continues in the background.
 
 ## Non-blocking observation
 
@@ -79,7 +88,9 @@ At interaction boundaries:
 3. If it is alive, compare output progress and leave the job running.
 4. If it is gone, classify worker loss and preserve its workspace before continuation.
 
-An old timestamp or quiet log is a reason to inspect, not proof of failure. Some high-effort jobs produce no output for long periods. Avoid foreground polling and sleep loops; a later Commander interaction or a verified completion notification performs the next reconciliation.
+An old timestamp or quiet log is a reason to inspect, not proof of failure. Some high-effort jobs produce no output for long periods. A later Commander interaction or a verified completion notification performs the next reconciliation, keeping the user conversation available.
+
+**Observation is complete when:** every inspected dispatch is classified from exit, process, session, or output evidence and has a recorded next action.
 
 Structured harness output may provide stronger signals than logs. Prefer explicit authentication, model-not-found, quota, rate-limit, permission, and terminal completion events. Keep the raw evidence path in the job ledger.
 
@@ -99,7 +110,7 @@ Run a Captain as its own detached raw job. Its command packet includes:
 - the parent job and dispatch IDs;
 - the private child-state directory it may write;
 - its allocated concurrency slots;
-- the configured Sargeant candidates;
+- the configured Sergeant candidates;
 - the concrete channel or file through which it reports to Commander.
 
 The Captain launches child jobs in namespaced dispatch directories, observes them inside its own background process, and emits one consolidated completion report. Commander reserves the Captain's slots and monitors its report rather than writing the Captain's child state or taking over live children. If the Captain is lost, Commander inventories every child PID/session and workspace before appointing a replacement Captain.

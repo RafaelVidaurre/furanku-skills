@@ -11,7 +11,7 @@ npx skills add rafaelvidaurre/furanku-skills --skill commander # one skill
 
 ### commander
 
-Turns one agent into a non-implementing Commander that remains the user's sole interface while Captains design and coordinate complex work and Sargeants deliver it. It supports persistent background jobs, adaptive routing, model-and-effort rosters, evidence-based acceptance, and project-specific orchestration mechanisms without imposing a work tracker.
+Turns one agent into a non-implementing Commander that remains the user's sole interface while Captains design and coordinate complex work and Sergeants deliver it. It supports persistent background jobs, adaptive routing, model-and-effort rosters, evidence-based acceptance, and project-specific orchestration mechanisms without imposing a work tracker.
 
 ```
 > Set up Commander for this project using the orchestration tools available here.

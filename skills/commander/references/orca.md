@@ -4,6 +4,15 @@ Read this file when setup is evaluating Orca or the project's selected mechanism
 
 Orca is one qualified mechanism example. Use its orchestration task and dispatch state for supervised Commander jobs; terminal or worktree prompt handoffs alone transfer ownership and therefore do not satisfy this skill's completion tracking.
 
+## Contents
+
+- [Qualification](#qualification)
+- [Reconcile state](#reconcile-state)
+- [Create and dispatch work](#create-and-dispatch-work)
+- [Worker and Captain lifecycle](#worker-and-captain-lifecycle)
+- [Completion](#completion)
+- [Liveness and recovery](#liveness-and-recovery)
+
 ## Qualification
 
 Confirm the live runtime and orchestration surface:
@@ -34,7 +43,7 @@ At the start and end of each Commander interaction, use non-blocking reads:
 
 ```sh
 orca orchestration task-list --json
-orca orchestration check --unread --types worker_done,escalation,decision_gate --json
+orca orchestration check --terminal <commander-handle> --unread --types worker_done,escalation,decision_gate --json
 orca terminal list --json
 ```
 
@@ -44,15 +53,18 @@ When inheriting or recovering a job, verify its concrete dispatch:
 orca orchestration dispatch-show --task <task-id> --json
 ```
 
-Orca task state is authoritative for dispatch ownership; Commander's private ledger holds the user outcome, acceptance criteria, and links to these IDs. A Commander interaction does not sit in a long `check --wait`. A Captain running as a separate background agent may use bounded rolling waits while supervising its children.
+Orca task state is authoritative for dispatch ownership; Commander's private ledger holds the user outcome, acceptance criteria, and links to these IDs. Commander uses the non-blocking check above. A Captain running as a separate background agent may use bounded rolling waits while supervising its children.
 
 ## Create and dispatch work
 
 Create one task for each delivery boundary and use dependencies or a parent ID for the ownership tree:
 
 ```sh
-orca orchestration task-create --spec <command-packet> --json
-orca orchestration task-create --spec <child-command-packet> --parent <captain-task-id> --deps '<json-array>' --json
+packet_file=<absolute-command-packet-path>
+orca orchestration task-create --spec "$(cat "$packet_file")" --json
+
+child_packet_file=<absolute-child-command-packet-path>
+orca orchestration task-create --spec "$(cat "$child_packet_file")" --parent <captain-task-id> --deps '<json-array>' --json
 ```
 
 Choose the workspace independently from the role:
@@ -93,7 +105,7 @@ orca orchestration dispatch-show --task <task-id> --json
 
 An injected worker uses the concrete coordinator handle and IDs from its current preamble. It sends questions with `orca orchestration ask`, liveness only when requested, and exactly one `worker_done` for the dispatch. Lifecycle messages target the concrete coordinator, not a group.
 
-A Captain creates child tasks with its own task as `--parent`, dispatches ready Sargeants, and waits in its background terminal for `worker_done`, `escalation`, or decision events. It sends Commander one consolidated `worker_done` only after every required child is accounted for. Task IDs and dispatch IDs remain in the Captain completion report.
+A Captain creates child tasks with its own task as `--parent`, dispatches ready Sergeants, and waits in its background terminal for `worker_done`, `escalation`, or decision events. It sends Commander one consolidated `worker_done` only after every required child is accounted for. Task IDs and dispatch IDs remain in the Captain completion report.
 
 When a worker asks a material question, Commander reads the `decision_gate` message, obtains the user decision if needed, and replies to that same message:
 
@@ -109,11 +121,11 @@ Accept `worker_done` only when its payload matches the live task, dispatch, and 
 orca orchestration task-update --id <task-id> --status completed --result '<json-result>' --json
 ```
 
-Use `failed` or `blocked` only when the corresponding outcome is established. A review-only worker reports findings; it does not gain authority to edit the delivery. Commander closes the top-level private job only after its acceptance criteria and all Orca child tasks are reconciled.
+Use `failed` or `blocked` only when the corresponding outcome is established. A review-only worker retains read-only authority and reports findings. Commander closes the top-level private job only after its acceptance criteria and all Orca child tasks are reconciled.
 
 ## Liveness and recovery
 
-A non-blocking check returning no messages means there was no event; it does not mean the worker failed. Inspect task state and terminal evidence:
+An empty non-blocking check establishes only that no event arrived. Keep ownership unchanged and inspect task state and terminal evidence:
 
 ```sh
 orca terminal show --terminal <handle> --json
@@ -123,7 +135,7 @@ orca orchestration dispatch-show --task <task-id> --json
 
 Structured escalation, terminal exit, authentication output, model errors, or quota/usage messages determine the failure class. A live terminal with ongoing activity retains ownership.
 
-If a worker is proven lost, preserve its worktree, mark the failed dispatch, create a continuation task or redispatch according to the live Orca interface, and give the replacement the prior task IDs and workspace state. Inventory a lost Captain's child dispatches before replacement so live Sargeants are not duplicated.
+If a worker is proven lost, preserve its worktree, mark the failed dispatch, create a continuation task or redispatch according to the live Orca interface, and give the replacement the prior task IDs and workspace state. Inventory a lost Captain's child dispatches before replacement so live Sergeants retain ownership.
 
 Stop or close a worker only through its concrete terminal identity:
 
