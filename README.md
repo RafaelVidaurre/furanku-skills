@@ -37,14 +37,14 @@ Explore the full guidance in the [interactive testing guide](artifacts/testing-b
 
 ### council
 
-Convenes a council of AI models that debate a decision and vote their way to consensus — or run a multi-model brainstorm. Your agent acts as moderator: it spawns the seats (other model CLIs installed on your machine), runs blind first positions, an adversarial challenge round, and a convergence round, then delivers a verdict with the vote, the rationale, and the dissent.
+Convenes a council of AI models that debate a decision and vote their way to consensus — or run a multi-model brainstorm. Your agent acts as moderator: it invokes approved model CLIs inside a private airlock, gives every seat the same curated evidence instead of project access, runs blind first positions, an adversarial challenge round, and a convergence round, then delivers a verdict with the vote, the rationale, and the dissent.
 
 ```
 > Convene the council: should we migrate this service from REST to gRPC?
 > Council of 5, all fable-5, mixed efforts: brainstorm names for this product.
 ```
 
-First run walks you through picking a bench from the CLIs it detects (claude, codex, grok, gemini, ...). Defaults persist per machine (`~/.config/council/config.json`) and per project (`.council.json`); anything you say in the prompt — seat count, models, efforts — overrides them for that run.
+First run walks you through approving a bench from the safe one-shot modes it detects (claude, codex, grok, gemini, ...). Executable trust persists per machine (`~/.config/council/config.json`); a project config (`.council.json`) can tune only the approved bench, and prompt overrides apply for that run.
 
 ## Layout
 
