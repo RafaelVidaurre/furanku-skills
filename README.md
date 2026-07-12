@@ -4,10 +4,24 @@ A public collection of [agent skills](https://agentskills.io) — portable instr
 
 ```bash
 npx skills add rafaelvidaurre/furanku-skills          # everything
-npx skills add rafaelvidaurre/furanku-skills --skill council   # one skill
+npx skills add rafaelvidaurre/furanku-skills --skill commander # one skill
 ```
 
 ## Skills
+
+### commander
+
+Turns one agent into a non-implementing Commander that remains the user's sole interface while Captains design and coordinate complex work and Sargeants deliver it. It supports persistent background jobs, adaptive routing, model-and-effort rosters, evidence-based acceptance, and project-specific orchestration mechanisms without imposing a work tracker.
+
+```
+> Set up Commander for this project using the orchestration tools available here.
+> Act as Commander and deliver this feature while I continue working with you on something else.
+> Show me the state of every active Commander job.
+```
+
+Project setup qualifies the machine's real tools before use. Raw harness commands and Orca are bundled examples; projects may configure other mechanisms in short prose.
+
+Open the [skill entrypoint](skills/commander/SKILL.md) to see the command loop and setup contract.
 
 ### testing-best-practices
 
