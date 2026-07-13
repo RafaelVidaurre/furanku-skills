@@ -2,49 +2,37 @@
 
 Read this file when setup is evaluating Orca or the project's selected mechanism instructions name Orca.
 
-Orca is one qualified mechanism example. Use its orchestration task and dispatch state for supervised Commander jobs; terminal or worktree prompt handoffs alone transfer ownership and therefore do not satisfy this skill's completion tracking.
+Orca is one configured mechanism example. Use its orchestration task and dispatch state for supervised Commander jobs; terminal or worktree prompt handoffs alone transfer ownership and therefore do not satisfy this skill's completion tracking.
 
 ## Contents
 
-- [Qualification](#qualification)
+- [Readiness](#readiness)
 - [Reconcile state](#reconcile-state)
 - [Create and dispatch work](#create-and-dispatch-work)
 - [Worker and Captain lifecycle](#worker-and-captain-lifecycle)
 - [Completion](#completion)
 - [Liveness and recovery](#liveness-and-recovery)
 
-## Qualification
+## Readiness
 
-Confirm the live runtime and orchestration surface:
+Reuse the machine-level Orca recipe and confirm only the current runtime surface:
 
 ```sh
 command -v orca
 orca status --json
 orca orchestration --help
-orca terminal list --json
+orca worktree current --json
+orca terminal show --json
 ```
 
-On Linux the executable may be `orca-ide`; store the verified command in project instructions. Orca orchestration requires a running, reachable runtime and its orchestration feature.
-
-Qualify with a disposable read-only task:
-
-1. Create a fresh agent terminal in a safe workspace.
-2. Wait for the agent TUI to become ready with a bounded startup timeout.
-3. Create an Orca task and dispatch it with the lifecycle preamble.
-4. Ask the worker to return an exact response and `worker_done`.
-5. Observe the message and dispatch state from another command.
-6. Mark the task terminal and close the disposable terminal.
-
-The probe passes when task and dispatch provenance exist, the worker reports the correct task and dispatch IDs, and no probe terminal or task remains active.
+On Linux the executable may be `orca-ide`; store the resolved command in reusable machine instructions. Readiness passes when the runtime responds, orchestration commands are available, and the current Commander terminal can be identified. Do not create a task, terminal, worktree, or worker during readiness checks.
 
 ## Reconcile state
 
-At the start and end of each Commander interaction, use non-blocking reads:
+At the start and end of each Commander interaction, check only lifecycle events addressed to Commander:
 
 ```sh
-orca orchestration task-list --json
 orca orchestration check --terminal <commander-handle> --unread --types worker_done,escalation,decision_gate --json
-orca terminal list --json
 ```
 
 When inheriting or recovering a job, verify its concrete dispatch:
@@ -53,7 +41,7 @@ When inheriting or recovering a job, verify its concrete dispatch:
 orca orchestration dispatch-show --task <task-id> --json
 ```
 
-Orca task state is authoritative for dispatch ownership; Commander's private ledger holds the user outcome, acceptance criteria, and links to these IDs. Commander uses the non-blocking check above. A Captain running as a separate background agent may use bounded rolling waits while supervising its children.
+Orca task state is authoritative for dispatch ownership; Commander's private ledger holds the user outcome, acceptance criteria, and links to task and dispatch IDs. Inspect known jobs with `dispatch-show`. Use a filtered task listing only to recover missing ledger links, and keep the filter narrow enough that unrelated runtime-global state does not enter context. A Captain running as a separate background agent may use bounded rolling waits while supervising its children.
 
 ## Create and dispatch work
 
@@ -76,7 +64,7 @@ Choose the workspace independently from the role:
 Current-worktree worker:
 
 ```sh
-orca terminal create --worktree active --title <job-name> --command '<verified-agent-command>' --json
+orca terminal create --worktree active --title <job-name> --command '<configured-agent-command>' --json
 orca terminal wait --terminal <handle> --for tui-idle --timeout-ms 60000 --json
 orca orchestration dispatch --task <task-id> --to <handle> --inject --json
 ```
@@ -90,14 +78,13 @@ orca terminal wait --terminal <handle> --for tui-idle --timeout-ms 60000 --json
 orca orchestration dispatch --task <task-id> --to <handle> --inject --json
 ```
 
-When a model or effort needs a custom launch command, create the worktree without `--agent`, then create a terminal in it using the qualified command. Orca lineage and Git base are separate choices: use child lineage for stacked/dependent work and `--no-parent` for independent work; choose the base branch from project intent rather than lineage.
+When a model or effort needs a custom launch command, create the worktree without `--agent`, then create a terminal in it using the configured command. Orca lineage and Git base are separate choices: use child lineage for stacked/dependent work and `--no-parent` for independent work; choose the base branch from project intent rather than lineage.
 
-`dispatch --inject` is preferred for recognized agent CLIs because it supplies live task, dispatch, assignee, coordinator, messaging, and completion instructions. For a bare shell or unrecognized CLI, dispatch without injection only after setup has qualified a manual preamble and prompt delivery through `orca terminal send`.
+`dispatch --inject` is preferred for recognized agent CLIs because it supplies live task, dispatch, assignee, coordinator, messaging, and completion instructions. For a bare shell or unrecognized CLI, use the project-configured manual preamble and prompt delivery through `orca terminal send`.
 
-The dispatch is recorded only after these both succeed:
+The dispatch is recorded when the dispatch command succeeds and this targeted read confirms its identity:
 
 ```sh
-orca orchestration task-list --json
 orca orchestration dispatch-show --task <task-id> --json
 ```
 
@@ -129,7 +116,7 @@ An empty non-blocking check establishes only that no event arrived. Keep ownersh
 
 ```sh
 orca terminal show --terminal <handle> --json
-orca terminal read --terminal <handle> --json
+orca terminal read --terminal <handle> --limit 200 --json
 orca orchestration dispatch-show --task <task-id> --json
 ```
 

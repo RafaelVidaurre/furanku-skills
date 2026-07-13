@@ -5,8 +5,9 @@ Read this file when a project has no Commander configuration, when the user asks
 ## Contents
 
 - [Configuration locations](#configuration-locations)
-- [Project configuration](#project-configuration)
+- [Configuration and reuse](#configuration-and-reuse)
 - [Agent-driven setup](#agent-driven-setup)
+- [Optional deep diagnostics](#optional-deep-diagnostics)
 - [Changing a configured mechanism](#changing-a-configured-mechanism)
 
 ## Configuration locations
@@ -15,22 +16,54 @@ Use XDG paths when their environment variables are set; the defaults below show 
 
 | Purpose | Default location |
 | --- | --- |
-| Machine-global defaults | `~/.config/commander/config.yaml` |
-| Machine-local project settings | `~/.config/commander/projects/<project-key>.yaml` |
-| Repository project settings | `<project-root>/.commander/config.yaml` |
-| Private runtime state | `~/.local/state/commander/projects/<project-key>/` |
+| Machine-global reusable defaults | `~/.config/furanku-skills/commander/config.yaml` |
+| Machine-local project settings | `~/.config/furanku-skills/commander/projects/<project-key>.yaml` |
+| Repository project settings | `<project-root>/.furanku-skills/commander/config.yaml` |
+| Private runtime state | `~/.local/state/furanku-skills/commander/projects/<project-key>/` |
 
-Apply the precedence defined in `SKILL.md`. Merge maps recursively. A higher layer replaces a role's candidate list or the entire `mechanism` block when it defines one; it does not append fragments. Current-run overrides remain ephemeral unless the user asks to save them.
+When a namespaced path is absent, read the corresponding legacy `~/.config/commander/`, `~/.local/state/commander/`, or `<project-root>/.commander/config.yaml` path as a compatibility source. Propose migration before writing: preserve active-job ledger locations, write future configuration and new-job state under `furanku-skills/commander/`, and offer to remove obsolete legacy files only after the namespaced copy is verified.
+
+Apply the precedence defined in `SKILL.md`. Merge maps recursively. A higher layer replaces a worker role's candidate list or the entire project `mechanism` block when it defines one; it does not append fragments. Current-run overrides remain ephemeral unless the user asks to save them.
 
 For compatibility, normalize each layer before merging: read `roles.sargeant` as `roles.sergeant` when that layer lacks the canonical key. On an authorized save, write the resolved list under `roles.sergeant` and remove the legacy key.
 
-A project-specific file in either project location is required, and its resolved `mechanism` block must originate at a project layer rather than only from global defaults. The repository file is suitable for shared policy; the machine-local project file is suitable for private harness, model, path, and preference differences. Store credentials in the harness's credential store or environment.
+The agent on which the user invokes this skill is Commander. Candidate discovery, readiness checks, and selection cover only Captain and Sergeant workers. Treat a legacy `roles.commander` entry as obsolete: ignore it during resolution and remove it on an authorized save.
+
+A project-specific file in either project location selects the mechanism by name. The repository file is suitable for shared policy; the machine-local project file is suitable for private paths, project identifiers, and preference differences. Store credentials in the harness's credential store or environment.
 
 Derive `<project-key>` from the canonical Git common directory when one exists, otherwise from the canonical project root. Use a stable short hash so sibling Git worktrees share machine-local preferences while unrelated roots do not collide. Keep the human-readable `project.id` inside configuration.
 
-## Project configuration
+## Configuration and reuse
 
-YAML keeps suitability and mechanism guidance easy to edit. Preserve user-defined fields. The `mechanism` block belongs in a project layer; machine-global configuration supplies reusable role defaults.
+Machine-global configuration holds reusable mechanism recipes, worker rosters, and defaults. A named mechanism profile describes how to launch, observe, follow up, complete, and recover work; it does not select that mechanism for every project.
+
+```yaml
+version: 1
+
+mechanisms:
+  <mechanism-name>:
+    instructions: >-
+      Use its live entrypoint. Launch jobs in the background, retain stable job
+      and worker IDs, observe questions and completion, and recover through the
+      same interface.
+
+roles:
+  captain:
+    - harness: <harness-command>
+      model: <last-known-good-model>
+      effort: <configured-effort>
+      use_for: Deep design and coordination across dependent workers.
+  sergeant:
+    - harness: <harness-command>
+      model: <last-known-good-model>
+      effort: <configured-effort>
+      use_for: Concrete delivery with the required tools and domain strength.
+
+coordination:
+  max_parallel_agents: 12
+```
+
+A project layer selects one profile and may override portable instructions or worker settings:
 
 ```yaml
 version: 1
@@ -38,94 +71,63 @@ project:
   id: example-project
 
 mechanism:
-  name: <qualified-mechanism>
-  instructions: >-
-    Use its verified live entrypoint. Launch jobs in the background, retain stable
-    job and worker IDs, observe questions and completion, and recover through the
-    same interface.
-
-roles:
-  commander:
-    - harness: <verified-harness>
-      model: <verified-model>
-      effort: <verified-effort>
-      use_for: Consequential orchestration decisions and final acceptance.
-  captain:
-    - harness: <verified-harness>
-      model: <verified-model>
-      effort: <verified-effort>
-      use_for: Deep design and coordination across dependent workers.
-  sergeant:
-    - harness: <verified-harness>
-      model: <verified-model>
-      effort: <verified-effort>
-      use_for: Concrete delivery with the required tools and domain strength.
-
-coordination:
-  max_parallel_agents: 3
+  name: <mechanism-name>
 ```
 
-Mechanism instructions name the live entrypoint, non-blocking launch, stable identity and status source, question and follow-up flow, completion signal, and stop or recovery operation. `use_for` is short suitability prose, not a controlled vocabulary. A candidate always names its harness; `model` and `effort` may be omitted to use a verified harness default. Populate role candidates only from live authentication, model, effort, and tool probes; users may configure any qualified harness.
+`max_parallel_agents` is the maximum number of simultaneously active Captains and Sergeants. A positive integer sets the ceiling; `null` means Commander imposes no ceiling. When no layer defines the field, propose `12`; write a project override only when the project should differ from the machine default. No Commander ceiling still respects provider, mechanism, workspace, and ownership constraints.
 
-Choose a stable, human-readable project ID, preferring an ID already present in repository configuration. The private project key handles machine path matching; the project ID names the project in reports and shared configuration.
+Mechanism instructions and worker entries are last-known-good recipes, not availability guarantees. Reuse them across projects and sessions without expiring them based only on age. A project-specific mechanism recipe from another local project may seed a reusable machine profile after removing project paths and identifiers. A project override wins when its environment genuinely differs.
 
-The current agent already occupies the Commander role. If its known identity differs from the confirmed roster, explain the difference and ask whether to continue this session or relaunch with a roster candidate.
+`use_for` is short suitability prose, not a controlled vocabulary. `model` and `effort` may be omitted to use the harness default. Preserve user-defined fields.
 
 ## Agent-driven setup
 
-Ask decisions one at a time and give a recommendation grounded in discovered evidence. Inspect facts directly. When the machine-global file is absent, setup also proposes reusable role candidates from this machine's live harnesses. Global setup establishes defaults; every project still selects and qualifies its mechanism.
+Ask decisions one at a time and give a recommendation grounded in discovered evidence. Inspect facts directly, reuse confirmed machine-level settings, and ask only for unresolved choices.
 
-### 1. Establish the project
+### 1. Establish the project and reusable settings
 
-Find the project root, local agent instructions, existing Commander files, adopted work tracker, workspace isolation facilities, and active uncommitted state. Resolve a prior project ID before proposing a new one.
+Find the project root, local agent instructions, existing Commander files, adopted work tracker, workspace isolation facilities, and active uncommitted state. Resolve a prior project ID before proposing a new one. Read the machine-global worker roster and named mechanism profiles before inspecting other harnesses or project configs.
 
-**Complete when:** the root and project identity are unambiguous and every existing configuration layer has been read.
+When a reusable profile is missing, inspect existing local Commander project files for a matching mechanism recipe. Reuse only portable instructions; derive this project's paths and IDs from its own live state.
 
-### 2. Discover mechanisms and role candidates
+**Complete when:** the root and project identity are unambiguous, every applicable configuration layer has been read, and reusable machine settings have been separated from project-specific values.
 
-Inspect the available tool and skill catalog, commands on `PATH`, relevant project tooling, and locally installed documentation. Consider raw headless harness commands, orchestration systems, built-in agent controls, terminal managers, APIs, and mechanisms not named by this skill. Run each candidate's help or inspection command before forming invocation syntax.
+### 2. Propose and confirm the setup
 
-For each role harness, discover valid model IDs, effort controls, authentication state, permissions, and required tools from its live interface. A binary on `PATH` is a lead; a live probe establishes usability.
+Present the resolved values and ask the user to decide:
 
-**Complete when:** every proposed mechanism and role candidate names its live interface, supported invocation, and exact probe to run.
+1. the single mechanism this project will use;
+2. whether shared fields belong in the repository file and private substitutions in the machine-local project file;
+3. any Captain or Sergeant overrides and their short `use_for` prose;
+4. whether to cap simultaneous Captains and Sergeants, recommending `12`, or set `max_parallel_agents: null` for no Commander-imposed maximum.
 
-### 3. Qualify mechanisms
+Always obtain the concurrency choice before saving unless the user already supplied it in the current run. Do not silently convert a recommendation into configuration.
 
-A mechanism qualifies only when a disposable probe demonstrates all of these capabilities:
+**Complete when:** the user has confirmed one project mechanism, storage destinations, worker overrides, and either a positive concurrency maximum or no Commander maximum.
 
-- launch a role-specific worker with a complete brief and the intended authority;
-- return control to Commander after startup;
-- provide stable worker and job identity;
-- distinguish running, completed, failed, and stopped work;
-- capture a completion report and diagnostic output;
-- deliver a follow-up or resume a blocked job without losing its prior context;
-- stop or recover a worker without creating an untracked duplicate;
-- support a Captain coordinating child Sergeants, directly or through the same persistent task system.
+### 3. Run cheap readiness checks
 
-Launch a Captain that dispatches one Sergeant; have the Sergeant create a nonce file in a disposable workspace and return an exact report, then have the Captain consolidate it. Observe the job independently and remove the worker, file, workspace, and transient task state. Test every proposed role candidate with the cheapest credible prompt. Treat a timeout as inconclusive until mechanism liveness has been inspected.
+Readiness checks are side-effect-free and limited to the selected configuration:
 
-**Complete when:** every mechanism offered to the user has passed the end-to-end probe, every role candidate has passed a liveness probe, and all disposable state is removed.
+- confirm the selected mechanism command exists and its status or help interface responds;
+- confirm the current project, workspace, or Commander session can be identified when the mechanism requires it;
+- confirm each selected harness command exists, using a local version or authentication-status command only when it does not invoke a model;
+- keep runtime queries scoped and bounded so unrelated global tasks, terminals, or worktrees do not enter context.
 
-### 4. Propose, then ask
+Do not launch agents, create orchestration tasks, send model prompts, write nonce files, or test every fallback during setup. Model access, quota, permissions, and lifecycle behavior are established by real dispatches and handled through the normal recovery path if they fail.
 
-Present the evidence-backed recommendation and ask the user to decide:
+**Complete when:** the mechanism entrypoint responds, the current project/session is addressable, and every primary worker command is present or has a configured fallback.
 
-1. the reusable machine-global role roster, when it is not already confirmed;
-2. the single mechanism this project will use;
-3. whether shared fields belong in the repository file and private substitutions in the machine-local project file;
-4. any project role overrides and their short `use_for` prose;
-5. the maximum number of simultaneously active Captains and Sergeants.
+### 4. Save and use the setup
 
-Derive the concurrency recommendation from mechanism capacity, quotas, project isolation, and likely work; use a conservative value when those are unknown. Reuse machine-global answers and discovered project facts.
+Show the intended writes, preserve unrelated configuration, and save after confirmation. Create private runtime state outside the project. Do not run a synthetic end-to-end dispatch after saving; the first real job supplies useful work and live evidence at the same time.
 
-**Complete when:** the user has confirmed applicable global defaults, one project mechanism, storage destinations, role candidates, and a concurrency limit.
+**Complete when:** a project layer selects exactly one reachable mechanism, the confirmed worker roster and concurrency choice resolve unambiguously, and no setup worker or disposable artifact was created.
 
-### 5. Save and prove the setup
+## Optional deep diagnostics
 
-Show the intended writes, preserve unrelated configuration, and save after confirmation. Create private runtime state outside the project. Then run one end-to-end, read-only dispatch through the selected mechanism and reconcile its completion into the private ledger.
-
-**Complete when:** a project layer defines exactly one mechanism, every configured role has a live candidate, the read-only dispatch passes, and no disposable worker or artifact remains active.
+Run a synthetic Captain-to-Sergeant lifecycle test only when the user explicitly requests deep mechanism diagnostics. Ordinary startup, model, quota, permission, messaging, and completion failures use the recovery rules in `SKILL.md`; they do not trigger periodic or per-project requalification.
 
 ## Changing a configured mechanism
 
-Mechanism selection is per project. If it becomes unavailable, preserve active-job evidence and continue unaffected conversation work. Explain the failure and obtain the user's approval before replacing the `mechanism` block. Qualify the approved replacement, then create a traceable continuation for each affected job with new backend identity linked to the prior worker and evidence.
+Mechanism selection is per project. If it becomes unavailable, preserve active-job evidence and continue unaffected conversation work. Explain the failure and obtain the user's approval before replacing the project `mechanism` block. Apply the cheap readiness checks to the approved replacement, then create a traceable continuation for each affected job with new backend identity linked to the prior worker and evidence.

@@ -19,7 +19,7 @@ Turns one agent into a non-implementing Commander that remains the user's sole i
 > Show me the state of every active Commander job.
 ```
 
-Project setup qualifies the machine's real tools before use. Raw harness commands and Orca are bundled examples; projects may configure other mechanisms in short prose.
+Project setup reuses machine-level worker and mechanism recipes, then performs cheap, side-effect-free readiness checks. Raw harness commands and Orca are bundled examples; projects may configure other mechanisms in short prose.
 
 Open the [skill entrypoint](skills/commander/SKILL.md) to see the command loop and setup contract.
 

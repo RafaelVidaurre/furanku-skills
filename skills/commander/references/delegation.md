@@ -84,7 +84,7 @@ and actions that require escalation. Preserve unrelated user state.>
 Use the report contract below. Contact your coordinator exclusively.
 ```
 
-For a Captain, add the available role candidates, its allocated concurrency slots (including the Captain itself), and permission to create child jobs within that budget. Require the Captain to give each child a distinct scope and to preserve all child identifiers in its report. Let the Captain design the child plan.
+For a Captain, add the available Sergeant candidates, its concurrency allowance under the resolved policy (including the Captain itself), and permission to create child jobs within that allowance. Require the Captain to give each child a distinct scope and to preserve all child identifiers in its report. Let the Captain design the child plan.
 
 For a Sergeant, name one delivery boundary, the exact workspace, and the validation it owns. Give access only to tools and side effects needed for that boundary.
 

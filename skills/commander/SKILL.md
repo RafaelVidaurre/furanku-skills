@@ -21,11 +21,11 @@ You are the **Commander**: the user's only interface and the accountable owner o
 
 ## 0. Resolve configuration
 
-Resolve configuration in this order: current user instruction, machine-local project configuration, repository project configuration, then machine-global configuration. A project is ready when a project-specific layer selects exactly one mechanism whose live interface has been qualified.
+Resolve configuration in this order: current user instruction, machine-local project configuration, repository project configuration, then machine-global configuration. A project is ready when a project-specific layer selects exactly one mechanism, its reusable instructions resolve, and its live entrypoint passes the cheap readiness checks in [Setup and configuration](references/setup.md).
 
-If project configuration is missing, the user requests a roster or mechanism change, or the configured mechanism is unavailable, read [Setup and configuration](references/setup.md) and complete that branch before dispatching. A mechanism is any configured way to launch and supervise agents; setup may qualify one this skill has never seen.
+If project configuration is missing, the user requests a worker roster or mechanism change, or the configured mechanism is unavailable, read [Setup and configuration](references/setup.md) and complete that branch before dispatching. A mechanism is any configured way to launch and supervise agents. Reuse machine-level worker rosters and mechanism recipes instead of proving them again per project.
 
-**Complete when:** configuration precedence has one unambiguous result, one project-selected mechanism is qualified, and its live state can be inspected.
+**Complete when:** configuration precedence has one unambiguous result, one project-selected mechanism is reachable, and its live state can be inspected without launching a worker.
 
 ## 1. Reconcile command
 
@@ -61,11 +61,11 @@ Route adaptively:
 - Appoint a Captain when an outcome needs substantial design, decomposition, coordinated dependencies, several Sergeants, or high-consequence tradeoffs.
 - Appoint multiple Captains only for independent workstreams; give each an outcome boundary and one reporting line back to Commander.
 
-Choose role candidates from their configured harness, optional model and effort pins, and short suitability prose. Prefer the best live match for this work; use configured order to break ties and select a fallback. A current-run user choice pins the candidate. Treat unverified model identifiers as proposals until a liveness probe succeeds.
+Choose Captain and Sergeant candidates from their configured harness, optional model and effort pins, and short suitability prose. Prefer the best configured match for this work; use configured order to break ties and select a fallback. A current-run user choice pins the candidate. A candidate is eligible when its command is present and it has not failed in the current run; the real dispatch reveals model access, quota, and runtime availability.
 
-The project concurrency limit covers every active Captain and Sergeant. Reserve a non-overlapping slot budget for each Captain, then dispatch all ready independent work up to the remaining limit. For modifying work, prefer isolated workspaces when the project supports them; otherwise serialize overlapping changes or assign explicit, non-overlapping ownership.
+When `max_parallel_agents` is a positive integer, it caps all active Captains and Sergeants; reserve a non-overlapping allowance for each Captain and dispatch ready independent work within the remainder. When it is `null`, Commander imposes no concurrency ceiling while still respecting provider, mechanism, workspace, and ownership constraints. For modifying work, prefer isolated workspaces when the project supports them; otherwise serialize overlapping changes or assign explicit, non-overlapping ownership.
 
-**Complete when:** every delivery job has one accountable coordinator, every modifying boundary has one exclusive owner, and every selected candidate is currently usable.
+**Complete when:** every delivery job has one accountable coordinator, every modifying boundary has one exclusive owner, and every selected worker candidate is configured and not known unavailable in the current run.
 
 ## 4. Dispatch a complete command packet
 
@@ -82,11 +82,13 @@ Launch through the project's selected mechanism and record the returned worker, 
 When observation shows a problem, classify it before acting:
 
 - **Delivery failure:** the worker completed but the result or validation failed. Return it to the same owner with the evidence, or dispatch a reviewer or fixer.
-- **Candidate failure:** authentication, invalid model, quota, usage limit, startup failure, or harness outage. Mark that candidate unavailable for the current run and select the next qualified candidate within the same mechanism.
+- **Candidate failure:** authentication, invalid model, quota, usage limit, startup failure, or harness outage. Mark that candidate unavailable for the current run and select the next configured candidate within the same mechanism.
 - **Worker loss:** the mechanism proves the worker exited or became unreachable. Inspect its workspace and outputs, preserve partial work, then dispatch a continuation brief.
 - **Mechanism failure:** the configured mechanism itself cannot supervise jobs. Keep unaffected conversation work moving and ask the user before changing the project's mechanism.
 
-A possibly live modifying worker retains exclusive ownership and blocks a duplicate dispatch. A replacement inherits the existing workspace only after Commander accounts for partial state and confirms the previous owner is terminal. When no qualified candidate remains, report the exhausted options and ask for a decision.
+A possibly live modifying worker retains exclusive ownership and blocks a duplicate dispatch. A replacement inherits the existing workspace only after Commander accounts for partial state and confirms the previous owner is terminal. When no configured candidate remains, report the exhausted options and ask for a decision.
+
+After a fallback succeeds, report the exact working harness, model, effort, permissions, and mechanism recipe, then ask whether to promote those values into the reusable machine profile. Keep delivery completion independent from that configuration decision.
 
 **Complete when:** each affected delivery boundary has exactly one live owner or a named blocking decision, and every preserved artifact is included in the continuation record.
 
@@ -100,8 +102,8 @@ After the closing checklist passes, give the user one consolidated report coveri
 
 ## Mechanism guides
 
-These guides are qualified examples, not a registry of allowed mechanisms:
+These guides are documented examples, not a registry of allowed mechanisms:
 
 - For direct headless agent processes, read [Raw harness mechanism](references/raw-harnesses.md) during setup and whenever launching, observing, or recovering a raw job.
 - For Orca-managed coordination, read [Orca mechanism](references/orca.md) during setup and whenever operating an Orca job.
-- For any other mechanism, use its project-configured instructions and inspect its live interface. Apply the same qualification, dispatch, observation, completion, and recovery criteria.
+- For any other mechanism, use its resolved instructions and inspect its live interface. Apply the same cheap readiness, dispatch, observation, completion, and recovery criteria.
