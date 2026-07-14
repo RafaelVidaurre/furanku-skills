@@ -5,7 +5,7 @@ description: Coordinate Beads work through Orca with distinct Commander, Captain
 
 # Commander
 
-Commander is a thin policy layer over **Beads** and **Orca**. Use the installed `beads`, `orca-cli`, and `orchestration` skills for their workflows. Report a missing dependency instead of replacing it.
+Commander is a thin policy layer over **Beads** and **Orca**. Use the installed `bd` CLI directly for Beads, and use the installed `orca-cli` and `orchestration` skills for Orca workflows. The required dependencies are the `bd` executable, an Orca CLI executable supported by `orca-cli`, and those two Orca skills. Report an actual missing dependency instead of replacing it.
 
 ## Resolve routing first
 

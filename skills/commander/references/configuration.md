@@ -73,9 +73,10 @@ python3 "$CONFIG" delete <global|repo|machine-repo> --repo <repository-root> --y
 
 Keep validation with the system that owns each identifier:
 
-- Choose `agent` from Orca's enabled **Settings → Agents** catalog. Orca owns installed-agent detection, custom agents, and launch defaults; Commander maintains no agent catalog.
-- Confirm `model` and `effort` through the selected agent's read-only catalog. For Codex, `codex debug models` returns model slugs with their supported reasoning levels. Use the installed agent's own guidance for other CLIs.
-- The helper validates only the JSON structure. If an agent exposes no read-only catalog, the user must explicitly attest the exact strings during setup. An invalid launch blocks the dispatch and never triggers an inferred fallback.
+- Discover agent CLIs from `PATH` first: run `command -v` for candidates such as `claude`, `codex`, and `grok`. Use the executable name as `agent`; preserve a different exact ID only when an existing custom launcher defines it.
+- Query every discovered CLI through its own one-shot catalog command. Use `codex debug models` for Codex, `grok models` for Grok, and `claude -p "/model" --output-format json --no-session-persistence` for Claude; use each CLI's `--help` output to confirm its model and effort option syntax. For another CLI, inspect its help and use its equivalent non-interactive catalog command.
+- Keep discovery non-interactive and limit it to help and catalog commands that perform no model turn. If a discovered CLI has no non-interactive catalog command, ask the user to attest its exact model and effort strings.
+- Treat the helper as structural validation only. An invalid launch blocks the dispatch and never triggers an inferred fallback.
 
 Discovery and setup must not invoke a model or enter provider usage, account, or billing controls.
 
