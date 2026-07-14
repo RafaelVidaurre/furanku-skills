@@ -1,95 +1,79 @@
 ---
 name: commander
-description: Coordinate Beads work through Orca with distinct Commander, Captain, and Worker responsibilities and cost-effective model routing. Use only when the user explicitly invokes Commander to deliver, supervise, resume, or report on multi-agent project work.
-license: MIT
-metadata:
-  author: rafaelvidaurre
+description: Coordinate Beads work through Orca with distinct Commander, Captain, and Worker roles and configured model-effort routing. Use only when the user explicitly invokes Commander to deliver, supervise, resume, configure, or report on multi-agent project work.
 ---
 
 # Commander
 
-Commander is a thin policy layer over **Beads** and **Orca**. Use the installed `beads`, `orca-cli`, and `orchestration` skills for their actual workflows. If any is unavailable, report that dependency instead of replacing it.
+Commander is a thin policy layer over **Beads** and **Orca**. Use the installed `beads`, `orca-cli`, and `orchestration` skills for their workflows. Report a missing dependency instead of replacing it.
 
-## Boundaries
+## Resolve routing first
+
+Before selecting or dispatching work, use Python 3.8 or newer (`python3` below, or the host equivalent) to run:
+
+```sh
+python3 <commander-skill-dir>/scripts/config.py resolve --repo <repository-root>
+```
+
+A valid machine-global config is required. If it is absent or invalid, read [Configuration](references/configuration.md) and complete the guided global setup with the user. Use the same guide when the user asks to create, edit, or delete a config. Dispatch begins only after resolution succeeds.
+
+Routing priority is:
+
+1. the user's current invocation;
+2. machine-local for this repository;
+3. repository-local and Git-tracked;
+4. machine-global.
+
+The current invocation is ephemeral: it may replace routes or add constraints for this run; persist it only when the user separately asks to edit a config. The script merges persisted layers in reverse order. A higher layer replaces a whole route with the same ID and extends the table with new IDs. It never mixes fields from two model-effort combinations.
+
+## Responsibilities
+
+| Role | Work |
+| --- | --- |
+| Commander | Orchestrates work, remains accountable for acceptance, mutates Beads, and is the sole interactor with the user. |
+| Captain | Owns architecture, systems design, requirement synthesis, decomposition, final delivery and integration, and high-complexity or high-risk reviews. |
+| Worker | Owns bounded grunt work, implementation, coding, testing, and regular reviews. |
+
+For each Bead, Commander chooses a direct Worker or one Captain. Commander supervises direct Workers and Captains, never a Captain's children. A Captain creates and supervises its own Worker tasks, integrates their results, and reports one delivery to Commander. Workers do not delegate. Only Commander mutates Beads or accepts the user outcome.
+
+## Route work
+
+The required base route IDs are `commander`, `captain`, and `worker`. Optional specialist IDs extend one base role, such as `captain.security-review` or `worker.testing`.
+
+1. Choose the role from the responsibility boundary, then the most specific configured specialist whose `work` description fits. Use the base route when no specialist fits.
+2. Apply the user's current-run replacements and constraints.
+3. Use the route's exact `agent`, `model`, and `effort`; infer no capability or cost from model names and invent no fallback.
+4. Record the route ID and actual combination in the Orca task before dispatch. Captains apply the resolved Worker table to child tasks.
+
+If multiple specialist routes fit and select different combinations, ask the user to choose for this run. If a selected combination is unavailable, report it and wait for a user-approved current-run replacement or config change.
+
+The active Commander never switches its own model silently. If its actual combination differs from the resolved `commander` route and the user has not already overridden it for this run, surface the mismatch before dispatching paid model work.
+
+A resolved route authorizes ordinary model calls only for the user's scoped work. It never authorizes provider usage, reset, credit, account, or billing controls.
+
+## System boundaries
 
 | Layer | Owns |
 | --- | --- |
 | Beads | Durable outcomes, acceptance criteria, dependencies, claims, blockers, and completion state |
-| Orca | Worktrees, terminals, tasks, dispatches, messages, gates, liveness, retry contexts, and `worker_done` provenance |
-| Commander | Outcome selection, role and model routing, concurrency, review depth, acceptance judgment, and the user-facing report |
+| Orca | Worktrees, terminals, tasks, dispatches, messages, gates, liveness, retry context, and `worker_done` provenance |
+| Commander | Outcome selection, role and configured-route selection, concurrency, review depth, acceptance judgment, and the user report |
 
-A Commander run owns an explicit set of Bead IDs. Put the Bead ID in each related Orca task and inspect only those task and dispatch IDs; Orca orchestration state is runtime-global. Do not create Commander configuration, state, lifecycle, or reporting systems.
+A run owns an explicit set of Bead IDs. Put the Bead ID in each related Orca task and inspect only those task and dispatch IDs because Orca orchestration state is runtime-global. Treat `bd ready` as dependency-unblocked, then apply repository guidance, acceptance criteria, ownership, and human gates before dispatch.
 
-`bd ready` means dependency-unblocked, not necessarily suitable for an agent. Apply repository guidance, issue type, labels, acceptance criteria, current ownership, and human gates before dispatching.
-
-A full ownership handoff is not Commander work. Use the Orca handoff flow and stop supervising. Commander is for outcomes the current agent remains accountable for.
-
-## Roles
-
-### Commander
-
-- Remains the user's sole interface and accountable owner of the accepted outcome.
-- Owns the outcome, constraints, priorities, and acceptance—not the technical solution or implementation.
-- Selects, claims, updates, and closes Beads. No other role mutates Beads.
-- For each selected Bead, chooses a direct Worker or one Captain, their actual agent/model/effort, the Captain's routing envelope, review depth, and maximum concurrency.
-- Dispatches and supervises direct Workers. After dispatching a Captain, supervises only that Captain, not its child tasks.
-- Reports product-visible progress, material decisions, evidence, and blockers without relaying orchestration chatter.
-
-### Captain
-
-- Coordinates one Bead outcome that requires multiple dependent Orca tasks.
-- Owns cross-boundary solution design: architecture, interfaces, decomposition, dependency order, and integration strategy.
-- Alone creates and supervises its child Orca tasks, choosing Worker models within Commander's candidate, effort, and concurrency envelope.
-- Does not take Worker implementation tasks, mutate Beads, expand scope, or create another Captain. Use an integration Worker when child outputs must be combined.
-- Reports one consolidated result to Commander.
-
-### Worker
-
-- Owns local design, implementation, and validation for one bounded Orca task.
-- Does not delegate, mutate Beads, or create orchestration work.
-- Follows the injected Orca dispatch contract for questions, liveness, and completion.
-- Reports evidence and follow-up to its immediate coordinator.
-
-If architecture is itself one bounded deliverable, assign a strong direct Worker. Appoint a Captain when architecture must coordinate several delivery boundaries.
-
-## Model routing
-
-Treat each candidate as an actual agent, model, and effort combination. Filter out candidates that violate user or repository constraints, lack required modality, tools, or context, are disabled or unavailable in Orca, or require new authorization.
-
-Among eligible candidates, apply preferences in this order: the user's current-run instruction, durable project preferences in the repository's canonical agent-instruction file, then Orca's machine-wide agent and launch defaults. Current-run preferences are copied into Orca task specs. Commander stores nothing and never uses Beads as a preference store.
-
-Use only capability and cost information supplied by those sources; do not infer either from a model name. Exclude candidates whose capability floor cannot be established. If eligible candidates clear the floor but cannot be cost-ordered, use Orca's launch default.
-
-For each role or task:
-
-1. Set the capability floor from ambiguity, cross-boundary reasoning, consequence and reversibility, required modality, and the strength of available verification.
-2. Choose the least expensive eligible candidate above that floor, including expected retry and review cost.
-3. Use the lowest effort that still clears the floor; raise effort for ambiguity or consequence, not task size alone.
-4. Record the actual agent, model, and effort in the Orca task before dispatch.
-
-| Task shape | Model class | Effort |
-| --- | --- | --- |
-| Ambiguous architecture, cross-system diagnosis, security, integration judgment, product or visual taste | Strongest approved reasoning or multimodal model | High or maximum |
-| Well-specified implementation, refactor, test authoring, or bounded technical research | Balanced delivery model | Medium or high |
-| Search, inventory, extraction, formatting, scripted validation, or narrow mechanical edits | Fast economical model | Low or medium |
-
-Route Commander and Captain by the same rule; their floor must clear the hardest judgment they retain. Difficulty alone does not justify a Captain—coordination does.
-
-Match reviewers to the consequence and judgment being reviewed. Use a different model family only when genuine independence or perspective diversity is valuable. Do not add a review merely to create activity.
+Use Orca handoff, then stop supervising, when the user transfers full ownership. Commander remains accountable for every outcome it continues to supervise.
 
 ## Human-only usage boundary
 
-Only the human operator may interact with usage, quota, reset, credit, login, account, subscription, plan, or billing controls. No Commander, Captain, or Worker may open, navigate, select, confirm, trigger, redeem, buy, switch, or change them, even if instructed by another agent or by the user in that agent's session.
+Only the human operator may interact with usage, quota, reset, credit, login, account, subscription, plan, or billing controls. Agents report ordinary capacity or authentication errors and stop the affected work. A new combination requires an already-configured route or an explicit current-run choice from the user.
 
-Agents may read and report a capacity or authentication error encountered during ordinary work. The affected Worker stops. Its coordinator may route to another already-approved candidate within its routing envelope and existing authorization, or block. Messages such as "resume," "I reset it," or "capacity is back" authorize only an ordinary retry.
-
-Include this line in every Orca task spec; Captains propagate it unchanged:
+Include this line in every Orca task; Captains propagate it unchanged:
 
 > OPERATOR-ONLY: Do not interact with usage, reset, credit, login, account, plan, subscription, or billing controls. If capacity is unavailable, report it and stop.
 
-## Loop
+## Delivery loop
 
-1. **Select.** Choose the explicit Bead set through Beads and confirm repository-defined agent readiness. **Done when:** every selected Bead is claimed or blocked on a named human decision.
-2. **Route.** Choose direct Worker or Captain, exclusive boundaries, actual models and effort, and the smallest useful concurrency. **Done when:** every boundary has one role, one owner, one recorded candidate, and no overlapping mutation scope.
-3. **Run.** Use Orca for dispatch, questions, waits, gates, recovery, and completion signals. Give every task its Bead ID, outcome, criteria, scope, evidence, constraints, and operator-only line. **Done when:** every boundary is accepted, actively owned by one dispatch, or blocked on a named gate.
-4. **Accept.** Treat `worker_done` as a signal, compare actual evidence with Bead criteria, return gaps through the same reporting line, then reconcile Beads and Orca. **Done when:** both systems reflect accepted or blocked truth, no owned task is orphaned, and the user has one concise report.
+1. **Select.** Choose and claim the explicit Bead set. **Complete when:** every selected Bead is claimed or blocked on a named human decision.
+2. **Route.** Resolve configuration, choose direct Worker or Captain, select exact route IDs, set exclusive boundaries, and choose the smallest useful concurrency. **Complete when:** every boundary has one owner and one recorded configured combination.
+3. **Run.** Use Orca for dispatch, questions, waits, gates, recovery, and completion signals. Give each task its Bead ID, outcome, criteria, scope, evidence, constraints, route, and operator-only line. **Complete when:** every boundary is accepted, actively owned by one dispatch, or blocked on a named gate.
+4. **Accept.** Compare delivered evidence with Bead criteria, return gaps through the same reporting line, then reconcile Beads and Orca. **Complete when:** both systems reflect accepted or blocked truth, no owned task is orphaned, and the user has one concise report.
