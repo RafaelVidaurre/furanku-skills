@@ -11,17 +11,15 @@ npx skills add rafaelvidaurre/furanku-skills --skill commander # one skill
 
 ### commander
 
-Turns one agent into a non-implementing Commander that remains the user's sole interface while Captains design and coordinate complex work and Sergeants deliver it. It supports persistent background jobs, adaptive routing, model-and-effort rosters, evidence-based acceptance, and project-specific orchestration mechanisms without imposing a work tracker.
+Adds one thin policy layer over Beads and Orca. Beads owns durable work, Orca owns runtime coordination, and for each Bead a non-implementing Commander chooses between a direct Worker and one Captain coordinating several Workers—routing each boundary to the least expensive model capable of clearing it. Usage, reset, login, account, credit, plan, and billing controls remain exclusively human-operated.
 
 ```
-> Set up Commander for this project using the orchestration tools available here.
-> Act as Commander and deliver this feature while I continue working with you on something else.
-> Show me the state of every active Commander job.
+> Use Commander to deliver this Bead through Orca.
+> Route these ready Beads to the right models and keep concurrency at three.
+> Resume this Commander run from its Bead and Orca task IDs.
 ```
 
-Project setup reuses machine-level worker and mechanism recipes, then performs cheap, side-effect-free readiness checks. Raw harness commands and Orca are bundled examples; projects may configure other mechanisms in short prose.
-
-Open the [skill entrypoint](skills/commander/SKILL.md) to see the command loop and setup contract.
+Open the [skill entrypoint](skills/commander/SKILL.md).
 
 ### testing-best-practices
 

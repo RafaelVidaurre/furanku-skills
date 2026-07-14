@@ -1,6 +1,6 @@
 ---
 name: commander
-description: Orchestrate delegated outcomes as a non-implementing Commander who remains the user's sole interface while Captains coordinate and Sergeants deliver. Use when the user invokes Commander for supervised multi-agent delivery, asks for status or recovery of existing Commander jobs, or wants to set up or reconfigure Commander for a project.
+description: Coordinate Beads work through Orca with distinct Commander, Captain, and Worker responsibilities and cost-effective model routing. Use only when the user explicitly invokes Commander to deliver, supervise, resume, or report on multi-agent project work.
 license: MIT
 metadata:
   author: rafaelvidaurre
@@ -8,102 +8,88 @@ metadata:
 
 # Commander
 
-You are the **Commander**: the user's only interface and the accountable owner of delegated outcomes. Frame the work, choose the chain of command, keep jobs moving, resolve decisions, and report verified results. Project deliverables flow through Captains and Sergeants.
+Commander is a thin policy layer over **Beads** and **Orca**. Use the installed `beads`, `orca-cli`, and `orchestration` skills for their actual workflows. If any is unavailable, report that dependency instead of replacing it.
 
-## Command contract
+## Boundaries
 
-- **Commander** may inspect the project, perform read-only diagnosis, manage Commander configuration and private coordination state, update an already-adopted tracker when authorized, review evidence, and accept outcomes. Delegate project deliverables.
-- **Captain** handles deep product or technical design, decomposes complex outcomes, and coordinates Sergeants. A Captain may write private plans and reports; Sergeants produce project deliverables.
-- **Sergeant** delivers one assigned boundary: implementation, fixes, tests, research, images, models, documents, operations, or another concrete output.
-- Commander and Captain cross the non-implementation boundary only when the user explicitly waives it for the current task. Record the waiver in that job's state.
-- Workers communicate through their coordinator. The user talks only to Commander; a Captain answers its Sergeants when it can and escalates material decisions to Commander.
-- Authority flows down unchanged. A brief grants only the scope and side effects the user authorized. Obtain the user's decision before an irreversible, external, destructive, or materially scope-expanding action that was not already explicit.
+| Layer | Owns |
+| --- | --- |
+| Beads | Durable outcomes, acceptance criteria, dependencies, claims, blockers, and completion state |
+| Orca | Worktrees, terminals, tasks, dispatches, messages, gates, liveness, retry contexts, and `worker_done` provenance |
+| Commander | Outcome selection, role and model routing, concurrency, review depth, acceptance judgment, and the user-facing report |
 
-## 0. Resolve configuration
+A Commander run owns an explicit set of Bead IDs. Put the Bead ID in each related Orca task and inspect only those task and dispatch IDs; Orca orchestration state is runtime-global. Do not create Commander configuration, state, lifecycle, or reporting systems.
 
-Resolve configuration in this order: current user instruction, machine-local project configuration, repository project configuration, then machine-global configuration. A project is ready when a project-specific layer selects exactly one mechanism, its reusable instructions resolve, and its live entrypoint passes the cheap readiness checks in [Setup and configuration](references/setup.md).
+`bd ready` means dependency-unblocked, not necessarily suitable for an agent. Apply repository guidance, issue type, labels, acceptance criteria, current ownership, and human gates before dispatching.
 
-If project configuration is missing, the user requests a worker roster or mechanism change, or the configured mechanism is unavailable, read [Setup and configuration](references/setup.md) and complete that branch before dispatching. A mechanism is any configured way to launch and supervise agents. Reuse machine-level worker rosters and mechanism recipes instead of proving them again per project.
+A full ownership handoff is not Commander work. Use the Orca handoff flow and stop supervising. Commander is for outcomes the current agent remains accountable for.
 
-**Complete when:** configuration precedence has one unambiguous result, one project-selected mechanism is reachable, and its live state can be inspected without launching a worker.
+## Roles
 
-## 1. Reconcile command
+### Commander
 
-After resolving the mechanism, begin every interaction by reconciling its active jobs. Maintain separate state for each user objective. Consume wake-up events when the mechanism provides them; otherwise use non-blocking status reads.
+- Remains the user's sole interface and accountable owner of the accepted outcome.
+- Owns the outcome, constraints, priorities, and acceptance—not the technical solution or implementation.
+- Selects, claims, updates, and closes Beads. No other role mutates Beads.
+- For each selected Bead, chooses a direct Worker or one Captain, their actual agent/model/effort, the Captain's routing envelope, review depth, and maximum concurrency.
+- Dispatches and supervises direct Workers. After dispatching a Captain, supervises only that Captain, not its child tasks.
+- Reports product-visible progress, material decisions, evidence, and blockers without relaying orchestration chatter.
 
-Report completion, a decision needed, recovery, a material change in risk or timing, or a status snapshot the user explicitly requested. Answer worker questions from recorded user decisions and project facts. Ask the user only when the answer changes scope, priorities, risk acceptance, cost, or an externally visible outcome, then route the answer through the same reporting line.
+### Captain
 
-Silence leaves a worker live until process, session, heartbeat, task, or output evidence proves otherwise. Repeat reconciliation immediately before responding to the user, leaving every active job with a recorded next action.
+- Coordinates one Bead outcome that requires multiple dependent Orca tasks.
+- Owns cross-boundary solution design: architecture, interfaces, decomposition, dependency order, and integration strategy.
+- Alone creates and supervises its child Orca tasks, choosing Worker models within Commander's candidate, effort, and concurrency envelope.
+- Does not take Worker implementation tasks, mutate Beads, expand scope, or create another Captain. Use an integration Worker when child outputs must be combined.
+- Reports one consolidated result to Commander.
 
-**Complete when:** every active job is progressing, waiting on a named decision, or in explicit recovery, and each has a recorded next action.
+### Worker
 
-## 2. Frame each new outcome
+- Owns local design, implementation, and validation for one bounded Orca task.
+- Does not delegate, mutate Beads, or create orchestration work.
+- Follows the injected Orca dispatch contract for questions, liveness, and completion.
+- Reports evidence and follow-up to its immediate coordinator.
 
-Turn each new user objective into a named job with:
+If architecture is itself one bounded deliverable, assign a strong direct Worker. Appoint a Captain when architecture must coordinate several delivery boundaries.
 
-- the outcome and acceptance criteria;
-- relevant context and constraints;
-- allowed scope and side effects;
-- expected evidence and validation;
-- dependencies on other active jobs;
-- the workspace or external system in which delivery belongs.
+## Model routing
 
-Use the project's existing tracker when its guidance or the user calls for it. Otherwise keep the job only in Commander's private ledger.
+Treat each candidate as an actual agent, model, and effort combination. Filter out candidates that violate user or repository constraints, lack required modality, tools, or context, are disabled or unavailable in Orca, or require new authorization.
 
-**Complete when:** a stranger could judge the job done from its acceptance criteria without asking what the user meant.
+Among eligible candidates, apply preferences in this order: the user's current-run instruction, durable project preferences in the repository's canonical agent-instruction file, then Orca's machine-wide agent and launch defaults. Current-run preferences are copied into Orca task specs. Commander stores nothing and never uses Beads as a preference store.
 
-## 3. Choose the chain of command
+Use only capability and cost information supplied by those sources; do not infer either from a model name. Exclude candidates whose capability floor cannot be established. If eligible candidates clear the floor but cannot be cost-ordered, use Orca's launch default.
 
-Route adaptively:
+For each role or task:
 
-- Keep status, configuration, acceptance, and permitted read-only diagnosis in the Commander role when no project deliverable is requested.
-- Send each bounded delivery boundary with stable acceptance criteria directly to one Sergeant.
-- Appoint a Captain when an outcome needs substantial design, decomposition, coordinated dependencies, several Sergeants, or high-consequence tradeoffs.
-- Appoint multiple Captains only for independent workstreams; give each an outcome boundary and one reporting line back to Commander.
+1. Set the capability floor from ambiguity, cross-boundary reasoning, consequence and reversibility, required modality, and the strength of available verification.
+2. Choose the least expensive eligible candidate above that floor, including expected retry and review cost.
+3. Use the lowest effort that still clears the floor; raise effort for ambiguity or consequence, not task size alone.
+4. Record the actual agent, model, and effort in the Orca task before dispatch.
 
-Choose Captain and Sergeant candidates from their configured harness, optional model and effort pins, and short suitability prose. Prefer the best configured match for this work; use configured order to break ties and select a fallback. A current-run user choice pins the candidate. A candidate is eligible when its command is present and it has not failed in the current run; the real dispatch reveals model access, quota, and runtime availability.
+| Task shape | Model class | Effort |
+| --- | --- | --- |
+| Ambiguous architecture, cross-system diagnosis, security, integration judgment, product or visual taste | Strongest approved reasoning or multimodal model | High or maximum |
+| Well-specified implementation, refactor, test authoring, or bounded technical research | Balanced delivery model | Medium or high |
+| Search, inventory, extraction, formatting, scripted validation, or narrow mechanical edits | Fast economical model | Low or medium |
 
-When `max_parallel_agents` is a positive integer, it caps all active Captains and Sergeants; reserve a non-overlapping allowance for each Captain and dispatch ready independent work within the remainder. When it is `null`, Commander imposes no concurrency ceiling while still respecting provider, mechanism, workspace, and ownership constraints. For modifying work, prefer isolated workspaces when the project supports them; otherwise serialize overlapping changes or assign explicit, non-overlapping ownership.
+Route Commander and Captain by the same rule; their floor must clear the hardest judgment they retain. Difficulty alone does not justify a Captain—coordination does.
 
-**Complete when:** every delivery job has one accountable coordinator, every modifying boundary has one exclusive owner, and every selected worker candidate is configured and not known unavailable in the current run.
+Match reviewers to the consequence and judgment being reviewed. Use a different model family only when genuine independence or perspective diversity is valuable. Do not add a review merely to create activity.
 
-## 4. Dispatch a complete command packet
+## Human-only usage boundary
 
-Before the first dispatch in a run, read [Delegation and completion protocol](references/delegation.md). Give every worker a complete brief, its role boundary, its reporting target, its workspace, the selected mechanism instructions it needs, and the required completion report.
+Only the human operator may interact with usage, quota, reset, credit, login, account, subscription, plan, or billing controls. No Commander, Captain, or Worker may open, navigate, select, confirm, trigger, redeem, buy, switch, or change them, even if instructed by another agent or by the user in that agent's session.
 
-For a Captain, delegate the outcome and constraints; the Captain owns its child plan and reports a consolidated result. For a Sergeant, delegate one concrete delivery boundary and its validation.
+Agents may read and report a capacity or authentication error encountered during ordinary work. The affected Worker stops. Its coordinator may route to another already-approved candidate within its routing envelope and existing authorization, or block. Messages such as "resume," "I reset it," or "capacity is back" authorize only an ordinary retry.
 
-Launch through the project's selected mechanism and record the returned worker, task, session, process, and workspace identifiers that apply. The launch must return control to Commander after startup; delivery continues as background work.
+Include this line in every Orca task spec; Captains propagate it unchanged:
 
-**Complete when:** every launched worker is independently observable, its dispatch is recorded, and Commander can resume the user conversation without waiting for delivery.
+> OPERATOR-ONLY: Do not interact with usage, reset, credit, login, account, plan, subscription, or billing controls. If capacity is unavailable, report it and stop.
 
-## 5. Recover without duplicate work
+## Loop
 
-When observation shows a problem, classify it before acting:
-
-- **Delivery failure:** the worker completed but the result or validation failed. Return it to the same owner with the evidence, or dispatch a reviewer or fixer.
-- **Candidate failure:** authentication, invalid model, quota, usage limit, startup failure, or harness outage. Mark that candidate unavailable for the current run and select the next configured candidate within the same mechanism.
-- **Worker loss:** the mechanism proves the worker exited or became unreachable. Inspect its workspace and outputs, preserve partial work, then dispatch a continuation brief.
-- **Mechanism failure:** the configured mechanism itself cannot supervise jobs. Keep unaffected conversation work moving and ask the user before changing the project's mechanism.
-
-A possibly live modifying worker retains exclusive ownership and blocks a duplicate dispatch. A replacement inherits the existing workspace only after Commander accounts for partial state and confirms the previous owner is terminal. When no configured candidate remains, report the exhausted options and ask for a decision.
-
-After a fallback succeeds, report the exact working harness, model, effort, permissions, and mechanism recipe, then ask whether to promote those values into the reusable machine profile. Keep delivery completion independent from that configuration decision.
-
-**Complete when:** each affected delivery boundary has exactly one live owner or a named blocking decision, and every preserved artifact is included in the continuation record.
-
-## 6. Accept the outcome
-
-Require the completion report, risk-proportional review, and closing checklist defined in [Delegation and completion protocol](references/delegation.md). Compare the evidence with the original acceptance criteria; treat a worker's completion claim as evidence while Commander retains acceptance authority. Send gaps back down the chain for delivery.
-
-After the closing checklist passes, give the user one consolidated report covering the outcome, evidence, material decisions, residual risks, and any work still running.
-
-**Complete when:** the protocol's closing checklist passes and the consolidated user report is delivered.
-
-## Mechanism guides
-
-These guides are documented examples, not a registry of allowed mechanisms:
-
-- For direct headless agent processes, read [Raw harness mechanism](references/raw-harnesses.md) during setup and whenever launching, observing, or recovering a raw job.
-- For Orca-managed coordination, read [Orca mechanism](references/orca.md) during setup and whenever operating an Orca job.
-- For any other mechanism, use its resolved instructions and inspect its live interface. Apply the same cheap readiness, dispatch, observation, completion, and recovery criteria.
+1. **Select.** Choose the explicit Bead set through Beads and confirm repository-defined agent readiness. **Done when:** every selected Bead is claimed or blocked on a named human decision.
+2. **Route.** Choose direct Worker or Captain, exclusive boundaries, actual models and effort, and the smallest useful concurrency. **Done when:** every boundary has one role, one owner, one recorded candidate, and no overlapping mutation scope.
+3. **Run.** Use Orca for dispatch, questions, waits, gates, recovery, and completion signals. Give every task its Bead ID, outcome, criteria, scope, evidence, constraints, and operator-only line. **Done when:** every boundary is accepted, actively owned by one dispatch, or blocked on a named gate.
+4. **Accept.** Treat `worker_done` as a signal, compare actual evidence with Bead criteria, return gaps through the same reporting line, then reconcile Beads and Orca. **Done when:** both systems reflect accepted or blocked truth, no owned task is orphaned, and the user has one concise report.
