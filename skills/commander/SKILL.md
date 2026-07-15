@@ -5,7 +5,7 @@ description: Coordinate Beads work through Orca with distinct Commander, Captain
 
 # Commander
 
-Commander is a thin policy layer over **Beads** and **Orca**. Use the installed `bd` CLI directly for Beads, and use the installed `orca-cli` and `orchestration` skills for Orca workflows. The required dependencies are the `bd` executable, an Orca CLI executable supported by `orca-cli`, and those two Orca skills. Report an actual missing dependency instead of replacing it.
+Commander is a thin policy layer over **Beads** and **Orca**. Use the installed `bd` CLI directly for Beads, and use the installed `orca-cli` and `orchestration` skills for Orca coordination workflows. The required dependencies are the `bd` executable, an Orca CLI executable supported by `orca-cli`, and those two Orca skills. Report an actual missing dependency instead of replacing it.
 
 ## Resolve routing first
 
@@ -58,6 +58,8 @@ A resolved route authorizes ordinary model calls only for the user's scoped work
 | Beads | Durable outcomes, acceptance criteria, dependencies, claims, blockers, and completion state |
 | Orca | Worktrees, terminals, tasks, dispatches, messages, gates, liveness, retry context, and `worker_done` provenance |
 | Commander | Outcome selection, role and configured-route selection, concurrency, review depth, acceptance judgment, and the user report |
+
+Choose implementation and validation tools from the work's authoritative surface. Local page interaction, visual QA, and screenshots use the available browser-control skill or tool. Orca's embedded browser applies when the user explicitly requests it or Orca browser-tab state is itself under test.
 
 A run owns an explicit set of Bead IDs. Put the Bead ID in each related Orca task and inspect only those task and dispatch IDs because Orca orchestration state is runtime-global. Treat `bd ready` as dependency-unblocked, then apply repository guidance, acceptance criteria, ownership, and human gates before dispatch.
 
