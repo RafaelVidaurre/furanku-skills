@@ -69,27 +69,22 @@ python3 "$CONFIG" delete <global|repo|machine-repo> --repo <repository-root> --y
 
 `template` prints `null` placeholders. Replace every placeholder with an exact string before calling `write`; validation rejects incomplete rows.
 
-## Validate identifiers
+## Resolve identifiers
 
-Keep validation with the system that owns each identifier:
+Follow **Resolve a request** in [Known models](models.md), using its **Machine discovery** section only when directed. Use the executable name as `agent`; preserve a different exact ID only when an existing custom launcher defines it. In the setup report, show the evidence label returned by that reference beside each proposed route. Evidence labels are presentation metadata and never fields in the strict config JSON.
 
-- Discover agent CLIs from `PATH` first: run `command -v` for candidates such as `claude`, `codex`, and `grok`. Use the executable name as `agent`; preserve a different exact ID only when an existing custom launcher defines it.
-- Query every discovered CLI through its own one-shot catalog command. Use `codex debug models` for Codex, `grok models` for Grok, and `claude -p "/model" --output-format json --no-session-persistence` for Claude; use each CLI's `--help` output to confirm its model and effort option syntax. For another CLI, inspect its help and use its equivalent non-interactive catalog command.
-- Keep discovery non-interactive and limit it to help and catalog commands that perform no model turn. If a discovered CLI has no non-interactive catalog command, ask the user to attest its exact model and effort strings.
-- Treat the helper as structural validation only. An invalid launch blocks the dispatch and never triggers an inferred fallback.
-
-Discovery and setup must not invoke a model or enter provider usage, account, or billing controls.
+Treat the helper as structural validation only. An invalid launch blocks the dispatch and never triggers an inferred fallback. Resolution is complete when every proposed row has an installed agent, one exact compatible combination, and a separate evidence annotation.
 
 ## Guided setup
 
 Use one short recommendation-and-confirmation cycle:
 
-1. **Inspect.** Run `read all`, then apply **Validate identifiers** above. Distinguish runtime-verified combinations from user-attested ones. **Complete when:** existing layers, exact proposed identifiers, and the evidence status of each combination are known.
+1. **Inspect.** Run `read all`, then apply **Resolve identifiers** above. Distinguish bundled-known, machine-discovered, and user-attested combinations. **Complete when:** existing layers, exact proposed identifiers, and the evidence status of each combination are known.
 2. **Recommend.** Present one three-row table with exact `agent`, `model`, and `effort`, plus a one-line rationale per row. Use these standards:
    - `commander`: the most reliable approved orchestration and acceptance model, normally high effort;
    - `captain`: the strongest approved architecture and integration model, normally high or maximum effort;
    - `worker`: an economical approved implementation model, normally medium effort.
-   Add a specialist only for a recurring work type that genuinely needs a different combination. Model names and effort labels do not establish capability or cost. When trustworthy metadata is absent, show the available combinations as unassigned and ask the user to map them to the three roles; do not turn the normal effort guidance into a guessed model assignment. **Complete when:** all three required rows have exact, evidence-backed or user-supplied values.
+   Add a specialist only for a recurring work type that genuinely needs a different combination. Use capability and cost metadata only when it comes from the bundled catalog, live machine catalog, or the user; a name alone establishes neither. When trustworthy metadata is absent, show the available combinations as unassigned and ask the user to map them to the three roles; do not turn the normal effort guidance into a guessed model assignment. **Complete when:** all three required rows have exact, evidence-backed or user-supplied values.
 3. **Confirm.** Show the scope, exact path, and complete table; ask for one approval or corrections. A recommendation is not authorization to write or spend model usage. **Complete when:** the user explicitly approves the file contents.
 4. **Write.** Write through the script, run `resolve`, and show the effective rows and their sources. For a `repo` config, also show Git status so the user can see the tracked artifact. **Complete when:** resolution succeeds and matches the approved table.
 
