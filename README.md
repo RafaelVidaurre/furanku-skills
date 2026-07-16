@@ -44,6 +44,18 @@ Convenes a council of AI models that debate a decision and vote their way to con
 
 First run walks you through approving a bench from the safe one-shot modes it detects (claude, codex, grok, gemini, ...). Executable trust persists per machine (`~/.config/council/config.json`); a project config (`.council.json`) can tune only the approved bench, and prompt overrides apply for that run.
 
+### product-memory
+
+Discovers and preserves product requirements so multi-session and multi-agent work keeps two linked truths: what the user actually said, and the current product interpretation. Verbatim evidence, traceable specs, explicit decisions, open questions, hypotheses, risks, and validation experiments live under `docs/product-memory/` with stable IDs and integrity checks.
+
+```
+> Initialize product memory for this project.
+> Capture this conversation into product memory and distill requirements.
+> Reconcile the product memory after this scope change.
+```
+
+Open the [skill entrypoint](skills/product-memory/SKILL.md).
+
 ## Layout
 
 ```
@@ -51,6 +63,8 @@ skills/
   <name>/
     SKILL.md        # the skill
     references/     # depth loaded on demand
+    scripts/        # helpers (optional)
+    assets/         # templates copied into projects (optional)
 ```
 
 Contributions and issues welcome.
