@@ -17,6 +17,8 @@ python3 <commander-skill-dir>/scripts/config.py resolve --repo <repository-root>
 
 A valid machine-global config is required. If it is absent or invalid, read [Configuration](references/configuration.md) and complete the guided global setup with the user. Use the same guide when the user asks to create, edit, or delete a config. Dispatch begins only after resolution succeeds.
 
+When setup or a current-run override names a model or effort in human terms, read [Known models](references/models.md) and use its catalog-first resolution. A persisted route that already contains exact strings does not require another lookup unless the user changes it or live evidence contradicts it. Resolution is complete when the request has one exact bundled-known, machine-discovered, or user-attested combination, or a named user decision is required.
+
 Routing priority is:
 
 1. the user's current invocation;
@@ -42,7 +44,7 @@ The required base route IDs are `commander`, `captain`, and `worker`. Optional s
 
 1. Choose the role from the responsibility boundary, then the most specific configured specialist whose `work` description fits. Use the base route when no specialist fits.
 2. Apply the user's current-run replacements and constraints.
-3. Use the route's exact `agent`, `model`, and `effort`; infer no capability or cost from model names and invent no fallback.
+3. Resolve any current-run model or effort wording through [Known models](references/models.md), then use the route's exact `agent`, `model`, and `effort`. Base capability or cost judgments only on catalog, machine, or user-supplied metadata, and invent no fallback.
 4. Record the route ID and actual combination in the Orca task before dispatch. Captains apply the resolved Worker table to child tasks.
 
 If multiple specialist routes fit and select different combinations, ask the user to choose for this run. If a selected combination is unavailable, report it and wait for a user-approved current-run replacement or config change.
