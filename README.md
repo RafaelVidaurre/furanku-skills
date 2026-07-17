@@ -56,6 +56,17 @@ Discovers and preserves product requirements so multi-session and multi-agent wo
 
 Open the [skill entrypoint](skills/product-memory/SKILL.md).
 
+### progress-report
+
+Creates evidence-backed project progress reports that explain what changed, what it means, and what is currently in progress, pending, or blocked. Reports cover the freshest work through the last 30 days with increasing coarseness, while stored reports act as a cache for future runs. Explicit requests always qualify; automatic reports are reserved for formal goal completions and meaningful milestones, and only unspawned root agents may produce them.
+
+```
+> Give me a progress report for this project.
+> Summarize our current status and progress across the supported timeframes.
+```
+
+Open the [skill entrypoint](skills/progress-report/SKILL.md).
+
 ## Layout
 
 ```
