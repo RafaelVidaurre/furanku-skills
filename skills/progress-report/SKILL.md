@@ -54,7 +54,7 @@ Coarsen by compression, not omission:
 - 72 hours and 7 days combine outcomes into project themes.
 - 30 days describes strategic capabilities, phases, and major direction changes.
 
-Retain every material capability, decision, milestone, blocker, and direction change. Order entries by importance to the user, using recency to break ties. Each entry has a self-explanatory title, a short outcome-and-meaning description, and compact evidence. Write `None.` under an empty heading.
+Retain every material capability, decision, milestone, blocker, and direction change. Order entries by importance to the user, using recency to break ties. Each entry has a self-explanatory title, a short outcome-and-meaning description, and compact evidence. Present current-state issues as tables and completed outcomes as bullets. Write `None.` under an empty heading.
 
 **Complete when:** the model accounts for material completed work across every horizon and material present work across all three statuses, with each claim traceable to evidence.
 
@@ -89,7 +89,15 @@ Use this fixed body hierarchy:
 ## Coverage                 # only when materially limited
 ```
 
-Format each non-empty entry as:
+Format issues under each non-empty current-state heading as a table:
+
+```markdown
+| Item | What it means | Evidence |
+| --- | --- | --- |
+| **Title** | Short description of the work and its status implications. | `relative/path`, task ID, or test result |
+```
+
+Format completed progress entries as:
 
 ```markdown
 - **Title** — Short description focused on the outcome and what it means.
@@ -113,17 +121,11 @@ _As of <generated_at>._
 
 ## Current status
 
-### In progress
-
-- **<Title>** — <What is actively underway and what completing it will mean.> `[E1]`
-
-### Pending
-
-- **<Title>** — <What is agreed but not started, and why it matters.> `[E2]`
-
-### Blocked
-
-- **<Title>** — <What is stopped, the dependency, and the unblock condition.> `[E3]`
+| Status | Item | What it means | Evidence |
+| --- | --- | --- | --- |
+| 🟡 In progress | **<Title>** | <What is actively underway and what completing it will mean.> | `[E1]` |
+| ⏳ Pending | **<Title>** | <What is agreed but not started, and why it matters.> | `[E2]` |
+| 🔴 Blocked | **<Title>** | <What is stopped, the dependency, and the unblock condition.> | `[E3]` |
 
 ## Progress over time
 
@@ -168,7 +170,7 @@ _As of <generated_at>._
 _Cached at `.furanku-skills/progress-reports/<timestamp>.md`._
 ```
 
-Write `None.` for an empty status or horizon. Reuse one evidence label for claims supported by the same sources. Keep the evidence list compact, and omit it only when the rendered surface provides equally traceable inline links. Adapt typography to the rendering surface while preserving this information order, every timeframe, and the artifact's facts and statuses.
+Keep one row per issue. Represent an empty status with a row whose item is `None.` so absence remains visible. Use restrained emojis as semantic status markers, not decoration. Write `None.` for an empty horizon. Reuse one evidence label for claims supported by the same sources. Keep the evidence list compact, and omit it only when the rendered surface provides equally traceable inline links. Adapt typography to the rendering surface while preserving this information order, every timeframe, and the artifact's facts and statuses.
 
 When persistence fails, replace the cache footer with `_Artifact not saved: <reason>._`.
 
