@@ -14,7 +14,7 @@ The bundled script resolves these scopes:
 
 The script derives `<repo-key>` from the canonical Git common directory, so linked worktrees share machine-local routing. It merges complete route rows in `global`, `repo`, then `machine-repo` order. A higher row with the same ID replaces the lower row; a new ID extends the table.
 
-`read all` and `resolve` list relevant legacy YAML files under `ignored_legacy`. They are never merged into the new routing table. During setup, use their model choices only as clearly labeled migration input and ask the user what to retain; remove a legacy file only on explicit request.
+These JSON files are the only configuration Commander reads. If any other Commander config file is found (for example a legacy `config.yaml`), it is invalid: surface it to the user and recommend deleting it rather than honoring or migrating it.
 
 ## Schema
 

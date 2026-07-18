@@ -41,10 +41,6 @@ def locations(repo=None):
     home = Path.home()
     base = home / ".furanku-skills" / "commander"
     paths = {"global": base / "config.json"}
-    legacy = [
-        home / ".config" / "furanku-skills" / "commander" / "config.yaml",
-        base / "config.yaml",
-    ]
     if repo is not None:
         root, common = repo_info(repo)
         digest = hashlib.sha256(str(common).encode()).hexdigest()
@@ -56,16 +52,7 @@ def locations(repo=None):
                 "machine-repo": base / "repos" / f"{label}-{digest[:16]}.json",
             }
         )
-        legacy += [
-            root / ".furanku-skills" / "commander" / "config.yaml",
-            home
-            / ".config"
-            / "furanku-skills"
-            / "commander"
-            / "projects"
-            / f"{digest[:12]}.yaml",
-        ]
-    return paths, [str(path) for path in legacy if path.exists()]
+    return paths
 
 
 def parse_json(stream, source):
@@ -125,7 +112,7 @@ def record(scope, path):
     }
 
 
-def resolve(paths, legacy):
+def resolve(paths):
     if not paths["global"].exists():
         raise Error(f"required global config is missing: {paths['global']}")
     routes, sources, layers = {}, {}, []
@@ -144,7 +131,6 @@ def resolve(paths, legacy):
         "config": config,
         "route_sources": {route: sources[route] for route in config["routes"]},
         "layers_low_to_high": layers,
-        "ignored_legacy": legacy,
     }
 
 
@@ -209,19 +195,14 @@ def main():
             "machine-repo",
             "all",
         }
-        paths, legacy = locations(args.repo if needs_repo else None)
+        paths = locations(args.repo if needs_repo else None)
         if args.command == "read":
             if args.scope == "all":
-                emit(
-                    {
-                        "layers": [record(scope, paths[scope]) for scope in SCOPES],
-                        "ignored_legacy": legacy,
-                    }
-                )
+                emit({"layers": [record(scope, paths[scope]) for scope in SCOPES]})
             else:
                 emit(record(args.scope, paths[args.scope]))
         elif args.command == "resolve":
-            emit(resolve(paths, legacy))
+            emit(resolve(paths))
         elif args.command == "write":
             if args.file == "-":
                 config = parse_json(sys.stdin, "stdin")

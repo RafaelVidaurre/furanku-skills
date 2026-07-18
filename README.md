@@ -11,7 +11,7 @@ npx skills add rafaelvidaurre/furanku-skills --skill commander # one skill
 
 ### commander
 
-Adds one thin policy layer over Beads and Orca. Beads owns durable work, Orca owns runtime coordination, and Commander routes each boundary through a user-approved model-and-effort table with machine-global, Git-tracked repository, machine-local repository, and current-run precedence. Usage, reset, login, account, credit, plan, and billing controls remain exclusively human-operated.
+Makes a session the standing manager of one project's multi-agent delivery, adding exactly two policies on top of Beads and Orca: model-effort routing through a user-approved table (machine-global, Git-tracked repository, machine-local repository, and current-run precedence) and Bead-first context discipline — requirements are distilled into the Bead with the user present, downstream agents hydrate from the Bead and repository, and clarifications pass verbatim. Beads owns durable work, the Orca skills own coordination process, and usage, reset, login, account, credit, plan, and billing controls remain exclusively human-operated.
 
 ```
 > Use Commander to deliver this Bead through Orca.
