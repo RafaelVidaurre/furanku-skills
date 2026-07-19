@@ -67,6 +67,17 @@ Creates evidence-backed project progress reports that explain what changed, what
 
 Open the [skill entrypoint](skills/progress-report/SKILL.md).
 
+### decision-trail
+
+Keeps an append-only TSV trail of consequential decisions, reasons, evidence, and results during substantial work. The trail stays local by default, uses a bundled helper to keep rows safe and well-formed, and gives reviewers a compact way to reconstruct autonomous, unattended, or multi-phase runs.
+
+```
+> Keep a decision trail while you work through this migration.
+> Run this unattended and leave me a reviewable record of the important calls.
+```
+
+Open the [skill entrypoint](skills/decision-trail/SKILL.md).
+
 ## Layout
 
 ```
