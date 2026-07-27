@@ -6,19 +6,26 @@ import unittest
 
 
 SKILL = Path(__file__).parents[1] / "SKILL.md"
+CAPTAIN = Path(__file__).parents[1] / "references" / "captain.md"
 
 
 class SkillBoundaryTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.text = SKILL.read_text(encoding="utf-8")
+        cls.captain = CAPTAIN.read_text(encoding="utf-8")
 
     def test_commander_owns_only_fronts_and_routes(self):
         self.assertIn("**Fronts:**", self.text)
         self.assertIn("**Routes:**", self.text)
         self.assertIn("Beads is the durable contract", self.text)
         self.assertIn("Orca is the coordination system", self.text)
-        self.assertIn("disable-model-invocation: true", self.text)
+
+    def test_skill_is_agent_triggerable(self):
+        self.assertNotIn("disable-model-invocation", self.text)
+        description = self.text.split("description:", 1)[1].split("\n", 1)[0]
+        for trigger in ("orchestrate", "parallelize", "subagents", "Commander"):
+            self.assertIn(trigger, description)
 
     def test_orca_native_lifecycle_has_no_commander_overlay(self):
         self.assertIn(
@@ -64,10 +71,54 @@ class SkillBoundaryTest(unittest.TestCase):
         self.assertIn("exact routing provenance are known", self.text)
         self.assertIn("including a single match", self.text)
 
-    def test_worktree_lineage_is_separate_from_management(self):
+    def test_captain_owns_a_worktree_that_parents_its_workers(self):
         self.assertIn("management and dependencies with Orca tasks", self.text)
-        self.assertIn("child worktree for work stacked on or dependent", self.text)
-        self.assertIn("sidebar lineage does not encode orchestration ownership", self.text)
+        self.assertIn("Each Captain owns its own worktree", self.text)
+        self.assertIn("child worktrees of that checkout", self.text)
+        self.assertIn("reconciled in the Captain's worktree", self.text)
+        self.assertIn("You own your worktree.", self.captain)
+
+    def test_contract_is_created_when_no_bead_exists(self):
+        self.assertIn("A Bead need not exist when the user asks", self.text)
+        self.assertIn("create the top-level Bead yourself", self.text)
+        self.assertIn("user's request in their own words", self.text)
+
+    def test_beads_carry_the_work_and_dispatch_stays_a_pointer(self):
+        self.assertIn("dispatch text stays a pointer to the Bead", self.text)
+        self.assertIn("never restated in the message", self.text)
+        self.assertIn("a Bead that completely describes its work", self.captain)
+        self.assertIn("do not mirror task topology in Beads", self.captain)
+
+    def test_captain_defines_requirements_before_orchestrating(self):
+        for clause in (
+            "scope, what is out of scope, and how it will be judged done",
+            "only those that change what gets built",
+            "high-level acceptance criteria",
+            "would be overkill",
+        ):
+            self.assertIn(clause, self.captain)
+
+    def test_human_escalation_paths_are_explicit(self):
+        self.assertIn("name the thread that raised it", self.text)
+        self.assertIn("forward the reply verbatim", self.text)
+        self.assertIn("route through you instead by saying so", self.text)
+        self.assertIn("Never open a blocking interactive question flow", self.text)
+
+    def test_autonomous_runs_resolve_against_a_peer(self):
+        self.assertIn("autonomous run or said they will be unavailable", self.text)
+        self.assertIn("peer launched on the Captain's own resolved route row", self.text)
+        self.assertIn("Launch a peer on your own resolved route row", self.captain)
+
+    def test_handover_asks_to_merge_and_reports_cost(self):
+        for clause in (
+            "ask whether to merge it or review it first",
+            "do not merge before they answer",
+            "tests, gates, or tooling added or changed",
+            "would prevent a repeat",
+            "one row per front and per mechanical check",
+            "marked unknown where Orca did not record it",
+        ):
+            self.assertIn(clause, self.text)
 
 
 if __name__ == "__main__":
