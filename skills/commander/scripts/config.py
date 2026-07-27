@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read, write, delete, and resolve Commander routing configuration."""
+"""Read, write, migrate, and resolve Commander routing configuration."""
 
 import argparse
 import hashlib
@@ -7,14 +7,22 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
 
 
-BASE = ("commander", "captain", "worker")
+VERSION = 2
+BASE = ("captain", "worker")
+LEGACY_BASE = ("commander", "captain", "worker")
 SCOPES = ("global", "repo", "machine-repo")
-ROUTE_ID = re.compile(r"^(commander|captain|worker)(?:\.[a-z0-9]+(?:-[a-z0-9]+)*)*$")
+ROUTE_ID = re.compile(
+    r"^(?:captain|worker)(?:\.[a-z0-9]+(?:-[a-z0-9]+)*)*$"
+)
+LEGACY_ROUTE_ID = re.compile(
+    r"^(?:commander|captain|worker)(?:\.[a-z0-9]+(?:-[a-z0-9]+)*)*$"
+)
 
 
 class Error(Exception):
@@ -65,24 +73,31 @@ def parse_json(stream, source):
     return config
 
 
-def validate_schema(config, require_base, source):
-    if set(config) != {"version", "routes"} or config.get("version") != 1:
-        raise Error(f"{source} must contain only version 1 and routes")
+def validate_rows(
+    config, require_base, source, version, base, route_pattern, allow_empty=False
+):
+    if (
+        set(config) != {"version", "routes"}
+        or type(config.get("version")) is not int
+        or config.get("version") != version
+    ):
+        raise Error(f"{source} must contain only version {version} and routes")
     routes = config.get("routes")
-    if not isinstance(routes, dict) or not routes:
+    if not isinstance(routes, dict) or (not routes and not allow_empty):
         raise Error(f"{source} routes must be a non-empty object")
-    missing = [route for route in BASE if route not in routes]
+    missing = [route for route in base if route not in routes]
     if require_base and missing:
         raise Error(f"{source} is missing base routes: {', '.join(missing)}")
     for route_id, row in routes.items():
-        if not ROUTE_ID.fullmatch(route_id) or not isinstance(row, dict):
+        if not route_pattern.fullmatch(route_id) or not isinstance(row, dict):
             raise Error(f"invalid route {route_id!r} in {source}")
         fields = {"agent", "model", "effort"}
-        if route_id not in BASE:
+        if route_id not in base:
             fields.add("work")
         if set(row) != fields:
             raise Error(
-                f"route {route_id!r} in {source} requires: {', '.join(sorted(fields))}"
+                f"route {route_id!r} in {source} requires: "
+                f"{', '.join(sorted(fields))}"
             )
         if any(
             not isinstance(value, str) or not value.strip() for value in row.values()
@@ -90,9 +105,43 @@ def validate_schema(config, require_base, source):
             raise Error(f"route {route_id!r} in {source} has an empty value")
 
 
-def load(path, require_base=False):
+def validate_schema(config, require_base, source):
+    validate_rows(
+        config,
+        require_base,
+        source,
+        VERSION,
+        BASE,
+        ROUTE_ID,
+        allow_empty=not require_base,
+    )
+
+
+def validate_v1_schema(config, require_base, source):
+    validate_rows(
+        config, require_base, source, 1, LEGACY_BASE, LEGACY_ROUTE_ID
+    )
+
+
+def migration_command(scope, repo):
+    command = ["python3", str(Path(__file__).resolve()), "migrate", scope]
+    if scope != "global":
+        command += ["--repo", str(Path(repo).expanduser().resolve())]
+    return shlex.join(command)
+
+
+def load(path, require_base=False, scope=None, repo="."):
     with path.open(encoding="utf-8") as stream:
         config = parse_json(stream, str(path))
+    if (
+        type(config.get("version")) is int
+        and config.get("version") == 1
+        and scope is not None
+    ):
+        raise Error(
+            f"{path} uses Commander config version 1; preview migration with: "
+            f"{migration_command(scope, repo)}"
+        )
     validate_schema(config, require_base, str(path))
     return config
 
@@ -103,16 +152,28 @@ def ordered(routes):
     return {route: routes[route] for route in keys}
 
 
-def record(scope, path):
+def record(scope, path, repo="."):
     return {
         "scope": scope,
         "path": str(path),
         "exists": path.exists(),
-        "config": load(path, scope == "global") if path.exists() else None,
+        "config": (
+            load(path, scope == "global", scope, repo) if path.exists() else None
+        ),
     }
 
 
-def resolve(paths):
+def selected(routes, route_ids):
+    if not route_ids:
+        return ordered(routes)
+    unknown = sorted(set(route_ids) - set(routes))
+    if unknown:
+        raise Error(f"configured routes not found: {', '.join(unknown)}")
+    wanted = set(route_ids)
+    return {route: row for route, row in ordered(routes).items() if route in wanted}
+
+
+def resolve(paths, repo=".", route_ids=None):
     if not paths["global"].exists():
         raise Error(f"required global config is missing: {paths['global']}")
     routes, sources, layers = {}, {}, []
@@ -120,18 +181,25 @@ def resolve(paths):
         path = paths[scope]
         if not path.exists():
             continue
-        config = load(path, scope == "global")
+        config = load(path, scope == "global", scope, repo)
         layers.append({"scope": scope, "path": str(path)})
         for route, row in config["routes"].items():
             routes[route] = row
             sources[route] = {"scope": scope, "path": str(path)}
-    config = {"version": 1, "routes": ordered(routes)}
+    config = {"version": VERSION, "routes": ordered(routes)}
     validate_schema(config, True, "resolved configuration")
+    config["routes"] = selected(config["routes"], route_ids or [])
     return {
         "config": config,
-        "route_sources": {route: sources[route] for route in config["routes"]},
+        "route_sources": {
+            route: sources[route] for route in config["routes"]
+        },
         "layers_low_to_high": layers,
     }
+
+
+def mode_for(scope):
+    return 0o644 if scope == "repo" else 0o600
 
 
 def save(path, config, private):
@@ -151,27 +219,109 @@ def save(path, config, private):
             os.unlink(temporary)
 
 
-def emit(value):
-    json.dump(value, sys.stdout, indent=2, ensure_ascii=False)
+def save_once(path, content, mode):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
+    except FileExistsError as error:
+        raise Error(f"migration backup already exists: {path}") from error
+    try:
+        if hasattr(os, "fchmod"):
+            os.fchmod(descriptor, mode)
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+    except Exception:
+        if path.exists():
+            path.unlink()
+        raise
+
+
+def ensure_backup(path, content, mode):
+    if path.exists():
+        if path.read_bytes() != content:
+            raise Error(f"migration backup conflicts with source: {path}")
+        return False
+    save_once(path, content, mode)
+    return True
+
+
+def migration_preview(scope, path):
+    if not path.exists():
+        raise Error(f"config does not exist: {path}")
+    try:
+        raw = path.read_bytes()
+        config = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise Error(f"invalid JSON in {path}: {error}") from error
+    if not isinstance(config, dict):
+        raise Error(f"{path} must contain a JSON object")
+    if type(config.get("version")) is not int or config.get("version") != 1:
+        raise Error(f"{path} is not a version 1 config")
+    validate_v1_schema(config, scope == "global", str(path))
+    conflicts = sorted(
+        route for route in config["routes"] if route.startswith("commander.")
+    )
+    if conflicts:
+        raise Error(
+            "automatic migration requires explicit disposition of Commander "
+            f"specialists: {', '.join(conflicts)}"
+        )
+    routes = {
+        route: row
+        for route, row in config["routes"].items()
+        if route != "commander"
+    }
+    migrated = {"version": VERSION, "routes": ordered(routes)}
+    validate_schema(migrated, scope == "global", "migrated configuration")
+    backup = path.with_name(f"{path.stem}.v1{path.suffix}")
+    return raw, {
+        "scope": scope,
+        "path": str(path),
+        "backup_path": str(backup),
+        "backup_exists": backup.exists(),
+        "from_version": 1,
+        "to_version": VERSION,
+        "removed_routes": (
+            ["commander"] if "commander" in config["routes"] else []
+        ),
+        "preserved_routes": list(migrated["routes"]),
+        "config": migrated,
+    }
+
+
+def emit(value, compact=False):
+    if compact:
+        json.dump(value, sys.stdout, separators=(",", ":"), ensure_ascii=False)
+    else:
+        json.dump(value, sys.stdout, indent=2, ensure_ascii=False)
     sys.stdout.write("\n")
 
 
 def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "command", choices=("template", "read", "resolve", "write", "delete")
+        "command",
+        choices=("template", "read", "resolve", "write", "delete", "migrate"),
     )
     parser.add_argument("scope", nargs="?", choices=(*SCOPES, "all"))
     parser.add_argument("--repo", default=".")
     parser.add_argument("--file", default="-", help="JSON file, or - for stdin")
     parser.add_argument("--yes", action="store_true")
+    parser.add_argument("--compact", action="store_true")
+    parser.add_argument("--route", action="append", default=[])
     args = parser.parse_args()
-    if args.command in {"read", "write", "delete"} and args.scope is None:
+    if args.command in {"read", "write", "delete", "migrate"} and args.scope is None:
         parser.error(f"{args.command} requires a scope")
-    if args.command != "read" and args.scope == "all":
+    if args.scope == "all" and args.command != "read":
         parser.error("scope 'all' is valid only for read")
     if args.command in {"template", "resolve"} and args.scope is not None:
         parser.error(f"{args.command} does not take a scope")
+    if args.command != "resolve" and (args.compact or args.route):
+        parser.error("--compact and --route are valid only for resolve")
+    if args.yes and args.command not in {"delete", "migrate"}:
+        parser.error("--yes is valid only for delete and migrate")
     return args
 
 
@@ -181,7 +331,7 @@ def main():
         if args.command == "template":
             emit(
                 {
-                    "version": 1,
+                    "version": VERSION,
                     "routes": {
                         route: {"agent": None, "model": None, "effort": None}
                         for route in BASE
@@ -198,11 +348,19 @@ def main():
         paths = locations(args.repo if needs_repo else None)
         if args.command == "read":
             if args.scope == "all":
-                emit({"layers": [record(scope, paths[scope]) for scope in SCOPES]})
+                emit(
+                    {
+                        "layers": [
+                            record(scope, paths[scope], args.repo)
+                            for scope in SCOPES
+                        ]
+                    }
+                )
             else:
-                emit(record(args.scope, paths[args.scope]))
+                emit(record(args.scope, paths[args.scope], args.repo))
         elif args.command == "resolve":
-            emit(resolve(paths))
+            result = resolve(paths, args.repo, args.route)
+            emit(result["config"]["routes"] if args.compact else result, args.compact)
         elif args.command == "write":
             if args.file == "-":
                 config = parse_json(sys.stdin, "stdin")
@@ -212,7 +370,7 @@ def main():
             validate_schema(config, args.scope == "global", args.file)
             config["routes"] = ordered(config["routes"])
             save(paths[args.scope], config, args.scope != "repo")
-            emit(record(args.scope, paths[args.scope]))
+            emit(record(args.scope, paths[args.scope], args.repo))
         elif args.command == "delete":
             if not args.yes:
                 raise Error("delete requires --yes after user confirmation")
@@ -221,6 +379,22 @@ def main():
             if existed:
                 path.unlink()
             emit({"scope": args.scope, "path": str(path), "deleted": existed})
+        elif args.command == "migrate":
+            raw, preview = migration_preview(args.scope, paths[args.scope])
+            if args.yes:
+                backup = Path(preview["backup_path"])
+                preview["backup_created"] = ensure_backup(
+                    backup, raw, mode_for(args.scope)
+                )
+                save(
+                    paths[args.scope],
+                    preview["config"],
+                    args.scope != "repo",
+                )
+                preview["migrated"] = True
+            else:
+                preview["migrated"] = False
+            emit(preview)
     except (Error, OSError) as error:
         print(f"commander-config: {error}", file=sys.stderr)
         raise SystemExit(2 if "required global config is missing" in str(error) else 1)

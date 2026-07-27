@@ -1,10 +1,8 @@
 # Commander configuration
 
-Read this file only when global setup is required or the user asks to create, edit, or delete a Commander config.
+Read this file only for setup, config changes, resolver diagnosis, or version 1 migration.
 
-## Locations and merge
-
-The bundled script resolves these scopes:
+## Locations and precedence
 
 | Scope | Location | Purpose |
 | --- | --- | --- |
@@ -12,36 +10,29 @@ The bundled script resolves these scopes:
 | `repo` | `<repo>/.furanku-skills/commander/config.json` | Shared, Git-tracked routes |
 | `machine-repo` | `~/.furanku-skills/commander/repos/<repo-key>.json` | Private routes for one repository |
 
-The script derives `<repo-key>` from the canonical Git common directory, so linked worktrees share machine-local routing. It merges complete route rows in `global`, `repo`, then `machine-repo` order. A higher row with the same ID replaces the lower row; a new ID extends the table.
+The repository key comes from the canonical Git common directory, so linked worktrees share machine-local routing. Persisted layers merge in the order shown; a higher layer replaces a complete route row or adds a route. The user's current invocation has highest precedence but remains ephemeral unless the user separately requests a config edit.
 
-These JSON files are the only configuration Commander reads. If any other Commander config file is found (for example a legacy `config.yaml`), it is invalid: surface it to the user and recommend deleting it rather than honoring or migrating it.
+## Strict version 2 schema
 
-## Schema
-
-Every file is strict JSON:
+Every file contains only `version` and `routes`:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "routes": {
-    "commander": {
-      "agent": "<orca-agent>",
-      "model": "<exact-model>",
-      "effort": "<exact-effort>"
-    },
     "captain": {
-      "agent": "<orca-agent>",
+      "agent": "<exact-agent>",
       "model": "<exact-model>",
       "effort": "<exact-effort>"
     },
     "worker": {
-      "agent": "<orca-agent>",
+      "agent": "<exact-agent>",
       "model": "<exact-model>",
       "effort": "<exact-effort>"
     },
     "worker.testing": {
-      "work": "Test design, implementation, and focused verification.",
-      "agent": "<orca-agent>",
+      "work": "Front explicitly requests test design or focused verification.",
+      "agent": "<exact-agent>",
       "model": "<exact-model>",
       "effort": "<exact-effort>"
     }
@@ -49,11 +40,22 @@ Every file is strict JSON:
 }
 ```
 
-The global file must define all three base routes. Optional layers may contain only the rows they replace or add. Specialist IDs start with a base role and require a concrete `work` description. Each row is atomic: repeat the complete combination when overriding it.
+The global file must define `captain` and `worker`. Optional layers may contain only complete rows they add or replace. Specialists begin with `captain.` or `worker.` and require a concrete `work` description. Each dot-separated name segment contains lowercase letters, digits, and single hyphens.
 
-## Script
+Treat `agent`, `model`, and `effort` as exact route intent. The current Orca and agent guides own how those values become a launched session; Commander stores no provider catalog or launch syntax. A route is usable only when those surfaces can apply its complete row.
 
-Resolve `<commander-skill-dir>` to the directory containing `SKILL.md`, then run the helper with Python 3.8 or newer. Use `python3` on POSIX or the equivalent Python 3 launcher on the host:
+Use only these setup recommendations:
+
+- Captain routes favor fronts that need decomposition or integration.
+- Worker routes favor one bounded outcome.
+
+Specialists earn a row only when their `work` selects a meaningfully different agent, model, or effort from the base route. Write `work` as concrete phrases expected in a front's stated outcome, so routing can match explicit text rather than inferred implementation.
+
+Configuration is complete when the user approves exact values for both base rows, the helper writes the intended scope, and full resolution reports the approved effective table. When the Orca runtime is available, validate that its current agent surfaces can launch both rows; otherwise report launch validation as pending for the first dispatch.
+
+## Helper
+
+Resolve `<commander-skill-dir>` to the directory containing `SKILL.md`:
 
 ```sh
 CONFIG=<commander-skill-dir>/scripts/config.py
@@ -61,35 +63,34 @@ CONFIG=<commander-skill-dir>/scripts/config.py
 python3 "$CONFIG" template
 python3 "$CONFIG" read all --repo <repository-root>
 python3 "$CONFIG" resolve --repo <repository-root>
-python3 "$CONFIG" write <global|repo|machine-repo> --repo <repository-root> --file <json-file>
-python3 "$CONFIG" delete <global|repo|machine-repo> --repo <repository-root> --yes
+python3 "$CONFIG" resolve --repo <repository-root> --compact \
+  --route worker --route worker.testing
+python3 "$CONFIG" write <global|repo|machine-repo> \
+  --repo <repository-root> --file <json-file>
+python3 "$CONFIG" delete <global|repo|machine-repo> \
+  --repo <repository-root> --yes
 ```
 
-`write` also accepts JSON on stdin when `--file -` is used. `read` and `resolve` report exact source paths. `write` validates before replacing a file atomically. `delete` removes only the named scope and requires `--yes` after conversational confirmation.
+`write` accepts `--file -` for standard input, validates before atomically replacing the target, and writes private scopes with mode `0600` and repository scope with `0644`. `delete` requires `--yes` after conversational confirmation.
 
-`template` prints `null` placeholders. Replace every placeholder with an exact string before calling `write`; validation rejects incomplete rows.
+Full `resolve` retains layer and row provenance for setup and diagnosis. `resolve --compact` returns only effective route rows as compact JSON. Repeatable `--route` filters either form to the dispatch subset and fails if a requested route is absent. Routine dispatch resolution is complete when compact output contains every required route and nothing else.
 
-## Resolve identifiers
+## Version 1 migration
 
-Follow **Resolve a request** in [Known models](models.md), using its **Machine discovery** section only when directed. Use the executable name as `agent`; preserve a different exact ID only when an existing custom launcher defines it. In the setup report, show the evidence label returned by that reference beside each proposed route. Evidence labels are presentation metadata and never fields in the strict config JSON.
+Routine resolution refuses version 1 and prints an actionable migration command. Preview before changing a scope:
 
-Treat the helper as structural validation only. An invalid launch blocks the dispatch and never triggers an inferred fallback. Resolution is complete when every proposed row has an installed agent, one exact compatible combination, and a separate evidence annotation.
+```sh
+python3 "$CONFIG" migrate <global|repo|machine-repo> \
+  --repo <repository-root>
+```
 
-## Guided setup
+The preview shows the exact target, sibling backup, removed row, preserved routes, and resulting version 2 document without writing. Apply it only after review:
 
-Use one short recommendation-and-confirmation cycle:
+```sh
+python3 "$CONFIG" migrate <global|repo|machine-repo> \
+  --repo <repository-root> --yes
+```
 
-1. **Inspect.** Run `read all`, then apply **Resolve identifiers** above. Distinguish bundled-known, machine-discovered, and user-attested combinations. **Complete when:** existing layers, exact proposed identifiers, and the evidence status of each combination are known.
-2. **Recommend.** Present one three-row table with exact `agent`, `model`, and `effort`, plus a one-line rationale per row. Use these standards:
-   - `commander`: the most reliable approved orchestration and acceptance model, normally high effort;
-   - `captain`: the strongest approved architecture and integration model, normally high or maximum effort;
-   - `worker`: an economical approved implementation model, normally medium effort.
-   Add a specialist only for a recurring work type that genuinely needs a different combination. Use capability and cost metadata only when it comes from the bundled catalog, live machine catalog, or the user; a name alone establishes neither. When trustworthy metadata is absent, show the available combinations as unassigned and ask the user to map them to the three roles; do not turn the normal effort guidance into a guessed model assignment. **Complete when:** all three required rows have exact, evidence-backed or user-supplied values.
-3. **Confirm.** Show the scope, exact path, and complete table; ask for one approval or corrections. A recommendation is not authorization to write or spend model usage. **Complete when:** the user explicitly approves the file contents.
-4. **Write.** Write through the script, run `resolve`, and show the effective rows and their sources. For a `repo` config, also show Git status so the user can see the tracked artifact. **Complete when:** resolution succeeds and matches the approved table.
+Migration validates the version 1 source, creates the one-time sibling `config.v1.json` backup, removes only the exact `commander` row, preserves all Captain/Worker routes, validates version 2, and atomically replaces the source. A byte-identical backup is reused after an interrupted attempt; a conflicting backup aborts migration.
 
-## Edit or delete
-
-For an edit, show both the selected scope and the resolved table, propose a complete-row diff, obtain confirmation, write, then resolve again.
-
-For a delete, show the exact file, the routes it contributes, and the table that would remain; obtain confirmation, then delete and resolve again. Deleting `global` disables Commander until global setup is completed again.
+Automatic migration aborts when any `commander.<name>` specialist exists and lists every conflicting row. The user must explicitly remove it or map its intent to a spawned-agent route before retrying. Migration is complete when full resolution succeeds at version 2 and the backup preserves the original document.

@@ -11,15 +11,18 @@ npx skills add rafaelvidaurre/furanku-skills --skill commander # one skill
 
 ### commander
 
-Makes a session the standing manager of one project's multi-agent delivery, adding exactly two policies on top of Beads and Orca: model-effort routing through a user-approved table (machine-global, Git-tracked repository, machine-local repository, and current-run precedence) and Bead-first context discipline — requirements are distilled into the Bead with the user present, downstream agents hydrate from the Bead and repository, and clarifications pass verbatim. Beads owns durable work, the Orca skills own coordination process, and usage, reset, login, account, credit, plan, and billing controls remain exclusively human-operated.
+Coordinates Beads across independently owned work fronts. Commander decides the front map and selects a configured Captain or Worker route for each front; Beads remains the durable identity and contract, while Orca remains the coordination system. Spawned-agent routes use a strict layered v2 table, while the user-launched session keeps its own model and effort.
 
 ```
 > Use Commander to deliver this Bead through Orca.
 > Route these ready Beads to the right models and keep concurrency at three.
 > Resume this Commander run from its Bead and Orca task IDs.
+> Migrate my Commander routing config to version 2.
 ```
 
-Open the [skill entrypoint](skills/commander/SKILL.md).
+Each run and front has a unique key. Every Orca task carries those keys, its Bead and route IDs, and exact agent/model/effort provenance; dispatch targets the terminal launched for that route. One Bead may have several Orca execution, review, or integration tasks without duplicating their topology in Beads. Captains receive a self-contained routing contract for Worker children. Orca task dependencies express management; child worktrees are reserved for work stacked on or dependent on another checkout. Version 1 configs migrate explicitly with a one-time backup.
+
+Open the [skill entrypoint](skills/commander/SKILL.md) or [configuration reference](skills/commander/references/configuration.md).
 
 ### testing-best-practices
 
