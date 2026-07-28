@@ -71,12 +71,15 @@ class SkillBoundaryTest(unittest.TestCase):
         self.assertIn("exact routing provenance are known", self.text)
         self.assertIn("including a single match", self.text)
 
-    def test_captain_owns_a_worktree_that_parents_its_workers(self):
+    def test_worktrees_are_conditional_on_concurrent_writers(self):
         self.assertIn("management and dependencies with Orca tasks", self.text)
-        self.assertIn("Each Captain owns its own worktree", self.text)
+        self.assertIn("judge write concurrency across the whole run", self.text)
+        self.assertIn("fresh agent terminals in the existing checkout", self.text)
+        self.assertIn("Each Captain owns its own worktree only when", self.text)
         self.assertIn("child worktrees of that checkout", self.text)
         self.assertIn("reconciled in the Captain's worktree", self.text)
-        self.assertIn("You own your worktree.", self.captain)
+        self.assertIn("Take a worktree only when", self.captain)
+        self.assertIn("no worktree of your own, the checkout you run in", self.captain)
 
     def test_contract_is_created_when_no_bead_exists(self):
         self.assertIn("A Bead need not exist when the user asks", self.text)

@@ -18,11 +18,13 @@ Give every Worker front a Bead that completely describes its work, so the Worker
 
 Route each child with the rows Commander gave you, applying its selection rule, and launch route-aware before dispatch. Keep dispatch text to the Bead to read and the provenance of the row it was launched on.
 
+Seed each Worker's Bead with its return contract: alongside its result, a Worker reports how long the work took and a short retrospective — what caused unexpected trouble or confusion, and what would make a future session more effective. It states only claims it is sure of, marks anything else explicitly as an assumption, and offers an opinion only when confident in it. You judge what travels further: fold what is valuable into your front report and discard the rest.
+
 Captain-shaped work you discover beneath you returns to Commander as a new front. Do not open a second tier of Captains under yourself.
 
 ## Worktrees
 
-You own your worktree. Your Workers run in child worktrees of it. Their work lands and is reconciled in yours, and the integrated result you return comes from that checkout.
+Take a worktree only when Commander's front map isolated your front for run-wide write concurrency or your own Workers write files in parallel; otherwise run them as fresh terminals in the checkout you are in, per the current `orchestration` guide. When you do take one, you own your worktree and your Workers run in child worktrees of it. Whatever the topology, every Worker result is reconciled and verified in your integration checkout before you return — with no worktree of your own, the checkout you run in is that checkout — and the integrated result you return comes from there. Remove a Worker's child worktree once its work is reconciled; Commander disposes of the rest at handover.
 
 ## When you need the user
 
@@ -33,3 +35,43 @@ In an autonomous run, do not wait. Launch a peer on your own resolved route row,
 ## Return
 
 Your front is complete when its Bead describes the work that was done, every child Bead is closed or carries explicit remaining work, and one integrated result reaches Commander.
+
+Close by writing the front report below into your Bead; your return message to Commander is a pointer to it. Write it for a human first: concise plain language that assumes no context from your thread, Orca, or Beads internals. Every section appears, and an empty one says `none`, because a missing section cannot be told apart from a forgotten one. State only claims you are sure of, mark anything else explicitly as an assumption, and include opinions only where you are confident; hold what you keep from Worker retrospectives to the same bar.
+
+```markdown
+## Front report — <front-key>
+
+**Bead:** <bead-id> — closed | open: <remaining work in one line>
+**Result:** <one sentence a reader without context understands>
+**Verified by:** <tests or gates run and their outcomes, or: not verified — why>
+
+### Changes
+<features, fixes, improvements in the user's terms, one line each; none>
+
+### Tests, gates, tooling
+<added or changed during the front, one line each; none>
+
+### Children
+| Worker Bead | Route | Outcome | Orca tasks |
+|---|---|---|---|
+
+### Retrospective
+<what caused unexpected trouble or confusion, each with the guidance or
+tooling change that would prevent a repeat, or an explicit note that no
+confident prevention is known; suggestions you are confident would improve
+a future run; none>
+
+### Decisions
+<what was decided or remains open, and how each was resolved: user reply,
+autonomous peer, or pending; none>
+
+### Time
+| Item | Elapsed |
+|---|---|
+<one row per Worker front and mechanical check, from Orca's task records,
+else the Worker's self-reported duration labeled as such; unknown when
+neither exists>
+
+### Kept checkouts
+<worktree or branch kept and why; none>
+```
