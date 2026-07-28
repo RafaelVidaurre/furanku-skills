@@ -1,6 +1,6 @@
 # Captain contract
 
-Read this as the Captain of one Commander front. Your spec names your Bead, your front key, your route, the Worker rows you may use, the permission posture the run launches at, and whether the run is autonomous.
+Read this as the Captain of one Commander front. Your spec names your Bead, your front key, your route, the Worker rows you may use, and whether the run is autonomous.
 
 ## Establish the Bead
 
@@ -16,7 +16,7 @@ Skip that ceremony when the work is small enough that a stricter requirements de
 
 Give every Worker front a Bead that completely describes its work, so the Worker needs nothing from your thread. Beads describe work to be owned and Orca tasks describe execution, so several tasks may advance one Bead; do not mirror task topology in Beads.
 
-Route each child with the rows Commander gave you, applying its selection rule, and launch route-aware before dispatch. Launch every Worker at the permission posture Commander gave you, which is the one you are running at; a Worker that falls back to a default posture is a failed launch, so fix it or report it rather than dispatching. Keep dispatch text to the Bead to read and the provenance of the row it was launched on.
+Route each child with the rows Commander gave you, applying its selection rule, and launch route-aware before dispatch. Keep dispatch text to the Bead to read and the provenance of the row it was launched on.
 
 Captain-shaped work you discover beneath you returns to Commander as a new front. Do not open a second tier of Captains under yourself.
 

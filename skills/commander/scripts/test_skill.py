@@ -78,13 +78,6 @@ class SkillBoundaryTest(unittest.TestCase):
         self.assertIn("reconciled in the Captain's worktree", self.text)
         self.assertIn("You own your worktree.", self.captain)
 
-    def test_spawned_sessions_inherit_the_session_permission_posture(self):
-        self.assertIn("inherits this session's permission posture", self.text)
-        self.assertIn("never holds authority this session was not granted", self.text)
-        self.assertIn("silently falls back to a default posture is a failed launch", self.text)
-        self.assertIn("the permission posture to launch children at", self.text)
-        self.assertIn("Launch every Worker at the permission posture", self.captain)
-
     def test_contract_is_created_when_no_bead_exists(self):
         self.assertIn("A Bead need not exist when the user asks", self.text)
         self.assertIn("create the top-level Bead yourself", self.text)

@@ -44,8 +44,6 @@ The global file must define `captain` and `worker`. Optional layers may contain 
 
 Treat `agent`, `model`, and `effort` as exact route intent. The current Orca and agent guides own how those values become a launched session; Commander stores no provider catalog or launch syntax. A route is usable only when those surfaces can apply its complete row.
 
-Permission posture is not route intent and no row carries it. Spawned sessions inherit the Commander session's posture, so the user grants authority once, in the session they launched.
-
 Use only these setup recommendations:
 
 - Captain routes favor fronts that need decomposition or integration.
