@@ -1,0 +1,6 @@
+# Generated repository-local skill state
+.furanku-skills/
+
+# Python caches
+__pycache__/
+*.pyc
