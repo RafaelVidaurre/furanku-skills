@@ -99,7 +99,6 @@ def build_spec(args: argparse.Namespace) -> tuple[str, str]:
         f"agent: {selected['agent']}",
         f"model: {selected['model']}",
         f"effort: {selected['effort']}",
-        f"checkout: {args.checkout}",
         f"Role contract: {contract}",
     ]
     if args.bead:
@@ -126,7 +125,6 @@ def main(argv: list[str] | None = None) -> int:
         choices=("user", "commander", "captain"),
     )
     parser.add_argument("--route", required=True)
-    parser.add_argument("--checkout", required=True)
     work = parser.add_mutually_exclusive_group(required=True)
     work.add_argument("--bead")
     work.add_argument("--request")

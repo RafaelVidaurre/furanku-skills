@@ -22,7 +22,7 @@ Assigns explicit Commander, Captain, and Worker ownership while leaving durable 
 > Show the effective Crew routes for this repository.
 ```
 
-Commander is the user's cross-project point of contact and may assign Captains or direct Workers. Captain owns one front's design, decomposition, decisions, and integration and assigns only Workers. Worker owns one bounded implementation or verification outcome. Direct Captains report to the user; a Commander takes command by dispatching an upstream Orca task to the existing Captain terminal without restarting its work or Workers.
+Commander is the user's cross-project point of contact and may assign Captains or direct Workers. Captain owns one front's design, decomposition, decisions, and integration and assigns only Workers. Worker owns one bounded outcome. Direct Captains report to the user; a Commander takes command by dispatching an upstream Orca task to the existing Captain terminal without restarting its work or Workers.
 
 Open the [skill entrypoint](skills/crew/SKILL.md), [Commander contract](skills/crew/references/commander.md), [Captain contract](skills/crew/references/captain.md), or [configuration reference](skills/crew/references/configuration.md).
 

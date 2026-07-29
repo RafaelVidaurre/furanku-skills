@@ -20,8 +20,6 @@ BASE = [
     "captain",
     "--route",
     "worker",
-    "--checkout",
-    "existing",
     "--bead",
     "bead-1",
     "--routes-json",
@@ -49,6 +47,7 @@ class AssignmentTest(unittest.TestCase):
         self.assertIn("role: worker", payload["spec"])
         self.assertIn("reports_to: captain", payload["spec"])
         self.assertIn("references/worker.md", payload["spec"])
+        self.assertNotIn("checkout:", payload["spec"])
         self.assertNotIn("Worker routes:", payload["spec"])
 
     def test_captain_assignment_includes_only_worker_routes(self):
@@ -120,6 +119,11 @@ class AssignmentTest(unittest.TestCase):
         result = run(*args)
         self.assertNotEqual(0, result.returncode)
         self.assertIn("absent from --routes-json", result.stderr)
+
+    def test_rejects_checkout_topology(self):
+        result = run(*BASE, "--checkout", "new-worktree")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("unrecognized arguments: --checkout", result.stderr)
 
     def test_rejects_short_front_key(self):
         args = list(BASE)

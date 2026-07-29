@@ -1,6 +1,6 @@
 # Captain
 
-Captain owns the design, decomposition, decisions, and integration of one front. Concrete implementation and verification belong to Workers.
+Captain owns the design, decomposition, decisions, and integration of one front. Concrete execution belongs to Workers.
 
 ## Establish the contract
 
@@ -26,6 +26,6 @@ When Commander takes command, preserve current work and Workers, acknowledge the
 
 ## Integrate and return
 
-Reconcile Worker results in the integration checkout and apply the repository and contract completion criteria. Record durable results and remaining work in the Bead when one exists. Include evidence and process notes only when they help the principal judge the result or improve a future run.
+Integrate Worker results and apply the repository and contract completion criteria. Record durable results and remaining work in the Bead when one exists. Include evidence and process notes only when they help the principal judge the result or improve a future run.
 
 **Complete when:** the integrated front satisfies its contract or the remaining blocker is explicit, and the principal has the relevant work and coordination pointers.

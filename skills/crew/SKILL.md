@@ -12,9 +12,9 @@ Crew adds roles and routes. Beads hold durable work; Orca holds coordination sta
 - Commander is optional. Without one, Captains and direct Workers report to the user.
 - The user or Commander may assign Captains and direct Workers.
 - A Captain owns one front that needs design, decomposition, or integration and assigns only Workers.
-- A Worker owns one bounded execution or verification outcome.
+- A Worker owns one bounded outcome.
 - Every assignment names one `reports_to`: `user`, `commander`, or `captain`.
-- Orca tasks express coordination; worktree lineage expresses checkout relationships.
+- Orca owns coordination, terminals, and worktrees.
 
 Read the role contract for the role being performed:
 
@@ -43,7 +43,7 @@ python3 <crew-skill-dir>/scripts/config.py resolve --repo <root> --compact |
 python3 <crew-skill-dir>/scripts/assignment.py --routes-json - \
   --title "<outcome>" --front-key <run>/<front> \
   --role captain|worker --reports-to user|commander|captain \
-  --route <id> --checkout "<mode or path>" --bead <id>
+  --route <id> --bead <id>
 ```
 
 Use `--request "<verbatim user request>"` instead of `--bead` only when the spawned owner must establish the first Bead. The helper derives route provenance from the resolver output and includes Worker rows for Captains. Launch the exact route, then use Orca to dispatch the generated title and spec.

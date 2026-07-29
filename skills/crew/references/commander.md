@@ -12,7 +12,7 @@ Inspect relevant Beads with `bd --readonly` and inspect live Orca tasks before a
 
 Assign a Captain when a front needs design, decomposition, or integration. Assign a direct Worker when one bounded outcome is already clear. Pass an existing Bead pointer unchanged; when none exists, give the new owner the verbatim request so that owner establishes it.
 
-Use the route selection and assignment process in `SKILL.md`. Commander coordinates through Orca and leaves product implementation, verification, and Bead writes to the assigned owner.
+Use the route selection and assignment process in `SKILL.md`. Commander coordinates through Orca and leaves product execution and Bead writes to the assigned owner.
 
 **Complete when:** every ready front has one owner and each dispatched owner has the correct role, route, work pointer, and `reports_to: commander`.
 
@@ -22,10 +22,10 @@ Take command only of an existing direct Captain with no upstream Orca dispatch:
 
 1. Identify its exact live terminal and front.
 2. Use the current `orchestration` guidance to establish an upstream Orca dispatch from Commander to that existing terminal.
-3. Tell the Captain to preserve its work, Workers, and checkout; report current status; and report to Commander going forward.
+3. Tell the Captain to preserve its work and Workers, report current status, and report to Commander going forward.
 4. Verify that the Captain acknowledged the changed reporting relationship.
 
-The Captain's Workers and checkout remain unchanged. If the Captain already reports to Commander, reuse that relationship.
+The Captain's Workers remain unchanged. If the Captain already reports to Commander, reuse that relationship.
 
 **Complete when:** the existing Captain has acknowledged Commander, reported its current work, Workers, blockers, and next action, and the injected dispatch identifies Commander as coordinator.
 

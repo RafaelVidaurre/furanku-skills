@@ -26,8 +26,8 @@ Global configuration must define `captain` and `worker`. Specialists use `captai
   "routes": {
     "captain": { "agent": "codex", "model": "<model>", "effort": "<effort>" },
     "worker": { "agent": "codex", "model": "<model>", "effort": "<effort>" },
-    "worker.testing": {
-      "work": "The outcome explicitly requests focused verification.",
+    "worker.rust": {
+      "work": "The outcome explicitly requires Rust work.",
       "agent": "codex",
       "model": "<model>",
       "effort": "<effort>"
