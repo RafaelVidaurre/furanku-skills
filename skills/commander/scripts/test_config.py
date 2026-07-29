@@ -171,6 +171,123 @@ class ConfigTest(unittest.TestCase):
             ["global", "repo", "machine-repo"],
             [layer["scope"] for layer in result["layers_low_to_high"]],
         )
+        provenance = result["route_provenance"]["worker"]
+        self.assertEqual(machine_config["routes"]["worker"], provenance["effective"])
+        self.assertEqual("machine-repo", provenance["winner"]["scope"])
+        self.assertEqual(
+            ["global", "repo"],
+            [item["scope"] for item in provenance["replaced"]],
+        )
+        self.assertEqual(
+            global_config["routes"]["worker"],
+            provenance["replaced"][0]["row"],
+        )
+        self.assertEqual(
+            repo_config["routes"]["worker"],
+            provenance["replaced"][1]["row"],
+        )
+
+    def test_resolve_lists_absent_layers(self):
+        self.write("global", self.base_config())
+
+        result = json.loads(
+            self.run_config("resolve", "--repo", str(self.repo)).stdout
+        )
+        layers = result["layers_low_to_high"]
+        self.assertEqual(list(("global", "repo", "machine-repo")), [
+            layer["scope"] for layer in layers
+        ])
+        self.assertEqual([True, False, False], [
+            layer["exists"] for layer in layers
+        ])
+        self.assertEqual(["captain", "worker"], layers[0]["routes_defined"])
+        self.assertEqual([], layers[1]["routes_defined"])
+        self.assertEqual([], layers[2]["routes_defined"])
+
+    def test_report_json_filters_routes_and_shows_override_chain(self):
+        global_config = self.base_config()
+        global_config["routes"]["worker.testing"] = specialist(
+            "Tests.", "global-test", "global-test-model", "medium"
+        )
+        self.write("global", global_config)
+        repo_worker = row("repo-agent", "repo-model", "high")
+        self.write(
+            "repo",
+            {"version": 2, "routes": {"worker": repo_worker}},
+            self.repo,
+        )
+        machine_worker = row("machine-agent", "machine-model", "ultra")
+        self.write(
+            "machine-repo",
+            {"version": 2, "routes": {"worker": machine_worker}},
+            self.repo,
+        )
+
+        report = json.loads(
+            self.run_config(
+                "report",
+                "--repo",
+                str(self.repo),
+                "--route",
+                "worker",
+                "--format",
+                "json",
+            ).stdout
+        )
+        self.assertEqual(str(self.repo.resolve()), report["repo"])
+        self.assertEqual({"worker": machine_worker}, report["config"]["routes"])
+        self.assertEqual(["worker"], list(report["route_provenance"]))
+        provenance = report["route_provenance"]["worker"]
+        self.assertEqual(machine_worker, provenance["effective"])
+        self.assertEqual("machine-repo", provenance["winner"]["scope"])
+        self.assertEqual(
+            ["global", "repo"],
+            [item["scope"] for item in provenance["replaced"]],
+        )
+        self.assertEqual(
+            global_config["routes"]["worker"],
+            provenance["replaced"][0]["row"],
+        )
+        self.assertEqual(repo_worker, provenance["replaced"][1]["row"])
+
+    def test_report_markdown_uses_fixed_sections(self):
+        self.write("global", self.base_config())
+        repo_worker = row("repo-agent", "repo-model", "high")
+        self.write(
+            "repo",
+            {"version": 2, "routes": {"worker": repo_worker}},
+            self.repo,
+        )
+
+        report = self.run_config(
+            "report",
+            "--repo",
+            str(self.repo),
+            "--route",
+            "worker",
+        ).stdout
+        self.assertIn("# Commander routing report", report)
+        self.assertIn(f"**Repo:** {self.repo.resolve()}", report)
+        self.assertIn(
+            "**Layers (low → high):** `global` → `repo` → `machine-repo`",
+            report,
+        )
+        self.assertIn(
+            "| Scope | Path | Present | Routes defined |",
+            report,
+        )
+        self.assertRegex(
+            report,
+            r"\| machine-repo \| .* \| no \| — \|",
+        )
+        self.assertIn(
+            "| worker | repo-agent | repo-model | high | repo | global |",
+            report,
+        )
+        self.assertIn("## Detail — worker", report)
+        self.assertIn("- Wins from: repo — ", report)
+        self.assertIn("- Replaced:\n  - global — ", report)
+        self.assertNotIn("## Detail — captain", report)
 
     def test_compact_and_route_filtered_output(self):
         config = self.base_config()

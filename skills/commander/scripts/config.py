@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read, write, migrate, and resolve Commander routing configuration."""
+"""Read, write, migrate, resolve, and report Commander routing configuration."""
 
 import argparse
 import hashlib
@@ -176,26 +176,119 @@ def selected(routes, route_ids):
 def resolve(paths, repo=".", route_ids=None):
     if not paths["global"].exists():
         raise Error(f"required global config is missing: {paths['global']}")
-    routes, sources, layers = {}, {}, []
+    routes, definitions, layers = {}, {}, []
     for scope in SCOPES:
         path = paths[scope]
-        if not path.exists():
+        exists = path.exists()
+        config = load(path, scope == "global", scope, repo) if exists else None
+        routes_defined = list(ordered(config["routes"])) if config else []
+        layers.append(
+            {
+                "scope": scope,
+                "path": str(path),
+                "exists": exists,
+                "routes_defined": routes_defined,
+            }
+        )
+        if config is None:
             continue
-        config = load(path, scope == "global", scope, repo)
-        layers.append({"scope": scope, "path": str(path)})
         for route, row in config["routes"].items():
             routes[route] = row
-            sources[route] = {"scope": scope, "path": str(path)}
+            definitions.setdefault(route, []).append(
+                {"scope": scope, "path": str(path), "row": row}
+            )
     config = {"version": VERSION, "routes": ordered(routes)}
     validate_schema(config, True, "resolved configuration")
     config["routes"] = selected(config["routes"], route_ids or [])
+    route_provenance = {}
+    for route, row in config["routes"].items():
+        chain = definitions[route]
+        winner = chain[-1]
+        route_provenance[route] = {
+            "effective": row,
+            "winner": {
+                "scope": winner["scope"],
+                "path": winner["path"],
+            },
+            "replaced": chain[:-1],
+        }
     return {
         "config": config,
         "route_sources": {
-            route: sources[route] for route in config["routes"]
+            route: route_provenance[route]["winner"] for route in config["routes"]
         },
+        "route_provenance": route_provenance,
         "layers_low_to_high": layers,
     }
+
+
+def markdown_cell(value):
+    return str(value).replace("\\", "\\\\").replace("|", "\\|").replace("\n", " ")
+
+
+def routing_report(paths, repo=".", route_ids=None):
+    result = resolve(paths, repo, route_ids)
+    root, _common = repo_info(repo)
+    return {"repo": str(root), **result}
+
+
+def report_markdown(report):
+    lines = [
+        "# Commander routing report",
+        "",
+        f"**Repo:** {report['repo']}",
+        "**Layers (low → high):** "
+        + " → ".join(f"`{layer['scope']}`" for layer in report["layers_low_to_high"]),
+        "",
+        "## Layers",
+        "",
+        "| Scope | Path | Present | Routes defined |",
+        "| --- | --- | --- | --- |",
+    ]
+    for layer in report["layers_low_to_high"]:
+        defined = ", ".join(layer["routes_defined"]) or "—"
+        lines.append(
+            f"| {markdown_cell(layer['scope'])} | {markdown_cell(layer['path'])} "
+            f"| {'yes' if layer['exists'] else 'no'} | {markdown_cell(defined)} |"
+        )
+
+    lines += [
+        "",
+        "## Effective routes",
+        "",
+        "| Route | Agent | Model | Effort | Source | Overrides |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for route, row in report["config"]["routes"].items():
+        provenance = report["route_provenance"][route]
+        replaced = ", ".join(item["scope"] for item in provenance["replaced"]) or "—"
+        lines.append(
+            f"| {markdown_cell(route)} | {markdown_cell(row['agent'])} "
+            f"| {markdown_cell(row['model'])} | {markdown_cell(row['effort'])} "
+            f"| {markdown_cell(provenance['winner']['scope'])} "
+            f"| {markdown_cell(replaced)} |"
+        )
+
+    for route, row in report["config"]["routes"].items():
+        provenance = report["route_provenance"][route]
+        winner = provenance["winner"]
+        lines += [
+            "",
+            f"## Detail — {route}",
+            "",
+            f"- Effective: {json.dumps(row, ensure_ascii=False, sort_keys=True)}",
+            f"- Wins from: {winner['scope']} — {winner['path']}",
+            "- Replaced:",
+        ]
+        if provenance["replaced"]:
+            for item in provenance["replaced"]:
+                lines.append(
+                    f"  - {item['scope']} — {item['path']}: "
+                    f"{json.dumps(item['row'], ensure_ascii=False, sort_keys=True)}"
+                )
+        else:
+            lines.append("  - none")
+    return "\n".join(lines) + "\n"
 
 
 def mode_for(scope):
@@ -303,7 +396,15 @@ def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "command",
-        choices=("template", "read", "resolve", "write", "delete", "migrate"),
+        choices=(
+            "template",
+            "read",
+            "resolve",
+            "report",
+            "write",
+            "delete",
+            "migrate",
+        ),
     )
     parser.add_argument("scope", nargs="?", choices=(*SCOPES, "all"))
     parser.add_argument("--repo", default=".")
@@ -311,15 +412,20 @@ def arguments():
     parser.add_argument("--yes", action="store_true")
     parser.add_argument("--compact", action="store_true")
     parser.add_argument("--route", action="append", default=[])
+    parser.add_argument("--format", choices=("markdown", "json"))
     args = parser.parse_args()
     if args.command in {"read", "write", "delete", "migrate"} and args.scope is None:
         parser.error(f"{args.command} requires a scope")
     if args.scope == "all" and args.command != "read":
         parser.error("scope 'all' is valid only for read")
-    if args.command in {"template", "resolve"} and args.scope is not None:
+    if args.command in {"template", "resolve", "report"} and args.scope is not None:
         parser.error(f"{args.command} does not take a scope")
-    if args.command != "resolve" and (args.compact or args.route):
-        parser.error("--compact and --route are valid only for resolve")
+    if args.command != "resolve" and args.compact:
+        parser.error("--compact is valid only for resolve")
+    if args.command not in {"resolve", "report"} and args.route:
+        parser.error("--route is valid only for resolve and report")
+    if args.command != "report" and args.format is not None:
+        parser.error("--format is valid only for report")
     if args.yes and args.command not in {"delete", "migrate"}:
         parser.error("--yes is valid only for delete and migrate")
     return args
@@ -340,7 +446,7 @@ def main():
             )
             return
 
-        needs_repo = args.command == "resolve" or args.scope in {
+        needs_repo = args.command in {"resolve", "report"} or args.scope in {
             "repo",
             "machine-repo",
             "all",
@@ -361,6 +467,12 @@ def main():
         elif args.command == "resolve":
             result = resolve(paths, args.repo, args.route)
             emit(result["config"]["routes"] if args.compact else result, args.compact)
+        elif args.command == "report":
+            report = routing_report(paths, args.repo, args.route)
+            if args.format == "json":
+                emit(report)
+            else:
+                sys.stdout.write(report_markdown(report))
         elif args.command == "write":
             if args.file == "-":
                 config = parse_json(sys.stdin, "stdin")

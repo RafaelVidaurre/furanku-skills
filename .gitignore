@@ -4,3 +4,6 @@
 # Python caches
 __pycache__/
 *.pyc
+
+# Commander analysis scratch (agent findings)
+skills/commander/.scratch/

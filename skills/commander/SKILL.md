@@ -5,55 +5,32 @@ description: Coordinate Beads across Orca-managed work fronts and route spawned 
 
 # Commander
 
-Commander adds two decisions to Beads and Orca:
+- **Fronts** — which independently owned streams advance the selected Beads
+- **Routes** — which configured Captain or Worker row owns each front
 
-- **Fronts:** which independently owned streams advance the selected Beads.
-- **Routes:** which configured Captain or Worker combination owns each front.
+Beads hold the work. Orca coordinates. Dispatches are pointers. Needs `bd` + `orchestration`; load `orca-cli` for terminals/worktrees. Follow those guides as written. The user session keeps its own model and effort.
 
-Beads is the durable contract. Orca is the coordination system. Delivery runs require `bd` and the `orchestration` skill; load `orca-cli` when Orca routes the run through terminals or worktrees. Follow both current Orca guides as written. The user-launched session keeps its own model and effort.
+**Stay lean.** No Commander lifecycle on top of Orca. No product work, no QA process (repo + Bead own quality/done-criteria), no visual/domain taste, no restating work in dispatches, no mid-flight micro-management. Gaps → Beads; dispatches stay pointers.
 
-Beads holds every requirement a spawned agent needs, so dispatch text stays a pointer to the Bead and never restates the work.
-
-For a configuration-only request, read [Configuration](references/configuration.md) and follow that branch without requiring a selected Bead or active Orca task state.
+Configuration-only: [Configuration](references/configuration.md). For effective-routing or provenance questions, run `python3 <commander-skill-dir>/scripts/config.py report --repo <root>` and show stdout as-is.
 
 ## Run
 
-1. **Select or create the contract.** Read the requested Beads and their dependencies. A Bead need not exist when the user asks: when the request names none and none is discoverable, create the top-level Bead yourself and seed it with the user's request in their own words. Capture new durable requirements and decisions there. One Bead may have several execution, review, or integration fronts; create a child Bead only when the child is a distinct durable requirement. Record whether the user asked for an autonomous run or said they will be unavailable. **Complete when:** every selected Bead exists and carries the request plus whatever outcomes, constraints, dependencies, and unresolved user decisions are known so far; its Captain completes the definition.
+1. **Contract.** Read or create Bead(s); seed new ones with the user's words. Requirements and decisions live only in Beads. Child Beads only for distinct durable requirements. Note autonomy. **Done when:** selected Beads exist with the request and known constraints.
 
-2. **Map the fronts.** Give each front one outcome and one owner:
-   - A **Worker** owns one bounded outcome.
-   - A **Captain** owns a front that needs decomposition or integration and coordinates Worker children. Captain-shaped work discovered below it returns to Commander as a new front.
-
-   Generate one unique run key and give every front a globally unique key such as `<run-key>/<bead-id>/<front-name>`. Express management and dependencies with Orca tasks. Worktrees are for concurrent writers, not for every front: judge write concurrency across the whole run, give any front that writes files while another front writes its own top-level worktree, and run the rest as fresh agent terminals in the existing checkout, the current `orchestration` guide's default. Each Captain owns its own worktree only when the run-wide judgment isolates its front or its Workers write files in parallel; those Workers run in child worktrees of that checkout, and their work lands and is reconciled in the Captain's worktree before the Captain returns a result. Follow the current `orca-cli` guide for how those checkouts are created. **Complete when:** every ready outcome appears once in the Orca front map with its run key, Bead ID, front key, owner tier, task dependencies, and a checkout mode — existing checkout, top-level worktree, or child worktree — justified by the run's write concurrency.
-
-3. **Route each owner.** Resolve only the rows needed for the front map:
+2. **Fronts → routes → launch.** One outcome, one owner per front (Worker = bounded; Captain = needs decompose/integrate; Captain-shaped work below returns here). One run key; front keys `<run-key>/<bead-id>/<front-name>`. Orca tasks for deps. Worktrees only for concurrent writers; else fresh terminals in the existing checkout. Captain worktree only if that front is isolated or its Workers write in parallel (then Workers use child worktrees and reconcile in the Captain checkout).
 
    ```sh
-   python3 <commander-skill-dir>/scripts/config.py resolve --repo <repository-root> --compact --route <route-id>
+   python3 <commander-skill-dir>/scripts/config.py resolve --repo <root> --compact --route <id>
+   python3 <commander-skill-dir>/scripts/dispatch.py \
+     --title "<outcome>" --front-key <run>/<bead>/<name> \
+     --route <id> --agent <a> --model <m> --effort <e> \
+     --checkout "<mode or path>" --autonomy supervised|autonomous \
+     [--captain-contract <abs-captain.md>] [--routes-json -]
    ```
 
-   Repeat `--route` as needed. Choose the base role from ownership shape. A specialist matches only when its `work` text explicitly names the front's stated outcome; use the base route when none match. Use the sole match when exactly one fits. When several fit, choose the lexicographically first route ID if every match resolves to the same `agent`, `model`, and `effort`; otherwise obtain a named user decision. Current-invocation changes are ephemeral unless the user requests a config edit.
+   Specialist only when `work` text explicitly names the outcome; sole match wins; same agent/model/effort multi-match → lexicographically first route ID; else ask the user. Pipe compact resolve into `--routes-json -` for Captains. Use the helper's JSON `title` + `spec` only — no free-text requirements. Route-aware launch, then dispatch to that handle. `orchestration run` only if it binds the exact row. Captains get captain.md by absolute path (inline only if unreadable). Direct Workers: seed the Bead with the Captain contract's Worker return rules (result, time, process notes when useful). **Done when:** every ready front is on its exact route with known task ID.
 
-   Give each Captain a self-contained child-routing contract containing the resolved Worker rows with invocation overrides, this selection rule, route-aware launch before dispatch, and the provenance fields required by the next step. Point it at [Captain contract](references/captain.md) for how to establish its Bead, decompose, and escalate, and inline that file's content instead when the launched agent cannot read the skill directory. Pass the run's autonomy setting in the same spec. Give a Worker front reporting straight to Commander the same return contract and front-report template the Captain contract defines, seeded into its Bead, with an empty Children table. **Complete when:** every ready front has one exact route, and every Captain spec carries the complete child-routing contract.
+3. **Supervise.** One Orca wait for completion/`worker_done` (timeout sized to the front; on expiry check state once, extend or escalate — no heartbeat polling). If a wait outlives any plausible front duration, check once and escalate or redispatch — do not wait silently. Message the user at dispatch, blocker, and close. Surface human decisions immediately; name the thread; single answers go in-thread (relay verbatim); no blocking question UI. Autonomous Captains decide reversible in-scope items in the Bead (captain contract); no peer debate agents. Resume via task IDs or run key (front-key prefix); else list matches and get a named user decision before adopting any. Blocker/gap → Bead + pointer redispatch, never a fix essay. **Done when:** each front has a result or blocker, and decisions are answered or recorded.
 
-4. **Launch, then dispatch.** Use the current `orca-cli` guide's route-aware terminal launch to apply the exact `agent`, `model`, and `effort`, then use the `orchestration` guide to dispatch the task to that returned terminal handle. Use `orchestration run` only when its current interface can bind the exact resolved row. Put the run key, Bead ID, front key, route ID, and resolved `agent`, `model`, and `effort` in every Orca task spec. Keep the dispatch text to that provenance, the Bead to read, and the contract to follow; requirements live in the Bead and are never restated in the message. **Complete when:** every dispatch targets the terminal launched for its resolved row, and its Orca task ID and exact routing provenance are known.
-
-5. **Coordinate through Orca.** Commander supervises its direct Workers and Captains; each Captain supervises its Worker children and returns one integrated result. Use Orca's native task state, retries, results, and recovery guidance without adding a Commander lifecycle. On resume, use supplied Orca task IDs or run key. With neither, list task specs matching the selected Beads and obtain a named user decision before adopting any match, including a single match.
-
-   When a Captain needs a human decision, surface it as soon as it is raised and name the thread that raised it, because answering that Captain directly is the default and the shortest path. Relay a single question or confirmation yourself and forward the reply verbatim. Send the user to the thread for anything multi-part, complex, or likely to open a conversation, and tell them they can route through you instead by saying so. Never open a blocking interactive question flow, such as an `AskUserQuestion`-style prompt, for either case.
-
-   In an autonomous run, Captains resolve such questions with a peer launched on the Captain's own resolved route row rather than waiting. **Complete when:** Orca has a result or explicit blocker for every selected front, and every raised human decision has reached the user or been resolved autonomously and recorded.
-
-6. **Close against the contract, then hand over.** Apply the returned results to the selected Beads. Close a Bead when its acceptance criteria are satisfied; otherwise keep the remaining work or decision explicit. Then notify the user that the work is ready and ask whether to merge it or review it first; do not merge before they answer. The handover report carries:
-
-   - what changed, in the user's terms: features, fixes, improvements
-   - tests, gates, or tooling added or changed
-   - problems hit during the run, each with the change to this repository's guidance or tooling that would prevent a repeat, or an explicit note that no confident prevention is known
-   - where time went: one row per front and per mechanical check, with elapsed time taken from Orca's own task records, then a Worker's self-reported duration labeled as such, and marked unknown where Orca did not record it and none was reported
-   - the run key, front outcomes, Orca task IDs, routes used, and decisions needed
-
-   Assemble it from the Captains' front reports and write it for a human without context: plain concise language, claims that are sure or explicitly marked as assumptions, and only suggestions the reporting agent was confident in. Each Captain has already filtered its front with more depth than Commander holds, so relay what the front reports surface rather than second-guessing it, and add the run-level provenance — run key, task IDs, routes — from this session's own dispatch records rather than asking Captains to restate it.
-
-   Dispose of the run's checkouts once the user's chosen path finishes — the merge lands, or review resolves into a merge or an explicit abandonment: remove its worktrees and delete run-created branches whose work was merged or abandoned per the current `orca-cli` guide, keep only a checkout backing explicit remaining work, and record anything kept and why in the report.
-
-   **Complete when:** Beads and the user report describe the same outcome, the user has been asked to merge or review, and every checkout the run created is removed, awaiting only the user's answer, or recorded as kept for explicit remaining work.
+4. **Close + hand over.** Update Beads from returned results. Ready-to-land fronts store front report + retrospective as a **Bead comment** (Captain contract template). Close when the Bead's own criteria are met; else leave remaining work explicit. Tell the user what changed, open decisions, front keys / task IDs / routes, and any **process** signal from those comments worth acting on (recurrent waste, suggested skill/repo fixes) — do not re-litigate product taste. Do not prescribe how work lands (merge, PR, push, branch cleanup). **Done when:** Beads match what the user hears, open decisions are explicit, and each ready-to-land front has a retrospective comment on its Bead.
