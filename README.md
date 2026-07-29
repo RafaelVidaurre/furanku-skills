@@ -4,25 +4,27 @@ A public collection of [agent skills](https://agentskills.io) — portable instr
 
 ```bash
 npx skills add rafaelvidaurre/furanku-skills          # everything
-npx skills add rafaelvidaurre/furanku-skills --skill commander # one skill
+npx skills add rafaelvidaurre/furanku-skills --skill crew # one skill
 ```
 
 ## Skills
 
-### commander
+### crew
 
-Coordinates Beads across independently owned work fronts. Commander decides the front map and selects a configured Captain or Worker route for each front; Beads remains the durable identity and contract, while Orca remains the coordination system. Spawned-agent routes use a strict layered v2 table, while the user-launched session keeps its own model and effort.
+Assigns explicit Commander, Captain, and Worker ownership while leaving durable work to Beads and coordination mechanics to Orca.
 
+`crew` replaces the former `commander` skill. Existing version 2 route configuration keeps its established `commander` storage paths, so no configuration move is required.
+
+```text
+> Act as Commander. Coordinate my projects through Orca without modifying project files.
+> You are now Captain for the editor front. Report directly to me.
+> Take command of the existing editor Captain.
+> Show the effective Crew routes for this repository.
 ```
-> Use Commander to deliver this Bead through Orca.
-> Route these ready Beads to the right models and keep concurrency at three.
-> Resume this Commander run from its Bead and Orca task IDs.
-> Migrate my Commander routing config to version 2.
-```
 
-Each run and front has a unique key. Every Orca task carries those keys, its Bead and route IDs, and exact agent/model/effort provenance; dispatch targets the terminal launched for that route. Beads hold every requirement, so dispatch text stays a pointer and never restates the work; Commander creates the top-level Bead when the request names none, and each Captain defines its front's scope, non-scope, and acceptance criteria there before decomposing. One Bead may have several Orca execution, review, or integration tasks without duplicating their topology in Beads. Worktrees exist only for concurrent writers, judged across the whole run — any front that writes while another writes gets its own, a Captain's parallel-writing Workers get children of its checkout, every other front runs as a fresh terminal in the existing checkout, and runs dispose of their worktrees and branches at handover. Human decisions raised by a Captain reach the user directly or through Commander; an autonomous run resolves them against a peer on the Captain's own route. Runs end with a handover that asks whether to merge or review, and reports changes, problems, guidance fixes, and where time went — assembled from each Captain's templated, human-facing front report, which carries only sure claims, marked assumptions, and Worker retrospectives judged worth relaying. Version 1 configs migrate explicitly with a one-time backup.
+Commander is the user's cross-project point of contact and may assign Captains or direct Workers. Captain owns one front's design, decomposition, decisions, and integration and assigns only Workers. Worker owns one bounded implementation or verification outcome. Direct Captains report to the user; a Commander takes command by dispatching an upstream Orca task to the existing Captain terminal without restarting its work or Workers.
 
-Open the [skill entrypoint](skills/commander/SKILL.md), [Captain contract](skills/commander/references/captain.md), or [configuration reference](skills/commander/references/configuration.md).
+Open the [skill entrypoint](skills/crew/SKILL.md), [Commander contract](skills/crew/references/commander.md), [Captain contract](skills/crew/references/captain.md), or [configuration reference](skills/crew/references/configuration.md).
 
 ### testing-best-practices
 

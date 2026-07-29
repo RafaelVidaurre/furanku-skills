@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read, write, migrate, resolve, and report Commander routing configuration."""
+"""Read, write, migrate, resolve, and report Crew routing configuration."""
 
 import argparse
 import hashlib
@@ -139,7 +139,7 @@ def load(path, require_base=False, scope=None, repo="."):
         and scope is not None
     ):
         raise Error(
-            f"{path} uses Commander config version 1; preview migration with: "
+            f"{path} uses routing config version 1; preview migration with: "
             f"{migration_command(scope, repo)}"
         )
     validate_schema(config, require_base, str(path))
@@ -234,7 +234,7 @@ def routing_report(paths, repo=".", route_ids=None):
 
 def report_markdown(report):
     lines = [
-        "# Commander routing report",
+        "# Crew routing report",
         "",
         f"**Repo:** {report['repo']}",
         "**Layers (low → high):** "
@@ -358,7 +358,7 @@ def migration_preview(scope, path):
     )
     if conflicts:
         raise Error(
-            "automatic migration requires explicit disposition of Commander "
+            "automatic migration requires explicit disposition of legacy Commander "
             f"specialists: {', '.join(conflicts)}"
         )
     routes = {
@@ -508,7 +508,7 @@ def main():
                 preview["migrated"] = False
             emit(preview)
     except (Error, OSError) as error:
-        print(f"commander-config: {error}", file=sys.stderr)
+        print(f"crew-config: {error}", file=sys.stderr)
         raise SystemExit(2 if "required global config is missing" in str(error) else 1)
 
 

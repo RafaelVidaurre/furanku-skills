@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Standard-library tests for the Commander routing helper."""
+"""Standard-library tests for the Crew routing helper."""
 
 import json
 import os
@@ -266,7 +266,7 @@ class ConfigTest(unittest.TestCase):
             "--route",
             "worker",
         ).stdout
-        self.assertIn("# Commander routing report", report)
+        self.assertIn("# Crew routing report", report)
         self.assertIn(f"**Repo:** {self.repo.resolve()}", report)
         self.assertIn(
             "**Layers (low → high):** `global` → `repo` → `machine-repo`",
@@ -456,7 +456,7 @@ class ConfigTest(unittest.TestCase):
         result = self.run_config(
             "resolve", "--repo", str(self.repo), "--compact", ok=False
         )
-        self.assertIn("uses Commander config version 1", result.stderr)
+        self.assertIn("uses routing config version 1", result.stderr)
         self.assertIn("preview migration with", result.stderr)
         self.assertIn("migrate global", result.stderr)
         self.assertNotIn("--yes", result.stderr)

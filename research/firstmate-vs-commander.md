@@ -2,6 +2,10 @@
 
 Research date: 2026-07-24 (Europe/Lisbon)
 
+> Historical snapshot: this report predates the optional-Commander
+> [Crew](../skills/crew/SKILL.md) design. Its recommendations describe the
+> superseded Commander implementation and are not current Crew policy.
+
 Repository: [`kunchenguid/firstmate`](https://github.com/kunchenguid/firstmate)
 
 Commit inspected: [`10ee7797e50c88c9865d8fb382cdfee5c2b8bcd1`](https://github.com/kunchenguid/firstmate/tree/10ee7797e50c88c9865d8fb382cdfee5c2b8bcd1)
@@ -70,10 +74,6 @@ durable wake queue, prints one bounded fleet digest, and reconciles recorded
 tasks with live endpoints. A second session that cannot acquire the lock stays
 read-only
 ([AGENTS.md](https://github.com/kunchenguid/firstmate/blob/10ee7797e50c88c9865d8fb382cdfee5c2b8bcd1/AGENTS.md#3-session-start--recovery)).
-
-Commander says it is the single manager, but the current skill does not enforce
-that statement with a lease. Firstmate shows what enforceable ownership looks
-like.
 
 ### Fail-safe cleanup
 
@@ -251,26 +251,23 @@ Ordered by expected value:
 2. **Separate event history from authoritative current state.** Derive current
    state from Orca task/terminal facts and Beads acceptance state; never treat
    the latest message as truth by itself.
-3. **Enforce one active manager per run.** Use a scoped, recoverable lease keyed
-   to the repository or selected Bead set. A second Commander should be
-   read-only.
-4. **Make recovery one read.** Produce a compact, bounded resume snapshot:
+3. **Make recovery one read.** Produce a compact, bounded resume snapshot:
    selected Beads, active Orca dispatches, unresolved decisions, delivery
    artifacts, and the next action. Do not replay history.
-5. **Make cleanup evidence-bound.** Before removing a worktree or retiring a
+4. **Make cleanup evidence-bound.** Before removing a worktree or retiring a
    dispatch, prove that the accepted artifact belongs to that task and is
    durable. Preserve state on ambiguity.
-6. **Adopt explicit `ship` and `scout` task shapes.** An investigation ends in a
+5. **Adopt explicit `ship` and `scout` task shapes.** An investigation ends in a
    file-backed report; implementation needs separate authority.
-7. **Configure only agents Commander launches.** The user-launched Commander
+6. **Configure only agents Commander launches.** The user-launched Commander
    session already has a model and effort. Firstmate likewise routes spawned
    crewmates and secondmates, not the primary session. Remove Commander's
    `commander` route and model-mismatch confirmation; retain worker, captain,
    and specialist routes.
-8. **Test orchestration as a state machine.** Add backend contract tests for
+7. **Test orchestration as a state machine.** Add backend contract tests for
    spawn, identity, current-state reads, wake deduplication, recovery, and
    cleanup refusal. Keep these tests in the mechanism owner, not Commander.
-9. **Keep receipts terse and file-backed.** Workers should return outcome,
+8. **Keep receipts terse and file-backed.** Workers should return outcome,
    evidence paths, validation result, blockers/decisions, and artifact identity
    in a bounded receipt. Detailed logs stay on disk.
 

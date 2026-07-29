@@ -2,9 +2,12 @@
 
 Research date: 2026-07-24 (Europe/Lisbon)
 
+> Historical snapshot: this report analyzes the superseded `commander` skill at
+> commit `69c654c`. The maintained role skill is [Crew](../skills/crew/SKILL.md).
+
 ## Scope and method
 
-This report compares [Commander](../skills/commander/SKILL.md) with seven popular
+This report compares [Commander](https://github.com/RafaelVidaurre/furanku-skills/blob/69c654c/skills/commander/SKILL.md) with seven popular
 open-source systems that coordinate coding agents, plus one narrowly relevant
 handoff micro-pattern. The shortlist favors systems with an
 inspectable orchestration skill or workflow, not general-purpose agent SDKs.
@@ -36,7 +39,7 @@ Facts:
    Its 56-line skill delegates durable work state to Beads and coordination
    mechanics to Orca, then adds only model-effort routing and Bead-first context
    discipline. That separation is unusual and worth preserving
-   ([Commander](../skills/commander/SKILL.md)). It does **not** imply a small
+   ([Commander](https://github.com/RafaelVidaurre/furanku-skills/blob/69c654c/skills/commander/SKILL.md)). It does **not** imply a small
    activated stack: the locally installed Commander + `orchestration` +
    `orca-cli` path measures about 11,977 `o200k_base` tokens if all three skill
    bodies are loaded.
@@ -134,22 +137,22 @@ Facts:
   Beads owns outcomes, acceptance criteria, dependencies, claims, blockers,
   and completion; Orca owns tasks, dispatches, waits, questions, gates, and
   completion signals
-  ([Commander lines 8-13](../skills/commander/SKILL.md)).
+  ([Commander lines 8-13](https://github.com/RafaelVidaurre/furanku-skills/blob/69c654c/skills/commander/SKILL.md#L8-L13)).
 - It has a simple hierarchy: Commander normally dispatches Workers directly;
   Captains are introduced only when integrating several Workers is substantial;
   Workers never delegate
-  ([Commander lines 15-23](../skills/commander/SKILL.md)).
+  ([Commander lines 15-23](https://github.com/RafaelVidaurre/furanku-skills/blob/69c654c/skills/commander/SKILL.md#L15-L23)).
 - The Bead is the downstream contract. Dispatches carry the Bead ID and paths
   to authoritative sources instead of paraphrased project knowledge
-  ([Commander context discipline](../skills/commander/SKILL.md)).
+  ([Commander context discipline](https://github.com/RafaelVidaurre/furanku-skills/blob/69c654c/skills/commander/SKILL.md)).
 - Routing is more exact than in the comparators: three base roles plus
   specialists resolve to exact agent, model, and effort combinations through
   layered configuration
-  ([Commander routing](../skills/commander/SKILL.md),
-  [configuration](../skills/commander/references/configuration.md)).
+  ([Commander routing](https://github.com/RafaelVidaurre/furanku-skills/blob/69c654c/skills/commander/SKILL.md),
+  [configuration](https://github.com/RafaelVidaurre/furanku-skills/blob/69c654c/skills/commander/references/configuration.md)).
 - Acceptance is centralized: Commander alone compares delivery evidence with
   Bead acceptance criteria and mutates Beads
-  ([Commander role](../skills/commander/SKILL.md)).
+  ([Commander role](https://github.com/RafaelVidaurre/furanku-skills/blob/69c654c/skills/commander/SKILL.md)).
 
 ### Measured prompt footprint
 
