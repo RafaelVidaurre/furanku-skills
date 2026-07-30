@@ -48,4 +48,12 @@ python3 <crew-skill-dir>/scripts/assignment.py --routes-json - \
 
 Use `--request "<verbatim user request>"` instead of `--bead` only when the spawned owner must establish the first Bead. The helper derives route provenance from the resolver output and includes Worker rows for Captains. Launch the exact route, then use Orca to dispatch the generated title and spec.
 
-**Complete when:** the owner has the intended role, principal, work pointer, route provenance, and live Orca dispatch when supervision is required.
+**Complete when:** the owner has the intended role, principal, work pointer, route provenance, live Orca dispatch when supervision is required, and tracked pointers for the Orca resources created by the assignment.
+
+## Retire an owner
+
+The session that creates an Orca assignment owns the lifecycle of the Orca resources it created for that owner.
+
+After repository policy declares the result integrated—for example, after its merge—or explicitly abandoned, use the current `orchestration` guidance to finish the assignment state and the current `orca-cli` guidance to retire its dedicated terminals and worktree. Limit retirement to assignment-created resources; preserve pre-existing or shared resources and anything that still backs active, queued, or unintegrated work. Report a retained resource by exact pointer and reason instead of leaving silent residue.
+
+**Complete when:** each finished assignment's dedicated Orca resources are retired, or every retained resource has explicit remaining work or a cleanup blocker reported to the principal.
