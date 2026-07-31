@@ -78,7 +78,7 @@ Update the source that is wrong while preserving the intended contract evidence.
 
 ## 6. Leave the suite healthier
 
-Keep tests close to the behavior they protect, fast enough for their execution tier, and owned by the team that can diagnose them. Move a broad regression to a narrower test when the narrower test provides equal fidelity; retain broader coverage when it protects an additional integration or deployment risk.
+Keep tests close to the behavior they protect and fast enough for their execution tier. Move a broad regression to a narrower test when the narrower test provides equal fidelity; retain broader coverage when it protects an additional integration or deployment risk.
 
 When reviewing suite quality, diagnosing flakes, choosing metrics, changing execution tiers, or pruning tests, read [Suite health](references/suite-health.md).
 
