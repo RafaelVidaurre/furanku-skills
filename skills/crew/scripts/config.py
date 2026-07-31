@@ -14,6 +14,7 @@ import tempfile
 
 
 VERSION = 2
+ROUTING_VERSION = 3
 BASE = ("captain", "worker")
 LEGACY_BASE = ("commander", "captain", "worker")
 SCOPES = ("global", "repo", "machine-repo")
@@ -106,8 +107,30 @@ def validate_rows(
 
 
 def validate_schema(config, require_base, source):
+    version = config.get("version")
+    if version == VERSION:
+        validate_rows(
+            config,
+            require_base,
+            source,
+            VERSION,
+            BASE,
+            ROUTE_ID,
+            allow_empty=not require_base,
+        )
+        return
+    if version != ROUTING_VERSION:
+        raise Error(
+            f"{source} must use routing config version {VERSION} or "
+            f"{ROUTING_VERSION}"
+        )
+    if set(config) != {"version", "routes", "routing"}:
+        raise Error(
+            f"{source} version {ROUTING_VERSION} must contain only version, "
+            "routes, and routing"
+        )
     validate_rows(
-        config,
+        {"version": VERSION, "routes": config["routes"]},
         require_base,
         source,
         VERSION,
@@ -115,6 +138,15 @@ def validate_schema(config, require_base, source):
         ROUTE_ID,
         allow_empty=not require_base,
     )
+    if not isinstance(config["routing"], dict):
+        raise Error(f"{source} routing must be an object")
+    allowed_routing = {"candidates", "specializations", "policy"}
+    unknown_routing = sorted(set(config["routing"]) - allowed_routing)
+    if unknown_routing:
+        raise Error(
+            f"{source} has unknown routing sections: "
+            f"{', '.join(unknown_routing)}"
+        )
 
 
 def validate_v1_schema(config, require_base, source):
@@ -187,7 +219,11 @@ def resolve(paths, repo=".", route_ids=None):
                 "scope": scope,
                 "path": str(path),
                 "exists": exists,
+                "version": config["version"] if config else None,
                 "routes_defined": routes_defined,
+                "routing_sections": (
+                    sorted(config.get("routing", {})) if config else []
+                ),
             }
         )
         if config is None:
@@ -437,11 +473,12 @@ def main():
         if args.command == "template":
             emit(
                 {
-                    "version": VERSION,
+                    "version": ROUTING_VERSION,
                     "routes": {
                         route: {"agent": None, "model": None, "effort": None}
                         for route in BASE
                     },
+                    "routing": {},
                 }
             )
             return

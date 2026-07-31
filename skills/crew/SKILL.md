@@ -1,6 +1,6 @@
 ---
 name: crew
-description: Assign Commander, Captain, and Worker ownership, and route spawned agents to configured agent, model, and effort combinations. Use when the user asks an agent to act as or become one of these roles, asks Commander to take command of a Captain, or asks to configure Crew role routes.
+description: Assign Commander, Captain, and Worker ownership, and select research-backed agent, model, and effort combinations for spawned owners. Use when the user asks an agent to act as or become Commander, Captain, or Worker; asks Commander to take command of a Captain; or asks to view, diagnose, or modify Crew routing configuration.
 ---
 
 # Crew
@@ -22,7 +22,13 @@ Read the role contract for the role being performed:
 - [Captain](references/captain.md)
 - [Worker](references/worker.md)
 
-For route setup, changes, or diagnosis, read [Configuration](references/configuration.md).
+## View or modify configuration
+
+For requests to inspect, explain, add, change, or remove routing configuration, read [Configuration](references/configuration.md) before acting. Use the bundled helpers: `config.py` owns persisted layers and exact-route provenance; `router.py` compiles task-fit policy and research evidence.
+
+For a view, report both exact routes and compiled task-fit routing against the relevant repository. For a change, inspect the current layers, write only the user-selected `global`, `repo`, or `machine-repo` scope through `config.py`, then rerun both reports and a representative decision. Preserve untouched routes and routing patches. Use `delete` only for an explicit layer-removal request after confirmation.
+
+**Complete when:** a view shows effective exact routes and task-fit policy with provenance, or a change is validated in its intended scope and produces the requested effective decision.
 
 ## Direct role
 
@@ -34,19 +40,22 @@ Load `orchestration` when the role delegates or supervises durable work, and `or
 
 ## Spawn an owner
 
-Select the base route from the ownership shape. A specialist matches only when its `work` text explicitly names the outcome. Use the sole match; when several matches resolve to the same `agent`, `model`, and `effort`, use the lexicographically first route ID; otherwise ask the user.
+Choose by task fit unless the user explicitly requests an exact configured route or candidate. Coordination role does not imply model strength. Express the Captain's judgment as a semantic specialization plus only the capability, feature, selection-mode, priority, continuity, or allowlist overrides materially required by the work. Specializations describe work such as `architecture`, `implementation`, `review`, `ui-product`, or `spatial-3d`; they never name a model. Map “best possible regardless of cost” to `best-quality` and “cheapest good enough” to `cheapest-sufficient`; otherwise retain the specialization default.
 
-Resolve the effective table and pipe it into the assignment helper:
+Write that judgment as a routing request, then select with live quota and pipe the decision into the assignment helper:
 
 ```sh
-python3 <crew-skill-dir>/scripts/config.py resolve --repo <root> --compact |
-python3 <crew-skill-dir>/scripts/assignment.py --routes-json - \
+python3 <crew-skill-dir>/scripts/router.py choose --repo <root> \
+  --request-file <request.json> --quota-axi --compact |
+python3 <crew-skill-dir>/scripts/assignment.py --decision-json - \
   --title "<outcome>" --front-key <run>/<front> \
   --role captain|worker --reports-to user|commander|captain \
-  --route <id> --bead <id>
+  --bead <id>
 ```
 
-Use `--request "<verbatim user request>"` instead of `--bead` only when the spawned owner must establish the first Bead. The helper derives route provenance from the resolver output and includes Worker rows for Captains. Launch the exact route, then use Orca to dispatch the generated title and spec.
+The request must name `role` and either a configured `specialization` or explicit `needs`. Use `exact_route` for a configured v2/v3 route, or `pin` with a candidate ID and reason for an explicit user override; hard runtime gates still apply to pins. Treat `no-route` as a decision requiring different requirements, more research, or an explicit override—do not silently launch an insufficient candidate. If quota-axi fails, surface its failure; omit live quota only after the principal accepts unknown quota.
+
+Use `--request "<verbatim user request>"` instead of `--bead` only when the spawned owner must establish the first Bead. Launch the selected candidate, then use Orca to dispatch the generated title and spec. Each Captain runs the same selector for each Worker outcome instead of inheriting a fixed Worker model table.
 
 **Complete when:** the owner has the intended role, principal, work pointer, route provenance, live Orca dispatch when supervision is required, and tracked pointers for the Orca resources created by the assignment.
 

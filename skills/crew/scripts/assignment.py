@@ -36,6 +36,28 @@ def read_routes(value: str | None) -> dict[str, dict]:
     return rows
 
 
+def read_decision(value: str | None) -> dict:
+    if value is None:
+        return {}
+    raw = sys.stdin.read() if value == "-" else value
+    if not raw.strip():
+        raise Error("--decision-json requires JSON")
+    try:
+        decision = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise Error(f"invalid --decision-json: {exc}") from exc
+    if not isinstance(decision, dict):
+        raise Error("--decision-json must be an object")
+    if decision.get("status") not in {"selected", "pinned", "exact", "fallback"}:
+        raise Error("routing decision is not launchable")
+    selected = decision.get("selected")
+    if not isinstance(selected, dict) or any(
+        not selected.get(field) for field in ("agent", "model", "effort")
+    ):
+        raise Error("routing decision lacks a launchable selection")
+    return decision
+
+
 def worker_route_lines(rows: dict[str, dict]) -> list[str]:
     lines = []
     worker_routes = (
@@ -71,20 +93,34 @@ def build_spec(args: argparse.Namespace) -> tuple[str, str]:
     if bool(args.bead) == bool(args.request):
         raise Error("provide exactly one of --bead or --request")
 
-    rows = read_routes(args.routes_json)
-    expected_prefix = f"{args.role}."
-    if args.route != args.role and not args.route.startswith(expected_prefix):
-        raise Error(f"route {args.route!r} does not match role {args.role!r}")
-    selected = rows.get(args.route)
-    if not isinstance(selected, dict):
-        raise Error(f"route {args.route!r} is absent from --routes-json")
-    required = ("agent", "model", "effort")
-    if any(not selected.get(field) for field in required):
-        raise Error(f"route {args.route!r} lacks agent, model, or effort")
-
-    route_lines = worker_route_lines(rows) if args.role == "captain" else []
-    if args.role == "captain" and not route_lines:
-        raise Error("Captain assignments require Worker routes")
+    decision = read_decision(args.decision_json)
+    if decision:
+        selected = decision["selected"]
+        decided_role = decision.get("judgment", {}).get("role")
+        if decided_role is not None and decided_role != args.role:
+            raise Error(
+                f"routing decision role {decided_role!r} does not match "
+                f"assignment role {args.role!r}"
+            )
+        route_id = decision.get("exact_route", "task-fit")
+        route_lines = []
+    else:
+        rows = read_routes(args.routes_json)
+        expected_prefix = f"{args.role}."
+        if args.route is None:
+            raise Error("--route is required with --routes-json")
+        if args.route != args.role and not args.route.startswith(expected_prefix):
+            raise Error(f"route {args.route!r} does not match role {args.role!r}")
+        selected = rows.get(args.route)
+        if not isinstance(selected, dict):
+            raise Error(f"route {args.route!r} is absent from --routes-json")
+        required = ("agent", "model", "effort")
+        if any(not selected.get(field) for field in required):
+            raise Error(f"route {args.route!r} lacks agent, model, or effort")
+        route_id = args.route
+        route_lines = worker_route_lines(rows) if args.role == "captain" else []
+        if args.role == "captain" and not route_lines:
+            raise Error("Captain assignments require Worker routes")
 
     contract = (
         Path(__file__).resolve().parent.parent
@@ -95,12 +131,29 @@ def build_spec(args: argparse.Namespace) -> tuple[str, str]:
         f"role: {args.role}",
         f"reports_to: {args.reports_to}",
         f"front_key: {args.front_key}",
-        f"route: {args.route}",
+        f"route: {route_id}",
         f"agent: {selected['agent']}",
         f"model: {selected['model']}",
         f"effort: {selected['effort']}",
         f"Role contract: {contract}",
     ]
+    if decision:
+        lines += [
+            f"routing_status: {decision['status']}",
+            f"routing_sufficient: {json.dumps(decision.get('sufficient'))}",
+        ]
+        if selected.get("id"):
+            lines.append(f"candidate: {selected['id']}")
+        specialization = decision.get("judgment", {}).get("specialization")
+        if specialization:
+            lines.append(f"specialization: {specialization}")
+        selection_mode = decision.get("judgment", {}).get("selection_mode")
+        if selection_mode:
+            lines.append(f"selection_mode: {selection_mode}")
+        if decision.get("reason"):
+            lines.append(
+                f"routing_reason: {json.dumps(decision['reason'], ensure_ascii=False)}"
+            )
     if args.bead:
         lines += [f"bead: {args.bead}", f"Read Bead {args.bead}: it is the work contract."]
     else:
@@ -124,11 +177,13 @@ def main(argv: list[str] | None = None) -> int:
         required=True,
         choices=("user", "commander", "captain"),
     )
-    parser.add_argument("--route", required=True)
+    parser.add_argument("--route")
     work = parser.add_mutually_exclusive_group(required=True)
     work.add_argument("--bead")
     work.add_argument("--request")
-    parser.add_argument("--routes-json", required=True)
+    routing = parser.add_mutually_exclusive_group(required=True)
+    routing.add_argument("--routes-json")
+    routing.add_argument("--decision-json")
     parser.add_argument(
         "--format",
         choices=("json", "spec", "text"),

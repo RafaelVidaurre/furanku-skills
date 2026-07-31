@@ -84,8 +84,9 @@ class ConfigTest(unittest.TestCase):
 
     def test_strict_v2_and_required_base_routes(self):
         template = json.loads(self.run_config("template").stdout)
-        self.assertEqual(2, template["version"])
+        self.assertEqual(3, template["version"])
         self.assertEqual(["captain", "worker"], list(template["routes"]))
+        self.assertEqual({}, template["routing"])
 
         missing = {"version": 2, "routes": {"captain": row("a", "m", "e")}}
         result = self.run_config("write", "global", input_value=missing, ok=False)
@@ -102,6 +103,35 @@ class ConfigTest(unittest.TestCase):
         extra["unexpected"] = True
         result = self.run_config("write", "global", input_value=extra, ok=False)
         self.assertIn("only version 2 and routes", result.stderr)
+
+    def test_v3_preserves_exact_routes_and_exposes_routing_sections(self):
+        config = {
+            "version": 3,
+            "routes": self.base_config()["routes"],
+            "routing": {
+                "policy": {"unknown_quota": "ineligible"},
+                "candidates": {
+                    "grok/grok-4.5/high": {"enabled": False}
+                },
+            },
+        }
+        self.write("global", config)
+
+        result = json.loads(
+            self.run_config("resolve", "--repo", str(self.repo)).stdout
+        )
+        self.assertEqual(self.base_config()["routes"], result["config"]["routes"])
+        global_layer = result["layers_low_to_high"][0]
+        self.assertEqual(3, global_layer["version"])
+        self.assertEqual(
+            ["candidates", "policy"], global_layer["routing_sections"]
+        )
+
+        config["routing"]["surprise"] = {}
+        invalid = self.run_config(
+            "write", "global", input_value=config, ok=False
+        )
+        self.assertIn("unknown routing sections: surprise", invalid.stderr)
 
     def test_specialist_validation(self):
         config = self.base_config()

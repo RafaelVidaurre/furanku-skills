@@ -99,6 +99,51 @@ class AssignmentTest(unittest.TestCase):
         )
         self.assertIn("Create the first Bead", spec)
 
+    def test_task_fit_decision_is_launchable_without_fixed_worker_routes(self):
+        args = list(BASE)
+        route_index = args.index("--route")
+        del args[route_index:route_index + 2]
+        routes_index = args.index("--routes-json")
+        decision = {
+            "status": "selected",
+            "sufficient": True,
+            "selected": {
+                "id": "codex/gpt-5.6-luna/max",
+                "agent": "codex",
+                "model": "gpt-5.6-luna",
+                "effort": "max",
+            },
+            "judgment": {
+                "role": "worker",
+                "specialization": "implementation",
+                "selection_mode": "cheapest-sufficient",
+            },
+        }
+        args[routes_index:routes_index + 2] = [
+            "--decision-json",
+            json.dumps(decision),
+        ]
+        result = run(*args, "--format", "spec")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("route: task-fit", result.stdout)
+        self.assertIn("candidate: codex/gpt-5.6-luna/max", result.stdout)
+        self.assertIn("specialization: implementation", result.stdout)
+        self.assertIn("selection_mode: cheapest-sufficient", result.stdout)
+        self.assertIn("routing_sufficient: true", result.stdout)
+
+    def test_rejects_unlaunchable_routing_decision(self):
+        args = list(BASE)
+        route_index = args.index("--route")
+        del args[route_index:route_index + 2]
+        routes_index = args.index("--routes-json")
+        args[routes_index:routes_index + 2] = [
+            "--decision-json",
+            json.dumps({"status": "no-route"}),
+        ]
+        result = run(*args)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("not launchable", result.stderr)
+
     def test_rejects_captain_from_captain(self):
         args = list(BASE)
         args[args.index("--role") + 1] = "captain"
