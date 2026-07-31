@@ -117,7 +117,7 @@ The Captain supplies judgment; the router does not classify raw prose automatica
 }
 ```
 
-Built-in specializations are `architecture`, `planning`, `implementation`, `debugging`, `review`, `ui-product`, `spatial-3d`, and `trivial`. Projects may augment or add semantic specializations.
+Projects may augment or add semantic specializations; the compiled routing report shows the effective configured identifiers.
 
 `selection_mode` expresses the user's operating point:
 

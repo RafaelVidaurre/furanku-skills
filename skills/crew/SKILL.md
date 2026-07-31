@@ -40,7 +40,7 @@ Load `orchestration` when the role delegates or supervises durable work, and `or
 
 ## Spawn an owner
 
-Choose by task fit unless the user explicitly requests an exact configured route or candidate. Coordination role does not imply model strength. Express the Captain's judgment as a semantic specialization plus only the capability, feature, selection-mode, priority, continuity, or allowlist overrides materially required by the work. Specializations describe work such as `architecture`, `implementation`, `review`, `ui-product`, or `spatial-3d`; they never name a model. Map “best possible regardless of cost” to `best-quality` and “cheapest good enough” to `cheapest-sufficient`; otherwise retain the specialization default.
+Choose by task fit unless the user explicitly requests an exact configured route or candidate. Coordination role does not imply model strength. Express the Captain's judgment as one configured semantic specialization plus only the capability, feature, selection-mode, priority, continuity, or allowlist overrides materially required by the work. A specialization is a closed configured identifier, not a label coined from task prose; the built-ins are `architecture`, `planning`, `implementation`, `debugging`, `review`, `ui-product`, `spatial-3d`, and `trivial`. Classify test work by its outcome: use `implementation` to write or change tests, `review` to evaluate tests or coverage, and `debugging` to reproduce or repair a failure. If no configured specialization fits, omit `specialization` and supply explicit `needs` instead of probing names. Specializations never name a model. Map “best possible regardless of cost” to `best-quality` and “cheapest good enough” to `cheapest-sufficient`; otherwise retain the specialization default.
 
 Write that judgment as a routing request, then select with live quota and pipe the decision into the assignment helper:
 
@@ -53,7 +53,7 @@ python3 <crew-skill-dir>/scripts/assignment.py --decision-json - \
   --bead <id>
 ```
 
-The request must name `role` and either a configured `specialization` or explicit `needs`. Use `exact_route` for a configured v2/v3 route, or `pin` with a candidate ID and reason for an explicit user override; hard runtime gates still apply to pins. Treat `no-route` as a decision requiring different requirements, more research, or an explicit override—do not silently launch an insufficient candidate. If quota-axi fails, surface its failure; omit live quota only after the principal accepts unknown quota.
+The request must name `role` and either the selected `specialization` or explicit `needs`. Use `exact_route` for a configured v2/v3 route, or `pin` with a candidate ID and reason for an explicit user override; hard runtime gates still apply to pins. Treat `no-route` as a decision requiring different requirements, more research, or an explicit override—do not silently launch an insufficient candidate. If quota-axi fails, surface its failure; omit live quota only after the principal accepts unknown quota.
 
 Use `--request "<verbatim user request>"` instead of `--bead` only when the spawned owner must establish the first Bead. Launch the selected candidate, then use Orca to dispatch the generated title and spec. Each Captain runs the same selector for each Worker outcome instead of inheriting a fixed Worker model table.
 

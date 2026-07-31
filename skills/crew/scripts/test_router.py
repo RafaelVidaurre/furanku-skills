@@ -158,6 +158,20 @@ class RouterTest(unittest.TestCase):
                 },
             )
 
+    def test_unknown_specialization_explains_valid_next_actions(self):
+        routing = router.read_json(router.CATALOG, "routing catalog")["routing"]
+        with self.assertRaises(router.Error) as caught:
+            router.task_judgment(
+                routing,
+                {"role": "worker", "specialization": "testing"},
+            )
+
+        message = str(caught.exception)
+        self.assertIn("unknown specialization: testing", message)
+        configured = ", ".join(sorted(routing["specializations"]))
+        self.assertIn(f"configured specializations: {configured}", message)
+        self.assertIn("omit specialization and supply explicit needs", message)
+
     def test_runtime_quota_exhaustion_is_a_hard_gate(self):
         exhausted = "opencode/kimi-for-coding/k3/max"
         runtime = {

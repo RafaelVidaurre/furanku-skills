@@ -200,7 +200,13 @@ def task_judgment(routing, request):
     if specialization is not None:
         spec = routing.get("specializations", {}).get(specialization)
         if spec is None:
-            raise Error(f"unknown specialization: {specialization}")
+            configured = ", ".join(sorted(routing.get("specializations", {})))
+            raise Error(
+                f"unknown specialization: {specialization}; "
+                f"configured specializations: {configured}; "
+                "use a configured specialization or omit specialization and "
+                "supply explicit needs"
+            )
         needs = deepcopy(spec["needs"])
         priority = list(spec.get("priority", priority))
         required_features = list(spec.get("requires", []))
