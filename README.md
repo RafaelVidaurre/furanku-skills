@@ -83,6 +83,18 @@ Keeps an append-only TSV trail of consequential decisions, reasons, evidence, an
 
 Open the [skill entrypoint](skills/decision-trail/SKILL.md).
 
+### project-guidance
+
+Lets you pick engineering principles from a curated catalog and inject them into a project — either as a section in `AGENTS.md` or as a dedicated markdown file linked from `AGENTS.md`. Nothing is written without an explicit selection; later runs merge without duplicating or clobbering unrelated instructions.
+
+```
+> Inject project guidance: no backward compat, simplest that meets current needs.
+> Add long-term architecture guidance linked from AGENTS.md.
+> List the project-guidance catalog.
+```
+
+Open the [skill entrypoint](skills/project-guidance/SKILL.md) or the [catalog](skills/project-guidance/references/catalog.md).
+
 ## Layout
 
 ```
