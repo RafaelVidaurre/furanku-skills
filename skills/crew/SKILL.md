@@ -15,6 +15,7 @@ Crew adds roles and routes. Beads hold durable work; Orca holds coordination sta
 - A Worker owns one bounded outcome.
 - Every assignment names one `reports_to`: `user`, `commander`, or `captain`.
 - Orca owns coordination, terminals, and worktrees.
+- Name each Crew Orca tab `<Role> - <work summary>` so the role is visible at a glance (for example `Commander - multi-front status`, `Captain - payments integration`, `Worker - fix flaky auth tests`). Role is `Commander`, `Captain`, or `Worker`; the second part is a short human label for the work.
 
 Read the role contract for the role being performed:
 
@@ -32,11 +33,11 @@ For a view, report both exact routes and compiled task-fit routing against the r
 
 ## Direct role
 
-When the user gives the current session a role, adopt it immediately with `reports_to: user`. The current request is its initial contract. Do not create a Bead, resolve a route, or create an upstream Orca dispatch solely to establish the role.
+When the user gives the current session a role, adopt it immediately with `reports_to: user`. The current request is its initial contract. Do not create a Bead, resolve a route, or create an upstream Orca dispatch solely to establish the role. If this session is an Orca tab, set its name to `<Role> - <work summary>` per Ownership.
 
 Load `orchestration` when the role delegates or supervises durable work, and `orca-cli` when it needs terminals or worktrees. Follow their current guidance.
 
-**Complete when:** the current session has acknowledged its role, principal, and immediate outcome.
+**Complete when:** the current session has acknowledged its role, principal, and immediate outcome, and any Orca tab for the session uses the role-prefixed name.
 
 ## Spawn an owner
 
@@ -55,9 +56,9 @@ python3 <crew-skill-dir>/scripts/assignment.py --decision-json - \
 
 The request must name `role` and either the selected `specialization` or explicit `needs`. Use `exact_route` for a configured v2/v3 route, or `pin` with a candidate ID and reason for an explicit user override; hard runtime gates still apply to pins. Treat `no-route` as a decision requiring different requirements, more research, or an explicit override—do not silently launch an insufficient candidate. If quota-axi fails, surface its failure; omit live quota only after the principal accepts unknown quota.
 
-Use `--request "<verbatim user request>"` instead of `--bead` only when the spawned owner must establish the first Bead. Launch the selected candidate, then use Orca to dispatch the generated title and spec. Each Captain runs the same selector for each Worker outcome instead of inheriting a fixed Worker model table.
+Use `--request "<verbatim user request>"` instead of `--bead` only when the spawned owner must establish the first Bead. Launch the selected candidate, then use Orca to dispatch the generated title and spec. Name the owner's Orca tab `<Role> - <work summary>` per Ownership. Each Captain runs the same selector for each Worker outcome instead of inheriting a fixed Worker model table.
 
-**Complete when:** the owner has the intended role, principal, work pointer, route provenance, live Orca dispatch when supervision is required, and tracked pointers for the Orca resources created by the assignment.
+**Complete when:** the owner has the intended role, principal, work pointer, route provenance, live Orca dispatch when supervision is required, a role-prefixed Orca tab name, and tracked pointers for the Orca resources created by the assignment.
 
 ## Retire an owner
 
