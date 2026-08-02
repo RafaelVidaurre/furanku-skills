@@ -168,7 +168,7 @@ def validate_routing(routing):
 
 def compile_policy(repo="."):
     catalog = read_json(CATALOG, "routing catalog")
-    if set(catalog) != {"version", "routing"} or catalog["version"] != 1:
+    if not {"version", "routing"} <= set(catalog) or catalog["version"] != 1:
         raise Error("routing catalog must contain version 1 and routing")
     provenance = {}
     routing = merge_patch({}, catalog["routing"], {"scope": "builtin", "path": str(CATALOG)}, provenance)

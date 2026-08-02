@@ -18,6 +18,9 @@ ROUTING_VERSION = 3
 BASE = ("captain", "worker")
 LEGACY_BASE = ("commander", "captain", "worker")
 SCOPES = ("global", "repo", "machine-repo")
+CATALOG = (
+    Path(__file__).resolve().parent.parent / "references" / "routing-catalog.json"
+)
 ROUTE_ID = re.compile(
     r"^(?:captain|worker)(?:\.[a-z0-9]+(?:-[a-z0-9]+)*)*$"
 )
@@ -178,6 +181,29 @@ def load(path, require_base=False, scope=None, repo="."):
     return config
 
 
+def builtin():
+    with CATALOG.open(encoding="utf-8") as stream:
+        catalog = parse_json(stream, str(CATALOG))
+    if (
+        catalog.get("version") != 1
+        or not {"version", "routes", "routing"} <= set(catalog)
+    ):
+        raise Error(
+            f"{CATALOG} must contain version 1 with default routes and routing"
+        )
+    validate_rows(
+        {"version": VERSION, "routes": catalog["routes"]},
+        True,
+        str(CATALOG),
+        VERSION,
+        BASE,
+        ROUTE_ID,
+    )
+    if not isinstance(catalog["routing"], dict):
+        raise Error(f"{CATALOG} routing must be an object")
+    return catalog
+
+
 def ordered(routes):
     keys = [route for route in BASE if route in routes]
     keys += sorted(route for route in routes if route not in BASE)
@@ -189,9 +215,7 @@ def record(scope, path, repo="."):
         "scope": scope,
         "path": str(path),
         "exists": path.exists(),
-        "config": (
-            load(path, scope == "global", scope, repo) if path.exists() else None
-        ),
+        "config": (load(path, False, scope, repo) if path.exists() else None),
     }
 
 
@@ -206,13 +230,27 @@ def selected(routes, route_ids):
 
 
 def resolve(paths, repo=".", route_ids=None):
-    if not paths["global"].exists():
-        raise Error(f"required global config is missing: {paths['global']}")
+    catalog = builtin()
     routes, definitions, layers = {}, {}, []
+    layers.append(
+        {
+            "scope": "builtin",
+            "path": str(CATALOG),
+            "exists": True,
+            "version": catalog["version"],
+            "routes_defined": list(ordered(catalog["routes"])),
+            "routing_sections": sorted(catalog["routing"]),
+        }
+    )
+    for route, row in catalog["routes"].items():
+        routes[route] = row
+        definitions.setdefault(route, []).append(
+            {"scope": "builtin", "path": str(CATALOG), "row": row}
+        )
     for scope in SCOPES:
         path = paths[scope]
         exists = path.exists()
-        config = load(path, scope == "global", scope, repo) if exists else None
+        config = load(path, False, scope, repo) if exists else None
         routes_defined = list(ordered(config["routes"])) if config else []
         layers.append(
             {
@@ -403,7 +441,7 @@ def migration_preview(scope, path):
         if route != "commander"
     }
     migrated = {"version": VERSION, "routes": ordered(routes)}
-    validate_schema(migrated, scope == "global", "migrated configuration")
+    validate_schema(migrated, False, "migrated configuration")
     backup = path.with_name(f"{path.stem}.v1{path.suffix}")
     return raw, {
         "scope": scope,
@@ -471,16 +509,7 @@ def main():
     args = arguments()
     try:
         if args.command == "template":
-            emit(
-                {
-                    "version": ROUTING_VERSION,
-                    "routes": {
-                        route: {"agent": None, "model": None, "effort": None}
-                        for route in BASE
-                    },
-                    "routing": {},
-                }
-            )
+            emit({"version": ROUTING_VERSION, "routes": {}, "routing": {}})
             return
 
         needs_repo = args.command in {"resolve", "report"} or args.scope in {
@@ -516,7 +545,7 @@ def main():
             else:
                 with Path(args.file).expanduser().open(encoding="utf-8") as stream:
                     config = parse_json(stream, args.file)
-            validate_schema(config, args.scope == "global", args.file)
+            validate_schema(config, False, args.file)
             config["routes"] = ordered(config["routes"])
             save(paths[args.scope], config, args.scope != "repo")
             emit(record(args.scope, paths[args.scope], args.repo))
@@ -546,7 +575,7 @@ def main():
             emit(preview)
     except (Error, OSError) as error:
         print(f"crew-config: {error}", file=sys.stderr)
-        raise SystemExit(2 if "required global config is missing" in str(error) else 1)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
