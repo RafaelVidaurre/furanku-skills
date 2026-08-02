@@ -21,12 +21,12 @@ When adding catalog entries: assign a stable `id` (`a-z0-9-`, unique), keep inje
 ## simplest-current
 
 - **Title:** Simplest that meets current requirements
-- **Picker line:** Ship the smallest design that fully satisfies what is required now.
-- **Tags:** simplicity, yagni
-- **Conflicts:** `long-term-architecture` (resolve with user if both selected: long-term structure for true architectural seams; simplest elsewhere)
+- **Picker line:** No speculative complexity — fully meet what is required now, nothing more.
+- **Tags:** simplicity, yagni, scope
+- **Conflicts:** none
 - **Inject text:**
 
-  - Choose the simplest implementation that fully meets the current requirements.
+  - Choose the simplest implementation that fully meets the current requirements. Do not add speculative complexity for needs that are not required yet.
 
 ---
 
@@ -44,10 +44,10 @@ When adding catalog entries: assign a stable `id` (`a-z0-9-`, unique), keep inje
 
 ## long-term-architecture
 
-- **Title:** Long-term architectural decisions
-- **Picker line:** Choose architecture that should last; reject replace-later stopgaps.
+- **Title:** Durable architectural decisions
+- **Picker line:** When a real architectural choice is required, make one meant to last — no planned throwaways.
 - **Tags:** architecture, durability
-- **Conflicts:** `simplest-current` (see that entry)
+- **Conflicts:** none
 - **Inject text:**
 
-  - Make architectural decisions for the long term. Do not accept a stopgap that only works for now and is meant to be replaced later.
+  - When a real architectural decision is required, choose a design meant to last. Do not accept a stopgap intended only to work for now and be replaced later.
