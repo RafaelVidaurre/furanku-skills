@@ -1,121 +1,155 @@
 # furanku-skills
 
-A public collection of [agent skills](https://agentskills.io) — portable instruction packs for coding agents like Claude Code, Codex, Cursor, and friends. Skills live under `skills/` and follow the Agent Skills spec, so they install anywhere with:
+Tools and skills that help **AI coding agents** work the way you want on your projects.
+
+If you use Claude Code, Codex, Cursor, or a similar agent, this repo gives you:
+
+1. **Skills** — short instruction packs the agent can load when the task matches (install once, then ask in normal language).
+2. **A command-line tool** — [guidance-composer](skills/guidance-composer/README.md), for picking engineering principles and writing them into your project so agents keep following them.
+
+You do not need every skill. Install what matches how you work.
+
+## Install skills
+
+[Agent Skills](https://agentskills.io) are portable. From any project:
 
 ```bash
-npx skills add rafaelvidaurre/furanku-skills          # everything
-npx skills add rafaelvidaurre/furanku-skills --skill crew # one skill
+# all skills from this collection
+npx skills add rafaelvidaurre/furanku-skills
+
+# or just one
+npx skills add rafaelvidaurre/furanku-skills --skill guidance-composer
+npx skills add rafaelvidaurre/furanku-skills --skill testing-best-practices
 ```
 
-## Skills
+After install, talk to your agent as usual. When a skill fits, it should load and follow it.
 
-### crew
+## Command-line tools
 
-Assigns explicit Commander, Captain, and Worker ownership while leaving durable work to Beads and coordination mechanics to Orca.
+| Tool | What it does | Docs |
+| --- | --- | --- |
+| **guidance-composer** | Lets you choose clear engineering rules from a catalog and add them to your project (for people and for agents). Interactive wizard or one-shot commands. | [Full guide](skills/guidance-composer/README.md) |
 
-`crew` replaces the former `commander` skill. Existing version 2 route configuration keeps its established `commander` storage paths, so no configuration move is required.
+Quick start from a checkout of this repo:
 
-```text
-> Act as Commander. Coordinate my projects through Orca without modifying project files.
-> You are now Captain for the editor front. Report directly to me.
-> Take command of the existing editor Captain.
-> Show the effective Crew routes for this repository.
+```bash
+node skills/guidance-composer/bin/guidance-composer.js
 ```
 
-Commander is the user's cross-project point of contact and may assign Captains or direct Workers. Captain owns one front's design, decomposition, decisions, and integration and assigns only Workers. Worker owns one bounded outcome. Direct Captains report to the user; a Commander takes command by dispatching an upstream Orca task to the existing Captain terminal without restarting its work or Workers.
+That opens a simple menu to pick rules and where to put them. More options and install paths are in the [guidance-composer guide](skills/guidance-composer/README.md).
 
-Open the [skill entrypoint](skills/crew/SKILL.md), [Commander contract](skills/crew/references/commander.md), [Captain contract](skills/crew/references/captain.md), or [configuration reference](skills/crew/references/configuration.md).
-
-### testing-best-practices
-
-Guides agents to design, write, review, and maintain high-quality automated tests without imposing a testing methodology. It treats each test as evidence, choosing scope and fidelity from the risk while emphasizing observable behavior, determinism, diagnostics, refactor resilience, and suite health across unit and integration tests.
-
-```
-> Add tests for this change using the project's conventions.
-> Review this test suite for brittle, flaky, or low-value tests.
-> What is the smallest credible test for this database integration?
-```
-
-Explore the full guidance in the [interactive testing guide](artifacts/testing-best-practices.html), or open the [skill entrypoint](skills/testing-best-practices/SKILL.md).
-
-### council
-
-Convenes a council of AI models that debate a decision and vote their way to consensus — or run a multi-model brainstorm. Your agent acts as moderator: it invokes approved model CLIs inside a private airlock, gives every seat the same curated evidence instead of project access, runs blind first positions, an adversarial challenge round, and a convergence round, then delivers a verdict with the vote, the rationale, and the dissent.
-
-```
-> Convene the council: should we migrate this service from REST to gRPC?
-> Council of 5, all fable-5, mixed efforts: brainstorm names for this product.
-```
-
-First run walks you through approving a bench from the safe one-shot modes it detects (claude, codex, grok, gemini, ...). Executable trust persists per machine (`~/.config/council/config.json`); a project config (`.council.json`) can tune only the approved bench, and prompt overrides apply for that run.
-
-### product-memory
-
-Discovers and preserves product requirements so multi-session and multi-agent work keeps two linked truths: what the user actually said, and the current product interpretation. Verbatim evidence, traceable specs, explicit decisions, open questions, hypotheses, risks, and validation experiments live under `docs/product-memory/` with stable IDs and integrity checks.
-
-```
-> Initialize product memory for this project.
-> Capture this conversation into product memory and distill requirements.
-> Reconcile the product memory after this scope change.
-```
-
-Open the [skill entrypoint](skills/product-memory/SKILL.md).
-
-### progress-report
-
-Creates evidence-backed project progress reports that explain what changed, what it means, and what is currently in progress, pending, or blocked. Reports cover the freshest work through the last 30 days with increasing coarseness, while stored reports act as a cache for future runs. Explicit requests always qualify; automatic reports are reserved for formal goal completions and meaningful milestones, and only unspawned root agents may produce them.
-
-```
-> Give me a progress report for this project.
-> Summarize our current status and progress across the supported timeframes.
-```
-
-Open the [skill entrypoint](skills/progress-report/SKILL.md).
-
-### decision-trail
-
-Keeps an append-only TSV trail of consequential decisions, reasons, evidence, and results during substantial work. The trail stays local by default, uses a bundled helper to keep rows safe and well-formed, and gives reviewers a compact way to reconstruct autonomous, unattended, or multi-phase runs.
-
-```
-> Keep a decision trail while you work through this migration.
-> Run this unattended and leave me a reviewable record of the important calls.
-```
-
-Open the [skill entrypoint](skills/decision-trail/SKILL.md).
+## Skills (what each one is for)
 
 ### guidance-composer
 
-Pick engineering principles from a categorized catalog and inject them into a project — into `AGENTS.md`, a linked markdown file, or a custom path. The **CLI is the primary surface** (interactive wizard for setup; flags for agents and scripts). Managed blocks use a closed marker pair so hand-written notes outside them are never clobbered.
+**Useful if:** you want agents to follow a few explicit principles (for example “keep it simple,” “don’t keep old APIs around”) without rewriting those rules every chat.
 
-```bash
-# from a checkout of this repo
-node skills/guidance-composer/bin/guidance-composer.js          # interactive
-node skills/guidance-composer/bin/guidance-composer.js list
-node skills/guidance-composer/bin/guidance-composer.js inject \
-  --ids simplest-current,no-backward-compat --mode inline --yes
+**What it does:** offers a catalog of short, opinionated rules. You pick which ones apply. They are written into a file your agent already reads (often `AGENTS.md`), or into a linked doc.
 
-# when the package is on npm / via npx
-npx furanku-guidance-composer list
-npx furanku-guidance-composer inject --ids simplest-current --mode linked --yes
+You can use the **CLI yourself** or ask an agent to help you choose. Details: [guidance-composer README](skills/guidance-composer/README.md).
+
+```text
+> Help me set up project guidance — simplest path, no backward compatibility.
+> What guidance options are in the catalog?
 ```
 
-```
-> Compose guidance: no backward compat, simplest that meets current needs.
-> What guidance categories exist, and what does long-term-architecture mean?
-> Diff this repo against the guidance catalog.
+---
+
+### testing-best-practices
+
+**Useful if:** you want better automated tests — clearer failures, less brittleness, less noise — without being forced into one testing religion.
+
+**What it does:** steers the agent to treat each test as *evidence* for behavior that matters, and to match your project’s language and tools.
+
+```text
+> Add tests for this change using the project's conventions.
+> Review this test suite for flaky or low-value tests.
+> What's the smallest useful test for this database path?
 ```
 
-Open the [skill entrypoint](skills/guidance-composer/SKILL.md) or the [catalog](skills/guidance-composer/references/catalog.json).
+Optional deep dive: [interactive testing guide](artifacts/testing-best-practices.html).
 
-## Layout
+---
 
+### product-memory
+
+**Useful if:** product decisions get lost across chats, agents, or weeks — and you want a durable place for “what the user said” vs “what we currently believe the product is.”
+
+**What it does:** keeps structured product notes under `docs/product-memory/` (requirements, decisions, open questions, risks) so later sessions can continue without reinventing the story.
+
+```text
+> Initialize product memory for this project.
+> Capture this conversation into product memory.
+> Reconcile product memory after this scope change.
 ```
+
+---
+
+### progress-report
+
+**Useful if:** you want a clear status of what changed recently, what’s in flight, and what’s blocked — based on real project evidence, not vibe.
+
+**What it does:** writes a human-readable progress report over several time windows (fresh work through about the last month).
+
+```text
+> Give me a progress report for this project.
+> Summarize status and progress for the last week.
+```
+
+---
+
+### decision-trail
+
+**Useful if:** an agent (or you) will make a series of important choices and you want a compact log you can review later without replaying the whole session.
+
+**What it does:** appends a simple table of decisions, reasons, evidence, and results (local by default).
+
+```text
+> Keep a decision trail while you work through this migration.
+> Leave a reviewable record of the important calls.
+```
+
+---
+
+### council
+
+**Useful if:** a decision is hard enough that you want several AI models to argue it out before you trust a single answer.
+
+**What it does:** your agent runs a moderated “council”: multiple models take positions, challenge each other, and vote. You get a verdict plus dissent — not one model talking to itself.
+
+```text
+> Council: should we migrate this service from REST to gRPC?
+> Council of 5 — brainstorm product names.
+```
+
+First use walks you through approving which model tools may run on your machine.
+
+---
+
+### crew
+
+**Useful if:** you run multi-agent work and want clear ownership (who plans, who implements, who reports to whom) instead of a pile of unnamed agents.
+
+**What it does:** defines simple roles — optional overall coordinator, lead for a larger front of work, and people focused on one concrete outcome — and helps pick sensible model setups when spawning them. Works best if you already use complementary coordination tools in your setup.
+
+```text
+> Act as Commander and coordinate my projects without editing project files.
+> You are Captain for the editor work. Report to me.
+> Show the effective Crew routes for this repository.
+```
+
+## Repository layout
+
+```text
 skills/
   <name>/
-    SKILL.md        # the skill
-    references/     # depth loaded on demand
-    scripts/        # helpers (optional)
-    assets/         # templates copied into projects (optional)
+    SKILL.md       # what the agent follows
+    README.md      # human docs (where present)
+    references/    # extra detail the skill loads when needed
+    scripts/       # helpers
+    bin/           # CLIs (where present)
 ```
 
-Contributions and issues welcome.
+## License
+
+See [LICENSE](LICENSE). Issues and contributions welcome.
