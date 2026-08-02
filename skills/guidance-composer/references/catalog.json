@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "id": "simplicity",
+      "title": "Simplicity & scope",
+      "description": "Prefer the smallest correct solution for current requirements; avoid legacy drag and speculative work."
+    },
+    {
+      "id": "architecture",
+      "title": "Architecture",
+      "description": "When a real design choice is required, pick something durable rather than a planned throwaway."
+    },
+    {
+      "id": "dependencies",
+      "title": "Dependencies",
+      "description": "How to choose between libraries and custom code."
+    }
+  ],
+  "entries": [
+    {
+      "id": "no-backward-compat",
+      "category": "simplicity",
+      "title": "No backward compatibility",
+      "picker": "Drop legacy contracts freely; current correctness beats old callers.",
+      "tags": ["greenfield", "breaking-change"],
+      "conflicts": [],
+      "inject": [
+        "Do not preserve backward compatibility."
+      ]
+    },
+    {
+      "id": "simplest-current",
+      "category": "simplicity",
+      "title": "Simplest that meets current requirements",
+      "picker": "No speculative complexity — fully meet what is required now, nothing more.",
+      "tags": ["yagni", "scope"],
+      "conflicts": [],
+      "inject": [
+        "Choose the simplest implementation that fully meets the current requirements. Do not add speculative complexity for needs that are not required yet."
+      ]
+    },
+    {
+      "id": "prefer-libraries",
+      "category": "dependencies",
+      "title": "Prefer maintained libraries",
+      "picker": "Use established, well-maintained libraries instead of hand-rolled equivalents.",
+      "tags": ["reuse"],
+      "conflicts": [],
+      "inject": [
+        "Prefer established, well-maintained libraries over custom implementations."
+      ]
+    },
+    {
+      "id": "long-term-architecture",
+      "category": "architecture",
+      "title": "Durable architectural decisions",
+      "picker": "When a real architectural choice is required, make one meant to last — no planned throwaways.",
+      "tags": ["durability"],
+      "conflicts": [],
+      "inject": [
+        "When a real architectural decision is required, choose a design meant to last. Do not accept a stopgap intended only to work for now and be replaced later."
+      ]
+    }
+  ]
+}

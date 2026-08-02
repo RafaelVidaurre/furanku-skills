@@ -85,15 +85,27 @@ Open the [skill entrypoint](skills/decision-trail/SKILL.md).
 
 ### guidance-composer
 
-Lets you pick engineering principles from a curated catalog and inject them into a project — into `AGENTS.md`, a dedicated markdown file linked from agent instructions, or another path you choose. Nothing is written without an explicit selection; later runs merge without duplicating or clobbering unrelated instructions.
+Pick engineering principles from a categorized catalog and inject them into a project — into `AGENTS.md`, a linked markdown file, or a custom path. The **CLI is the primary surface** (interactive wizard for setup; flags for agents and scripts). Managed blocks use a closed marker pair so hand-written notes outside them are never clobbered.
+
+```bash
+# from a checkout of this repo
+node skills/guidance-composer/bin/guidance-composer.js          # interactive
+node skills/guidance-composer/bin/guidance-composer.js list
+node skills/guidance-composer/bin/guidance-composer.js inject \
+  --ids simplest-current,no-backward-compat --mode inline --yes
+
+# when the package is on npm / via npx
+npx furanku-guidance-composer list
+npx furanku-guidance-composer inject --ids simplest-current --mode linked --yes
+```
 
 ```
 > Compose guidance: no backward compat, simplest that meets current needs.
-> Add long-term architecture guidance linked from AGENTS.md.
-> List the guidance-composer catalog.
+> What guidance categories exist, and what does long-term-architecture mean?
+> Diff this repo against the guidance catalog.
 ```
 
-Open the [skill entrypoint](skills/guidance-composer/SKILL.md) or the [catalog](skills/guidance-composer/references/catalog.md).
+Open the [skill entrypoint](skills/guidance-composer/SKILL.md) or the [catalog](skills/guidance-composer/references/catalog.json).
 
 ## Layout
 

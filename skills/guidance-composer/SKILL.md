@@ -1,11 +1,13 @@
 ---
 name: guidance-composer
 description: >
-  Compose selectable engineering guidance from a catalog and inject it into a
-  project — into AGENTS.md, a dedicated markdown file linked from agent
-  instructions, or another path the user chooses. Use when the user wants to
-  inject guidance, compose project principles, pick engineering rules for agents,
-  assemble a guidance pack, or runs /guidance-composer.
+  Compose selectable engineering guidance from a curated catalog and inject it
+  into a project via the guidance-composer CLI (interactive or non-interactive)
+  or by answering catalog questions from references/catalog.json. Use when the
+  user wants to inject guidance, compose project principles, set up agent
+  engineering rules, list or search the guidance catalog, run
+  /guidance-composer, or run the furanku-guidance-composer / guidance-composer
+  CLI.
 license: MIT
 metadata:
   author: rafaelvidaurre
@@ -13,123 +15,132 @@ metadata:
 
 # Guidance Composer
 
-Compose project guidance from a curated catalog. The user picks which entries
-apply; nothing is injected without an explicit selection. Destination is chosen
-per run — not fixed to `AGENTS.md`.
+Compose project guidance from a curated, categorized catalog. The primary
+surface is the **CLI** (interactive setup for humans; flags for agents and CI).
+Nothing is injected without an explicit selection of entry ids.
 
-## Operating modes
+## Surfaces
 
-- **Inject:** Select catalog entries and write them into the target project.
-- **List:** Show the catalog (id, title, picker line) without writing files.
-- **Diff:** Compare catalog selections already present in the project vs available entries.
-
-Default to **Inject** when the user wants rules in the project.
-
-## 1. Load the catalog
-
-Read [references/catalog.md](references/catalog.md) from this skill directory.
-Treat each `## <id>` section as one selectable entry. Inject only each entry's
-**Inject text** lines, never picker lines, tags, or conflict notes.
-
-**Complete when:** every catalog id, title, and inject text is available for the turn.
-
-## 2. Select entries
-
-Present a compact multi-select list: `id` — **title** — picker line.
-
-- Accept multi-select by id, title, or clear paraphrase.
-- If the user names a pack intent without ids (e.g. "greenfield simplicity"),
-  propose a concrete id set and confirm before writing.
-- If the selection includes ids that list each other under **Conflicts**, state
-  the tension in one sentence and ask how to resolve (keep both, drop one, or
-  rephrase). Do not invent a silent compromise.
-
-**Complete when:** the user has confirmed an explicit set of catalog ids (possibly empty — then stop without writing).
-
-## 3. Choose the destination
-
-Ask unless the user already specified one of:
-
-| Destination | Behavior |
+| Surface | When |
 | --- | --- |
-| **Inline** | Append or merge a `## Project guidance` section into the project's canonical agent-instruction file (usually `AGENTS.md`; create only if missing and the user agrees). |
-| **Linked file** | Write selected inject text to a dedicated markdown file; ensure the canonical agent-instruction file contains a short pointer that agents must follow that file. |
-| **Custom path** | Write only to a path the user names (with or without an `AGENTS.md` pointer, as they specify). |
+| **CLI (preferred for writes)** | User or agent is setting up, listing, diffing, or injecting guidance. |
+| **Catalog read (agents)** | User asks what is available, what an entry means, or which ids fit an intent — read or search the catalog without writing. |
 
-Linked-file defaults when the user does not name a path:
+Do not use harness multi-select widgets to present the full catalog. The catalog
+is expected to grow; selection always goes through the CLI wizard or explicit ids.
 
-1. Reuse an existing guidance file if one is already linked from the project's agent instructions.
-2. Otherwise prefer `docs/agent-guidance.md`.
+## CLI
 
-If the project uses an equivalent agent-instruction filename (`Agents.md`,
-`CLAUDE.md` with an AGENTS pointer, etc.), follow that project's canonical
-convention. Merge carefully; never overwrite unrelated instructions.
+Package: `furanku-guidance-composer` · bin: `guidance-composer`
 
-**Complete when:** destination mode and exact target path(s) are fixed.
+Resolve the executable once per session (first match wins):
 
-## 4. Merge without duplicating
+1. `guidance-composer` on `PATH`
+2. `npx --yes furanku-guidance-composer` (when published / installable)
+3. From this skill directory: `node <skill>/bin/guidance-composer.js`
+4. From the furanku-skills repo checkout: `node skills/guidance-composer/bin/guidance-composer.js`
 
-1. Read the target file(s) and any existing `## Project guidance` (or equivalent) section.
-2. Locate managed blocks via `<!-- managed-by: guidance-composer -->` or the legacy marker `<!-- managed-by: project-guidance -->`. Prefer the new marker on write.
-3. Map present bullets to catalog ids when the wording matches inject text (or a prior inject from this skill).
-4. **Add** only selected ids not already present.
-5. **Leave** existing non-catalog bullets untouched.
-6. **Do not remove** guidance the user did not ask to remove. For an explicit
-   "replace with this selection" request, replace only the managed section or
-   managed file body, and show the diff intent first.
-7. For **linked file** creates, use:
+Below, `GC` is that resolved command.
 
-   ```markdown
-   # Project guidance
+```sh
+GC                          # interactive inject wizard (TTY)
+GC list                     # catalog grouped by category
+GC list --category simplicity
+GC list --json
+GC categories
+GC show <id>
+GC search <query>
+GC diff [--root DIR] [--json]
+GC inject --ids a,b --mode inline|linked|custom [--path PATH] --yes
+GC inject                   # same as interactive wizard
+```
 
-   Engineering principles selected for this repository. Agents must follow them.
+### Inject modes
 
-   <!-- managed-by: guidance-composer -->
+| `--mode` | Behavior |
+| --- | --- |
+| `inline` | Managed region under `## Project guidance` in `AGENTS.md` (or project equivalent). |
+| `linked` | Write `docs/agent-guidance.md` by default; add a short pointer in `AGENTS.md`. |
+| `custom` | Write only `--path` (optional `--pointer` for `AGENTS.md`). |
 
-   - …
-   ```
+Use `--replace` to replace the managed region interior; default is union-add.
+Use `--dry-run` to print writes. Non-interactive writes on a TTY require `--yes`.
 
-   And in the canonical agent-instruction file when a pointer is wanted (create or merge a short section):
+**Complete when (CLI write):** the chosen ids appear inside a closed managed region
+at the destination, and any agreed pointer exists.
 
-   ```markdown
-   ## Project guidance
+## Agent workflow
 
-   Follow [docs/agent-guidance.md](docs/agent-guidance.md) for repository engineering principles.
-   ```
+### Answer questions (no write)
 
-   Adjust the relative link to the chosen path. Keep a single pointer; do not
-   also paste the full bullet list into the instruction file unless the user
-   chose **Inline**.
+1. Prefer `GC list`, `GC categories`, `GC show`, or `GC search`.
+2. If the CLI is unavailable, read [references/catalog.json](references/catalog.json).
+3. Explain entries by **id**, **title**, **category**, and **picker** text. Quote
+   inject text when the user needs the exact rule wording.
 
-8. For **inline**, use the same section heading and HTML comment marker when
-   practical so later runs can find the managed block:
+**Complete when:** the user can choose ids or decide not to inject.
 
-   ```markdown
-   ## Project guidance
+### Inject via agent
 
-   <!-- managed-by: guidance-composer -->
+1. Resolve ids (user-named, or propose a set from intent and confirm).
+2. Resolve destination (user-named, or ask once: inline / linked / custom).
+3. Run non-interactive inject:
 
-   - …
-   ```
+```sh
+GC inject --ids <id,id> --mode <inline|linked|custom> [--path <path>] --root <project> --yes
+```
 
-Preserve surrounding document structure, headings, and tone.
+4. Report selected ids, destination paths, and CLI output.
 
-**Complete when:** every selected id's inject text appears exactly once at the destination, and for linked mode the agreed pointer file (if any) points at that file.
+If inject flags are incomplete, run the interactive wizard only when a TTY is
+available; otherwise ask for the missing ids/mode in chat and re-run with flags.
 
-## 5. Confirm
+**Complete when:** the CLI write completion criterion above is met and reported.
 
-In the final response, state:
+### Diff
 
-- Selected ids
-- Destination path(s) and mode (inline, linked, or custom)
-- What was added vs already present
-- Any conflict resolutions the user chose
+```sh
+GC diff --root <project>
+```
 
-**Complete when:** the user can see the resulting selection and file locations without re-opening the catalog.
+**Complete when:** present vs not-injected ids are reported for the project.
+
+## Managed region
+
+Managed content is a **closed** HTML-comment pair. Only the interior is owned by
+this tool; text before the open marker or after the close marker is never
+rewritten.
+
+```markdown
+## Project guidance
+
+<!-- managed-by: guidance-composer -->
+- …
+<!-- /managed-by: guidance-composer -->
+
+Hand-written notes stay outside the pair.
+```
+
+Legacy open-only `<!-- managed-by: project-guidance -->` is still detected
+(through the next `##` heading or EOF); the next successful write upgrades to
+the closed `guidance-composer` pair.
+
+## Catalog source of truth
+
+- **Only file:** [references/catalog.json](references/catalog.json).
+- Each entry has exactly one primary **category**, optional **tags**, **conflicts**, and **inject** lines.
+- Inject only `inject` strings (as bullets). Never write picker lines, tags, or conflict notes into the project.
+- Browse with the CLI (`list` / `show` / `search`); do not maintain a parallel markdown catalog.
 
 ## Catalog maintenance (skill repo only)
 
-When the user is working in this skills repository and asks to add or edit catalog
-entries, change only [references/catalog.md](references/catalog.md). Keep ids
-stable once published; deprecate rather than reuse an id for different meaning.
-Do not expand the catalog during a normal inject into an unrelated project.
+When adding or changing entries in this repository:
+
+1. Assign a stable `id` (`a-z0-9-`); deprecate rather than reuse an id for a new meaning.
+2. Place the entry in the best existing **category**, or add a category when a new cluster of entries would not fit cleanly under current ones.
+3. After every batch of additions, reassess organization: merge thin categories, split overloaded ones, and retitle descriptions so `GC list` stays scannable.
+4. Keep inject text one or two tight sentences; note real tensions under `conflicts`.
+5. Run the skill tests before shipping catalog changes.
+6. Do not expand the catalog during a normal inject into an unrelated project.
+
+**Complete when:** JSON loads under the CLI and categories still partition the catalog without a junk drawer.
