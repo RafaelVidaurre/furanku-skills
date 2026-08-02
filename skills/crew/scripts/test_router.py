@@ -255,6 +255,21 @@ class RouterTest(unittest.TestCase):
             "global", decision["provenance"]["winner"]["scope"]
         )
 
+    def test_builtin_defaults_route_without_persisted_layers(self):
+        (self.home / ".furanku-skills" / "commander" / "config.json").unlink()
+
+        decision = self.choose({"role": "worker", "exact_route": "worker"})
+        self.assertEqual("exact", decision["status"])
+        self.assertEqual("codex", decision["selected"]["agent"])
+        self.assertEqual("gpt-5.6-luna", decision["selected"]["model"])
+        self.assertEqual("max", decision["selected"]["effort"])
+        self.assertEqual("builtin", decision["provenance"]["winner"]["scope"])
+
+        fit = self.choose(
+            {"role": "worker", "specialization": "implementation"}
+        )
+        self.assertEqual("selected", fit["status"])
+
     def test_exact_route_must_match_declared_role(self):
         request_path = self.base / "request.json"
         request_path.write_text(

@@ -8,18 +8,18 @@ While acting as Commander, inspect configuration only. A user-directed configura
 
 | Order | Scope | Location | Responsibility |
 | --- | --- | --- | --- |
-| 0 | `builtin` | `references/routing-catalog.json` | Research-backed candidates and semantic specializations |
-| 1 | `global` | `~/.furanku-skills/commander/config.json` | Required machine exact-route baseline; optional routing patch |
+| 0 | `builtin` | `references/routing-catalog.json` | Research-backed candidates, semantic specializations, and default exact routes |
+| 1 | `global` | `~/.furanku-skills/commander/config.json` | Optional machine-wide exact-route and routing overrides |
 | 2 | `repo` | `<repo>/.furanku-skills/commander/config.json` | Shared, Git-tracked exact routes and routing patch |
 | 3 | `machine-repo` | `~/.furanku-skills/commander/repos/<repo-key>.json` | Private configuration for one repository |
 
 Repository key = canonical Git common directory, so linked worktrees share machine-local routing.
 
-Exact `routes` use whole-row replacement across persisted layers. Task-fit `routing` uses JSON merge-patch semantics: objects merge recursively, arrays and scalars replace, and `null` removes a value. Every winning leaf retains its source chain.
+Exact `routes` use whole-row replacement across layers, starting from the builtin defaults. Task-fit `routing` uses JSON merge-patch semantics: objects merge recursively, arrays and scalars replace, and `null` removes a value. Every winning leaf retains its source chain.
 
 ## Versions and schema
 
-Version 2 remains a valid exact-route-only configuration. Global configuration must define `captain` and `worker`; specialists add `work`:
+Version 2 remains a valid exact-route-only configuration. A persisted layer defines only the routes it overrides; the builtin catalog supplies `captain` and `worker` until then. Specialist routes add `work`:
 
 ```json
 {

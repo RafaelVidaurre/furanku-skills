@@ -1,5 +1,17 @@
 {
   "version": 1,
+  "routes": {
+    "captain": {
+      "agent": "claude",
+      "model": "claude-fable-5[1m]",
+      "effort": "high"
+    },
+    "worker": {
+      "agent": "codex",
+      "model": "gpt-5.6-luna",
+      "effort": "max"
+    }
+  },
   "routing": {
     "policy": {
       "maximum_shortfall": 0.03,
