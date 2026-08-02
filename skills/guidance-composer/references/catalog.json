@@ -9,12 +9,12 @@
     {
       "id": "architecture",
       "title": "Architecture",
-      "description": "When a real design choice is required, pick something durable rather than a planned throwaway."
+      "description": "How code is structured and how durable design choices are made — modularity, separation of concerns, and long-lived decisions."
     },
     {
       "id": "dependencies",
       "title": "Dependencies",
-      "description": "How to choose between libraries and custom code."
+      "description": "How to choose libraries: prefer what the project already has, then solid maintained packages, before writing your own."
     }
   ],
   "entries": [
@@ -52,6 +52,17 @@
       ]
     },
     {
+      "id": "prefer-existing-deps",
+      "category": "dependencies",
+      "title": "Lean on dependencies already in the project",
+      "picker": "Use what the project already depends on before writing new code or adding packages; check docs and types first.",
+      "tags": ["reuse", "project-deps"],
+      "conflicts": [],
+      "inject": [
+        "Lean on the dependencies already in the project before writing your own implementation or adding packages. Do not assume a library lacks a capability without checking its documentation and types."
+      ]
+    },
+    {
       "id": "long-term-architecture",
       "category": "architecture",
       "title": "Durable architectural decisions",
@@ -60,6 +71,17 @@
       "conflicts": [],
       "inject": [
         "When a real architectural decision is required, choose a design meant to last. Do not accept a stopgap intended only to work for now and be replaced later."
+      ]
+    },
+    {
+      "id": "modular-separation",
+      "category": "architecture",
+      "title": "Modular components and separated concerns",
+      "picker": "Keep components modular; keep concerns clearly separated.",
+      "tags": ["modularity", "separation-of-concerns"],
+      "conflicts": [],
+      "inject": [
+        "Keep components modular and concerns clearly separated."
       ]
     }
   ]

@@ -169,8 +169,8 @@ Topics grow over time. Check live with `gc list`. Currently:
 | Category | Idea |
 | --- | --- |
 | **Simplicity & scope** | Prefer the smallest solution that fully meets *current* needs; optional hard line against keeping old contracts. |
-| **Architecture** | When you *must* make a real design choice, prefer something meant to last — not a planned throwaway. |
-| **Dependencies** | Prefer solid maintained libraries over reinventing them. |
+| **Architecture** | Durable design choices when they matter; keep components modular and concerns separated. |
+| **Dependencies** | Prefer what the project already uses (check docs/types first), then solid maintained libraries, before writing your own. |
 
 Each entry has a short id (for example `simplest-current`). That id is what you pass to `--ids`.
 
