@@ -41,7 +41,12 @@ function loadAgentsMdHelper() {
 }
 
 function print(text) {
-  process.stdout.write(String(text).endsWith("\n") ? text : `${text}\n`);
+  if (text === undefined || text === null) {
+    process.stdout.write("\n");
+    return;
+  }
+  const s = String(text);
+  process.stdout.write(s.endsWith("\n") ? s : `${s}\n`);
 }
 
 function die(message, code = 1) {
