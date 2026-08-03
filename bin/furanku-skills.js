@@ -1,9 +1,6 @@
 #!/usr/bin/env node
 "use strict";
 
-// Local/dev entry for this skill. Prefer the collection CLI:
-//   furanku-skills guidance-composer …
-//   node bin/furanku-skills.js guidance-composer …
 const { main } = require("../lib/cli");
 
 main(process.argv).catch((err) => {

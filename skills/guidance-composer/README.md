@@ -33,44 +33,45 @@ No long policy docs. Short, opinionated bullets from a catalog you choose from.
 
 - Node.js 18 or newer
 - A project folder where you want the rules written
+- An agent instruction file (`AGENTS.md` or `CLAUDE.md`). If neither exists, the CLI offers to run **`furanku-skills agents-md`** (creates empty `AGENTS.md` and `CLAUDE.md` → `AGENTS.md`). Non-interactive inject with `--yes` or `--create-agents-md` does that automatically.
 
 ---
 
 ## How to run it
 
+`guidance-composer` is a **namespace** of the collection CLI `furanku-skills`.
+
 From a **clone of furanku-skills**:
 
 ```bash
 # interactive setup (recommended first time)
-node skills/guidance-composer/bin/guidance-composer.js
+node bin/furanku-skills.js guidance-composer
 
-# or from this skill folder
-cd skills/guidance-composer
-node bin/guidance-composer.js
+# help for this namespace
+node bin/furanku-skills.js guidance-composer help
 ```
 
-If the package is installed globally or available via npm as `furanku-guidance-composer`:
+Via npx (when the package is available):
 
 ```bash
-npx furanku-guidance-composer
-# same as: guidance-composer
+npx furanku-skills guidance-composer
+npx furanku-skills guidance-composer list
+npx furanku-skills guidance-composer help
 ```
 
-Tip: `help` shows all commands:
-
-```bash
-node bin/guidance-composer.js help
-```
+For local skill development you can still run the skill entry directly
+(`node skills/guidance-composer/bin/guidance-composer.js`); prefer the collection CLI for normal use.
 
 ---
 
 ## Quick start (interactive)
 
 1. Open a terminal in **your project** (or pass `--root` later).
-2. Run the tool with no arguments:
+2. Run the namespace with no extra arguments:
 
    ```bash
-   node /path/to/furanku-skills/skills/guidance-composer/bin/guidance-composer.js
+   node /path/to/furanku-skills/bin/furanku-skills.js guidance-composer
+   # or: npx furanku-skills guidance-composer
    ```
 
 3. For each category, pick the rules you want (numbers or ids), or skip.
@@ -103,8 +104,9 @@ Anything you write **above or below** that block is left alone.
 
 ## Useful commands
 
-Assume `gc` is whatever launches the CLI on your machine
-(for example `node …/bin/guidance-composer.js`).
+Assume `gc` is whatever launches this namespace on your machine
+(for example `npx furanku-skills guidance-composer` or
+`node …/bin/furanku-skills.js guidance-composer`).
 
 ### Browse the catalog
 

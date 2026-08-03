@@ -170,12 +170,32 @@ function ensureAgentsPointer(agentsText, relativeLink) {
 }
 
 function detectAgentInstructionFile(root, fs, path) {
-  const candidates = ["AGENTS.md", "Agents.md", "agents.md"];
+  // Prefer AGENTS* (write target for shared instructions), then CLAUDE*.
+  const candidates = [
+    "AGENTS.md",
+    "Agents.md",
+    "agents.md",
+    "CLAUDE.md",
+    "Claude.md",
+    "claude.md",
+  ];
   for (const name of candidates) {
     const p = path.join(root, name);
     if (fs.existsSync(p)) return p;
   }
   return path.join(root, "AGENTS.md");
+}
+
+function hasAgentInstructionFile(root, fs, path) {
+  const candidates = [
+    "AGENTS.md",
+    "Agents.md",
+    "agents.md",
+    "CLAUDE.md",
+    "Claude.md",
+    "claude.md",
+  ];
+  return candidates.some((name) => fs.existsSync(path.join(root, name)));
 }
 
 module.exports = {
@@ -189,5 +209,6 @@ module.exports = {
   mergeInject,
   ensureAgentsPointer,
   detectAgentInstructionFile,
+  hasAgentInstructionFile,
   normalizeBullet,
 };

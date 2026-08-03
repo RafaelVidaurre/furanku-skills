@@ -2,11 +2,19 @@
   "name": "furanku-skills",
   "version": "0.1.0",
   "private": true,
-  "description": "Public collection of agent skills; ships the guidance-composer CLI bin for npx from this repo",
+  "description": "Public collection of agent skills; ships the furanku-skills CLI (init, agents-md, guidance-composer)",
   "license": "MIT",
   "bin": {
-    "guidance-composer": "./skills/guidance-composer/bin/guidance-composer.js"
+    "furanku-skills": "./bin/furanku-skills.js"
   },
+  "files": [
+    "bin/",
+    "lib/",
+    "skills/guidance-composer/bin/",
+    "skills/guidance-composer/lib/",
+    "skills/guidance-composer/references/catalog.json",
+    "skills/*/SKILL.md"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/RafaelVidaurre/furanku-skills.git"

@@ -21,7 +21,16 @@ const {
   mergeInject,
   ensureAgentsPointer,
   detectAgentInstructionFile,
+  hasAgentInstructionFile,
 } = require("./merge");
+
+function loadAgentsMdHelper() {
+  try {
+    return require(path.join(__dirname, "../../../lib/agents-md"));
+  } catch {
+    return null;
+  }
+}
 
 function print(text) {
   process.stdout.write(String(text).endsWith("\n") ? text : `${text}\n`);
@@ -67,9 +76,18 @@ function parseArgs(argv) {
         next &&
         !next.startsWith("-") &&
         // bare boolean flags never consume the next token
-        !["yes", "y", "json", "replace", "force", "dry-run", "no-pointer", "pointer", "help"].includes(
-          key
-        )
+        ![
+          "yes",
+          "y",
+          "json",
+          "replace",
+          "force",
+          "dry-run",
+          "no-pointer",
+          "pointer",
+          "help",
+          "create-agents-md",
+        ].includes(key)
       ) {
         args.flags[key] = next;
         i++;
@@ -342,7 +360,79 @@ function parseIdList(raw) {
     .filter(Boolean);
 }
 
-function cmdInject(catalog, flags, positionals) {
+/**
+ * Ensure AGENTS.md (and ideally CLAUDE.md symlink) exist before inject writes.
+ * Offers furanku-skills agents-md setup when missing.
+ * @returns {Promise<boolean>} false if user declined and we should abort
+ */
+async function ensureAgentInstructions(root, flags, rl) {
+  if (hasAgentInstructionFile(root, fs, path)) return true;
+
+  print("No AGENTS.md or CLAUDE.md found in this project.");
+  print("Guidance is written into agent instruction files.");
+  print("Recommended: create AGENTS.md and link CLAUDE.md → AGENTS.md.\n");
+
+  const helper = loadAgentsMdHelper();
+  const canCreate = Boolean(helper && helper.createAgentsMd);
+  const wantCreate = Boolean(flags["create-agents-md"]);
+
+  // Non-interactive: --create-agents-md and/or --yes auto-create when possible.
+  if (!process.stdin.isTTY || !rl) {
+    if ((wantCreate || flags.yes || flags.y) && canCreate) {
+      print("Creating AGENTS.md + CLAUDE.md symlink…");
+      const result = helper.createAgentsMd({
+        root,
+        dryRun: Boolean(flags["dry-run"]),
+      });
+      for (const m of result.messages) print(`  ${m}`);
+      return true;
+    }
+    if (wantCreate && !canCreate) {
+      die(
+        "cannot create agents files from this entrypoint; run: furanku-skills agents-md --yes"
+      );
+    }
+    die(
+      "No AGENTS.md/CLAUDE.md. Create them first:\n" +
+        "  furanku-skills agents-md --yes\n" +
+        "or re-run inject with --create-agents-md --yes"
+    );
+  }
+
+  if (!canCreate) {
+    const go = (
+      await question(
+        rl,
+        "Continue anyway (inject may create AGENTS.md without CLAUDE.md link)? [y/N]: "
+      )
+    )
+      .trim()
+      .toLowerCase();
+    return go === "y" || go === "yes";
+  }
+
+  const go = (
+    await question(
+      rl,
+      "Create AGENTS.md + CLAUDE.md → AGENTS.md now? [Y/n]: "
+    )
+  )
+    .trim()
+    .toLowerCase();
+  if (go === "n" || go === "no") {
+    print("Aborted. Run: furanku-skills agents-md");
+    return false;
+  }
+  const result = helper.createAgentsMd({
+    root,
+    dryRun: Boolean(flags["dry-run"]),
+  });
+  for (const m of result.messages) print(`  ${m}`);
+  print("");
+  return true;
+}
+
+async function cmdInject(catalog, flags, positionals) {
   const root = path.resolve(flags.root || process.cwd());
   const rawIds = flags.ids || flags.id || positionals.join(",");
   if (!rawIds) {
@@ -367,6 +457,14 @@ function cmdInject(catalog, flags, positionals) {
   }
   if (!flags.yes && !flags.y && process.stdin.isTTY) {
     die("refusing to write without --yes in interactive terminal; re-run with --yes or use interactive mode");
+  }
+
+  // For inline/linked (or custom with pointer), ensure instruction files exist.
+  const needsAgents =
+    dest.mode === "inline" || dest.mode === "linked" || dest.pointer;
+  if (needsAgents) {
+    const ok = await ensureAgentInstructions(root, flags, null);
+    if (!ok) return;
   }
 
   writeInject(catalog, ids, dest, {
@@ -399,6 +497,9 @@ async function interactiveInject(catalog, flags) {
   try {
     print("Guidance composer — interactive inject");
     print("Catalog is grouped by category. Toggle entries by number or id.\n");
+
+    const ready = await ensureAgentInstructions(root, flags, rl);
+    if (!ready) return;
 
     for (const cat of catalog.categories) {
       const entries = catalog.entries.filter((e) => e.category === cat.id);
@@ -522,17 +623,19 @@ async function interactiveInject(catalog, flags) {
   }
 }
 
+const PROGRAM = "furanku-skills guidance-composer";
+
 function usage() {
-  return `furanku guidance-composer — compose project guidance from a curated catalog
+  return `furanku-skills guidance-composer — compose project guidance from a curated catalog
 
 Usage:
-  guidance-composer                     Interactive inject wizard
-  guidance-composer list [options]      List catalog (grouped by category)
-  guidance-composer categories          List categories
-  guidance-composer show <id>           Show one entry
-  guidance-composer search <query>      Search id/title/picker/tags/inject
-  guidance-composer diff [--root DIR]   Compare project managed region vs catalog
-  guidance-composer inject [options]    Inject entries (interactive if no --ids)
+  ${PROGRAM}                     Interactive inject wizard
+  ${PROGRAM} list [options]      List catalog (grouped by category)
+  ${PROGRAM} categories          List categories
+  ${PROGRAM} show <id>           Show one entry
+  ${PROGRAM} search <query>      Search id/title/picker/tags/inject
+  ${PROGRAM} diff [--root DIR]   Compare project managed region vs catalog
+  ${PROGRAM} inject [options]    Inject entries (interactive if no --ids)
 
 list options:
   --category <id>   Filter by category
@@ -551,6 +654,7 @@ inject options:
   --dry-run         Print writes without saving
   --no-pointer      Linked mode: do not update AGENTS.md
   --pointer         Custom mode: also write AGENTS.md pointer
+  --create-agents-md  If no AGENTS.md/CLAUDE.md, create AGENTS.md + CLAUDE.md symlink
 
 Global:
   --help            Show this help

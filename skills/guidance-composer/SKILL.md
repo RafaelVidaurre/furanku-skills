@@ -2,12 +2,12 @@
 name: guidance-composer
 description: >
   Compose selectable engineering guidance from a curated catalog and inject it
-  into a project via the guidance-composer CLI (interactive or non-interactive)
-  or by answering catalog questions from references/catalog.json. Use when the
-  user wants to inject guidance, compose project principles, set up agent
-  engineering rules, list or search the guidance catalog, run
-  /guidance-composer, or run the furanku-guidance-composer / guidance-composer
-  CLI.
+  into a project via the furanku-skills guidance-composer CLI namespace
+  (interactive or non-interactive) or by answering catalog questions from
+  references/catalog.json. Use when the user wants to inject guidance, compose
+  project principles, set up agent engineering rules, list or search the
+  guidance catalog, run /guidance-composer, or run the furanku-skills
+  guidance-composer CLI.
 license: MIT
 metadata:
   author: rafaelvidaurre
@@ -31,16 +31,21 @@ is expected to grow; selection always goes through the CLI wizard or explicit id
 
 ## CLI
 
-Package: `furanku-guidance-composer` · bin: `guidance-composer`
+Package: `furanku-skills` · namespace: `guidance-composer`  
+Invocation: `furanku-skills guidance-composer …`
 
-Resolve the executable once per session (first match wins):
+Resolve the collection CLI once per session (first match wins):
 
-1. `guidance-composer` on `PATH`
-2. `npx --yes furanku-guidance-composer` (when published / installable)
-3. From this skill directory: `node <skill>/bin/guidance-composer.js`
-4. From the furanku-skills repo checkout: `node skills/guidance-composer/bin/guidance-composer.js`
+1. `furanku-skills` on `PATH`
+2. `npx --yes furanku-skills` (when published / installable)
+3. From the furanku-skills repo checkout: `node bin/furanku-skills.js`
+4. Skill-local fallback (dev only): `node <skill>/bin/guidance-composer.js`
 
-Below, `GC` is that resolved command.
+Prefer **`furanku-skills init`** when the user wants first-time project setup
+(agent instruction files, skill install, and guidance together).
+
+Below, `GC` means `<furanku-skills> guidance-composer` (or the skill-local
+fallback with no namespace prefix).
 
 ```sh
 GC                          # interactive inject wizard (TTY)

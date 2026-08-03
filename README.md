@@ -5,7 +5,7 @@ Tools and skills that help **AI coding agents** work the way you want on your pr
 If you use Claude Code, Codex, Cursor, or a similar agent, this repo gives you:
 
 1. **Skills** — short instruction packs the agent can load when the task matches (install once, then ask in normal language).
-2. **A command-line tool** — [guidance-composer](skills/guidance-composer/README.md), for picking engineering principles and writing them into your project so agents keep following them.
+2. **A command-line tool** — `furanku-skills`, with namespaces such as [guidance-composer](skills/guidance-composer/README.md) for picking engineering principles and writing them into your project so agents keep following them.
 
 You do not need every skill. Install what matches how you work.
 
@@ -24,19 +24,58 @@ npx skills add rafaelvidaurre/furanku-skills --skill testing-best-practices
 
 After install, talk to your agent as usual. When a skill fits, it should load and follow it.
 
-## Command-line tools
+## Command-line tool
 
-| Tool | What it does | Docs |
-| --- | --- | --- |
-| **guidance-composer** | Lets you choose clear engineering rules from a catalog and add them to your project (for people and for agents). Interactive wizard or one-shot commands. | [Full guide](skills/guidance-composer/README.md) |
+The collection ships one CLI: **`furanku-skills`**.
 
-Quick start from a checkout of this repo:
+### Quick start (recommended)
+
+From a checkout, in **your project** directory:
 
 ```bash
-node skills/guidance-composer/bin/guidance-composer.js
+node /path/to/furanku-skills/bin/furanku-skills.js
+# or jump straight into setup:
+node /path/to/furanku-skills/bin/furanku-skills.js init
 ```
 
-That opens a simple menu to pick rules and where to put them. More options and install paths are in the [guidance-composer guide](skills/guidance-composer/README.md).
+Via npx (when the package is available):
+
+```bash
+npx furanku-skills
+npx furanku-skills init
+```
+
+With no command, the CLI opens an **interactive menu** (setup wizard, agent files, guidance, help). The **init** wizard walks you through:
+
+1. **Agent instructions** — create `AGENTS.md` and a `CLAUDE.md` → `AGENTS.md` symlink  
+2. **Install skills** — runs `npx skills@latest add rafaelvidaurre/furanku-skills …`  
+3. **Project guidance** — optional [guidance-composer](skills/guidance-composer/README.md) setup  
+
+Non-interactive (agents / CI):
+
+```bash
+# sensible default: AGENTS.md + all skills, no guidance yet
+npx furanku-skills init --yes
+
+# pick pieces explicitly
+npx furanku-skills init --yes --agents-md --skills guidance-composer,testing-best-practices --no-guidance
+npx furanku-skills init --yes --no-skills --guidance simplest-current,prefer-libraries --guidance-mode inline
+```
+
+### Commands & namespaces
+
+| Command / namespace | What it does |
+| --- | --- |
+| **`init`** | Interactive (or flagged) project setup — agents file, skills install, guidance |
+| **`agents-md`** | Only create empty `AGENTS.md` + `CLAUDE.md` → `AGENTS.md` symlink |
+| **`guidance-composer`** | Compose engineering rules from a catalog into the project ([guide](skills/guidance-composer/README.md)) |
+
+```bash
+node bin/furanku-skills.js help
+node bin/furanku-skills.js agents-md --yes
+node bin/furanku-skills.js guidance-composer list
+node bin/furanku-skills.js guidance-composer inject --ids simplest-current --mode inline --yes
+```
 
 ## Skills (what each one is for)
 

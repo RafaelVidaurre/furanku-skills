@@ -1,17 +1,9 @@
 {
   "name": "furanku-guidance-composer",
   "version": "0.1.0",
-  "description": "Compose selectable engineering guidance into a project from a curated catalog",
+  "private": true,
+  "description": "Guidance-composer namespace implementation for the furanku-skills CLI (not published separately)",
   "license": "MIT",
-  "bin": {
-    "guidance-composer": "./bin/guidance-composer.js"
-  },
-  "files": [
-    "bin/",
-    "lib/",
-    "references/catalog.json",
-    "SKILL.md"
-  ],
   "engines": {
     "node": ">=18"
   },
