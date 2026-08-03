@@ -140,6 +140,21 @@ test("cli list and show", () => {
   assert.equal(data.id, "prefer-libraries");
 });
 
+test("catalogBrowseTree nests entries under categories", () => {
+  const { loadCatalog, CATALOG_PATH } = require("../lib/catalog");
+  const { catalogBrowseTree, collectLeafIds } = require("../lib/cli");
+  const catalog = loadCatalog(CATALOG_PATH);
+  const tree = catalogBrowseTree(catalog);
+  assert.ok(tree.length >= 1);
+  const simplicity = tree.find((n) => n.id === "simplicity");
+  assert.ok(simplicity);
+  assert.ok(simplicity.children.some((c) => c.id === "simplest-current"));
+  const allLeaves = tree.flatMap(collectLeafIds);
+  assert.ok(allLeaves.includes("prefer-libraries"));
+  assert.ok(allLeaves.includes("no-backward-compat"));
+  assert.equal(new Set(allLeaves).size, catalog.entries.length);
+});
+
 test("cli inject non-interactive into temp project", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gc-"));
   fs.writeFileSync(

@@ -24,6 +24,14 @@ const {
   hasAgentInstructionFile,
 } = require("./merge");
 
+const style = require(path.join(__dirname, "../../../lib/style"));
+const {
+  confirm: rootConfirm,
+  selectWithCursor,
+  hierarchicalMultiSelect,
+  collectLeafIds,
+} = require(path.join(__dirname, "../../../lib/prompt"));
+
 function loadAgentsMdHelper() {
   try {
     return require(path.join(__dirname, "../../../lib/agents-md"));
@@ -486,95 +494,125 @@ function question(rl, prompt) {
   return new Promise((resolve) => rl.question(prompt, resolve));
 }
 
+/**
+ * Build hierarchical tree for the catalog browser:
+ * categories (folders) → entries (leaves).
+ * @param {ReturnType<typeof loadCatalog>} catalog
+ */
+function catalogBrowseTree(catalog) {
+  return catalog.categories.map((cat) => {
+    const entries = catalog.entries.filter((e) => e.category === cat.id);
+    return {
+      id: cat.id,
+      label: cat.title,
+      description: cat.description,
+      children: entries.map((e) => ({
+        id: e.id,
+        label: e.title,
+        description: e.picker,
+      })),
+    };
+  });
+}
+
 async function interactiveInject(catalog, flags) {
   if (!process.stdin.isTTY) {
     die("interactive mode requires a TTY; pass --ids and --mode for non-interactive inject");
   }
   const root = path.resolve(flags.root || process.cwd());
-  const rl = createRl();
-  const selected = new Set();
 
-  try {
-    print("Guidance composer — interactive inject");
-    print("Catalog is grouped by category. Toggle entries by number or id.\n");
+  print(style.bold("Guidance composer — interactive inject"));
+  print(
+    style.dim(
+      "  Browse categories, mark snippets (Enter/Space), All selects everything under a level.\n"
+    )
+  );
 
-    const ready = await ensureAgentInstructions(root, flags, rl);
-    if (!ready) return;
-
-    for (const cat of catalog.categories) {
-      const entries = catalog.entries.filter((e) => e.category === cat.id);
-      print(`\n## ${cat.title} (${cat.id})`);
-      print(cat.description);
-      entries.forEach((e, i) => {
-        print(`  [${i + 1}] ${e.id} — ${e.title}`);
-        print(`      ${e.picker}`);
-      });
-      const answer = (
-        await question(
-          rl,
-          `Select from ${cat.id} (numbers or ids, comma-separated; empty skips): `
-        )
-      ).trim();
-      if (!answer) continue;
-      const tokens = parseIdList(answer).map((t) => {
-        if (/^\d+$/.test(t)) {
-          const idx = Number(t) - 1;
-          return entries[idx] ? entries[idx].id : t;
-        }
-        return t;
-      });
-      const { ids, unknown } = resolveIds(catalog, tokens);
-      if (unknown.length) print(`  (ignored unknown: ${unknown.join(", ")})`);
-      for (const id of ids) selected.add(id);
+  // Pre-flight agents files with readline, then release stdin for the cursor UI
+  {
+    const rl = createRl();
+    try {
+      const ready = await ensureAgentInstructions(root, flags, rl);
+      if (!ready) return;
+    } finally {
+      rl.close();
     }
+  }
 
-    // freeform pass
-    const extra = (
-      await question(
-        rl,
-        `\nCurrently selected: ${[...selected].join(", ") || "(none)"}\nAdd more ids (or empty to continue): `
+  const tree = catalogBrowseTree(catalog);
+  const picked = await hierarchicalMultiSelect(tree, {
+    title: "Guidance catalog",
+    description: "Open a category, or use All to mark every snippet under this level",
+  });
+
+  if (picked == null) {
+    print(style.warn("Cancelled."));
+    return;
+  }
+  if (picked.length === 0) {
+    print(style.dim("Nothing selected; exiting without write."));
+    return;
+  }
+
+  const selected = new Set(picked);
+
+  const conflicts = conflictPairs(catalog, [...selected]);
+  if (conflicts.length) {
+    print(
+      style.warn(
+        `Conflicts: ${conflicts.map(([a, b]) => `${a} vs ${b}`).join("; ")}`
       )
-    ).trim();
-    if (extra) {
-      const { ids, unknown } = resolveIds(catalog, parseIdList(extra));
-      if (unknown.length) print(`ignored unknown: ${unknown.join(", ")}`);
-      for (const id of ids) selected.add(id);
+    );
+    /** @type {{ id: string, label: string }[]} */
+    const conflictChoices = [
+      { id: "keep", label: "Keep both (inject anyway)" },
+    ];
+    for (const [a, b] of conflicts) {
+      conflictChoices.push({ id: `drop:${a}`, label: `Drop ${a} (keep ${b})` });
+      conflictChoices.push({ id: `drop:${b}`, label: `Drop ${b} (keep ${a})` });
     }
+    conflictChoices.push({ id: "abort", label: "Abort" });
 
-    if (selected.size === 0) {
-      print("Nothing selected; exiting without write.");
+    const howIdx = await selectWithCursor(
+      conflictChoices.map((c) => c.label),
+      {
+        prompt: "How to resolve conflicts?",
+        footer: style.dim("  ↑/↓  ·  Enter select"),
+      }
+    );
+    const choice = conflictChoices[howIdx];
+    if (!choice || choice.id === "abort") {
+      print(style.warn("Aborted."));
       return;
     }
-
-    const conflicts = conflictPairs(catalog, [...selected]);
-    if (conflicts.length) {
-      print(
-        `Conflicts: ${conflicts.map(([a, b]) => `${a} vs ${b}`).join("; ")}`
-      );
-      const how = (
-        await question(rl, "Resolve: keep both / drop <id> / abort: ")
-      )
-        .trim()
-        .toLowerCase();
-      if (how === "abort" || how === "") {
-        print("Aborted.");
-        return;
-      }
-      if (how.startsWith("drop ")) {
-        for (const id of how.slice(5).split(/[, ]+/)) selected.delete(id.trim());
-      }
-      // keep both: continue
+    if (choice.id.startsWith("drop:")) {
+      selected.delete(choice.id.slice("drop:".length));
     }
+    if (selected.size === 0) {
+      print(style.dim("Nothing left selected; exiting without write."));
+      return;
+    }
+  }
 
-    print("\nDestination:");
-    print("  1) inline  — ## Project guidance in AGENTS.md");
-    print("  2) linked  — docs/agent-guidance.md + AGENTS.md pointer");
-    print("  3) custom  — path you name");
-    const destChoice = (await question(rl, "Choose [1/2/3]: ")).trim();
-    let dest;
-    if (destChoice === "1" || destChoice === "inline") {
-      dest = resolveDestination({ mode: "inline" }, root);
-    } else if (destChoice === "2" || destChoice === "linked") {
+  const destIdx = await selectWithCursor(
+    [
+      "inline  — Project guidance section in AGENTS.md",
+      "linked  — Separate file + AGENTS.md pointer",
+      "custom  — Path you name",
+      "Cancel",
+    ],
+    {
+      prompt: "Where should guidance be written?",
+      footer: style.dim("  ↑/↓  ·  Enter select"),
+    }
+  );
+
+  let dest;
+  if (destIdx === 0) {
+    dest = resolveDestination({ mode: "inline" }, root);
+  } else if (destIdx === 1) {
+    const rl = createRl();
+    try {
       const p = (
         await question(rl, "Linked path [docs/agent-guidance.md]: ")
       ).trim();
@@ -582,45 +620,64 @@ async function interactiveInject(catalog, flags) {
         { mode: "linked", path: p || "docs/agent-guidance.md" },
         root
       );
-    } else if (destChoice === "3" || destChoice === "custom") {
+    } finally {
+      rl.close();
+    }
+  } else if (destIdx === 2) {
+    const rl = createRl();
+    try {
       const p = (await question(rl, "Path: ")).trim();
       if (!p) {
-        print("Aborted (no path).");
+        print(style.warn("Aborted (no path)."));
         return;
       }
-      const pointer = (
-        await question(rl, "Add AGENTS.md pointer? [y/N]: ")
-      )
-        .trim()
-        .toLowerCase();
+      const addPointer = await rootConfirm(
+        rl,
+        "Add AGENTS.md pointer to this file?",
+        false
+      );
       dest = resolveDestination(
-        { mode: "custom", path: p, pointer: pointer === "y" || pointer === "yes" },
+        { mode: "custom", path: p, pointer: addPointer },
         root
       );
       if (dest.pointer) dest.relativeLink = p.replace(/\\/g, "/");
-    } else {
-      print("Aborted.");
-      return;
+    } finally {
+      rl.close();
     }
-
-    print(`\nWill inject: ${[...selected].join(", ")}`);
-    print(`Into: ${path.relative(root, dest.targetPath) || dest.targetPath}`);
-    if (dest.pointer) print(`Pointer: AGENTS.md → ${dest.relativeLink}`);
-    const confirm = (await question(rl, "Write? [y/N]: ")).trim().toLowerCase();
-    if (confirm !== "y" && confirm !== "yes") {
-      print("Aborted.");
-      return;
-    }
-
-    writeInject(catalog, [...selected], dest, {
-      root,
-      replace: Boolean(flags.replace),
-      dryRun: Boolean(flags["dry-run"]),
-    });
-    print("Done.");
-  } finally {
-    rl.close();
+  } else {
+    print(style.warn("Cancelled."));
+    return;
   }
+
+  print();
+  print(style.info(`Will inject: ${[...selected].join(", ")}`));
+  print(
+    style.dim(
+      `  Into: ${path.relative(root, dest.targetPath) || dest.targetPath}`
+    )
+  );
+  if (dest.pointer) {
+    print(style.dim(`  Pointer: AGENTS.md → ${dest.relativeLink}`));
+  }
+
+  const writeIdx = await selectWithCursor(
+    ["Write guidance now", "Cancel"],
+    {
+      prompt: "Confirm write",
+      footer: style.dim("  ↑/↓  ·  Enter select"),
+    }
+  );
+  if (writeIdx !== 0) {
+    print(style.warn("Aborted."));
+    return;
+  }
+
+  writeInject(catalog, [...selected], dest, {
+    root,
+    replace: Boolean(flags.replace),
+    dryRun: Boolean(flags["dry-run"]),
+  });
+  print(style.ok("Done."));
 }
 
 const PROGRAM = "furanku-skills guidance-composer";
@@ -705,4 +762,9 @@ async function main(argv = process.argv) {
   }
 }
 
-module.exports = { main, parseArgs };
+module.exports = {
+  main,
+  parseArgs,
+  catalogBrowseTree,
+  collectLeafIds,
+};

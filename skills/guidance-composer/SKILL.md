@@ -48,7 +48,7 @@ Below, `GC` means `<furanku-skills> guidance-composer` (or the skill-local
 fallback with no namespace prefix).
 
 ```sh
-GC                          # interactive inject wizard (TTY)
+GC                          # interactive inject (cursor browser; TTY)
 GC list                     # catalog grouped by category
 GC list --category simplicity
 GC list --json

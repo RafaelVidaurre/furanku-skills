@@ -74,7 +74,9 @@ For local skill development you can still run the skill entry directly
    # or: npx furanku-skills guidance-composer
    ```
 
-3. For each category, pick the rules you want (numbers or ids), or skip.
+3. Browse the catalog with arrow keys: open a category, mark snippets with
+   Enter/Space, or choose **All** to select every snippet under that level
+   (top-level All marks the whole catalog).
 4. Choose **where** to write them (see below).
 5. Confirm.
 
