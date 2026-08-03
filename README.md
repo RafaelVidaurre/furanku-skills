@@ -48,7 +48,7 @@ npx furanku-skills init
 With no command, the CLI opens an **interactive menu** (setup wizard, agent files, guidance, help). The **init** wizard walks you through:
 
 1. **Agent instructions** — create `AGENTS.md` and a `CLAUDE.md` → `AGENTS.md` symlink  
-2. **Install skills** — runs `npx skills@latest add rafaelvidaurre/furanku-skills …`  
+2. **Install skills** — hands off to interactive `npx skills@latest add rafaelvidaurre/furanku-skills` (the skills CLI owns the picker)  
 3. **Project guidance** — optional [guidance-composer](skills/guidance-composer/README.md) setup  
 
 Non-interactive (agents / CI):

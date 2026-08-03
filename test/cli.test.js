@@ -272,6 +272,7 @@ test("buildInstallArgs shapes npx invocation", () => {
   const { buildInstallArgs } = require("../lib/skills-install");
   const all = buildInstallArgs({ skills: "all" });
   assert.deepEqual(all.slice(0, 4), ["--yes", "skills@latest", "add", "rafaelvidaurre/furanku-skills"]);
+  assert.ok(all.includes("-y"));
   assert.ok(all.includes("--skill"));
   assert.ok(all.includes("*"));
 
@@ -282,6 +283,17 @@ test("buildInstallArgs shapes npx invocation", () => {
   assert.ok(some.includes("-g"));
   assert.ok(some.includes("crew"));
   assert.ok(some.includes("council"));
+
+  // Interactive: bare add so `skills` runs its own picker (no -y / --skill)
+  const interactive = buildInstallArgs({ interactive: true });
+  assert.deepEqual(interactive, [
+    "--yes",
+    "skills@latest",
+    "add",
+    "rafaelvidaurre/furanku-skills",
+  ]);
+  assert.ok(!interactive.includes("-y"));
+  assert.ok(!interactive.includes("--skill"));
 });
 
 process.stdout.write("\nAll root CLI tests passed.\n");
