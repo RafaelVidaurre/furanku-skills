@@ -119,6 +119,39 @@ test("agents-md creates AGENTS.md and CLAUDE.md symlink", () => {
   assert.match(fs.readFileSync(agents, "utf8"), /AGENTS\.md/);
 });
 
+test("agents-md leaves regular CLAUDE.md without --force", () => {
+  const dir = tmpDir("fs-agents-block-");
+  fs.writeFileSync(path.join(dir, "AGENTS.md"), "# AGENTS.md\n", "utf8");
+  fs.writeFileSync(path.join(dir, "CLAUDE.md"), "# keep me\n", "utf8");
+  const result = run(["agents-md", "--root", dir, "--yes", "--no-banner"]);
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  assert.match(result.stdout, /regular file|--force|left unchanged/i);
+  assert.ok(!fs.lstatSync(path.join(dir, "CLAUDE.md")).isSymbolicLink());
+  assert.equal(fs.readFileSync(path.join(dir, "CLAUDE.md"), "utf8"), "# keep me\n");
+});
+
+test("agents-md --force replaces regular CLAUDE.md with symlink", () => {
+  const dir = tmpDir("fs-agents-force-");
+  fs.writeFileSync(path.join(dir, "AGENTS.md"), "# AGENTS.md\n", "utf8");
+  fs.writeFileSync(path.join(dir, "CLAUDE.md"), "# old claude\n", "utf8");
+  const result = run(["agents-md", "--root", dir, "--yes", "--force", "--no-banner"]);
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  const claude = path.join(dir, "CLAUDE.md");
+  assert.ok(fs.lstatSync(claude).isSymbolicLink());
+  assert.equal(fs.readlinkSync(claude), "AGENTS.md");
+});
+
+test("inspectAgentsSetup reports claudeBlocks for regular CLAUDE.md", () => {
+  const { inspectAgentsSetup } = require("../lib/agents-md");
+  const dir = tmpDir("fs-inspect-");
+  fs.writeFileSync(path.join(dir, "AGENTS.md"), "# a\n", "utf8");
+  fs.writeFileSync(path.join(dir, "CLAUDE.md"), "# c\n", "utf8");
+  const status = inspectAgentsSetup(dir);
+  assert.equal(status.complete, false);
+  assert.equal(status.claudeBlocks, true);
+  assert.match(status.claudeBlockReason, /regular file/);
+});
+
 test("agents-md is idempotent", () => {
   const dir = tmpDir("fs-agents2-");
   run(["agents-md", "--root", dir, "--yes", "--no-banner"]);
