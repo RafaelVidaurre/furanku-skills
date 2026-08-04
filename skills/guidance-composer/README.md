@@ -74,11 +74,25 @@ For local skill development you can still run the skill entry directly
    # or: npx furanku-skills guidance-composer
    ```
 
-3. Browse the catalog with arrow keys: open a category, mark snippets with
+3. Choose **scope** (asked first; default is this project):
+   - **This project** — current directory (or `--root`)
+   - **Global (this machine)** — each tool’s own user file (not a shared `~/.agents` store)
+4. Choose **harnesses** (which instruction files get the rules):
+
+   | Id | Project | Global |
+   | --- | --- | --- |
+   | `agents` | `AGENTS.md` (portable; agents.md / Codex / Cursor / …) | Codex only: `$CODEX_HOME/AGENTS.md` (default `~/.codex`) |
+   | `claude` | Real `CLAUDE.md` only (not symlink → AGENTS) | `~/.claude/CLAUDE.md` |
+   | `gemini` | Real `GEMINI.md` only | `~/.gemini/GEMINI.md` |
+
+   Cursor **global** User Rules are app settings (Customize → Rules) — this CLI cannot write them.
+   Project Cursor still reads repo `AGENTS.md`. If `CLAUDE.md`/`GEMINI.md` already symlink to
+   `AGENTS.md`, picking AGENTS covers those tools.
+5. Browse the catalog with arrow keys: open a category, mark snippets with
    Enter/Space, or choose **All** to select every snippet under that level
    (top-level All marks the whole catalog).
-4. Choose **where** to write them (see below).
-5. Confirm.
+6. Choose **where** to write them (see below).
+7. Confirm.
 
 You can re-run later to add more rules. By default it **adds** without wiping what it already wrote. Use replace only when you mean to reset the tool-owned list.
 
@@ -88,9 +102,9 @@ You can re-run later to add more rules. By default it **adds** without wiping wh
 
 | Choice | What happens |
 | --- | --- |
-| **Inline** | Rules go into `AGENTS.md` (or `Agents.md` if that’s what the project uses) under a “Project guidance” section. |
-| **Linked file** | Rules go into a separate file (default `docs/agent-guidance.md`). `AGENTS.md` gets a short “follow this file” line. |
-| **Custom path** | Rules go only where you say. Optionally also add the pointer in `AGENTS.md`. |
+| **Inline** | Rules go into each selected harness file under “Project guidance” or “User guidance”. |
+| **Linked file** | Rules go into a separate file (project default `docs/agent-guidance.md`; global default `agent-guidance.md` under Codex home). Instruction files get a short “follow this file” line. |
+| **Custom path** | Rules go only where you say. Optionally also add the pointer in the instruction file. |
 
 The tool only rewrites the block between these markers:
 
@@ -131,25 +145,34 @@ gc diff --root ~/Code/my-app
 ### Apply rules without the menu
 
 ```bash
-# into AGENTS.md
-gc inject --ids simplest-current,no-backward-compat --mode inline --yes
+# into project AGENTS.md
+gc inject --ids simplest-current,no-backward-compat --mode inline --harness agents --yes
 
 # into a linked file + pointer in AGENTS.md
-gc inject --ids long-term-architecture --mode linked --yes
+gc inject --ids long-term-architecture --mode linked --harness agents --yes
+
+# machine-wide Codex guidance (~/.codex/AGENTS.md)
+gc inject --ids asd-ste100 --mode inline --scope global --harness agents --yes
+
+# Claude + Gemini user files too (explicit list — no implicit defaults)
+gc inject --ids asd-ste100 --mode inline --scope global --harness agents,claude,gemini --yes
 
 # dry run (print only, no write)
-gc inject --ids prefer-libraries --mode inline --dry-run --yes
+gc inject --ids prefer-libraries --mode inline --harness agents --dry-run --yes
 ```
 
 | Flag | Meaning |
 | --- | --- |
 | `--ids a,b` | Which catalog entries (ids or full titles). |
+| `--scope project \| global` | Project (default) or per-tool global user files. Wizard always asks first. |
+| `--harness agents,claude,gemini` | **Required** non-interactively. Which instruction files to update. |
 | `--mode inline \| linked \| custom` | Where to write. |
-| `--path …` | File path for linked/custom (linked default: `docs/agent-guidance.md`). |
-| `--root …` | Project root (default: current directory). |
+| `--path …` | File path for linked/custom (linked default: `docs/agent-guidance.md` project, `agent-guidance.md` under Codex home for global). |
+| `--root …` | Override root (project: cwd; global: Codex home for AGENTS.md / linked files). |
 | `--yes` | Confirm write when you’re not in the interactive wizard. |
 | `--replace` | Replace the tool-owned list instead of adding to it. |
 | `--dry-run` | Show what would be written, don’t save. |
+| `--verbose` | Print path notes (Cursor settings limitation, no shared store, …). |
 
 ---
 
@@ -175,6 +198,7 @@ Topics grow over time. Check live with `gc list`. Currently:
 | **Simplicity & scope** | Prefer the smallest solution that fully meets *current* needs; optional hard line against keeping old contracts. |
 | **Architecture** | Durable design choices when they matter; keep components modular and concerns separated. |
 | **Dependencies** | Prefer what the project already uses (check docs/types first), then solid maintained libraries, before writing your own. |
+| **Writing & communication** | Controlled technical English (ASD-STE100): short active sentences, one meaning per word, clear instructions for non-native readers. |
 
 Each entry has a short id (for example `simplest-current`). That id is what you pass to `--ids`.
 

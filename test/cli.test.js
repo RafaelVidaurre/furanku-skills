@@ -272,7 +272,7 @@ test("init with guidance injects into fresh project", () => {
   assert.ok(fs.lstatSync(path.join(dir, "CLAUDE.md")).isSymbolicLink());
 });
 
-test("guidance-composer inject creates agents files when missing", () => {
+test("guidance-composer inject creates AGENTS.md when missing", () => {
   const dir = tmpDir("fs-gc-agents-");
   const result = run([
     "guidance-composer",
@@ -281,6 +281,8 @@ test("guidance-composer inject creates agents files when missing", () => {
     "prefer-libraries",
     "--mode",
     "inline",
+    "--harness",
+    "agents",
     "--root",
     dir,
     "--yes",
@@ -288,7 +290,9 @@ test("guidance-composer inject creates agents files when missing", () => {
   ]);
   assert.equal(result.status, 0, result.stderr + result.stdout);
   assert.ok(fs.existsSync(path.join(dir, "AGENTS.md")));
-  assert.ok(fs.lstatSync(path.join(dir, "CLAUDE.md")).isSymbolicLink());
+  // CLAUDE.md is only written when selected as a standalone harness file;
+  // missing CLAUDE.md is not auto-created as a symlink (use agents-md for that).
+  assert.ok(!fs.existsSync(path.join(dir, "CLAUDE.md")));
   const agents = fs.readFileSync(path.join(dir, "AGENTS.md"), "utf8");
   assert.match(agents, /prefer|libraries|maintained/i);
 });

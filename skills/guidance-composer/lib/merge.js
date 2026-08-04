@@ -149,27 +149,46 @@ function escapeReg(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function ensureAgentsPointer(agentsText, relativeLink) {
-  const pointerLine = `Follow [${relativeLink}](${relativeLink}) for repository engineering principles.`;
-  const section = `## Project guidance\n\n${pointerLine}\n`;
+function ensureAgentsPointer(agentsText, relativeLink, opts = {}) {
+  const sectionHeading = opts.sectionHeading || "## Project guidance";
+  const headingBare = sectionHeading.replace(/^#+\s*/, "");
+  const pointerLine =
+    opts.pointerLine ||
+    `Follow [${relativeLink}](${relativeLink}) for engineering principles.`;
+  const section = `${sectionHeading}\n\n${pointerLine}\n`;
   if (!agentsText || !agentsText.trim()) {
     return `# AGENTS.md\n\n${section}`;
   }
-  if (agentsText.includes(relativeLink) && /Project guidance/i.test(agentsText)) {
+  const headingRe = new RegExp(headingBare.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  if (agentsText.includes(relativeLink) && headingRe.test(agentsText)) {
     return agentsText;
   }
-  if (/^## Project guidance\s*$/m.test(agentsText)) {
+  const sectionLineRe = new RegExp(
+    `^${escapeReg(sectionHeading)}\\s*$`,
+    "m"
+  );
+  if (sectionLineRe.test(agentsText)) {
     // Section exists; append pointer if missing
     if (agentsText.includes(relativeLink)) return agentsText;
     return agentsText.replace(
-      /^## Project guidance\s*$/m,
-      `## Project guidance\n\n${pointerLine}`
+      sectionLineRe,
+      `${sectionHeading}\n\n${pointerLine}`
     );
   }
   return `${agentsText.replace(/\s*$/, "")}\n\n${section}`;
 }
 
-function detectAgentInstructionFile(root, fs, path) {
+/**
+ * Prefer an existing AGENTS* file, then CLAUDE* (harness adapter names).
+ * If none exist, return `path.join(root, defaultName)` (default AGENTS.md).
+ *
+ * @param {string} root
+ * @param {{ existsSync: Function }} fs
+ * @param {{ join: Function }} path
+ * @param {{ defaultName?: string }} [opts]
+ */
+function detectAgentInstructionFile(root, fs, path, opts = {}) {
+  const defaultName = opts.defaultName || "AGENTS.md";
   // Prefer AGENTS* (write target for shared instructions), then CLAUDE*.
   const candidates = [
     "AGENTS.md",
@@ -183,7 +202,7 @@ function detectAgentInstructionFile(root, fs, path) {
     const p = path.join(root, name);
     if (fs.existsSync(p)) return p;
   }
-  return path.join(root, "AGENTS.md");
+  return path.join(root, defaultName);
 }
 
 function hasAgentInstructionFile(root, fs, path) {

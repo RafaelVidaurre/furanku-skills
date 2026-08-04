@@ -48,25 +48,59 @@ Below, `GC` means `<furanku-skills> guidance-composer` (or the skill-local
 fallback with no namespace prefix).
 
 ```sh
-GC                          # interactive inject (cursor browser; TTY)
+GC                          # interactive inject (asks scope, then catalog; TTY)
 GC list                     # catalog grouped by category
 GC list --category simplicity
 GC list --json
 GC categories
 GC show <id>
 GC search <query>
-GC diff [--root DIR] [--json]
-GC inject --ids a,b --mode inline|linked|custom [--path PATH] --yes
+GC diff [--scope project|global] [--root DIR] [--json]
+GC inject --ids a,b --mode inline|linked|custom --harness agents [--scope project|global] [--path PATH] --yes
 GC inject                   # same as interactive wizard
 ```
+
+### Scope
+
+| `--scope` | Root | What gets written |
+| --- | --- | --- |
+| `project` (default) | cwd or `--root` | Selected harness files under the project (see below) |
+| `global` | Codex home (`$CODEX_HOME` or `~/.codex`; overridable with `--root`) | **Per-tool user files** — not one shared path |
+
+There is **no** shared `~/.agents/AGENTS.md` or `~/.config/agents/AGENTS.md` that
+tools auto-load. Paths below follow official docs (agents.md, Codex, Claude Code, Gemini CLI, Cursor).
+
+Interactive inject **always asks scope first** (default: this project), then
+**which harnesses**, before the catalog browser.
+
+### Harnesses
+
+| Id | Project path | Project when offered | Global path | Global when offered |
+| --- | --- | --- | --- | --- |
+| `agents` | `AGENTS.md` | Always (create if missing) | `$CODEX_HOME/AGENTS.md` (default `~/.codex/AGENTS.md`) | Always — **Codex only** |
+| `claude` | `CLAUDE.md` | Only if a **real file** (not symlink → AGENTS.md) | `~/.claude/CLAUDE.md` | Always (create opt-in) |
+| `gemini` | `GEMINI.md` | Only if a **real file** (not symlink → AGENTS.md) | `~/.gemini/GEMINI.md` | Always (create opt-in) |
+
+**Not injectable as files**
+
+| Tool | Why |
+| --- | --- |
+| **Cursor (global)** | User Rules live in **Customize → Rules** (app settings). Project still reads root/nested `AGENTS.md`. |
+| **agents.md standard** | Defines project (and nested) files only — no machine-wide path. |
+
+If `CLAUDE.md` or `GEMINI.md` → `AGENTS.md` already, selecting `agents` covers that harness;
+the wizard notes it instead of listing the vendor file.
+
+**Non-interactive inject requires `--harness`** (e.g. `--harness agents` or
+`--harness agents,claude`). No implicit default — scripts must name targets explicitly.
 
 ### Inject modes
 
 | `--mode` | Behavior |
 | --- | --- |
-| `inline` | Managed region under `## Project guidance` in `AGENTS.md` (or project equivalent). |
-| `linked` | Write `docs/agent-guidance.md` by default; add a short pointer in `AGENTS.md`. |
-| `custom` | Write only `--path` (optional `--pointer` for `AGENTS.md`). |
+| `inline` | Managed region under `## Project guidance` (project) or `## User guidance` (global) in the instruction file. |
+| `linked` | Write a separate file (project default `docs/agent-guidance.md`; global default `agent-guidance.md` under the root); add a short pointer in the instruction file. |
+| `custom` | Write only `--path` (optional `--pointer` for the instruction file). |
 
 Use `--replace` to replace the managed region interior; default is union-add.
 Use `--dry-run` to print writes. Non-interactive writes on a TTY require `--yes`.
@@ -87,15 +121,19 @@ at the destination, and any agreed pointer exists.
 
 ### Inject via agent
 
-1. Resolve ids (user-named, or propose a set from intent and confirm).
-2. Resolve destination (user-named, or ask once: inline / linked / custom).
-3. Run non-interactive inject:
+1. Resolve **scope** (project vs global / machine-wide). Default is project; ask when unclear.
+2. Resolve **harnesses** (`agents`, plus `claude` / `gemini` when offered). Prefer project
+   `AGENTS.md` for multi-tool teams. For global, explain per-tool paths and that Cursor
+   User Rules are settings-only.
+3. Resolve ids (user-named, or propose a set from intent and confirm).
+4. Resolve destination (user-named, or ask once: inline / linked / custom).
+5. Run non-interactive inject:
 
 ```sh
-GC inject --ids <id,id> --mode <inline|linked|custom> [--path <path>] --root <project> --yes
+GC inject --ids <id,id> --mode <inline|linked|custom> --harness agents,claude [--scope project|global] [--path <path>] --root <dir> --yes
 ```
 
-4. Report selected ids, destination paths, and CLI output.
+6. Report scope, harnesses, selected ids, destination paths, and CLI output.
 
 If inject flags are incomplete, run the interactive wizard only when a TTY is
 available; otherwise ask for the missing ids/mode in chat and re-run with flags.

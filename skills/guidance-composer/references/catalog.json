@@ -15,6 +15,11 @@
       "id": "dependencies",
       "title": "Dependencies",
       "description": "How to choose libraries: prefer what the project already has, then solid maintained packages, before writing your own."
+    },
+    {
+      "id": "writing",
+      "title": "Writing & communication",
+      "description": "How agents and authors write technical text so readers can act safely and correctly."
     }
   ],
   "entries": [
@@ -82,6 +87,34 @@
       "conflicts": [],
       "inject": [
         "Keep components modular and concerns clearly separated."
+      ]
+    },
+    {
+      "id": "asd-ste100",
+      "category": "writing",
+      "title": "ASD-STE100 Simplified Technical English",
+      "picker": "Always respond in ASD-STE100: approved words only, one word per idea, short active sentences, one-topic paragraphs.",
+      "tags": ["writing", "ste100", "clarity", "docs"],
+      "conflicts": [],
+      "inject": [
+        "Always respond using ASD-STE100 Simplified Technical English. It is a controlled writing standard. Aerospace and defense groups made it. It helps people write clear technical text.",
+        "Use approved words only. The standard gives a word list. Each word has one meaning.",
+        "Use one word for one idea. Do not use two words for the same thing.",
+        "Write short sentences. Use 20 words or less for instructions.",
+        "Use active voice. Write \"Turn the switch\", not \"The switch must be turned\".",
+        "Write short paragraphs. Keep one topic in each paragraph.",
+        "The goal is easy reading. Many readers are not native English speakers. Clear text helps them do the work in a safe and correct way."
+      ]
+    },
+    {
+      "id": "ui-descriptions",
+      "category": "writing",
+      "title": "UI descriptions",
+      "picker": "No default subtitles or helper text under headings, labels, cards, or settings — only when needed or asked.",
+      "tags": ["writing", "ui", "copy", "clarity"],
+      "conflicts": [],
+      "inject": [
+        "Do not add subtitles, helper text, or descriptive copy beneath headings, labels, cards, or settings by default. Prefer one concise, self-explanatory heading or label. Only add supporting copy when the user explicitly asks for it or when it is necessary to prevent misunderstanding or error, and never use it to restate the heading."
       ]
     }
   ]

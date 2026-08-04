@@ -21,8 +21,13 @@ const {
   mergeInject,
   ensureAgentsPointer,
   detectAgentInstructionFile,
-  hasAgentInstructionFile,
 } = require("./merge");
+const {
+  defaultGlobalRoot,
+  discoverHarnessTargets,
+  resolveHarnessSelection,
+  knownHarnessIds,
+} = require("./harnesses");
 
 const style = require(path.join(__dirname, "../../../lib/style"));
 const {
@@ -32,12 +37,56 @@ const {
   collectLeafIds,
 } = require(path.join(__dirname, "../../../lib/prompt"));
 
-function loadAgentsMdHelper() {
-  try {
-    return require(path.join(__dirname, "../../../lib/agents-md"));
-  } catch {
-    return null;
+/**
+ * Resolve inject scope and filesystem root.
+ * - project (default): cwd or --root
+ * - global: ~/.codex (Codex user AGENTS.md parent), or --root when overriding
+ *
+ * Global instruction **files** are harness-native only (see harnesses.js):
+ * Codex $CODEX_HOME/AGENTS.md, Claude ~/.claude/CLAUDE.md, Gemini ~/.gemini/GEMINI.md.
+ * Cursor User Rules are app settings (not file-writable). No shared ~/.agents store.
+ *
+ * @param {{ scope?: string, root?: string }} flags
+ * @returns {{ scope: "project" | "global", root: string, defaultInstructionName: string }}
+ */
+function resolveScopeAndRoot(flags = {}) {
+  const raw = String(flags.scope || "project").toLowerCase();
+  if (raw !== "project" && raw !== "global") {
+    die(`unknown --scope: ${flags.scope} (use project|global)`);
   }
+  if (raw === "global") {
+    return {
+      scope: "global",
+      root: path.resolve(flags.root || defaultGlobalRoot()),
+      defaultInstructionName: "AGENTS.md",
+    };
+  }
+  return {
+    scope: "project",
+    root: path.resolve(flags.root || process.cwd()),
+    defaultInstructionName: "AGENTS.md",
+  };
+}
+
+function instructionFileFor(root, _scope) {
+  return detectAgentInstructionFile(root, fs, path, {
+    defaultName: "AGENTS.md",
+  });
+}
+
+function sectionHeadingFor(scope) {
+  return scope === "global" ? "## User guidance" : "## Project guidance";
+}
+
+function linkedIntroFor(scope) {
+  if (scope === "global") {
+    return "# User guidance\n\nEngineering principles selected for this machine. Agents must follow them across projects.";
+  }
+  return "# Project guidance\n\nEngineering principles selected for this repository. Agents must follow them.";
+}
+
+function linkedDefaultPath(scope) {
+  return scope === "global" ? "agent-guidance.md" : "docs/agent-guidance.md";
 }
 
 function print(text) {
@@ -100,6 +149,7 @@ function parseArgs(argv) {
           "pointer",
           "help",
           "create-agents-md",
+          "verbose",
         ].includes(key)
       ) {
         args.flags[key] = next;
@@ -117,7 +167,7 @@ function parseArgs(argv) {
 function formatEntryLine(entry, cats) {
   const cat = cats.get(entry.category);
   const catLabel = cat ? cat.id : entry.category;
-  return `${entry.id} — ${entry.title} [${catLabel}] — ${entry.picker}`;
+  return `${style.purple(entry.id)} — ${entry.title} ${style.dim(`[${catLabel}]`)} — ${style.dim(entry.picker)}`;
 }
 
 function cmdList(catalog, flags) {
@@ -141,10 +191,11 @@ function cmdList(catalog, flags) {
     if (list.length === 0 && (flags.category || flags.tag || flags.query)) {
       continue;
     }
-    print(`\n## ${cat.title} (${cat.id})`);
-    print(cat.description);
+    print();
+    print(style.sectionTitle(`${cat.title} ${style.dim(`(${cat.id})`)}`));
+    print(style.dim(`  ${cat.description}`));
     if (list.length === 0) {
-      print("  (no entries)");
+      print(style.dim("  (no entries)"));
       continue;
     }
     for (const e of list) {
@@ -154,9 +205,11 @@ function cmdList(catalog, flags) {
   // entries in unknown categories (should not happen)
   for (const [cid, list] of byCat) {
     if (cats.has(cid)) continue;
-    print(`\n## (unknown category: ${cid})`);
+    print();
+    print(style.warn(`unknown category: ${cid}`));
     for (const e of list) print(`  ${formatEntryLine(e, cats)}`);
   }
+  print();
 }
 
 function cmdCategories(catalog, flags) {
@@ -166,7 +219,9 @@ function cmdCategories(catalog, flags) {
   }
   for (const c of catalog.categories) {
     const count = catalog.entries.filter((e) => e.category === c.id).length;
-    print(`${c.id} — ${c.title} (${count}) — ${c.description}`);
+    print(
+      `${style.purple(c.id)} — ${c.title} ${style.dim(`(${count})`)} — ${style.dim(c.description)}`
+    );
   }
 }
 
@@ -177,14 +232,22 @@ function cmdShow(catalog, id, flags) {
     print(JSON.stringify(entry, null, 2));
     return;
   }
-  print(`id: ${entry.id}`);
-  print(`title: ${entry.title}`);
-  print(`category: ${entry.category}`);
-  print(`picker: ${entry.picker}`);
-  print(`tags: ${(entry.tags || []).join(", ") || "(none)"}`);
-  print(`conflicts: ${(entry.conflicts || []).join(", ") || "none"}`);
-  print("inject:");
-  for (const line of entry.inject) print(`  - ${line}`);
+  print(style.sectionTitle(entry.title));
+  print(style.bullet(`${style.dim("id")}       ${style.purple(entry.id)}`));
+  print(style.bullet(`${style.dim("category")} ${entry.category}`));
+  print(style.bullet(`${style.dim("picker")}   ${entry.picker}`));
+  print(
+    style.bullet(
+      `${style.dim("tags")}     ${(entry.tags || []).join(", ") || "(none)"}`
+    )
+  );
+  print(
+    style.bullet(
+      `${style.dim("conflicts")} ${(entry.conflicts || []).join(", ") || "none"}`
+    )
+  );
+  print(style.dim("  inject:"));
+  for (const line of entry.inject) print(style.bullet(line));
 }
 
 function cmdSearch(catalog, query, flags) {
@@ -192,23 +255,33 @@ function cmdSearch(catalog, query, flags) {
   cmdList(catalog, flags);
 }
 
-function projectState(root, catalog) {
-  const agentsPath = detectAgentInstructionFile(root, fs, path);
-  const linkedDefault = path.join(root, "docs", "agent-guidance.md");
+function projectState(root, catalog, scope = "project") {
+  const { targets } = discoverHarnessTargets(scope, root);
+  const agentsPath =
+    targets.find((t) => t.id === "agents")?.path ||
+    instructionFileFor(root, scope);
+  const linkedDefault = path.join(root, ...linkedDefaultPath(scope).split("/"));
   const candidates = [];
-  if (fs.existsSync(agentsPath)) candidates.push(agentsPath);
-  if (fs.existsSync(linkedDefault)) candidates.push(linkedDefault);
+  for (const t of targets) {
+    if (fs.existsSync(t.path) && !candidates.includes(t.path)) {
+      candidates.push(t.path);
+    }
+  }
+  if (fs.existsSync(linkedDefault) && !candidates.includes(linkedDefault)) {
+    candidates.push(linkedDefault);
+  }
 
-  // Also scan agents file for markdown links that look like guidance files
-  if (fs.existsSync(agentsPath)) {
-    const text = fs.readFileSync(agentsPath, "utf8");
+  // Scan instruction files for markdown links that look like guidance files
+  for (const scanPath of [...candidates]) {
+    if (!fs.existsSync(scanPath)) continue;
+    const text = fs.readFileSync(scanPath, "utf8");
     const linkRe = /\[[^\]]*\]\(([^)]+)\)/g;
     let m;
     while ((m = linkRe.exec(text))) {
       const rel = m[1];
       if (!rel || rel.startsWith("http")) continue;
       if (!/\.md$/i.test(rel)) continue;
-      const abs = path.resolve(path.dirname(agentsPath), rel);
+      const abs = path.resolve(path.dirname(scanPath), rel);
       if (fs.existsSync(abs) && !candidates.includes(abs)) candidates.push(abs);
     }
   }
@@ -231,8 +304,8 @@ function projectState(root, catalog) {
 }
 
 function cmdDiff(catalog, flags) {
-  const root = path.resolve(flags.root || process.cwd());
-  const { found } = projectState(root, catalog);
+  const { scope, root } = resolveScopeAndRoot(flags);
+  const { found } = projectState(root, catalog, scope);
   const present = new Set();
   for (const f of found) for (const id of f.ids) present.add(id);
   const available = catalog.entries.map((e) => e.id);
@@ -252,6 +325,7 @@ function cmdDiff(catalog, flags) {
     }
   }
   const report = {
+    scope,
     root,
     present: [...present].sort(),
     available,
@@ -267,27 +341,42 @@ function cmdDiff(catalog, flags) {
     print(JSON.stringify(report, null, 2));
     return;
   }
-  print(`root: ${root}`);
+  print(style.bullet(`${style.dim("scope")}  ${scope}`));
+  print(style.bullet(`${style.dim("root")}   ${style.path(root)}`));
   if (found.length === 0) {
-    print("No managed guidance region found.");
+    print(style.warn("No managed guidance region found."));
   } else {
     for (const f of report.managed_files) {
       print(
-        `managed: ${f.file} (closed=${f.closed}) ids=[${f.ids.join(", ") || "—"}]`
+        style.bullet(
+          `${style.dim("managed")} ${style.path(f.file)} ${style.dim(`(closed=${f.closed})`)} ids=[${f.ids.join(", ") || "—"}]`
+        )
       );
     }
   }
-  print(`present: ${report.present.join(", ") || "—"}`);
-  print(`not injected: ${report.not_injected.join(", ") || "—"}`);
+  print(
+    style.bullet(
+      `${style.dim("present")} ${report.present.join(", ") || "—"}`
+    )
+  );
+  print(
+    style.bullet(
+      `${style.dim("not injected")} ${report.not_injected.join(", ") || "—"}`
+    )
+  );
   if (unknownBullets.length) {
-    print("non-catalog bullets inside managed region:");
+    print(style.dim("  non-catalog bullets inside managed region:"));
     for (const u of unknownBullets) {
-      print(`  ${path.relative(root, u.file)}: ${u.bullet}`);
+      print(
+        style.bullet(
+          `${style.path(path.relative(root, u.file) || u.file)}: ${u.bullet}`
+        )
+      );
     }
   }
 }
 
-function resolveDestination(flags, root) {
+function resolveDestination(flags, root, scope = "project") {
   const mode = flags.mode || flags.destination || null;
   if (!mode && flags.path) {
     return { mode: "custom", targetPath: path.resolve(root, flags.path) };
@@ -296,12 +385,12 @@ function resolveDestination(flags, root) {
   if (mode === "inline") {
     return {
       mode: "inline",
-      targetPath: detectAgentInstructionFile(root, fs, path),
+      targetPath: instructionFileFor(root, scope),
       pointer: false,
     };
   }
   if (mode === "linked") {
-    const rel = flags.path || "docs/agent-guidance.md";
+    const rel = flags.path || linkedDefaultPath(scope);
     return {
       mode: "linked",
       targetPath: path.resolve(root, rel),
@@ -321,37 +410,96 @@ function resolveDestination(flags, root) {
   die(`unknown --mode: ${mode} (use inline|linked|custom)`);
 }
 
-function writeInject(catalog, ids, dest, { root, replace, dryRun }) {
-  const lines = injectLines(catalog, ids);
-  const existing = fs.existsSync(dest.targetPath)
-    ? fs.readFileSync(dest.targetPath, "utf8")
-    : "";
-  const linkedIntro =
-    dest.mode === "linked"
-      ? "# Project guidance\n\nEngineering principles selected for this repository. Agents must follow them."
-      : null;
-  const next = mergeInject({
-    existingText: existing,
-    injectBulletLines: lines,
-    mode: replace ? "replace" : "add",
-    linkedIntro,
-  });
+function displayPath(filePath, root) {
+  const rel = path.relative(root, filePath);
+  if (rel && !rel.startsWith("..") && !path.isAbsolute(rel)) return rel;
+  return filePath;
+}
 
-  const writes = [{ path: dest.targetPath, content: next }];
-  if (dest.pointer && dest.relativeLink) {
-    const agentsPath = detectAgentInstructionFile(root, fs, path);
-    const agentsText = fs.existsSync(agentsPath)
-      ? fs.readFileSync(agentsPath, "utf8")
+/**
+ * @param {object} catalog
+ * @param {string[]} ids
+ * @param {object} dest
+ * @param {{
+ *   root: string,
+ *   scope?: string,
+ *   replace?: boolean,
+ *   dryRun?: boolean,
+ *   targetPaths?: string[],
+ *   pointerTargets?: string[],
+ * }} opts
+ * targetPaths: inline mode — write managed region into each path.
+ * pointerTargets: linked/custom — instruction files that get a pointer line.
+ */
+function writeInject(catalog, ids, dest, opts) {
+  const {
+    root,
+    scope = "project",
+    replace,
+    dryRun,
+    targetPaths,
+    pointerTargets,
+  } = opts;
+  const lines = injectLines(catalog, ids);
+  const sectionHeading = sectionHeadingFor(scope);
+  const linkedIntro = dest.mode === "linked" ? linkedIntroFor(scope) : null;
+
+  /** @type {{ path: string, content: string }[]} */
+  const writes = [];
+
+  if (dest.mode === "inline" && targetPaths && targetPaths.length > 0) {
+    for (const targetPath of targetPaths) {
+      const existing = fs.existsSync(targetPath)
+        ? fs.readFileSync(targetPath, "utf8")
+        : "";
+      writes.push({
+        path: targetPath,
+        content: mergeInject({
+          existingText: existing,
+          injectBulletLines: lines,
+          mode: replace ? "replace" : "add",
+          sectionHeading,
+          linkedIntro: null,
+        }),
+      });
+    }
+  } else {
+    const existing = fs.existsSync(dest.targetPath)
+      ? fs.readFileSync(dest.targetPath, "utf8")
       : "";
     writes.push({
-      path: agentsPath,
-      content: ensureAgentsPointer(agentsText, dest.relativeLink),
+      path: dest.targetPath,
+      content: mergeInject({
+        existingText: existing,
+        injectBulletLines: lines,
+        mode: replace ? "replace" : "add",
+        sectionHeading,
+        linkedIntro,
+      }),
     });
+  }
+
+  if (dest.pointer && dest.relativeLink) {
+    const ptrs =
+      pointerTargets && pointerTargets.length
+        ? pointerTargets
+        : [instructionFileFor(root, scope)];
+    for (const agentsPath of ptrs) {
+      const agentsText = fs.existsSync(agentsPath)
+        ? fs.readFileSync(agentsPath, "utf8")
+        : "";
+      writes.push({
+        path: agentsPath,
+        content: ensureAgentsPointer(agentsText, dest.relativeLink, {
+          sectionHeading,
+        }),
+      });
+    }
   }
 
   if (dryRun) {
     for (const w of writes) {
-      print(`--- dry-run would write ${path.relative(root, w.path) || w.path} ---`);
+      print(style.info(`[dry-run] would write ${style.path(displayPath(w.path, root))}`));
       print(w.content);
     }
     return writes;
@@ -360,9 +508,171 @@ function writeInject(catalog, ids, dest, { root, replace, dryRun }) {
   for (const w of writes) {
     fs.mkdirSync(path.dirname(w.path), { recursive: true });
     fs.writeFileSync(w.path, w.content, "utf8");
-    print(`wrote ${path.relative(root, w.path) || w.path}`);
+    print(style.ok(`wrote ${style.path(displayPath(w.path, root))}`));
   }
   return writes;
+}
+
+function defaultBodyForInstructionFile(filePath, scope) {
+  const base = path.basename(filePath);
+  if (scope === "global") {
+    return `# ${base}\n\nUser-level instructions for AI coding agents (all projects on this machine).\n`;
+  }
+  return `# ${base}\n\nProject instructions for AI coding agents.\n`;
+}
+
+/**
+ * Ensure each selected harness instruction file exists.
+ * @param {{ path: string, label: string }[]} targets
+ * @param {"project"|"global"} scope
+ * @param {object} flags
+ * @param {import("readline").Interface | null} rl
+ * @returns {Promise<boolean>}
+ */
+async function ensureHarnessFiles(targets, scope, flags, rl) {
+  const missing = targets.filter((t) => !fs.existsSync(t.path));
+  if (missing.length === 0) return true;
+
+  print(style.warn("Missing instruction file(s):"));
+  for (const t of missing) {
+    print(style.bullet(`${t.label}  ${style.path(t.path)}`));
+  }
+  print();
+
+  const createAll = () => {
+    for (const t of missing) {
+      if (flags["dry-run"]) {
+        print(style.info(`[dry-run] would create ${style.path(t.path)}`));
+        continue;
+      }
+      fs.mkdirSync(path.dirname(t.path), { recursive: true });
+      fs.writeFileSync(
+        t.path,
+        defaultBodyForInstructionFile(t.path, scope),
+        "utf8"
+      );
+      print(style.ok(`created ${style.path(t.path)}`));
+    }
+    return true;
+  };
+
+  if (!process.stdin.isTTY || !rl) {
+    if (flags.yes || flags.y || flags["create-agents-md"]) {
+      return createAll();
+    }
+    die(
+      "Instruction file(s) missing. Re-run with --yes to create them, or create them yourself."
+    );
+  }
+
+  const go = await rootConfirm(
+    rl,
+    `Create ${missing.length === 1 ? "this file" : "these files"} now?`,
+    true
+  );
+  if (!go) {
+    print(style.warn("Aborted."));
+    return false;
+  }
+  createAll();
+  print();
+  return true;
+}
+
+/**
+ * Interactive multi-select of harness targets.
+ * @returns {Promise<ReturnType<typeof discoverHarnessTargets>["targets"] | null>}
+ */
+function printHarnessContext(notes, limitations, { interactive = false } = {}) {
+  for (const n of notes) print(style.info(n));
+  // Limitations are educational (Cursor settings, no shared store). Show in
+  // interactive wizards; keep non-interactive output quiet unless --verbose.
+  if (interactive) {
+    for (const n of limitations) print(style.dim(`  Note: ${n}`));
+  }
+}
+
+async function askHarnessTargets(scope, root) {
+  const { targets, notes, limitations } = discoverHarnessTargets(scope, root);
+  printHarnessContext(notes, limitations, { interactive: true });
+
+  if (targets.length === 0) {
+    die("No harness instruction targets available.");
+  }
+
+  // Single option: no need to ask
+  if (targets.length === 1) {
+    print(
+      style.bullet(
+        `${style.dim("Harness")} ${targets[0].label}  ${style.path(targets[0].path)}`
+      )
+    );
+    print();
+    return targets;
+  }
+
+  const tree = targets.map((t) => ({
+    id: t.id,
+    label: t.label,
+    description: `${t.description} · ${t.path}`,
+  }));
+  const picked = await hierarchicalMultiSelect(tree, {
+    title: "Which harnesses should receive this guidance?",
+    description:
+      scope === "global"
+        ? "Each tool has its own user file: Codex ~/.codex, Claude ~/.claude, Gemini ~/.gemini. Cursor User Rules are not a file."
+        : "AGENTS.md is portable. CLAUDE.md / GEMINI.md appear only when they are real files (not symlinks to AGENTS.md).",
+    initialSelected: targets.filter((t) => t.defaultSelected).map((t) => t.id),
+  });
+  if (picked == null) return null;
+  if (picked.length === 0) {
+    print(style.dim("  Nothing selected; exiting without write."));
+    return [];
+  }
+  const { selected, unknown } = resolveHarnessSelection(targets, picked);
+  if (unknown.length) die(`unknown harness: ${unknown.join(", ")}`);
+  print(
+    style.bullet(
+      `${style.dim("Harnesses")} ${selected.map((t) => t.label).join(", ")}`
+    )
+  );
+  print();
+  return selected;
+}
+
+/**
+ * Resolve harness targets for non-interactive inject.
+ * --harness / --harnesses is **required** so scripts do not depend on which
+ * vendor files happen to exist on the machine.
+ */
+function harnessTargetsFromFlags(scope, root, flags) {
+  const { targets, notes, limitations } = discoverHarnessTargets(scope, root);
+  printHarnessContext(notes, limitations, {
+    interactive: Boolean(flags.verbose),
+  });
+
+  const raw = flags.harness || flags.harnesses || null;
+  if (!raw) {
+    const offered = targets.map((t) => t.id).join(", ") || "(none)";
+    die(
+      "non-interactive inject requires --harness <ids> " +
+        `(e.g. --harness agents). Offered here: ${offered}. ` +
+        `Known ids: ${knownHarnessIds().join(", ")}`
+    );
+  }
+  const { selected, unknown, notOffered } = resolveHarnessSelection(
+    targets,
+    parseIdList(raw)
+  );
+  if (unknown.length) die(`unknown --harness id(s): ${unknown.join(", ")}`);
+  if (notOffered.length) {
+    die(
+      `harness not available here: ${notOffered.join(", ")} ` +
+        `(project: file missing or symlink→AGENTS.md; known ids: ${knownHarnessIds().join(", ")})`
+    );
+  }
+  if (selected.length === 0) die("no harnesses selected");
+  return selected;
 }
 
 function parseIdList(raw) {
@@ -373,84 +683,12 @@ function parseIdList(raw) {
     .filter(Boolean);
 }
 
-/**
- * Ensure AGENTS.md (and ideally CLAUDE.md symlink) exist before inject writes.
- * Offers furanku-skills agents-md setup when missing.
- * @returns {Promise<boolean>} false if user declined and we should abort
- */
-async function ensureAgentInstructions(root, flags, rl) {
-  if (hasAgentInstructionFile(root, fs, path)) return true;
-
-  print("No AGENTS.md or CLAUDE.md found in this project.");
-  print("Guidance is written into agent instruction files.");
-  print("Recommended: create AGENTS.md and link CLAUDE.md → AGENTS.md.\n");
-
-  const helper = loadAgentsMdHelper();
-  const canCreate = Boolean(helper && helper.createAgentsMd);
-  const wantCreate = Boolean(flags["create-agents-md"]);
-
-  // Non-interactive: --create-agents-md and/or --yes auto-create when possible.
-  if (!process.stdin.isTTY || !rl) {
-    if ((wantCreate || flags.yes || flags.y) && canCreate) {
-      print("Creating AGENTS.md + CLAUDE.md symlink…");
-      const result = helper.createAgentsMd({
-        root,
-        dryRun: Boolean(flags["dry-run"]),
-      });
-      for (const m of result.messages) print(`  ${m}`);
-      return true;
-    }
-    if (wantCreate && !canCreate) {
-      die(
-        "cannot create agents files from this entrypoint; run: furanku-skills agents-md --yes"
-      );
-    }
-    die(
-      "No AGENTS.md/CLAUDE.md. Create them first:\n" +
-        "  furanku-skills agents-md --yes\n" +
-        "or re-run inject with --create-agents-md --yes"
-    );
-  }
-
-  if (!canCreate) {
-    const go = (
-      await question(
-        rl,
-        "Continue anyway (inject may create AGENTS.md without CLAUDE.md link)? [y/N]: "
-      )
-    )
-      .trim()
-      .toLowerCase();
-    return go === "y" || go === "yes";
-  }
-
-  const go = (
-    await question(
-      rl,
-      "Create AGENTS.md + CLAUDE.md → AGENTS.md now? [Y/n]: "
-    )
-  )
-    .trim()
-    .toLowerCase();
-  if (go === "n" || go === "no") {
-    print("Aborted. Run: furanku-skills agents-md");
-    return false;
-  }
-  const result = helper.createAgentsMd({
-    root,
-    dryRun: Boolean(flags["dry-run"]),
-  });
-  for (const m of result.messages) print(`  ${m}`);
-  print("");
-  return true;
-}
-
 async function cmdInject(catalog, flags, positionals) {
-  const root = path.resolve(flags.root || process.cwd());
   const rawIds = flags.ids || flags.id || positionals.join(",");
   if (!rawIds) {
     return interactiveInject(catalog, flags);
   }
+  const { scope, root } = resolveScopeAndRoot(flags);
   const { ids, unknown } = resolveIds(catalog, parseIdList(rawIds));
   if (unknown.length) die(`unknown ids: ${unknown.join(", ")}`);
   if (ids.length === 0) die("no ids to inject");
@@ -464,7 +702,7 @@ async function cmdInject(catalog, flags, positionals) {
     );
   }
 
-  const dest = resolveDestination(flags, root);
+  const dest = resolveDestination(flags, root, scope);
   if (!dest) {
     die("non-interactive inject requires --mode inline|linked|custom (and --path for custom)");
   }
@@ -472,20 +710,32 @@ async function cmdInject(catalog, flags, positionals) {
     die("refusing to write without --yes in interactive terminal; re-run with --yes or use interactive mode");
   }
 
-  // For inline/linked (or custom with pointer), ensure instruction files exist.
-  const needsAgents =
+  const harnesses = harnessTargetsFromFlags(scope, root, flags);
+  const harnessPaths = harnesses.map((t) => t.path);
+
+  const needsFiles =
     dest.mode === "inline" || dest.mode === "linked" || dest.pointer;
-  if (needsAgents) {
-    const ok = await ensureAgentInstructions(root, flags, null);
+  if (needsFiles) {
+    const ok = await ensureHarnessFiles(harnesses, scope, flags, null);
     if (!ok) return;
   }
 
   writeInject(catalog, ids, dest, {
     root,
+    scope,
     replace: Boolean(flags.replace),
     dryRun: Boolean(flags["dry-run"]),
+    targetPaths: dest.mode === "inline" ? harnessPaths : undefined,
+    pointerTargets:
+      dest.pointer || dest.mode === "linked" ? harnessPaths : undefined,
   });
-  print(`injected: ${ids.join(", ")}`);
+  print(style.bullet(`${style.dim("scope")}     ${scope}`));
+  print(
+    style.bullet(
+      `${style.dim("harnesses")} ${harnesses.map((t) => t.id).join(", ")}`
+    )
+  );
+  print(style.bullet(`${style.dim("injected")}  ${ids.join(", ")}`));
 }
 
 function createRl() {
@@ -520,34 +770,118 @@ function catalogBrowseTree(catalog) {
   });
 }
 
+/**
+ * Ask project vs global before catalog pick. Default is project.
+ * Honors flags.scope when already set (non-interactive flag on interactive path).
+ * @returns {Promise<"project" | "global" | null>} null = cancelled
+ */
+async function askInjectScope(flags) {
+  if (flags.scope) {
+    const raw = String(flags.scope).toLowerCase();
+    if (raw !== "project" && raw !== "global") {
+      die(`unknown --scope: ${flags.scope} (use project|global)`);
+    }
+    return raw;
+  }
+
+  const projectRoot = path.resolve(flags.root || process.cwd());
+  const globalRoot = defaultGlobalRoot();
+
+  const scopeIdx = await selectWithCursor(
+    [
+      `This project  — ${projectRoot}`,
+      `Global        — per-tool user files (Codex ${globalRoot}/AGENTS.md, Claude ~/.claude, Gemini ~/.gemini)`,
+      "Cancel",
+    ],
+    {
+      prompt: "Where should this guidance apply?",
+      defaultIndex: 0,
+      footer: style.keyHints("default: this project"),
+    }
+  );
+  if (scopeIdx === 0) return "project";
+  if (scopeIdx === 1) return "global";
+  return null;
+}
+
+/**
+ * Interactive scope pick uses ~/.codex for global even if --root was set for project.
+ * Explicit `--scope global --root DIR` still overrides the global root (AGENTS.md parent).
+ */
+function rootFlagsForScope(flags, scope) {
+  const scopeWasExplicit = Boolean(flags.scope);
+  if (scope === "global" && !scopeWasExplicit) {
+    return { scope };
+  }
+  return { ...flags, scope };
+}
+
 async function interactiveInject(catalog, flags) {
   if (!process.stdin.isTTY) {
     die("interactive mode requires a TTY; pass --ids and --mode for non-interactive inject");
   }
-  const root = path.resolve(flags.root || process.cwd());
 
-  print(style.bold("Guidance composer — interactive inject"));
+  print(style.sectionTitle("Guidance composer"));
   print(
     style.dim(
-      "  Browse categories, mark snippets (Enter/Space), All selects everything under a level.\n"
+      "  Scope → harnesses → catalog. Mark snippets with Enter/Space; All selects a whole level.\n"
     )
   );
 
-  // Pre-flight agents files with readline, then release stdin for the cursor UI
+  // 1) Scope first (project default)
+  print(style.step(1, 4, "Scope"));
+  const scope = await askInjectScope(flags);
+  if (!scope) {
+    print(style.warn("Cancelled."));
+    return;
+  }
+  const { root } = resolveScopeAndRoot(rootFlagsForScope(flags, scope));
+  print(
+    style.bullet(
+      `${style.dim("Scope")} ${scope}  ${style.path(root)}`
+    )
+  );
+  print();
+
+  // 2) Harness targets (AGENTS.md always; CLAUDE.md if standalone real file)
+  print(style.step(2, 4, "Harnesses"));
+  let harnesses;
+  if (flags.harness || flags.harnesses) {
+    harnesses = harnessTargetsFromFlags(scope, root, flags);
+    print(
+      style.bullet(
+        `${style.dim("Harnesses")} ${harnesses.map((t) => t.label).join(", ")}`
+      )
+    );
+    print();
+  } else {
+    harnesses = await askHarnessTargets(scope, root);
+    if (harnesses == null) {
+      print(style.warn("Cancelled."));
+      return;
+    }
+    if (harnesses.length === 0) return;
+  }
+  const harnessPaths = harnesses.map((t) => t.path);
+
+  // 3) Ensure selected instruction files exist
   {
     const rl = createRl();
     try {
-      const ready = await ensureAgentInstructions(root, flags, rl);
+      const ready = await ensureHarnessFiles(harnesses, scope, flags, rl);
       if (!ready) return;
     } finally {
       rl.close();
     }
   }
 
+  // 4) Catalog pick
+  print(style.step(3, 4, "Catalog"));
   const tree = catalogBrowseTree(catalog);
   const picked = await hierarchicalMultiSelect(tree, {
     title: "Guidance catalog",
-    description: "Open a category, or use All to mark every snippet under this level",
+    description:
+      "Open a category, or use All to mark every snippet under this level",
   });
 
   if (picked == null) {
@@ -555,7 +889,7 @@ async function interactiveInject(catalog, flags) {
     return;
   }
   if (picked.length === 0) {
-    print(style.dim("Nothing selected; exiting without write."));
+    print(style.dim("  Nothing selected; exiting without write."));
     return;
   }
 
@@ -582,7 +916,7 @@ async function interactiveInject(catalog, flags) {
       conflictChoices.map((c) => c.label),
       {
         prompt: "How to resolve conflicts?",
-        footer: style.dim("  ↑/↓  ·  Enter select"),
+        footer: style.keyHints(),
       }
     );
     const choice = conflictChoices[howIdx];
@@ -594,36 +928,49 @@ async function interactiveInject(catalog, flags) {
       selected.delete(choice.id.slice("drop:".length));
     }
     if (selected.size === 0) {
-      print(style.dim("Nothing left selected; exiting without write."));
+      print(style.dim("  Nothing left selected; exiting without write."));
       return;
     }
   }
 
+  print(style.step(4, 4, "Destination"));
+  const harnessSummary = harnesses.map((t) => t.label).join(" + ");
   const destIdx = await selectWithCursor(
-    [
-      "inline  — Project guidance section in AGENTS.md",
-      "linked  — Separate file + AGENTS.md pointer",
-      "custom  — Path you name",
-      "Cancel",
-    ],
+    scope === "global"
+      ? [
+          `inline  — User guidance section in ${harnessSummary}`,
+          `linked  — Separate file + pointer in ${harnessSummary}`,
+          "custom  — Path you name",
+          "Cancel",
+        ]
+      : [
+          `inline  — Project guidance section in ${harnessSummary}`,
+          `linked  — Separate file + pointer in ${harnessSummary}`,
+          "custom  — Path you name",
+          "Cancel",
+        ],
     {
       prompt: "Where should guidance be written?",
-      footer: style.dim("  ↑/↓  ·  Enter select"),
+      footer: style.keyHints(),
     }
   );
 
+  const defaultLinked = linkedDefaultPath(scope);
   let dest;
   if (destIdx === 0) {
-    dest = resolveDestination({ mode: "inline" }, root);
+    dest = resolveDestination({ mode: "inline" }, root, scope);
+    // Prefer first harness path as dest.targetPath for display; writeInject uses targetPaths
+    dest.targetPath = harnessPaths[0];
   } else if (destIdx === 1) {
     const rl = createRl();
     try {
       const p = (
-        await question(rl, "Linked path [docs/agent-guidance.md]: ")
+        await question(rl, `Linked path [${defaultLinked}]: `)
       ).trim();
       dest = resolveDestination(
-        { mode: "linked", path: p || "docs/agent-guidance.md" },
-        root
+        { mode: "linked", path: p || defaultLinked },
+        root,
+        scope
       );
     } finally {
       rl.close();
@@ -638,12 +985,13 @@ async function interactiveInject(catalog, flags) {
       }
       const addPointer = await rootConfirm(
         rl,
-        "Add AGENTS.md pointer to this file?",
+        `Add pointer in ${harnessSummary}?`,
         false
       );
       dest = resolveDestination(
         { mode: "custom", path: p, pointer: addPointer },
-        root
+        root,
+        scope
       );
       if (dest.pointer) dest.relativeLink = p.replace(/\\/g, "/");
     } finally {
@@ -656,22 +1004,38 @@ async function interactiveInject(catalog, flags) {
 
   print();
   print(style.info(`Will inject: ${[...selected].join(", ")}`));
+  print(style.bullet(`${style.dim("Scope")}     ${scope}`));
   print(
-    style.dim(
-      `  Into: ${path.relative(root, dest.targetPath) || dest.targetPath}`
+    style.bullet(
+      `${style.dim("Harnesses")} ${harnesses.map((t) => t.id).join(", ")}`
     )
   );
-  if (dest.pointer) {
-    print(style.dim(`  Pointer: AGENTS.md → ${dest.relativeLink}`));
-  }
-
-  const writeIdx = await selectWithCursor(
-    ["Write guidance now", "Cancel"],
-    {
-      prompt: "Confirm write",
-      footer: style.dim("  ↑/↓  ·  Enter select"),
+  if (dest.mode === "inline") {
+    for (const p of harnessPaths) {
+      print(style.bullet(`${style.dim("Into")}     ${style.path(displayPath(p, root))}`));
     }
-  );
+  } else {
+    print(
+      style.bullet(
+        `${style.dim("Into")}     ${style.path(displayPath(dest.targetPath, root))}`
+      )
+    );
+  }
+  if (dest.pointer) {
+    for (const p of harnessPaths) {
+      print(
+        style.bullet(
+          `${style.dim("Pointer")}  ${path.basename(p)} → ${dest.relativeLink}`
+        )
+      );
+    }
+  }
+  print();
+
+  const writeIdx = await selectWithCursor(["Write guidance now", "Cancel"], {
+    prompt: "Confirm write",
+    footer: style.keyHints(),
+  });
   if (writeIdx !== 0) {
     print(style.warn("Aborted."));
     return;
@@ -679,8 +1043,12 @@ async function interactiveInject(catalog, flags) {
 
   writeInject(catalog, [...selected], dest, {
     root,
+    scope,
     replace: Boolean(flags.replace),
     dryRun: Boolean(flags["dry-run"]),
+    targetPaths: dest.mode === "inline" ? harnessPaths : undefined,
+    pointerTargets:
+      dest.pointer || dest.mode === "linked" ? harnessPaths : undefined,
   });
   print(style.ok("Done."));
 }
@@ -688,37 +1056,49 @@ async function interactiveInject(catalog, flags) {
 const PROGRAM = "furanku-skills guidance-composer";
 
 function usage() {
-  return `furanku-skills guidance-composer — compose project guidance from a curated catalog
+  return `${style.bold("furanku-skills guidance-composer")} — compose project or machine-wide guidance from a curated catalog
 
-Usage:
-  ${PROGRAM}                     Interactive inject wizard
+${style.dim("Usage:")}
+  ${PROGRAM}                     Interactive inject wizard (asks scope first)
   ${PROGRAM} list [options]      List catalog (grouped by category)
   ${PROGRAM} categories          List categories
   ${PROGRAM} show <id>           Show one entry
   ${PROGRAM} search <query>      Search id/title/picker/tags/inject
-  ${PROGRAM} diff [--root DIR]   Compare project managed region vs catalog
+  ${PROGRAM} diff [options]      Compare managed region vs catalog
   ${PROGRAM} inject [options]    Inject entries (interactive if no --ids)
 
-list options:
+${style.dim("list options:")}
   --category <id>   Filter by category
   --tag <tag>       Filter by tag
   --query <text>    Substring filter
   --json            Machine-readable output
 
-inject options:
-  --ids <id,id>     Entry ids (or titles)
-  --mode <mode>     inline | linked | custom
-  --path <path>     Target path (linked default docs/agent-guidance.md; required for custom)
-  --root <dir>      Project root (default: cwd)
+${style.dim("inject / diff options:")}
+  --scope <scope>   project (default) | global
+                    project → cwd or --root (AGENTS.md standard + vendor files)
+                    global  → each tool’s own user file (no shared ~/.agents path):
+                              agents → $CODEX_HOME/AGENTS.md (default ~/.codex)
+                              claude → ~/.claude/CLAUDE.md
+                              gemini → ~/.gemini/GEMINI.md
+                              Cursor User Rules = app settings (not injectable)
+  --ids <id,id>     Entry ids (or titles) — inject only
+  --mode <mode>     inline | linked | custom — inject only
+  --path <path>     Target path (linked default: docs/agent-guidance.md project,
+                    agent-guidance.md under Codex home for global; required for custom)
+  --root <dir>      Override root (project: cwd; global: Codex home for AGENTS.md / linked)
   --replace         Replace managed region interior instead of union-add
   --force           Allow known conflicting ids
   --yes, -y         Required for non-interactive write on a TTY
   --dry-run         Print writes without saving
-  --no-pointer      Linked mode: do not update AGENTS.md
-  --pointer         Custom mode: also write AGENTS.md pointer
-  --create-agents-md  If no AGENTS.md/CLAUDE.md, create AGENTS.md + CLAUDE.md symlink
+  --no-pointer      Linked mode: do not update the instruction file pointer
+  --pointer         Custom mode: also write instruction-file pointer
+  --harness <ids>   Required for non-interactive inject: agents, claude, gemini.
+                    Project: claude/gemini only if a real file exists (not symlink→AGENTS).
+                    Global: all three offered (create missing when selected).
+  --create-agents-md  Create missing selected instruction files (same as --yes for create)
+  --verbose         Print harness path notes (Cursor limitations, etc.)
 
-Global:
+${style.dim("Global:")}
   --help            Show this help
 `;
 }
@@ -772,4 +1152,10 @@ module.exports = {
   parseArgs,
   catalogBrowseTree,
   collectLeafIds,
+  resolveScopeAndRoot,
+  defaultGlobalRoot,
+  sectionHeadingFor,
+  linkedDefaultPath,
+  discoverHarnessTargets,
+  harnessTargetsFromFlags,
 };

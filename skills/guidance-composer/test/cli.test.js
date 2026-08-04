@@ -26,7 +26,7 @@ function run(args, opts = {}) {
     encoding: "utf8",
     cwd: opts.cwd || ROOT,
     input: opts.input,
-    env: process.env,
+    env: opts.env || process.env,
   });
 }
 
@@ -169,6 +169,8 @@ test("cli inject non-interactive into temp project", () => {
       "simplest-current,no-backward-compat",
       "--mode",
       "inline",
+      "--harness",
+      "agents",
       "--root",
       dir,
       "--yes",
@@ -194,6 +196,8 @@ test("cli diff json", () => {
       "long-term-architecture",
       "--mode",
       "inline",
+      "--harness",
+      "agents",
       "--root",
       dir,
       "--yes",
@@ -215,6 +219,309 @@ test("conflictPairs empty for current catalog", () => {
       catalog.entries.map((e) => e.id)
     ),
     []
+  );
+});
+
+test("resolveScopeAndRoot defaults to project cwd", () => {
+  const { resolveScopeAndRoot } = require("../lib/cli");
+  const r = resolveScopeAndRoot({});
+  assert.equal(r.scope, "project");
+  assert.equal(r.root, path.resolve(process.cwd()));
+  assert.equal(r.defaultInstructionName, "AGENTS.md");
+});
+
+test("resolveScopeAndRoot global uses ~/.codex", () => {
+  const { resolveScopeAndRoot, defaultGlobalRoot } = require("../lib/cli");
+  const r = resolveScopeAndRoot({ scope: "global" });
+  assert.equal(r.scope, "global");
+  assert.equal(r.root, defaultGlobalRoot());
+  assert.equal(r.defaultInstructionName, "AGENTS.md");
+  assert.ok(r.root.endsWith(".codex") || r.root.endsWith(`${path.sep}.codex`));
+});
+
+test("cli inject --scope global into temp HOME/.codex/AGENTS.md", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "gc-home-"));
+  const agentsDir = path.join(home, ".codex");
+  fs.mkdirSync(agentsDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(agentsDir, "AGENTS.md"),
+    "# AGENTS.md\n\nUser rules.\n",
+    "utf8"
+  );
+  const result = run(
+    [
+      "inject",
+      "--ids",
+      "ui-descriptions",
+      "--mode",
+      "inline",
+      "--scope",
+      "global",
+      "--harness",
+      "agents",
+      "--yes",
+    ],
+    {
+      cwd: home,
+      env: { ...process.env, HOME: home, USERPROFILE: home },
+    }
+  );
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  assert.match(result.stdout, /scope\s+global|scope: global/);
+  const agents = fs.readFileSync(path.join(agentsDir, "AGENTS.md"), "utf8");
+  assert.match(agents, /managed-by: guidance-composer/);
+  assert.match(agents, /Do not add subtitles, helper text/);
+  assert.match(agents, /## User guidance/);
+  assert.match(agents, /User rules/);
+});
+
+test("cli diff --scope global reports scope", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "gc-diff-global-"));
+  const agentsDir = path.join(home, ".codex");
+  fs.mkdirSync(agentsDir, { recursive: true });
+  fs.writeFileSync(path.join(agentsDir, "AGENTS.md"), "# AGENTS.md\n", "utf8");
+  run(
+    [
+      "inject",
+      "--ids",
+      "prefer-libraries",
+      "--mode",
+      "inline",
+      "--scope",
+      "global",
+      "--harness",
+      "agents",
+      "--yes",
+    ],
+    { env: { ...process.env, HOME: home, USERPROFILE: home } }
+  );
+  const diff = run(["diff", "--scope", "global", "--json"], {
+    env: { ...process.env, HOME: home, USERPROFILE: home },
+  });
+  assert.equal(diff.status, 0, diff.stderr);
+  const report = JSON.parse(diff.stdout);
+  assert.equal(report.scope, "global");
+  assert.deepEqual(report.present, ["prefer-libraries"]);
+});
+
+test("discoverHarnessTargets global maps Codex/Claude/Gemini; Cursor is limitations-only", () => {
+  const {
+    discoverHarnessTargets,
+    defaultGlobalRoot,
+  } = require("../lib/harnesses");
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "gc-global-map-"));
+  const prevHome = process.env.HOME;
+  const prevProfile = process.env.USERPROFILE;
+  const prevCodex = process.env.CODEX_HOME;
+  process.env.HOME = home;
+  process.env.USERPROFILE = home;
+  delete process.env.CODEX_HOME;
+  try {
+    const codexRoot = path.join(home, ".codex");
+    assert.equal(defaultGlobalRoot(), codexRoot);
+
+    const found = discoverHarnessTargets("global", codexRoot);
+    const agents = found.targets.find((t) => t.id === "agents");
+    assert.ok(agents);
+    assert.equal(agents.path, path.join(codexRoot, "AGENTS.md"));
+    assert.equal(agents.defaultSelected, true);
+    // Global always offers createable Claude + Gemini (opt-in, not default)
+    const claudeMissing = found.targets.find((t) => t.id === "claude");
+    const geminiMissing = found.targets.find((t) => t.id === "gemini");
+    assert.ok(claudeMissing);
+    assert.ok(geminiMissing);
+    assert.equal(claudeMissing.path, path.join(home, ".claude", "CLAUDE.md"));
+    assert.equal(geminiMissing.path, path.join(home, ".gemini", "GEMINI.md"));
+    assert.equal(claudeMissing.defaultSelected, false);
+    assert.equal(geminiMissing.defaultSelected, false);
+    assert.ok(found.limitations.some((n) => /Cursor/i.test(n)));
+    assert.ok(found.limitations.some((n) => /shared|~\.?\/?agents/i.test(n)));
+
+    fs.mkdirSync(path.join(home, ".claude"), { recursive: true });
+    fs.writeFileSync(
+      path.join(home, ".claude", "CLAUDE.md"),
+      "# CLAUDE.md\n",
+      "utf8"
+    );
+    const withClaude = discoverHarnessTargets("global", codexRoot);
+    const claude = withClaude.targets.find((t) => t.id === "claude");
+    assert.ok(claude);
+    assert.equal(claude.exists, true);
+    assert.equal(claude.defaultSelected, true);
+  } finally {
+    if (prevHome === undefined) delete process.env.HOME;
+    else process.env.HOME = prevHome;
+    if (prevProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = prevProfile;
+    if (prevCodex === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = prevCodex;
+  }
+});
+
+test("defaultGlobalRoot respects CODEX_HOME", () => {
+  const { defaultGlobalRoot } = require("../lib/harnesses");
+  const custom = fs.mkdtempSync(path.join(os.tmpdir(), "gc-codex-home-"));
+  const prev = process.env.CODEX_HOME;
+  process.env.CODEX_HOME = custom;
+  try {
+    assert.equal(defaultGlobalRoot(), path.resolve(custom));
+  } finally {
+    if (prev === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = prev;
+  }
+});
+
+test("project offers gemini only when real GEMINI.md exists", () => {
+  const { discoverHarnessTargets } = require("../lib/harnesses");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gc-gemini-"));
+  fs.writeFileSync(path.join(dir, "AGENTS.md"), "# AGENTS.md\n", "utf8");
+  let found = discoverHarnessTargets("project", dir);
+  assert.ok(found.targets.some((t) => t.id === "agents"));
+  assert.ok(!found.targets.some((t) => t.id === "gemini"));
+
+  fs.writeFileSync(path.join(dir, "GEMINI.md"), "# GEMINI.md\n", "utf8");
+  found = discoverHarnessTargets("project", dir);
+  const gem = found.targets.find((t) => t.id === "gemini");
+  assert.ok(gem);
+  assert.equal(gem.path, path.join(dir, "GEMINI.md"));
+  assert.equal(gem.defaultSelected, true);
+});
+
+test("cli inject --scope global --harness gemini writes ~/.gemini/GEMINI.md", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "gc-gemini-home-"));
+  const result = run(
+    [
+      "inject",
+      "--ids",
+      "prefer-libraries",
+      "--mode",
+      "inline",
+      "--scope",
+      "global",
+      "--harness",
+      "gemini",
+      "--yes",
+    ],
+    { env: { ...process.env, HOME: home, USERPROFILE: home } }
+  );
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  const gemini = fs.readFileSync(
+    path.join(home, ".gemini", "GEMINI.md"),
+    "utf8"
+  );
+  assert.match(gemini, /managed-by: guidance-composer/);
+  assert.match(gemini, /well-maintained libraries/);
+});
+
+test("discoverHarnessTargets offers standalone CLAUDE.md, not symlink", () => {
+  const {
+    discoverHarnessTargets,
+    inspectInstructionFile,
+  } = require("../lib/harnesses");
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gc-harness-"));
+  const agents = path.join(dir, "AGENTS.md");
+  const claude = path.join(dir, "CLAUDE.md");
+  fs.writeFileSync(agents, "# AGENTS.md\n", "utf8");
+  fs.writeFileSync(claude, "# CLAUDE.md\nstandalone\n", "utf8");
+
+  const found = discoverHarnessTargets("project", dir);
+  assert.ok(found.targets.some((t) => t.id === "agents"));
+  assert.ok(found.targets.some((t) => t.id === "claude"));
+  assert.equal(found.notes.length, 0);
+
+  fs.unlinkSync(claude);
+  fs.symlinkSync("AGENTS.md", claude);
+  const linked = discoverHarnessTargets("project", dir);
+  assert.ok(linked.targets.some((t) => t.id === "agents"));
+  assert.ok(!linked.targets.some((t) => t.id === "claude"));
+  assert.ok(linked.notes.some((n) => /CLAUDE\.md/i.test(n)));
+  assert.equal(
+    inspectInstructionFile(claude, agents).status,
+    "symlink-to-agents"
+  );
+});
+
+test("cli inject requires --harness non-interactively", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gc-need-harness-"));
+  fs.writeFileSync(path.join(dir, "AGENTS.md"), "# AGENTS.md\n", "utf8");
+  const result = run(
+    [
+      "inject",
+      "--ids",
+      "simplest-current",
+      "--mode",
+      "inline",
+      "--root",
+      dir,
+      "--yes",
+    ],
+    { cwd: dir }
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr + result.stdout, /requires --harness/);
+});
+
+test("cli inject writes both AGENTS.md and standalone CLAUDE.md when both listed", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gc-both-"));
+  fs.writeFileSync(path.join(dir, "AGENTS.md"), "# AGENTS.md\n", "utf8");
+  fs.writeFileSync(path.join(dir, "CLAUDE.md"), "# CLAUDE.md\n", "utf8");
+  const result = run(
+    [
+      "inject",
+      "--ids",
+      "simplest-current",
+      "--mode",
+      "inline",
+      "--harness",
+      "agents,claude",
+      "--root",
+      dir,
+      "--yes",
+    ],
+    { cwd: dir }
+  );
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  assert.match(result.stdout, /harnesses\s+agents, claude/);
+  const agents = fs.readFileSync(path.join(dir, "AGENTS.md"), "utf8");
+  const claude = fs.readFileSync(path.join(dir, "CLAUDE.md"), "utf8");
+  assert.match(agents, /simplest implementation/);
+  assert.match(claude, /simplest implementation/);
+});
+
+test("cli inject --harness agents skips standalone CLAUDE.md", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gc-agents-only-"));
+  fs.writeFileSync(path.join(dir, "AGENTS.md"), "# AGENTS.md\n", "utf8");
+  fs.writeFileSync(path.join(dir, "CLAUDE.md"), "# CLAUDE.md\nkeep me\n", "utf8");
+  const result = run(
+    [
+      "inject",
+      "--ids",
+      "prefer-libraries",
+      "--mode",
+      "inline",
+      "--harness",
+      "agents",
+      "--root",
+      dir,
+      "--yes",
+    ],
+    { cwd: dir }
+  );
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  assert.match(result.stdout, /harnesses\s+agents\b/);
+  assert.match(
+    fs.readFileSync(path.join(dir, "AGENTS.md"), "utf8"),
+    /well-maintained libraries/
+  );
+  assert.match(
+    fs.readFileSync(path.join(dir, "CLAUDE.md"), "utf8"),
+    /keep me/
+  );
+  assert.ok(
+    !fs
+      .readFileSync(path.join(dir, "CLAUDE.md"), "utf8")
+      .includes("well-maintained libraries")
   );
 });
 

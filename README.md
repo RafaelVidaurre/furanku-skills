@@ -74,7 +74,7 @@ npx furanku-skills init --yes --no-skills --guidance simplest-current,prefer-lib
 node bin/furanku-skills.js help
 node bin/furanku-skills.js agents-md --yes
 node bin/furanku-skills.js guidance-composer list
-node bin/furanku-skills.js guidance-composer inject --ids simplest-current --mode inline --yes
+node bin/furanku-skills.js guidance-composer inject --ids simplest-current --mode inline --harness agents --yes
 ```
 
 ## Skills (what each one is for)
