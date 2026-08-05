@@ -14,7 +14,7 @@ Create Worker-owned outcomes that are bounded, independently checkable, and full
 
 Captain assigns only Workers. Return a separate Captain-shaped front to the principal—the user or Commander—for ownership.
 
-**Complete when:** every necessary outcome has one Worker and the dependency order is represented once in Orca.
+**Complete when:** every necessary outcome has one Worker routed by a selector decision whose request names that outcome's own specialization or needs, and the dependency order is represented once in Orca.
 
 ## Communicate
 
