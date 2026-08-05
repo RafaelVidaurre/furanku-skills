@@ -1,6 +1,6 @@
 ---
 name: prr
-description: Maintain a Product Requirements Record — prr/ files keeping a confirmed, verbatim-sourced picture of what the user wants the product to be. Capture proactively: in any repo containing prr/, fire whenever conversation surfaces product intent — statements like "users should be able to…", "it must never…", "that's out of scope", "the point of this feature is…", "actually the product should…" — even as an aside during coding or debugging. Fire on request when the user asks to start tracking product requirements or set up a PRR; when the user asks to digest, review, or decide on tentative requirements or open questions; or when the user asks to audit or clean up the PRR.
+description: "Maintain a Product Requirements Record — prr/ files keeping a confirmed, verbatim-sourced picture of what the user wants the product to be. Capture proactively: in any repo containing prr/, fire whenever conversation surfaces product intent — statements like 'users should be able to…', 'it must never…', 'that's out of scope', 'the point of this feature is…', 'actually the product should…' — even as an aside during coding or debugging. Fire on request when the user asks to start tracking product requirements or set up a PRR; when the user asks to digest, review, or decide on tentative requirements or open questions; or when the user asks to audit or clean up the PRR."
 ---
 
 # Product Requirements Record
