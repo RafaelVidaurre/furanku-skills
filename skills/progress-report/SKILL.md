@@ -1,6 +1,6 @@
 ---
 name: progress-report
-description: Create evidence-backed project progress reports with current status and cumulative time horizons, caching them for future runs. Use only from an unspawned root agent when the user requests a progress report, or automatically when a formal harness goal completion or meaningful project milestone has produced changes worth reporting.
+description: Create evidence-backed project progress reports with current status and non-overlapping time bands, caching them for future runs. Use only from an unspawned root agent when the user requests a progress report, or automatically when a formal harness goal completion or meaningful project milestone has produced changes worth reporting.
 ---
 
 # Progress Report
@@ -28,7 +28,7 @@ Use the project's established workspace root, then the nearest version-control r
 
 Set `generated_at` to the current environment-local ISO 8601 timestamp. Treat it as the evidence cutoff and compare source timestamps as absolute instants.
 
-Read `.furanku-skills/progress-reports/` newest-first. Use the smallest set of prior reports needed to cover the requested horizons:
+Read `.furanku-skills/progress-reports/` newest-first. Use the smallest set of prior reports needed to cover the requested time range:
 
 - Trust a cached report as evidence for its completed historical outcomes and cite it instead of reopening its evidence chain.
 - Inspect live, authoritative evidence for work newer than the cache, uncovered intervals, direct contradictions, and all present-state claims.
@@ -39,24 +39,28 @@ Read `.furanku-skills/progress-reports/` newest-first. Use the smallest set of p
 
 ## 3. Build the report model
 
-Write a two- or three-sentence `At a glance` summary of the project's present position and why the work matters. Populate current status from live evidence:
+Write a two- or three-sentence `At a glance` summary that begins with the project's present position, the most important change, and why it matters. Assume the user knows the project's purpose and established product language; explain the project's basics only when needed to disambiguate the report's scope. Populate current status from live evidence:
 
 - **In progress:** material work actively underway.
 - **Pending:** material work supported by an explicit goal, plan, task, requirement, or user decision and connected to the active goal, recent milestones, or immediate direction.
 - **Blocked:** material work stopped on a concrete dependency; name the dependency and the condition that unblocks it.
 
-Build cumulative views for `Most recent work`, 8 hours, 24 hours, 48 hours, 72 hours, 7 days, and 30 days. Choose the recent-work boundary semantically: the newest coherent work a human would still hold as the fresh chunk, using the session, latest deliverable, and previous-report boundary as cues rather than a mechanical rule.
+Build one chronological view across non-overlapping time bands: `Most recent work`, earlier in the last 8 hours, 8–24 hours ago, 24–48 hours ago, 48–72 hours ago, 3–7 days ago, and 7–30 days ago. Choose the recent-work boundary semantically: the newest coherent work a human would still hold as the fresh chunk, using the session, latest deliverable, and previous-report boundary as cues rather than a mechanical rule.
+
+Assign each completed outcome to exactly one progress band, based on when it became true or last changed materially. When work spans bands, place it in the band containing its latest material change and mention older setup only when needed to explain the outcome. Use `At a glance` for the overall synthesis; let each successive progress band add older context instead of repeating newer entries.
 
 Coarsen by compression, not omission:
 
-- Recent work and 8 hours preserve distinct deliverables and decisions.
-- 24 and 48 hours combine closely related changes into outcomes.
-- 72 hours and 7 days combine outcomes into project themes.
-- 30 days describes strategic capabilities, phases, and major direction changes.
+- Most recent work and the remainder of the last 8 hours preserve distinct deliverables and decisions.
+- The 8–24-hour and 24–48-hour bands combine closely related changes into outcomes.
+- The 48–72-hour and 3–7-day bands combine outcomes into project themes.
+- The 7–30-day band describes strategic capabilities, phases, and major direction changes.
 
-Retain every material capability, decision, milestone, blocker, and direction change. Order entries by importance to the user, using recency to break ties. Each entry has a self-explanatory title, a short outcome-and-meaning description, and compact evidence. Present current-state issues as tables and completed outcomes as bullets. Write `None.` under an empty heading.
+Model entries around independently meaningful project outcomes, capabilities, decisions, or blockers before mapping tracker records to them. Group records that contribute to the same outcome. Write for a project-aware reader who may not know or remember the recent work: use established product and domain terms normally, explain newly introduced or ambiguous concepts in simple terms, and avoid internal tracker, implementation, or orchestration jargon in the explanation. Make each entry understandable without implying that a recent task, decision, or term was already discussed in this conversation. For enabling work with no standalone user-facing result, state what it makes possible, whether it is usable or visible yet, and the meaningful milestone it enables. Keep task IDs, worker assignments, execution order, and dependency edges in evidence unless a dependency is itself the blocker.
 
-**Complete when:** the model accounts for material completed work across every horizon and material present work across all three statuses, with each claim traceable to evidence.
+Retain every material capability, decision, milestone, blocker, and direction change. Order entries by importance to the user, using recency to break ties. Give each entry a self-explanatory outcome title, a short description of what it changes and why it matters, and compact evidence. Present current-state outcomes as tables and completed outcomes as bullets. Write `None.` under an empty heading.
+
+**Complete when:** the model accounts for material completed work across every time band and material present work across all three statuses, with each claim traceable to evidence and each completed outcome appearing in exactly one progress band. With evidence references hidden, a project-aware reader who did not follow the recent implementation can still explain in simple terms what each entry changes, whether it is usable now, why it matters, and what comes next when relevant.
 
 ## 4. Write the cache artifact
 
@@ -64,7 +68,7 @@ Create `.furanku-skills/progress-reports/` when needed and write one immutable f
 
 ```yaml
 ---
-schema: progress-report/v1
+schema: progress-report/v2
 generated_at: 2026-07-17T14:30:00+01:00
 ---
 ```
@@ -80,19 +84,19 @@ Use this fixed body hierarchy:
 ### Blocked
 ## Progress
 ### Most recent work
-### Last 8 hours
-### Last 24 hours
-### Last 48 hours
-### Last 72 hours
-### Last 7 days
-### Last 30 days
+### Earlier in the last 8 hours
+### 8–24 hours ago
+### 24–48 hours ago
+### 48–72 hours ago
+### 3–7 days ago
+### 7–30 days ago
 ## Coverage                 # only when materially limited
 ```
 
-Format issues under each non-empty current-state heading as a table:
+Format outcomes under each non-empty current-state heading as a table:
 
 ```markdown
-| Item | What it means | Evidence |
+| Outcome | What it means | Evidence |
 | --- | --- | --- |
 | **Title** | Short description of the work and its status implications. | `relative/path`, task ID, or test result |
 ```
@@ -117,11 +121,11 @@ Present the report itself as the primary outcome. Use this user-facing template,
 
 _As of <generated_at>._
 
-<Two or three sentences explaining the project's present position, the most important change, and why it matters.>
+<Two or three sentences beginning with the project's present position, the most important change, and why it matters.>
 
 ## Current status
 
-| Status | Item | What it means | Evidence |
+| Status | Outcome | What it means | Evidence |
 | --- | --- | --- | --- |
 | 🟡 In progress | **<Title>** | <What is actively underway and what completing it will mean.> | `[E1]` |
 | ⏳ Pending | **<Title>** | <What is agreed but not started, and why it matters.> | `[E2]` |
@@ -133,27 +137,27 @@ _As of <generated_at>._
 
 - **<Title>** — <Outcome and meaning.> `[E4]`
 
-**Last 8 hours**
+**Earlier in the last 8 hours**
 
 - **<Title>** — <Outcome and meaning.> `[E5]`
 
-**Last 24 hours**
+**8–24 hours ago**
 
 - **<Coarser title>** — <Combined outcome and meaning.> `[E6]`
 
-**Last 48 hours**
+**24–48 hours ago**
 
 - **<Coarser title>** — <Combined outcome and meaning.> `[E7]`
 
-**Last 72 hours**
+**48–72 hours ago**
 
 - **<Theme title>** — <Thematic outcome and meaning.> `[E8]`
 
-**Last 7 days**
+**3–7 days ago**
 
 - **<Theme title>** — <Thematic outcome and meaning.> `[E9]`
 
-**Last 30 days**
+**7–30 days ago**
 
 - **<Strategic title>** — <Strategic capability, phase, or direction change.> `[E10]`
 
@@ -170,8 +174,8 @@ _As of <generated_at>._
 _Cached at `.furanku-skills/progress-reports/<timestamp>.md`._
 ```
 
-Keep one row per issue. Represent an empty status with a row whose item is `None.` so absence remains visible. Use restrained emojis as semantic status markers, not decoration. Write `None.` for an empty horizon. Reuse one evidence label for claims supported by the same sources. Keep the evidence list compact, and omit it only when the rendered surface provides equally traceable inline links. Adapt typography to the rendering surface while preserving this information order, every timeframe, and the artifact's facts and statuses.
+Represent each modeled current-status outcome in one row. Represent an empty status with a row whose outcome is `None.` so absence remains visible. Use restrained emojis as semantic status markers, not decoration. Write `None.` for an empty time band. Reuse one evidence label for claims supported by the same sources. Keep the evidence list compact, and omit it only when the rendered surface provides equally traceable inline links. Adapt typography to the rendering surface while preserving this information order, every time band, and the artifact's facts and statuses.
 
 When persistence fails, replace the cache footer with `_Artifact not saved: <reason>._`.
 
-**Complete when:** the user can understand what changed, what it means, what is active, pending, or blocked, and how the view changes across every requested horizon.
+**Complete when:** without relying on prior conversation or internal work-tracking context, a user familiar with the project can understand in simple terms what changed, why it matters, what is active, pending, or blocked, and how progress unfolded across the non-overlapping time bands.
