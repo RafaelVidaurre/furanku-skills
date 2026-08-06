@@ -89,9 +89,10 @@ class ConfigTest(unittest.TestCase):
 
     def test_template_and_partial_global_override(self):
         template = json.loads(self.run_config("template").stdout)
-        self.assertEqual(3, template["version"])
+        self.assertEqual(4, template["version"])
         self.assertEqual({}, template["routes"])
-        self.assertEqual({}, template["routing"])
+        self.assertEqual([], template["preferences"])
+        self.assertEqual({}, template["candidates"])
 
         partial = {"version": 2, "routes": {"captain": row("a", "m", "e")}}
         self.write("global", partial)
@@ -113,7 +114,7 @@ class ConfigTest(unittest.TestCase):
         extra = self.base_config()
         extra["unexpected"] = True
         result = self.run_config("write", "global", input_value=extra, ok=False)
-        self.assertIn("only version 2 and routes", result.stderr)
+        self.assertIn("must contain routes and only: routes, version", result.stderr)
 
     def test_fresh_install_resolves_builtin_defaults(self):
         result = json.loads(
@@ -130,16 +131,15 @@ class ConfigTest(unittest.TestCase):
             "builtin", result["layers_low_to_high"][0]["scope"]
         )
 
-    def test_v3_preserves_exact_routes_and_exposes_routing_sections(self):
+    def test_v4_preserves_exact_routes_and_exposes_sections(self):
         config = {
-            "version": 3,
+            "version": 4,
             "routes": self.base_config()["routes"],
-            "routing": {
-                "policy": {"unknown_quota": "ineligible"},
-                "candidates": {
-                    "grok/grok-4.5/high": {"enabled": False}
-                },
-            },
+            "preferences": [
+                "Captains default to gpt-5.6-sol at xhigh.",
+                "For the hardest design work, use fable or sol at max.",
+            ],
+            "candidates": {"grok/grok-4.5/high": {"enabled": False}},
         }
         self.write("global", config)
 
@@ -151,16 +151,186 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual("builtin", layers[0]["scope"])
         global_layer = layers[1]
         self.assertEqual("global", global_layer["scope"])
-        self.assertEqual(3, global_layer["version"])
+        self.assertEqual(4, global_layer["version"])
+        self.assertEqual(2, global_layer["preferences"])
         self.assertEqual(
-            ["candidates", "policy"], global_layer["routing_sections"]
+            ["grok/grok-4.5/high"], global_layer["candidates_defined"]
         )
 
-        config["routing"]["surprise"] = {}
+        config["surprise"] = {}
         invalid = self.run_config(
             "write", "global", input_value=config, ok=False
         )
-        self.assertIn("unknown routing sections: surprise", invalid.stderr)
+        self.assertIn(
+            "must contain routes and only: candidates, preferences, routes, version",
+            invalid.stderr,
+        )
+        del config["surprise"]
+        config["preferences"] = ["fine", ""]
+        invalid = self.run_config(
+            "write", "global", input_value=config, ok=False
+        )
+        self.assertIn("preferences[1] must be a non-empty string", invalid.stderr)
+
+    def test_v3_write_is_refused_and_existing_v3_prompts_migration(self):
+        v3 = {
+            "version": 3,
+            "routes": self.base_config()["routes"],
+            "routing": {"policy": {"unknown_quota": "ineligible"}},
+        }
+        refused = self.run_config("write", "global", input_value=v3, ok=False)
+        self.assertIn("must use routing config version 2 or 4", refused.stderr)
+
+        path = self.home / ".furanku-skills" / "commander" / "config.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps(v3), encoding="utf-8")
+        result = self.run_config(
+            "resolve", "--repo", str(self.repo), "--compact", ok=False
+        )
+        self.assertIn("uses routing config version 3", result.stderr)
+        self.assertIn("preview migration with", result.stderr)
+        self.assertIn("migrate global", result.stderr)
+
+    def test_v3_migration_generates_preferences_and_keeps_candidates(self):
+        path = self.home / ".furanku-skills" / "commander" / "config.json"
+        path.parent.mkdir(parents=True)
+        v3 = {
+            "version": 3,
+            "routes": self.base_config()["routes"],
+            "routing": {
+                "policy": {"unknown_quota": "ineligible"},
+                "specializations": {
+                    "systems-design": {
+                        "description": "Highest-complexity systems design.",
+                        "needs": {"reasoning": {"minimum": 0.56, "weight": 2.5}},
+                        "priority": ["quality", "quota"],
+                    },
+                    "unnamed": {
+                        "needs": {"reasoning": {"minimum": 0.5}},
+                    },
+                },
+                "candidates": {
+                    "codex/gpt-5.6-luna/max": {"enabled": False},
+                    "grok/grok-4.5/high": None,
+                },
+            },
+        }
+        original = json.dumps(v3, indent=2) + "\n"
+        path.write_text(original, encoding="utf-8")
+
+        preview = json.loads(self.run_config("migrate", "global").stdout)
+        self.assertFalse(preview["migrated"])
+        self.assertEqual(3, preview["from_version"])
+        self.assertEqual(4, preview["to_version"])
+        self.assertEqual(
+            ["policy", "specializations"], preview["dropped_sections"]
+        )
+        self.assertIn(
+            "Highest-complexity systems design.",
+            preview["generated_preferences"][0],
+        )
+        self.assertIn("systems-design", preview["generated_preferences"][0])
+        self.assertIn("without a description", preview["generated_preferences"][1])
+        self.assertEqual(original, path.read_text(encoding="utf-8"))
+
+        migrated = json.loads(
+            self.run_config("migrate", "global", "--yes").stdout
+        )
+        self.assertTrue(migrated["migrated"])
+        backup = Path(migrated["backup_path"])
+        self.assertEqual(original, backup.read_text(encoding="utf-8"))
+        current = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(4, current["version"])
+        self.assertEqual(self.base_config()["routes"], current["routes"])
+        self.assertEqual(
+            {
+                "codex/gpt-5.6-luna/max": {"enabled": False},
+                "grok/grok-4.5/high": None,
+            },
+            current["candidates"],
+        )
+        self.assertEqual(2, len(current["preferences"]))
+        self.assertNotIn("routing", current)
+
+    def test_v3_migration_accepts_null_section_tombstones(self):
+        path = self.home / ".furanku-skills" / "commander" / "config.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "version": 3,
+                    "routes": self.base_config()["routes"],
+                    "routing": {
+                        "specializations": {
+                            "kept": {"description": "Kept intent."},
+                            "removed": None,
+                        },
+                        "policy": None,
+                        "candidates": None,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        migrated = json.loads(
+            self.run_config("migrate", "global", "--yes").stdout
+        )
+        self.assertTrue(migrated["migrated"])
+        current = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(4, current["version"])
+        self.assertEqual(1, len(current["preferences"]))
+        self.assertIn("Kept intent.", current["preferences"][0])
+        self.assertNotIn("candidates", current)
+
+    def test_v3_migration_refuses_malformed_sections_cleanly(self):
+        path = self.home / ".furanku-skills" / "commander" / "config.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "version": 3,
+                    "routes": {},
+                    "routing": {"specializations": ["not-an-object"]},
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = self.run_config("migrate", "global", ok=False)
+        self.assertIn("must be an object of objects", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_v3_migration_refuses_falsy_non_null_sections(self):
+        path = self.home / ".furanku-skills" / "commander" / "config.json"
+        path.parent.mkdir(parents=True)
+        for section, value in (
+            ("specializations", []),
+            ("candidates", False),
+            ("policy", 0),
+        ):
+            with self.subTest(section=section):
+                path.write_text(
+                    json.dumps(
+                        {
+                            "version": 3,
+                            "routes": {},
+                            "routing": {section: value},
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                result = self.run_config("migrate", "global", ok=False)
+                self.assertIn("must be an object", result.stderr)
+
+    def test_v4_write_accepts_candidate_tombstones(self):
+        config = {
+            "version": 4,
+            "routes": {},
+            "candidates": {"grok/grok-4.5/high": None},
+        }
+        record = self.write("global", config)
+        self.assertEqual(
+            {"grok/grok-4.5/high": None}, record["config"]["candidates"]
+        )
 
     def test_specialist_validation(self):
         config = self.base_config()
@@ -320,7 +490,11 @@ class ConfigTest(unittest.TestCase):
         repo_worker = row("repo-agent", "repo-model", "high")
         self.write(
             "repo",
-            {"version": 2, "routes": {"worker": repo_worker}},
+            {
+                "version": 4,
+                "routes": {"worker": repo_worker},
+                "preferences": ["Prefer repo-agent for repo work."],
+            },
             self.repo,
         )
 
@@ -338,12 +512,16 @@ class ConfigTest(unittest.TestCase):
             report,
         )
         self.assertIn(
-            "| Scope | Path | Present | Routes defined |",
+            "| Scope | Path | Present | Routes defined | Preferences | Candidate overrides |",
             report,
         )
         self.assertRegex(
             report,
-            r"\| machine-repo \| .* \| no \| — \|",
+            r"\| machine-repo \| .* \| no \| — \| 0 \| — \|",
+        )
+        self.assertRegex(
+            report,
+            r"\| repo \| .* \| yes \| worker \| 1 \| — \|",
         )
         self.assertIn(
             "| worker | repo-agent | repo-model | high | repo | builtin, global |",
@@ -506,6 +684,11 @@ class ConfigTest(unittest.TestCase):
         result = self.run_config("migrate", "global", "--yes", ok=False)
         self.assertIn("migration backup conflicts with source", result.stderr)
         self.assertEqual(1, json.loads(path.read_text())["version"])
+
+    def test_migration_refuses_current_versions(self):
+        self.write("global", self.base_config())
+        result = self.run_config("migrate", "global", ok=False)
+        self.assertIn("does not need migration", result.stderr)
 
     def test_v1_resolution_is_refused_with_migration_command(self):
         path = self.home / ".furanku-skills" / "commander" / "config.json"

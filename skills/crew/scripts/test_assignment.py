@@ -37,6 +37,16 @@ def run(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str
     )
 
 
+def decision_args(decision: dict) -> list[str]:
+    """BASE with the routes-json/--route pair swapped for a decision payload."""
+    args = list(BASE)
+    route_index = args.index("--route")
+    del args[route_index:route_index + 2]
+    routes_index = args.index("--routes-json")
+    args[routes_index:routes_index + 2] = ["--decision-json", json.dumps(decision)]
+    return args
+
+
 class AssignmentTest(unittest.TestCase):
     def test_worker_assignment(self):
         result = run(*BASE)
@@ -99,50 +109,116 @@ class AssignmentTest(unittest.TestCase):
         )
         self.assertIn("Create the first Bead", spec)
 
-    def test_task_fit_decision_is_launchable_without_fixed_worker_routes(self):
-        args = list(BASE)
-        route_index = args.index("--route")
-        del args[route_index:route_index + 2]
-        routes_index = args.index("--routes-json")
+    def test_judged_decision_is_launchable_without_fixed_worker_routes(self):
         decision = {
             "status": "selected",
-            "sufficient": True,
             "selected": {
                 "id": "codex/gpt-5.6-luna/max",
                 "agent": "codex",
                 "model": "gpt-5.6-luna",
                 "effort": "max",
             },
-            "judgment": {
-                "role": "worker",
-                "specialization": "implementation",
-                "selection_mode": "cheapest-sufficient",
+            "reason": "Bounded low-risk edit; cheapest capable candidate.",
+            "warnings": ["quota stale"],
+        }
+        result = run(*decision_args(decision), "--format", "spec")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("route: judged", result.stdout)
+        self.assertIn("candidate: codex/gpt-5.6-luna/max", result.stdout)
+        self.assertIn(
+            'routing_reason: "Bounded low-risk edit; cheapest capable candidate."',
+            result.stdout,
+        )
+        self.assertIn('routing_warnings: ["quota stale"]', result.stdout)
+
+    def test_exact_decision_records_route_id_and_provenance(self):
+        decision = {
+            "status": "exact",
+            "selected": {
+                "id": None,
+                "agent": "grok",
+                "model": "grok-4.5",
+                "effort": "high",
+            },
+            "exact_route": "worker",
+            "provenance": {
+                "winner": {"scope": "global", "path": "/tmp/config.json"}
             },
         }
-        args[routes_index:routes_index + 2] = [
-            "--decision-json",
-            json.dumps(decision),
-        ]
-        result = run(*args, "--format", "spec")
+        result = run(*decision_args(decision), "--format", "spec")
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("route: task-fit", result.stdout)
-        self.assertIn("candidate: codex/gpt-5.6-luna/max", result.stdout)
-        self.assertIn("specialization: implementation", result.stdout)
-        self.assertIn("selection_mode: cheapest-sufficient", result.stdout)
-        self.assertIn("routing_sufficient: true", result.stdout)
+        self.assertIn("route: worker", result.stdout)
+        self.assertIn("routing_status: exact", result.stdout)
+        self.assertIn("route_source: global — /tmp/config.json", result.stdout)
+        self.assertNotIn("candidate:", result.stdout)
+
+    def test_rejects_fabricated_decision_payloads(self):
+        launchable = {
+            "id": "x/y/z",
+            "agent": "a",
+            "model": "m",
+            "effort": "e",
+        }
+        cases = {
+            "non-string launch fields": {
+                "status": "selected",
+                "selected": {"id": "x", "agent": True, "model": ["m"], "effort": 3},
+                "reason": "r",
+            },
+            "selected without candidate id": {
+                "status": "selected",
+                "selected": {"agent": "a", "model": "m", "effort": "e"},
+                "reason": "r",
+            },
+            "selected without rationale": {
+                "status": "selected",
+                "selected": launchable,
+            },
+            "exact without exact_route": {
+                "status": "exact",
+                "selected": {**launchable, "id": None},
+            },
+            "exact without provenance": {
+                "status": "exact",
+                "selected": {**launchable, "id": None},
+                "exact_route": "worker",
+            },
+            "exact with empty provenance winner": {
+                "status": "exact",
+                "selected": {**launchable, "id": None},
+                "exact_route": "worker",
+                "provenance": {"winner": {}},
+            },
+        }
+        for label, decision in cases.items():
+            with self.subTest(label=label):
+                result = run(*decision_args(decision))
+                self.assertNotEqual(0, result.returncode)
+
+    def test_rejects_exact_decision_for_wrong_role(self):
+        decision = {
+            "status": "exact",
+            "selected": {
+                "id": None,
+                "agent": "codex",
+                "model": "gpt-test",
+                "effort": "high",
+            },
+            "exact_route": "captain",
+            "provenance": {
+                "winner": {"scope": "global", "path": "/tmp/config.json"}
+            },
+        }
+        result = run(*decision_args(decision))
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("does not match role 'worker'", result.stderr)
 
     def test_rejects_unlaunchable_routing_decision(self):
-        args = list(BASE)
-        route_index = args.index("--route")
-        del args[route_index:route_index + 2]
-        routes_index = args.index("--routes-json")
-        args[routes_index:routes_index + 2] = [
-            "--decision-json",
-            json.dumps({"status": "no-route"}),
-        ]
-        result = run(*args)
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn("not launchable", result.stderr)
+        for status in ("no-route", "refused"):
+            with self.subTest(status=status):
+                result = run(*decision_args({"status": status}))
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("not launchable", result.stderr)
 
     def test_rejects_captain_from_captain(self):
         args = list(BASE)

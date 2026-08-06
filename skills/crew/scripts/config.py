@@ -14,7 +14,7 @@ import tempfile
 
 
 VERSION = 2
-ROUTING_VERSION = 3
+PREFS_VERSION = 4
 BASE = ("captain", "worker")
 LEGACY_BASE = ("commander", "captain", "worker")
 SCOPES = ("global", "repo", "machine-repo")
@@ -78,15 +78,8 @@ def parse_json(stream, source):
 
 
 def validate_rows(
-    config, require_base, source, version, base, route_pattern, allow_empty=False
+    routes, require_base, source, base, route_pattern, allow_empty=False
 ):
-    if (
-        set(config) != {"version", "routes"}
-        or type(config.get("version")) is not int
-        or config.get("version") != version
-    ):
-        raise Error(f"{source} must contain only version {version} and routes")
-    routes = config.get("routes")
     if not isinstance(routes, dict) or (not routes and not allow_empty):
         raise Error(f"{source} routes must be a non-empty object")
     missing = [route for route in base if route not in routes]
@@ -109,53 +102,103 @@ def validate_rows(
             raise Error(f"route {route_id!r} in {source} has an empty value")
 
 
+def validate_preferences(preferences, source):
+    if not isinstance(preferences, list):
+        raise Error(f"{source} preferences must be an array of strings")
+    for index, entry in enumerate(preferences):
+        if not isinstance(entry, str) or not entry.strip():
+            raise Error(
+                f"{source} preferences[{index}] must be a non-empty string"
+            )
+
+
+def validate_candidate_overrides(candidates, source):
+    if not isinstance(candidates, dict):
+        raise Error(f"{source} candidates must be an object")
+    for candidate_id, candidate in candidates.items():
+        if candidate is not None and not isinstance(candidate, dict):
+            raise Error(
+                f"{source} candidate {candidate_id!r} must be an object "
+                "or a null tombstone"
+            )
+
+
 def validate_schema(config, require_base, source):
     version = config.get("version")
-    if version == VERSION:
-        validate_rows(
-            config,
-            require_base,
-            source,
-            VERSION,
-            BASE,
-            ROUTE_ID,
-            allow_empty=not require_base,
-        )
-        return
-    if version != ROUTING_VERSION:
+    if type(version) is not int or version not in {VERSION, PREFS_VERSION}:
         raise Error(
             f"{source} must use routing config version {VERSION} or "
-            f"{ROUTING_VERSION}"
+            f"{PREFS_VERSION}"
         )
-    if set(config) != {"version", "routes", "routing"}:
+    if version == VERSION:
+        allowed = {"version", "routes"}
+    else:
+        allowed = {"version", "routes", "preferences", "candidates"}
+    unknown = sorted(set(config) - allowed)
+    if unknown or "routes" not in config:
         raise Error(
-            f"{source} version {ROUTING_VERSION} must contain only version, "
-            "routes, and routing"
+            f"{source} version {version} must contain routes and only: "
+            f"{', '.join(sorted(allowed))}"
         )
     validate_rows(
-        {"version": VERSION, "routes": config["routes"]},
+        config["routes"],
         require_base,
         source,
-        VERSION,
         BASE,
         ROUTE_ID,
         allow_empty=not require_base,
     )
-    if not isinstance(config["routing"], dict):
-        raise Error(f"{source} routing must be an object")
-    allowed_routing = {"candidates", "specializations", "policy"}
-    unknown_routing = sorted(set(config["routing"]) - allowed_routing)
-    if unknown_routing:
-        raise Error(
-            f"{source} has unknown routing sections: "
-            f"{', '.join(unknown_routing)}"
-        )
+    if version == PREFS_VERSION:
+        validate_preferences(config.get("preferences", []), source)
+        validate_candidate_overrides(config.get("candidates", {}), source)
 
 
 def validate_v1_schema(config, require_base, source):
+    if (
+        set(config) != {"version", "routes"}
+        or type(config.get("version")) is not int
+        or config.get("version") != 1
+    ):
+        raise Error(f"{source} must contain only version 1 and routes")
     validate_rows(
-        config, require_base, source, 1, LEGACY_BASE, LEGACY_ROUTE_ID
+        config["routes"], require_base, source, LEGACY_BASE, LEGACY_ROUTE_ID
     )
+
+
+def validate_v3_schema(config, require_base, source):
+    if set(config) != {"version", "routes", "routing"}:
+        raise Error(
+            f"{source} version 3 must contain only version, routes, and routing"
+        )
+    validate_rows(
+        config["routes"], require_base, source, BASE, ROUTE_ID, allow_empty=True
+    )
+    routing = config["routing"]
+    if not isinstance(routing, dict):
+        raise Error(f"{source} routing must be an object")
+    allowed = {"candidates", "specializations", "policy"}
+    unknown = sorted(set(routing) - allowed)
+    if unknown:
+        raise Error(
+            f"{source} has unknown routing sections: {', '.join(unknown)}"
+        )
+    # Version 3 used recursive merge-patch, so null sections and null entries
+    # are valid legacy tombstones; only null gets deletion treatment.
+    specializations = routing.get("specializations")
+    if specializations is not None and (
+        not isinstance(specializations, dict)
+        or any(
+            spec is not None and not isinstance(spec, dict)
+            for spec in specializations.values()
+        )
+    ):
+        raise Error(f"{source} routing specializations must be an object of objects")
+    policy = routing.get("policy")
+    if policy is not None and not isinstance(policy, dict):
+        raise Error(f"{source} routing policy must be an object")
+    candidates = routing.get("candidates")
+    if candidates is not None:
+        validate_candidate_overrides(candidates, source)
 
 
 def migration_command(scope, repo):
@@ -170,12 +213,12 @@ def load(path, require_base=False, scope=None, repo="."):
         config = parse_json(stream, str(path))
     if (
         type(config.get("version")) is int
-        and config.get("version") == 1
+        and config.get("version") in {1, 3}
         and scope is not None
     ):
         raise Error(
-            f"{path} uses routing config version 1; preview migration with: "
-            f"{migration_command(scope, repo)}"
+            f"{path} uses routing config version {config['version']}; "
+            f"preview migration with: {migration_command(scope, repo)}"
         )
     validate_schema(config, require_base, str(path))
     return config
@@ -185,22 +228,17 @@ def builtin():
     with CATALOG.open(encoding="utf-8") as stream:
         catalog = parse_json(stream, str(CATALOG))
     if (
-        catalog.get("version") != 1
-        or not {"version", "routes", "routing"} <= set(catalog)
+        catalog.get("version") != 2
+        or not {"version", "routes", "methodology", "candidates"} <= set(catalog)
     ):
         raise Error(
-            f"{CATALOG} must contain version 1 with default routes and routing"
+            f"{CATALOG} must contain version 2 with routes, methodology, "
+            "and candidates"
         )
-    validate_rows(
-        {"version": VERSION, "routes": catalog["routes"]},
-        True,
-        str(CATALOG),
-        VERSION,
-        BASE,
-        ROUTE_ID,
-    )
-    if not isinstance(catalog["routing"], dict):
-        raise Error(f"{CATALOG} routing must be an object")
+    validate_rows(catalog["routes"], True, str(CATALOG), BASE, ROUTE_ID)
+    validate_candidate_overrides(catalog["candidates"], str(CATALOG))
+    if not isinstance(catalog["methodology"], dict):
+        raise Error(f"{CATALOG} methodology must be an object")
     return catalog
 
 
@@ -239,7 +277,8 @@ def resolve(paths, repo=".", route_ids=None):
             "exists": True,
             "version": catalog["version"],
             "routes_defined": list(ordered(catalog["routes"])),
-            "routing_sections": sorted(catalog["routing"]),
+            "preferences": 0,
+            "candidates_defined": sorted(catalog["candidates"]),
         }
     )
     for route, row in catalog["routes"].items():
@@ -251,16 +290,20 @@ def resolve(paths, repo=".", route_ids=None):
         path = paths[scope]
         exists = path.exists()
         config = load(path, False, scope, repo) if exists else None
-        routes_defined = list(ordered(config["routes"])) if config else []
         layers.append(
             {
                 "scope": scope,
                 "path": str(path),
                 "exists": exists,
                 "version": config["version"] if config else None,
-                "routes_defined": routes_defined,
-                "routing_sections": (
-                    sorted(config.get("routing", {})) if config else []
+                "routes_defined": (
+                    list(ordered(config["routes"])) if config else []
+                ),
+                "preferences": (
+                    len(config.get("preferences", [])) if config else 0
+                ),
+                "candidates_defined": (
+                    sorted(config.get("candidates", {})) if config else []
                 ),
             }
         )
@@ -316,14 +359,16 @@ def report_markdown(report):
         "",
         "## Layers",
         "",
-        "| Scope | Path | Present | Routes defined |",
-        "| --- | --- | --- | --- |",
+        "| Scope | Path | Present | Routes defined | Preferences | Candidate overrides |",
+        "| --- | --- | --- | --- | --- | --- |",
     ]
     for layer in report["layers_low_to_high"]:
         defined = ", ".join(layer["routes_defined"]) or "—"
+        overrides = ", ".join(layer["candidates_defined"]) or "—"
         lines.append(
             f"| {markdown_cell(layer['scope'])} | {markdown_cell(layer['path'])} "
-            f"| {'yes' if layer['exists'] else 'no'} | {markdown_cell(defined)} |"
+            f"| {'yes' if layer['exists'] else 'no'} | {markdown_cell(defined)} "
+            f"| {layer['preferences']} | {markdown_cell(overrides)} |"
         )
 
     lines += [
@@ -414,7 +459,7 @@ def ensure_backup(path, content, mode):
     return True
 
 
-def migration_preview(scope, path):
+def read_versioned(path):
     if not path.exists():
         raise Error(f"config does not exist: {path}")
     try:
@@ -424,8 +469,28 @@ def migration_preview(scope, path):
         raise Error(f"invalid JSON in {path}: {error}") from error
     if not isinstance(config, dict):
         raise Error(f"{path} must contain a JSON object")
-    if type(config.get("version")) is not int or config.get("version") != 1:
-        raise Error(f"{path} is not a version 1 config")
+    if type(config.get("version")) is not int:
+        raise Error(f"{path} lacks an integer version")
+    return raw, config
+
+
+def migration_result(scope, path, from_version, to_version, migrated, **extra):
+    validate_schema(migrated, False, "migrated configuration")
+    backup = path.with_name(f"{path.stem}.v{from_version}{path.suffix}")
+    return {
+        "scope": scope,
+        "path": str(path),
+        "backup_path": str(backup),
+        "backup_exists": backup.exists(),
+        "from_version": from_version,
+        "to_version": to_version,
+        "preserved_routes": list(migrated["routes"]),
+        "config": migrated,
+        **extra,
+    }
+
+
+def migrate_v1(scope, path, raw, config):
     validate_v1_schema(config, scope == "global", str(path))
     conflicts = sorted(
         route for route in config["routes"] if route.startswith("commander.")
@@ -441,21 +506,66 @@ def migration_preview(scope, path):
         if route != "commander"
     }
     migrated = {"version": VERSION, "routes": ordered(routes)}
-    validate_schema(migrated, False, "migrated configuration")
-    backup = path.with_name(f"{path.stem}.v1{path.suffix}")
-    return raw, {
-        "scope": scope,
-        "path": str(path),
-        "backup_path": str(backup),
-        "backup_exists": backup.exists(),
-        "from_version": 1,
-        "to_version": VERSION,
-        "removed_routes": (
+    return raw, migration_result(
+        scope,
+        path,
+        1,
+        VERSION,
+        migrated,
+        removed_routes=(
             ["commander"] if "commander" in config["routes"] else []
         ),
-        "preserved_routes": list(migrated["routes"]),
-        "config": migrated,
+    )
+
+
+def migrate_v3(scope, path, raw, config):
+    validate_v3_schema(config, False, str(path))
+    routing = config["routing"]
+    preferences = []
+    for name, spec in (routing.get("specializations") or {}).items():
+        if spec is None:
+            continue
+        description = spec.get("description")
+        if isinstance(description, str) and description.strip():
+            preferences.append(
+                f"{description.strip()} (migrated from specialization {name!r}; "
+                "its numeric needs and priority were dropped)"
+            )
+        else:
+            preferences.append(
+                f"Specialization {name!r} was configured without a description; "
+                "restate its routing intent in plain language or delete this line."
+            )
+    migrated = {
+        "version": PREFS_VERSION,
+        "routes": ordered(config["routes"]),
     }
+    if preferences:
+        migrated["preferences"] = preferences
+    if routing.get("candidates"):
+        migrated["candidates"] = routing["candidates"]
+    return raw, migration_result(
+        scope,
+        path,
+        3,
+        PREFS_VERSION,
+        migrated,
+        dropped_sections=sorted(
+            section
+            for section in ("specializations", "policy")
+            if routing.get(section)
+        ),
+        generated_preferences=preferences,
+    )
+
+
+def migration_preview(scope, path):
+    raw, config = read_versioned(path)
+    if config["version"] == 1:
+        return migrate_v1(scope, path, raw, config)
+    if config["version"] == 3:
+        return migrate_v3(scope, path, raw, config)
+    raise Error(f"{path} version {config['version']} does not need migration")
 
 
 def emit(value, compact=False):
@@ -509,7 +619,14 @@ def main():
     args = arguments()
     try:
         if args.command == "template":
-            emit({"version": ROUTING_VERSION, "routes": {}, "routing": {}})
+            emit(
+                {
+                    "version": PREFS_VERSION,
+                    "routes": {},
+                    "preferences": [],
+                    "candidates": {},
+                }
+            )
             return
 
         needs_repo = args.command in {"resolve", "report"} or args.scope in {
