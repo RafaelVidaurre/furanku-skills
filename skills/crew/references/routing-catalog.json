@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "routes": {
     "captain": {
       "agent": "claude",
@@ -12,338 +12,647 @@
       "effort": "max"
     }
   },
-  "routing": {
-    "policy": {
-      "maximum_shortfall": 0.03,
-      "on_no_sufficient": "error",
-      "unknown_quota": "allow-with-warning",
-      "evidence_methodology": {
-        "reasoning": "Artificial Analysis Intelligence Index divided by 100 when exact; otherwise a labeled effort proxy.",
-        "implementation": "DeepSWE resolved-task rate when exact; otherwise a labeled effort proxy.",
-        "agentic": "Ordinal normalization of dated Agent Arena or agentic-work evidence.",
-        "ui": "Ordinal normalization of the dated Arena WebDev preference ranking.",
-        "spatial-3d": "Ordinal normalization of the dated Design Arena browser-3D ranking.",
-        "conservative": "A documented lower estimate reflecting effort or harness transfer and evidence confidence; it is the value used for routing."
+  "methodology": {
+    "reasoning": "Artificial Analysis Intelligence Index divided by 100 when exact; otherwise a labeled effort proxy.",
+    "implementation": "DeepSWE resolved-task rate when exact; otherwise a labeled effort proxy.",
+    "agentic": "Ordinal normalization of dated Agent Arena or agentic-work evidence.",
+    "ui": "Ordinal normalization of the dated Arena WebDev preference ranking.",
+    "spatial-3d": "Ordinal normalization of the dated Design Arena browser-3D ranking.",
+    "conservative": "A documented lower estimate reflecting effort or harness transfer and evidence confidence; it is the value used for routing.",
+    "boundary": "Public research only. No local model evaluation contributes capability scores; missing direct evidence remains unknown or is labeled as a proxy on the capability evidence itself."
+  },
+  "candidates": {
+    "claude/claude-fable-5[1m]/high": {
+      "launch": {
+        "agent": "claude",
+        "model": "claude-fable-5[1m]",
+        "effort": "high"
       },
-      "evidence_boundary": "Public research only. No local model evaluation contributes capability scores; missing direct evidence remains unknown or is named as a proxy in the specialization."
-    },
-    "specializations": {
-      "architecture": {
-        "description": "Design module seams, contracts, and implementation plans.",
-        "needs": {
-          "reasoning": { "minimum": 0.54, "weight": 2.0 },
-          "agentic": { "minimum": 0.8, "weight": 3.0, "critical": true }
+      "features": [
+        "tools",
+        "vision",
+        "long-context"
+      ],
+      "context": 1000000,
+      "context_evidence": "https://code.claude.com/docs/en/model-config",
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.6,
+          "conservative": 0.56,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-fable-5"
+          ]
         },
-        "priority": ["quota", "cost", "latency"]
+        "implementation": {
+          "status": "known",
+          "score": 0.7,
+          "conservative": 0.66,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://deepswe.datacurve.ai/"
+          ]
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.95,
+          "conservative": 0.9,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard/agent?stream=top"
+          ]
+        },
+        "ui": {
+          "status": "known",
+          "score": 0.88,
+          "conservative": 0.82,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard?category=webdev"
+          ]
+        },
+        "spatial-3d": {
+          "status": "known",
+          "score": 0.88,
+          "conservative": 0.8,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://www.designarena.ai/leaderboard"
+          ]
+        }
       },
-      "planning": {
-        "description": "Decompose and sequence a complex implementation front.",
-        "needs": {
-          "reasoning": { "minimum": 0.54, "weight": 2.0 },
-          "agentic": { "minimum": 0.8, "weight": 3.0, "critical": true }
+      "economics": {
+        "task_cost_usd": {
+          "value": 21.63,
+          "basis": "DeepSWE max proxy",
+          "assessed_at": "2026-07-31",
+          "source": "https://deepswe.datacurve.ai/"
         },
-        "priority": ["quota", "cost", "latency"]
-      },
-      "implementation": {
-        "description": "Implement a bounded repository outcome.",
-        "needs": {
-          "implementation": { "minimum": 0.65, "weight": 3.0 },
-          "agentic": { "minimum": 0.55, "weight": 1.0 }
-        },
-        "priority": ["cost", "latency", "quota"]
-      },
-      "debugging": {
-        "description": "Diagnose and repair a repository defect.",
-        "needs": {
-          "implementation": { "minimum": 0.6, "weight": 3.0 },
-          "reasoning": { "minimum": 0.52, "weight": 2.0 },
-          "agentic": { "minimum": 0.55, "weight": 1.0 }
-        },
-        "priority": ["cost", "latency", "quota"]
-      },
-      "review": {
-        "description": "Review a change using implementation, reasoning, and agentic evidence as explicit proxies because direct comparative review evidence is unavailable.",
-        "needs": {
-          "implementation": { "minimum": 0.55, "weight": 2.0 },
-          "reasoning": { "minimum": 0.5, "weight": 2.0 },
-          "agentic": { "minimum": 0.55, "weight": 1.0 }
-        },
-        "priority": ["cost", "latency", "quota"]
-      },
-      "ui-product": {
-        "description": "Design or implement a user-facing surface; UI preference is evidence, product empathy remains unmeasured.",
-        "needs": {
-          "ui": { "minimum": 0.8, "weight": 3.0, "critical": true },
-          "implementation": { "minimum": 0.6, "weight": 1.0 },
-          "agentic": { "minimum": 0.65, "weight": 1.0 }
-        },
-        "priority": ["quota", "cost", "latency"]
-      },
-      "spatial-3d": {
-        "description": "Build a visual or browser-based spatial 3D outcome; this does not claim general production modeling competence.",
-        "needs": {
-          "spatial-3d": { "minimum": 0.8, "weight": 3.0, "critical": true },
-          "implementation": { "minimum": 0.6, "weight": 1.0 }
-        },
-        "priority": ["quota", "cost", "latency"]
-      },
-      "trivial": {
-        "description": "Perform a simple, low-risk mechanical change.",
-        "needs": {
-          "implementation": { "minimum": 0.45, "weight": 1.0 },
-          "reasoning": { "minimum": 0.45, "weight": 1.0 }
-        },
-        "priority": ["latency", "cost", "quota"]
+        "output_tokens_per_second": {
+          "value": 74,
+          "basis": "max/fallback proxy",
+          "assessed_at": "2026-07-31",
+          "source": "https://artificialanalysis.ai/models/claude-fable-5"
+        }
       }
     },
-    "candidates": {
-      "claude/claude-fable-5[1m]/high": {
-        "launch": { "agent": "claude", "model": "claude-fable-5[1m]", "effort": "high" },
-        "features": ["tools", "vision", "long-context"],
-        "context": 1000000,
-        "context_evidence": "https://code.claude.com/docs/en/model-config",
-        "capabilities": {
-          "reasoning": {
-            "status": "known", "score": 0.6, "conservative": 0.56, "confidence": "medium",
-            "assessed_at": "2026-07-31", "evidence": ["https://artificialanalysis.ai/models/claude-fable-5"]
-          },
-          "implementation": {
-            "status": "known", "score": 0.7, "conservative": 0.66, "confidence": "medium",
-            "assessed_at": "2026-07-31", "evidence": ["https://deepswe.datacurve.ai/"]
-          },
-          "agentic": {
-            "status": "known", "score": 0.95, "conservative": 0.9, "confidence": "high",
-            "assessed_at": "2026-07-31", "evidence": ["https://arena.ai/leaderboard/agent?stream=top"]
-          },
-          "ui": {
-            "status": "known", "score": 0.88, "conservative": 0.82, "confidence": "medium",
-            "assessed_at": "2026-07-31", "evidence": ["https://arena.ai/leaderboard?category=webdev"]
-          },
-          "spatial-3d": {
-            "status": "known", "score": 0.88, "conservative": 0.8, "confidence": "medium",
-            "assessed_at": "2026-07-31", "evidence": ["https://www.designarena.ai/leaderboard"]
-          }
+    "codex/gpt-5.6-sol/max": {
+      "launch": {
+        "agent": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "max"
+      },
+      "features": [
+        "tools",
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.59,
+          "conservative": 0.57,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/articles/gpt-5-6-has-landed"
+          ]
         },
-        "economics": {
-          "task_cost_usd": { "value": 21.63, "basis": "DeepSWE max proxy", "assessed_at": "2026-07-31", "source": "https://deepswe.datacurve.ai/" },
-          "output_tokens_per_second": { "value": 74, "basis": "max/fallback proxy", "assessed_at": "2026-07-31", "source": "https://artificialanalysis.ai/models/claude-fable-5" }
+        "implementation": {
+          "status": "known",
+          "score": 0.73,
+          "conservative": 0.71,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://deepswe.datacurve.ai/"
+          ]
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.9,
+          "conservative": 0.84,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard/agent?stream=top"
+          ]
+        },
+        "ui": {
+          "status": "known",
+          "score": 0.85,
+          "conservative": 0.8,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard?category=webdev"
+          ]
+        },
+        "spatial-3d": {
+          "status": "known",
+          "score": 0.84,
+          "conservative": 0.78,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://www.designarena.ai/leaderboard"
+          ]
         }
       },
-      "codex/gpt-5.6-sol/max": {
-        "launch": { "agent": "codex", "model": "gpt-5.6-sol", "effort": "max" },
-        "features": ["tools", "vision"],
-        "capabilities": {
-          "reasoning": {
-            "status": "known", "score": 0.59, "conservative": 0.57, "confidence": "high",
-            "assessed_at": "2026-07-31", "evidence": ["https://artificialanalysis.ai/articles/gpt-5-6-has-landed"]
-          },
-          "implementation": {
-            "status": "known", "score": 0.73, "conservative": 0.71, "confidence": "high",
-            "assessed_at": "2026-07-31", "evidence": ["https://deepswe.datacurve.ai/"]
-          },
-          "agentic": {
-            "status": "known", "score": 0.9, "conservative": 0.84, "confidence": "medium",
-            "assessed_at": "2026-07-31", "evidence": ["https://arena.ai/leaderboard/agent?stream=top"]
-          },
-          "ui": {
-            "status": "known", "score": 0.85, "conservative": 0.8, "confidence": "medium",
-            "assessed_at": "2026-07-31", "evidence": ["https://arena.ai/leaderboard?category=webdev"]
-          },
-          "spatial-3d": {
-            "status": "known", "score": 0.84, "conservative": 0.78, "confidence": "medium",
-            "assessed_at": "2026-07-31", "evidence": ["https://www.designarena.ai/leaderboard"]
-          }
+      "economics": {
+        "task_cost_usd": {
+          "value": 8.39,
+          "basis": "DeepSWE",
+          "assessed_at": "2026-07-31",
+          "source": "https://deepswe.datacurve.ai/"
         },
-        "economics": {
-          "task_cost_usd": { "value": 8.39, "basis": "DeepSWE", "assessed_at": "2026-07-31", "source": "https://deepswe.datacurve.ai/" },
-          "output_tokens_per_second": { "value": 70, "basis": "xhigh proxy", "assessed_at": "2026-07-31", "source": "https://artificialanalysis.ai/models/gpt-5-6-sol-xhigh/" }
+        "output_tokens_per_second": {
+          "value": 70,
+          "basis": "xhigh proxy",
+          "assessed_at": "2026-07-31",
+          "source": "https://artificialanalysis.ai/models/gpt-5-6-sol-xhigh/"
+        }
+      }
+    },
+    "codex/gpt-5.6-sol/xhigh": {
+      "launch": {
+        "agent": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "xhigh"
+      },
+      "features": [
+        "tools",
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.58,
+          "conservative": 0.56,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-5-6-sol-xhigh/"
+          ]
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.73,
+          "conservative": 0.7,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://deepswe.datacurve.ai/"
+          ]
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.9,
+          "conservative": 0.86,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard/agent?stream=top"
+          ]
+        },
+        "ui": {
+          "status": "known",
+          "score": 0.85,
+          "conservative": 0.82,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard?category=webdev"
+          ]
+        },
+        "spatial-3d": {
+          "status": "known",
+          "score": 0.84,
+          "conservative": 0.8,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://www.designarena.ai/leaderboard"
+          ]
         }
       },
-      "codex/gpt-5.6-sol/xhigh": {
-        "launch": { "agent": "codex", "model": "gpt-5.6-sol", "effort": "xhigh" },
-        "features": ["tools", "vision"],
-        "capabilities": {
-          "reasoning": {
-            "status": "known", "score": 0.58, "conservative": 0.56, "confidence": "high",
-            "assessed_at": "2026-07-31", "evidence": ["https://artificialanalysis.ai/models/gpt-5-6-sol-xhigh/"]
-          },
-          "implementation": {
-            "status": "known", "score": 0.73, "conservative": 0.7, "confidence": "medium",
-            "assessed_at": "2026-07-31", "evidence": ["https://deepswe.datacurve.ai/"]
-          },
-          "agentic": {
-            "status": "known", "score": 0.9, "conservative": 0.86, "confidence": "high",
-            "assessed_at": "2026-07-31", "evidence": ["https://arena.ai/leaderboard/agent?stream=top"]
-          },
-          "ui": {
-            "status": "known", "score": 0.85, "conservative": 0.82, "confidence": "high",
-            "assessed_at": "2026-07-31", "evidence": ["https://arena.ai/leaderboard?category=webdev"]
-          },
-          "spatial-3d": {
-            "status": "known", "score": 0.84, "conservative": 0.8, "confidence": "medium",
-            "assessed_at": "2026-07-31", "evidence": ["https://www.designarena.ai/leaderboard"]
-          }
+      "economics": {
+        "task_cost_usd": {
+          "value": 8.39,
+          "basis": "DeepSWE max proxy",
+          "assessed_at": "2026-07-31",
+          "source": "https://deepswe.datacurve.ai/"
         },
-        "economics": {
-          "task_cost_usd": { "value": 8.39, "basis": "DeepSWE max proxy", "assessed_at": "2026-07-31", "source": "https://deepswe.datacurve.ai/" },
-          "output_tokens_per_second": { "value": 70, "basis": "Artificial Analysis", "assessed_at": "2026-07-31", "source": "https://artificialanalysis.ai/models/gpt-5-6-sol-xhigh/" }
+        "output_tokens_per_second": {
+          "value": 70,
+          "basis": "Artificial Analysis",
+          "assessed_at": "2026-07-31",
+          "source": "https://artificialanalysis.ai/models/gpt-5-6-sol-xhigh/"
+        }
+      }
+    },
+    "codex/gpt-5.6-sol/high": {
+      "launch": {
+        "agent": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      },
+      "features": [
+        "tools",
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.56,
+          "conservative": 0.54,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-5-6-sol-high"
+          ]
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.68,
+          "conservative": 0.64,
+          "confidence": "low",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-5-6-sol-high"
+          ]
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.75,
+          "conservative": 0.7,
+          "confidence": "low",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-5-6-sol-high"
+          ]
+        },
+        "ui": {
+          "status": "known",
+          "score": 0.78,
+          "conservative": 0.74,
+          "confidence": "low",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard?category=webdev"
+          ]
         }
       },
-      "codex/gpt-5.6-sol/high": {
-        "launch": { "agent": "codex", "model": "gpt-5.6-sol", "effort": "high" },
-        "features": ["tools", "vision"],
-        "capabilities": {
-          "reasoning": {
-            "status": "known", "score": 0.56, "conservative": 0.54, "confidence": "high",
-            "assessed_at": "2026-07-31", "evidence": ["https://artificialanalysis.ai/models/gpt-5-6-sol-high"]
-          },
-          "implementation": {
-            "status": "known", "score": 0.68, "conservative": 0.64, "confidence": "low",
-            "assessed_at": "2026-07-31", "evidence": ["https://artificialanalysis.ai/models/gpt-5-6-sol-high"]
-          },
-          "agentic": {
-            "status": "known", "score": 0.75, "conservative": 0.7, "confidence": "low",
-            "assessed_at": "2026-07-31", "evidence": ["https://artificialanalysis.ai/models/gpt-5-6-sol-high"]
-          },
-          "ui": {
-            "status": "known", "score": 0.78, "conservative": 0.74, "confidence": "low",
-            "assessed_at": "2026-07-31", "evidence": ["https://arena.ai/leaderboard?category=webdev"]
-          }
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 63,
+          "basis": "Artificial Analysis",
+          "assessed_at": "2026-07-31",
+          "source": "https://artificialanalysis.ai/models/gpt-5-6-sol-high"
+        }
+      }
+    },
+    "codex/gpt-5.6-terra/max": {
+      "launch": {
+        "agent": "codex",
+        "model": "gpt-5.6-terra",
+        "effort": "max"
+      },
+      "features": [
+        "tools",
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.55,
+          "conservative": 0.53,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-5-6-terra"
+          ]
         },
-        "economics": {
-          "output_tokens_per_second": { "value": 63, "basis": "Artificial Analysis", "assessed_at": "2026-07-31", "source": "https://artificialanalysis.ai/models/gpt-5-6-sol-high" }
+        "implementation": {
+          "status": "known",
+          "score": 0.7,
+          "conservative": 0.68,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://deepswe.datacurve.ai/"
+          ]
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.64,
+          "conservative": 0.6,
+          "confidence": "low",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-5-6-terra"
+          ]
         }
       },
-      "codex/gpt-5.6-terra/max": {
-        "launch": { "agent": "codex", "model": "gpt-5.6-terra", "effort": "max" },
-        "features": ["tools", "vision"],
-        "capabilities": {
-          "reasoning": {
-            "status": "known", "score": 0.55, "conservative": 0.53, "confidence": "high",
-            "assessed_at": "2026-07-31", "evidence": ["https://artificialanalysis.ai/models/gpt-5-6-terra"]
-          },
-          "implementation": {
-            "status": "known", "score": 0.7, "conservative": 0.68, "confidence": "high",
-            "assessed_at": "2026-07-31", "evidence": ["https://deepswe.datacurve.ai/"]
-          },
-          "agentic": {
-            "status": "known", "score": 0.64, "conservative": 0.6, "confidence": "low",
-            "assessed_at": "2026-07-31", "evidence": ["https://artificialanalysis.ai/models/gpt-5-6-terra"]
-          }
+      "economics": {
+        "task_cost_usd": {
+          "value": 4.95,
+          "basis": "DeepSWE",
+          "assessed_at": "2026-07-31",
+          "source": "https://deepswe.datacurve.ai/"
         },
-        "economics": {
-          "task_cost_usd": { "value": 4.95, "basis": "DeepSWE", "assessed_at": "2026-07-31", "source": "https://deepswe.datacurve.ai/" },
-          "output_tokens_per_second": { "value": 136, "basis": "Artificial Analysis", "assessed_at": "2026-07-31", "source": "https://artificialanalysis.ai/models/gpt-5-6-terra" }
+        "output_tokens_per_second": {
+          "value": 136,
+          "basis": "Artificial Analysis",
+          "assessed_at": "2026-07-31",
+          "source": "https://artificialanalysis.ai/models/gpt-5-6-terra"
+        }
+      }
+    },
+    "codex/gpt-5.6-luna/max": {
+      "launch": {
+        "agent": "codex",
+        "model": "gpt-5.6-luna",
+        "effort": "max"
+      },
+      "features": [
+        "tools",
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.51,
+          "conservative": 0.49,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-5-6-luna"
+          ]
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.67,
+          "conservative": 0.65,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://deepswe.datacurve.ai/"
+          ]
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.59,
+          "conservative": 0.55,
+          "confidence": "low",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-5-6-luna"
+          ]
         }
       },
-      "codex/gpt-5.6-luna/max": {
-        "launch": { "agent": "codex", "model": "gpt-5.6-luna", "effort": "max" },
-        "features": ["tools", "vision"],
-        "capabilities": {
-          "reasoning": {
-            "status": "known", "score": 0.51, "conservative": 0.49, "confidence": "high",
-            "assessed_at": "2026-07-31", "evidence": ["https://artificialanalysis.ai/models/gpt-5-6-luna"]
-          },
-          "implementation": {
-            "status": "known", "score": 0.67, "conservative": 0.65, "confidence": "high",
-            "assessed_at": "2026-07-31", "evidence": ["https://deepswe.datacurve.ai/"]
-          },
-          "agentic": {
-            "status": "known", "score": 0.59, "conservative": 0.55, "confidence": "low",
-            "assessed_at": "2026-07-31", "evidence": ["https://artificialanalysis.ai/models/gpt-5-6-luna"]
-          }
+      "economics": {
+        "task_cost_usd": {
+          "value": 3.03,
+          "basis": "DeepSWE",
+          "assessed_at": "2026-07-31",
+          "source": "https://deepswe.datacurve.ai/"
         },
-        "economics": {
-          "task_cost_usd": { "value": 3.03, "basis": "DeepSWE", "assessed_at": "2026-07-31", "source": "https://deepswe.datacurve.ai/" },
-          "output_tokens_per_second": { "value": 188, "basis": "Artificial Analysis", "assessed_at": "2026-07-31", "source": "https://artificialanalysis.ai/models/gpt-5-6-luna" }
+        "output_tokens_per_second": {
+          "value": 188,
+          "basis": "Artificial Analysis",
+          "assessed_at": "2026-07-31",
+          "source": "https://artificialanalysis.ai/models/gpt-5-6-luna"
+        }
+      }
+    },
+    "opencode/kimi-for-coding/k3/max": {
+      "launch": {
+        "agent": "opencode",
+        "model": "kimi-for-coding/k3",
+        "effort": "max"
+      },
+      "features": [
+        "tools",
+        "vision",
+        "video",
+        "long-context"
+      ],
+      "context": 1048576,
+      "context_evidence": "https://www.kimi.com/code/docs/en/kimi-code/models.html",
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.57,
+          "conservative": 0.55,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/models/kimi-k3"
+          ]
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.69,
+          "conservative": 0.67,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://deepswe.datacurve.ai/"
+          ]
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.82,
+          "conservative": 0.75,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard/agent?stream=top"
+          ]
+        },
+        "ui": {
+          "status": "known",
+          "score": 0.94,
+          "conservative": 0.9,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard?category=webdev"
+          ]
+        },
+        "spatial-3d": {
+          "status": "known",
+          "score": 0.95,
+          "conservative": 0.92,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://www.designarena.ai/leaderboard"
+          ]
         }
       },
-      "opencode/kimi-for-coding/k3/max": {
-        "launch": { "agent": "opencode", "model": "kimi-for-coding/k3", "effort": "max" },
-        "features": ["tools", "vision", "video", "long-context"],
-        "context": 1048576,
-        "context_evidence": "https://www.kimi.com/code/docs/en/kimi-code/models.html",
-        "capabilities": {
-          "reasoning": {
-            "status": "known", "score": 0.57, "conservative": 0.55, "confidence": "high",
-            "assessed_at": "2026-07-31", "evidence": ["https://artificialanalysis.ai/models/kimi-k3"]
-          },
-          "implementation": {
-            "status": "known", "score": 0.69, "conservative": 0.67, "confidence": "high",
-            "assessed_at": "2026-07-31", "evidence": ["https://deepswe.datacurve.ai/"]
-          },
-          "agentic": {
-            "status": "known", "score": 0.82, "conservative": 0.75, "confidence": "medium",
-            "assessed_at": "2026-07-31", "evidence": ["https://arena.ai/leaderboard/agent?stream=top"]
-          },
-          "ui": {
-            "status": "known", "score": 0.94, "conservative": 0.9, "confidence": "high",
-            "assessed_at": "2026-07-31", "evidence": ["https://arena.ai/leaderboard?category=webdev"]
-          },
-          "spatial-3d": {
-            "status": "known", "score": 0.95, "conservative": 0.92, "confidence": "medium",
-            "assessed_at": "2026-07-31", "evidence": ["https://www.designarena.ai/leaderboard"]
-          }
+      "economics": {
+        "task_cost_usd": {
+          "value": 4.65,
+          "basis": "DeepSWE",
+          "assessed_at": "2026-07-31",
+          "source": "https://deepswe.datacurve.ai/"
         },
-        "economics": {
-          "task_cost_usd": { "value": 4.65, "basis": "DeepSWE", "assessed_at": "2026-07-31", "source": "https://deepswe.datacurve.ai/" },
-          "output_tokens_per_second": { "value": 32, "basis": "Artificial Analysis", "assessed_at": "2026-07-31", "source": "https://artificialanalysis.ai/models/kimi-k3" }
+        "output_tokens_per_second": {
+          "value": 32,
+          "basis": "Artificial Analysis",
+          "assessed_at": "2026-07-31",
+          "source": "https://artificialanalysis.ai/models/kimi-k3"
+        }
+      }
+    },
+    "claude/claude-opus-5/high": {
+      "launch": {
+        "agent": "claude",
+        "model": "claude-opus-5",
+        "effort": "high"
+      },
+      "features": [
+        "tools",
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.59,
+          "conservative": 0.57,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-opus-5-high"
+          ]
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.74,
+          "conservative": 0.68,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://deepswe.datacurve.ai/"
+          ]
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.88,
+          "conservative": 0.82,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/evaluations/aa-briefcase"
+          ]
+        },
+        "ui": {
+          "status": "known",
+          "score": 0.96,
+          "conservative": 0.92,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard?category=webdev"
+          ]
+        },
+        "spatial-3d": {
+          "status": "known",
+          "score": 0.78,
+          "conservative": 0.72,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://www.designarena.ai/leaderboard"
+          ]
         }
       },
-      "claude/claude-opus-5/high": {
-        "launch": { "agent": "claude", "model": "claude-opus-5", "effort": "high" },
-        "features": ["tools", "vision"],
-        "capabilities": {
-          "reasoning": {
-            "status": "known", "score": 0.59, "conservative": 0.57, "confidence": "high",
-            "assessed_at": "2026-07-31", "evidence": ["https://artificialanalysis.ai/models/claude-opus-5-high"]
-          },
-          "implementation": {
-            "status": "known", "score": 0.74, "conservative": 0.68, "confidence": "medium",
-            "assessed_at": "2026-07-31", "evidence": ["https://deepswe.datacurve.ai/"]
-          },
-          "agentic": {
-            "status": "known", "score": 0.88, "conservative": 0.82, "confidence": "medium",
-            "assessed_at": "2026-07-31", "evidence": ["https://artificialanalysis.ai/evaluations/aa-briefcase"]
-          },
-          "ui": {
-            "status": "known", "score": 0.96, "conservative": 0.92, "confidence": "high",
-            "assessed_at": "2026-07-31", "evidence": ["https://arena.ai/leaderboard?category=webdev"]
-          },
-          "spatial-3d": {
-            "status": "known", "score": 0.78, "conservative": 0.72, "confidence": "medium",
-            "assessed_at": "2026-07-31", "evidence": ["https://www.designarena.ai/leaderboard"]
-          }
+      "economics": {
+        "task_cost_usd": {
+          "value": 11.84,
+          "basis": "DeepSWE max proxy",
+          "assessed_at": "2026-07-31",
+          "source": "https://deepswe.datacurve.ai/"
         },
-        "economics": {
-          "task_cost_usd": { "value": 11.84, "basis": "DeepSWE max proxy", "assessed_at": "2026-07-31", "source": "https://deepswe.datacurve.ai/" },
-          "output_tokens_per_second": { "value": 56, "basis": "Artificial Analysis", "assessed_at": "2026-07-31", "source": "https://artificialanalysis.ai/models/claude-opus-5-high" }
+        "output_tokens_per_second": {
+          "value": 56,
+          "basis": "Artificial Analysis",
+          "assessed_at": "2026-07-31",
+          "source": "https://artificialanalysis.ai/models/claude-opus-5-high"
+        }
+      }
+    },
+    "grok/grok-4.5/high": {
+      "launch": {
+        "agent": "grok",
+        "model": "grok-4.5",
+        "effort": "high"
+      },
+      "features": [
+        "tools",
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.54,
+          "conservative": 0.52,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/models/grok-4-5/"
+          ]
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.54,
+          "conservative": 0.53,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://deepswe.datacurve.ai/"
+          ]
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.62,
+          "conservative": 0.58,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard/agent?stream=top"
+          ]
+        },
+        "ui": {
+          "status": "known",
+          "score": 0.7,
+          "conservative": 0.65,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard?category=webdev"
+          ]
         }
       },
-      "grok/grok-4.5/high": {
-        "launch": { "agent": "grok", "model": "grok-4.5", "effort": "high" },
-        "features": ["tools", "vision"],
-        "capabilities": {
-          "reasoning": {
-            "status": "known", "score": 0.54, "conservative": 0.52, "confidence": "high",
-            "assessed_at": "2026-07-31", "evidence": ["https://artificialanalysis.ai/models/grok-4-5/"]
-          },
-          "implementation": {
-            "status": "known", "score": 0.54, "conservative": 0.53, "confidence": "high",
-            "assessed_at": "2026-07-31", "evidence": ["https://deepswe.datacurve.ai/"]
-          },
-          "agentic": {
-            "status": "known", "score": 0.62, "conservative": 0.58, "confidence": "medium",
-            "assessed_at": "2026-07-31", "evidence": ["https://arena.ai/leaderboard/agent?stream=top"]
-          },
-          "ui": {
-            "status": "known", "score": 0.7, "conservative": 0.65, "confidence": "medium",
-            "assessed_at": "2026-07-31", "evidence": ["https://arena.ai/leaderboard?category=webdev"]
-          }
+      "economics": {
+        "task_cost_usd": {
+          "value": 2.42,
+          "basis": "DeepSWE",
+          "assessed_at": "2026-07-31",
+          "source": "https://deepswe.datacurve.ai/"
         },
-        "economics": {
-          "task_cost_usd": { "value": 2.42, "basis": "DeepSWE", "assessed_at": "2026-07-31", "source": "https://deepswe.datacurve.ai/" },
-          "output_tokens_per_second": { "value": 67, "basis": "Artificial Analysis", "assessed_at": "2026-07-31", "source": "https://artificialanalysis.ai/models/grok-4-5/" }
+        "output_tokens_per_second": {
+          "value": 67,
+          "basis": "Artificial Analysis",
+          "assessed_at": "2026-07-31",
+          "source": "https://artificialanalysis.ai/models/grok-4-5/"
         }
       }
     }

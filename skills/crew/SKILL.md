@@ -1,6 +1,6 @@
 ---
 name: crew
-description: Assign Commander, Captain, and Worker ownership, and select research-backed agent, model, and effort combinations for spawned owners. Use when the user asks an agent to act as or become Commander, Captain, or Worker; asks Commander to take command of a Captain; or asks to view, diagnose, or modify Crew routing configuration.
+description: Assign Commander, Captain, and Worker ownership, and judge research-informed agent, model, and effort picks for spawned owners. Use when the user asks an agent to act as or become Commander, Captain, or Worker; asks to spawn or delegate a Captain or Worker, or to choose which agent, model, or effort should own a task; asks Commander to take command of a Captain; asks to retire a finished owner or clean up its terminals and worktree; or asks to view, diagnose, or modify Crew routing configuration.
 ---
 
 # Crew
@@ -11,9 +11,8 @@ Crew adds roles and routes. Beads hold durable work; Orca holds coordination sta
 
 - Commander is optional. Without one, Captains and direct Workers report to the user.
 - The user or Commander may assign Captains and direct Workers.
-- A Captain owns one front that needs design, decomposition, or integration and assigns only Workers.
-- A Worker owns one bounded outcome.
 - Every assignment names one `reports_to`: `user`, `commander`, or `captain`.
+- Role responsibilities and boundaries live in the role contracts below, nowhere else.
 - Orca owns coordination, terminals, and worktrees.
 - Name each Crew Orca tab `<Role> - <work summary>` so the role is visible at a glance (for example `Commander - multi-front status`, `Captain - payments integration`, `Worker - fix flaky auth tests`). Role is `Commander`, `Captain`, or `Worker`; the second part is a short human label for the work.
 
@@ -25,11 +24,11 @@ Read the role contract for the role being performed:
 
 ## View or modify configuration
 
-For requests to inspect, explain, add, change, or remove routing configuration, read [Configuration](references/configuration.md) before acting. Use the bundled helpers: `config.py` owns persisted layers and exact-route provenance; `router.py` compiles task-fit policy and research evidence.
+For requests to inspect, explain, add, change, or remove routing configuration, read [Configuration](references/configuration.md) before acting. Use the bundled helpers: `config.py` owns persisted layers and exact-route provenance; `router.py` compiles the routing brief from research evidence, configured candidates, and user preferences.
 
-For a view, report both exact routes and compiled task-fit routing against the relevant repository. For a change, inspect the current layers, write only the user-selected `global`, `repo`, or `machine-repo` scope through `config.py`, then rerun both reports and a representative decision. Preserve untouched routes and routing patches. Use `delete` only for an explicit layer-removal request after confirmation.
+For a view, report the exact-route report and the routing brief against the relevant repository. For a change, inspect the current layers, write only the user-selected `global`, `repo`, or `machine-repo` scope through `config.py`, then regenerate both and confirm the brief states the requested preference, candidate, or route. Preserve untouched routes, preferences, and candidate overrides. Use `delete` only for an explicit layer-removal request after confirmation.
 
-**Complete when:** a view shows effective exact routes and task-fit policy with provenance, or a change is validated in its intended scope and produces the requested effective decision.
+**Complete when:** a view shows effective exact routes and the routing brief with provenance, or a change is validated in its intended scope and visible in the regenerated brief.
 
 ## Direct role
 
@@ -41,24 +40,33 @@ Load `orchestration` when the role delegates or supervises durable work, and `or
 
 ## Spawn an owner
 
-Choose by task fit unless the user explicitly requests an exact configured route or candidate. Coordination role does not imply model strength. Express the Captain's judgment as one configured semantic specialization plus only the capability, feature, selection-mode, priority, continuity, or allowlist overrides materially required by the work. A specialization is a closed configured identifier, not a label coined from task prose; the built-ins are `architecture`, `planning`, `implementation`, `debugging`, `review`, `ui-product`, `spatial-3d`, and `trivial`. Classify test work by its outcome: use `implementation` to write or change tests, `review` to evaluate tests or coverage, and `debugging` to reproduce or repair a failure. If no configured specialization fits, omit `specialization` and supply explicit `needs` instead of probing names. Specializations never name a model. Every selection mode optimizes within the chosen specialization's needs profile, so a misclassified specialization caps the result even under `best-quality`; re-check the classification for outcomes with write authority or unusually hard reasoning. Map “best possible regardless of cost” to `best-quality` and “cheapest good enough” to `cheapest-sufficient`, applied to the outcomes the phrase was about; otherwise retain the specialization default. An unsettled mode is its own open question—an answer that resolves a different blocker leaves it open, so re-ask before spending on a mode the principal did not choose.
+The spawning owner—not a script—decides which agent, model, and effort each spawned owner gets. Use a configured exact route when the user asked for one; otherwise judge the work and pick a candidate from the routing brief. Coordination role does not imply model strength.
 
-Write that judgment as a routing request, then select with live quota and pipe the decision into the assignment helper. Run this pipeline once per spawned owner: each owner gets a fresh routing request carrying its own specialization or needs and an independent decision—one owner's route never determines another's.
+Generate the brief with live quota and read it. One brief serves the whole spawning session—reuse it across owners and regenerate only after a configuration change or when the brief's printed quota capture time is more than 30 minutes old:
 
 ```sh
-python3 <crew-skill-dir>/scripts/router.py choose --repo <root> \
-  --request-file <request.json> --quota-axi --compact |
+python3 <crew-skill-dir>/scripts/router.py brief --repo <root> --quota-axi
+```
+
+The brief carries what the session does not otherwise know: the user's routing preferences by scope, configured exact routes, and every launchable candidate with research evidence, task cost, speed, features, context capacity, and current quota. Judge each outcome on the dimensions the evidence covers—reasoning depth, implementation demands, agentic repository work, UI or spatial character—plus risk: how expensive a wrong result is, and whether the owner holds write authority. Choose the cheaper, quota-lighter candidate—as the brief defines quota-lighter—whenever it has no material task-relevant disadvantage. Spend premium capability only when the capability difference matters to the cost of being wrong, and let the rationale for an expensive pick name why cheaper candidates were insufficient. Preferences bind: resolve conflicts by the precedence order the brief states, and when applicability stays genuinely ambiguous, ask the principal instead of inventing precedence. Low-confidence or dated evidence and quota warnings belong in the rationale, not silently absorbed.
+
+Identify the outcome's hard requirements—vision, long context, a minimum context size—and pass any that exist to `check` via `--require-feature` and `--minimum-context`. Validate the pick against hard gates and record the judgment, then feed the decision into the assignment helper. Run the check-and-assign pipeline once per spawned owner: each owner gets its own judgment, rationale, and decision—one owner's pick never determines another's. The generated spec records the check's warnings and quota; when they materially contradict the judgment—quota far below what the brief showed, an unexplained warning—re-judge before dispatching instead of launching anyway.
+
+```sh
+python3 <crew-skill-dir>/scripts/router.py check --repo <root> \
+  --candidate <id> --reason "<the task judgment behind this pick>" \
+  --quota-axi --compact |
 python3 <crew-skill-dir>/scripts/assignment.py --decision-json - \
   --title "<outcome>" --front-key <run>/<front> \
   --role captain|worker --reports-to user|commander|captain \
   --bead <id>
 ```
 
-The request must name `role` and either the selected `specialization` or explicit `needs`. Use `exact_route` for a configured v2/v3 route, or `pin` with a candidate ID and reason for an explicit user override; hard runtime gates still apply to pins. Treat `no-route` as a decision requiring different requirements, more research, or an explicit override—do not silently launch an insufficient candidate. If quota-axi fails, surface its failure; omit live quota only after the principal accepts unknown quota.
+Use `check --exact-route <route-id>` for a configured route. `check` enforces only hard gates—disabled candidates, missing required features or context, authentication, exhausted quota—and refuses with reasons instead of substituting its own pick; answer a refusal by re-judging or surfacing the gate to the principal, never by launching the refused candidate directly. If quota-axi fails, surface its failure; omit live quota only after the principal accepts unknown quota.
 
 Use `--request "<verbatim user request>"` instead of `--bead` only when the spawned owner must establish the first Bead. Launch the selected candidate, then use Orca to dispatch the generated title and spec. Name the owner's Orca tab `<Role> - <work summary>` per Ownership.
 
-**Complete when:** the owner has the intended role, principal, work pointer, route provenance from a selector decision whose request names that owner's own specialization or needs, live Orca dispatch when supervision is required, a role-prefixed Orca tab name, and tracked pointers for the Orca resources created by the assignment.
+**Complete when:** the owner has the intended role, principal, work pointer, a gate-checked launch decision recorded with the spawning owner's rationale for a judged pick or route provenance for an exact pick, live Orca dispatch when supervision is required, a role-prefixed Orca tab name, and tracked pointers for the Orca resources created by the assignment.
 
 ## Retire an owner
 

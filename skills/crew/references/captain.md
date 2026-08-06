@@ -10,11 +10,11 @@ Use the assigned Bead when one exists; otherwise use the current request as the 
 
 ## Decompose and dispatch
 
-Create Worker-owned outcomes that are bounded, independently checkable, and fully described by their Beads. For each outcome, express the task-fit judgment and use the selector in `SKILL.md`, then delegate the returned candidate through Orca.
+Create Worker-owned outcomes that are bounded, independently checkable, and fully described by their Beads. For each outcome, judge it against the routing brief and use the spawn process in `SKILL.md`, then delegate the checked candidate through Orca.
 
 Captain assigns only Workers. Return a separate Captain-shaped front to the principal—the user or Commander—for ownership.
 
-**Complete when:** every necessary outcome has one Worker routed by a selector decision whose request names that outcome's own specialization or needs, and the dependency order is represented once in Orca.
+**Complete when:** every necessary outcome has one Worker launched from a gate-checked decision carrying that outcome's own recorded rationale, and the dependency order is represented once in Orca.
 
 ## Communicate
 

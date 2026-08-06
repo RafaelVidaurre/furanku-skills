@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for research-backed Crew task-fit routing."""
+"""Tests for the Crew routing brief and launch gate-check."""
 
 import json
 import os
@@ -28,12 +28,12 @@ class RouterTest(unittest.TestCase):
         self.env["HOME"] = str(self.home)
         self.env["PYTHONDONTWRITEBYTECODE"] = "1"
         config = {
-            "version": 2,
+            "version": 4,
             "routes": {
                 "captain": {
                     "agent": "codex",
                     "model": "gpt-5.6-sol",
-                    "effort": "max",
+                    "effort": "xhigh",
                 },
                 "worker": {
                     "agent": "grok",
@@ -41,6 +41,11 @@ class RouterTest(unittest.TestCase):
                     "effort": "high",
                 },
             },
+            "preferences": [
+                "Captains default to gpt-5.6-sol at xhigh.",
+                "For the most complex architecture or systems design, use "
+                "claude-fable-5[1m] or gpt-5.6-sol at max.",
+            ],
         }
         path = self.home / ".furanku-skills" / "commander" / "config.json"
         path.parent.mkdir(parents=True)
@@ -49,302 +54,435 @@ class RouterTest(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
-    def choose(self, request, runtime=None):
-        request_path = self.base / "request.json"
-        request_path.write_text(json.dumps(request), encoding="utf-8")
-        args = [
-            sys.executable,
-            str(SCRIPT),
-            "choose",
-            "--repo",
-            str(self.repo),
-            "--request-file",
-            str(request_path),
-        ]
+    def run_router(self, *args, runtime=None, expect_code=0):
+        command = [sys.executable, str(SCRIPT), *args, "--repo", str(self.repo)]
         if runtime is not None:
             runtime_path = self.base / "runtime.json"
             runtime_path.write_text(json.dumps(runtime), encoding="utf-8")
-            args += ["--runtime-file", str(runtime_path)]
+            command += ["--runtime-file", str(runtime_path)]
         result = subprocess.run(
-            args,
-            capture_output=True,
-            text=True,
-            env=self.env,
-            check=False,
+            command, capture_output=True, text=True, env=self.env, check=False
         )
-        if result.returncode:
+        if result.returncode != expect_code:
             self.fail(
                 f"{result.args}\nstdout: {result.stdout}\nstderr: {result.stderr}"
             )
+        return result
+
+    def check(self, *args, runtime=None, expect_code=0):
+        result = self.run_router(
+            "check", *args, runtime=runtime, expect_code=expect_code
+        )
         return json.loads(result.stdout)
 
-    def test_selects_cheapest_sufficient_implementation_candidate(self):
-        decision = self.choose(
-            {"role": "worker", "specialization": "implementation"}
+    def write_repo_layer(self, config):
+        path = self.repo / ".furanku-skills" / "commander" / "config.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(config), encoding="utf-8")
+
+    def test_brief_shows_preferences_with_scope_tags(self):
+        brief = self.run_router("brief").stdout
+        self.assertIn("## User preferences", brief)
+        self.assertIn("- (global) Captains default to gpt-5.6-sol at xhigh.", brief)
+        self.assertIn("claude-fable-5[1m] or gpt-5.6-sol at max", brief)
+
+    def test_brief_shows_exact_routes_and_candidate_evidence(self):
+        brief = self.run_router("brief").stdout
+        self.assertIn("| captain | codex | gpt-5.6-sol | xhigh | global |", brief)
+        self.assertIn("claude/claude-fable-5[1m]/high", brief)
+        self.assertIn("## Evidence", brief)
+        self.assertIn("https://deepswe.datacurve.ai/", brief)
+        self.assertIn("## Evidence methodology", brief)
+
+    def test_brief_accumulates_preferences_across_layers(self):
+        self.write_repo_layer(
+            {
+                "version": 4,
+                "routes": {},
+                "preferences": ["In this repo, prefer terra for bulk edits."],
+            }
+        )
+        brief = self.run_router("brief").stdout
+        self.assertIn("- (global) Captains default", brief)
+        self.assertIn("- (repo) In this repo, prefer terra for bulk edits.", brief)
+
+    def test_brief_marks_disabled_candidates(self):
+        self.write_repo_layer(
+            {
+                "version": 4,
+                "routes": {},
+                "candidates": {"codex/gpt-5.6-luna/max": {"enabled": False}},
+            }
+        )
+        brief = self.run_router("brief").stdout
+        self.assertIn(
+            "Disabled by configuration: codex/gpt-5.6-luna/max", brief
+        )
+        self.assertNotIn("| codex/gpt-5.6-luna/max |", brief)
+
+    def test_brief_json_carries_candidates_preferences_and_layers(self):
+        payload = json.loads(
+            self.run_router("brief", "--format", "json").stdout
+        )
+        self.assertIn("claude/claude-fable-5[1m]/high", payload["candidates"])
+        self.assertEqual("global", payload["preferences"][0]["scope"])
+        self.assertEqual(
+            "xhigh", payload["routes"]["effective"]["captain"]["effort"]
+        )
+        scopes = [layer["scope"] for layer in payload["layers"]]
+        self.assertEqual(["builtin", "global", "repo", "machine-repo"], scopes)
+
+    def test_check_selects_candidate_and_records_reason(self):
+        decision = self.check(
+            "--candidate",
+            "codex/gpt-5.6-sol/max",
+            "--reason",
+            "Cross-service design; wrong seams are expensive.",
         )
         self.assertEqual("selected", decision["status"])
-        self.assertTrue(decision["sufficient"])
+        self.assertEqual("codex/gpt-5.6-sol/max", decision["selected"]["id"])
+        self.assertEqual("max", decision["selected"]["effort"])
         self.assertEqual(
-            "codex/gpt-5.6-luna/max", decision["selected"]["id"]
+            "Cross-service design; wrong seams are expensive.",
+            decision["reason"],
         )
-        self.assertEqual(0, decision["quality"]["shortfall"])
-        self.assertIn("quota unknown", decision["warnings"])
+        self.assertEqual(["builtin"], decision["sources"])
 
-    def test_role_does_not_change_task_fit_selection(self):
-        worker = self.choose(
-            {"role": "worker", "specialization": "architecture"}
+    def test_check_requires_reason_for_candidate_picks(self):
+        result = self.run_router(
+            "check",
+            "--candidate",
+            "codex/gpt-5.6-sol/max",
+            expect_code=1,
         )
-        captain = self.choose(
-            {"role": "captain", "specialization": "architecture"}
-        )
-        self.assertEqual(worker["selected"]["id"], captain["selected"]["id"])
+        self.assertIn("requires --reason", result.stderr)
 
-    def test_best_quality_selects_strongest_sufficient_candidate(self):
-        decision = self.choose(
+    def test_check_refuses_disabled_candidate(self):
+        self.write_repo_layer(
             {
-                "role": "worker",
-                "specialization": "architecture",
-                "selection_mode": "best-quality",
+                "version": 4,
+                "routes": {},
+                "candidates": {"codex/gpt-5.6-luna/max": {"enabled": False}},
             }
         )
-        self.assertEqual(
-            "claude/claude-fable-5[1m]/high", decision["selected"]["id"]
+        decision = self.check(
+            "--candidate",
+            "codex/gpt-5.6-luna/max",
+            "--reason",
+            "Cheap bulk edit.",
+            expect_code=1,
         )
-        self.assertEqual("best-quality", decision["judgment"]["selection_mode"])
-        self.assertEqual(0.764, decision["quality"]["score"])
-        self.assertEqual("quality", decision["selected_by"][0])
+        self.assertEqual("refused", decision["status"])
+        self.assertIn("disabled by configuration", decision["reasons"])
 
-    def test_cheapest_sufficient_uses_quality_only_after_cost_ties(self):
-        decision = self.choose(
-            {
-                "role": "worker",
-                "specialization": "architecture",
-                "selection_mode": "cheapest-sufficient",
-            }
+    def test_check_refuses_exhausted_quota(self):
+        candidate = "grok/grok-4.5/high"
+        decision = self.check(
+            "--candidate",
+            candidate,
+            "--reason",
+            "Low-risk mechanical change.",
+            runtime={"candidates": {candidate: {"quota": {"status": "exhausted"}}}},
+            expect_code=1,
         )
-        self.assertEqual(
-            "codex/gpt-5.6-sol/xhigh", decision["selected"]["id"]
-        )
-        self.assertEqual(
-            "cheapest-sufficient", decision["judgment"]["selection_mode"]
-        )
-        self.assertEqual("cost", decision["selected_by"][0])
+        self.assertEqual("refused", decision["status"])
+        self.assertIn("quota exhausted", decision["reasons"])
 
-    def test_selection_mode_keeps_runtime_hard_gates(self):
-        fable = "claude/claude-fable-5[1m]/high"
-        decision = self.choose(
-            {
-                "role": "worker",
-                "specialization": "architecture",
-                "selection_mode": "best-quality",
+    def test_check_warns_on_stale_quota_but_selects(self):
+        candidate = "grok/grok-4.5/high"
+        decision = self.check(
+            "--candidate",
+            candidate,
+            "--reason",
+            "Low-risk mechanical change.",
+            runtime={"candidates": {candidate: {"quota": {"status": "stale"}}}},
+        )
+        self.assertEqual("selected", decision["status"])
+        self.assertIn("quota stale", decision["warnings"])
+
+    def test_check_enforces_feature_and_context_gates(self):
+        decision = self.check(
+            "--candidate",
+            "codex/gpt-5.6-luna/max",
+            "--reason",
+            "Needs the full monorepo in context.",
+            "--minimum-context",
+            "800000",
+            expect_code=1,
+        )
+        self.assertIn("context capacity unknown", decision["reasons"])
+        decision = self.check(
+            "--candidate",
+            "codex/gpt-5.6-luna/max",
+            "--reason",
+            "Needs long-context support.",
+            "--require-feature",
+            "long-context",
+            expect_code=1,
+        )
+        self.assertIn("missing features: long-context", decision["reasons"])
+
+    def test_check_unknown_candidate_lists_launchable_ids(self):
+        result = self.run_router(
+            "check",
+            "--candidate",
+            "codex/gpt-9/max",
+            "--reason",
+            "Guessing.",
+            expect_code=1,
+        )
+        self.assertIn("unknown candidate", result.stderr)
+        self.assertIn("claude/claude-fable-5[1m]/high", result.stderr)
+
+    def test_check_exact_route_keeps_provenance(self):
+        decision = self.check("--exact-route", "worker")
+        self.assertEqual("exact", decision["status"])
+        self.assertEqual("grok", decision["selected"]["agent"])
+        self.assertEqual("grok/grok-4.5/high", decision["selected"]["id"])
+        self.assertEqual("global", decision["provenance"]["winner"]["scope"])
+
+    def test_check_exact_route_refuses_exhausted_quota(self):
+        decision = self.check(
+            "--exact-route",
+            "worker",
+            runtime={
+                "harnesses": {"grok": {"quota": {"status": "exhausted"}}}
             },
-            {"candidates": {fable: {"quota": {"status": "exhausted"}}}},
+            expect_code=1,
         )
-        self.assertNotEqual(fable, decision["selected"]["id"])
-        self.assertIn("quota exhausted", decision["rejected"][fable])
+        self.assertEqual("refused", decision["status"])
+        self.assertIn("quota exhausted", decision["reasons"])
 
-    def test_selection_mode_and_custom_priority_are_mutually_exclusive(self):
-        routing = router.read_json(router.CATALOG, "routing catalog")["routing"]
-        with self.assertRaisesRegex(
-            router.Error, "selection_mode cannot be combined with priority"
-        ):
-            router.task_judgment(
-                routing,
-                {
-                    "role": "worker",
-                    "specialization": "implementation",
-                    "selection_mode": "best-quality",
-                    "priority": ["cost"],
-                },
-            )
-
-    def test_unknown_specialization_explains_valid_next_actions(self):
-        routing = router.read_json(router.CATALOG, "routing catalog")["routing"]
-        with self.assertRaises(router.Error) as caught:
-            router.task_judgment(
-                routing,
-                {"role": "worker", "specialization": "testing"},
-            )
-
-        message = str(caught.exception)
-        self.assertIn("unknown specialization: testing", message)
-        configured = ", ".join(sorted(routing["specializations"]))
-        self.assertIn(f"configured specializations: {configured}", message)
-        self.assertIn("omit specialization and supply explicit needs", message)
-
-    def test_runtime_quota_exhaustion_is_a_hard_gate(self):
-        exhausted = "opencode/kimi-for-coding/k3/max"
-        runtime = {
-            "candidates": {
-                exhausted: {"quota": {"status": "exhausted"}}
-            }
-        }
-        decision = self.choose(
-            {"role": "worker", "specialization": "spatial-3d"}, runtime
-        )
-        self.assertNotEqual(exhausted, decision["selected"]["id"])
-        self.assertIn("quota exhausted", decision["rejected"][exhausted])
-
-    def test_minimum_context_hard_gate_uses_only_documented_capacity(self):
-        decision = self.choose(
+    def test_check_exact_route_refuses_disabled_candidate_with_provenance(self):
+        self.write_repo_layer(
             {
-                "role": "worker",
-                "specialization": "implementation",
-                "requires": {"minimum_context": 800000},
+                "version": 4,
+                "routes": {},
+                "candidates": {"grok/grok-4.5/high": {"enabled": False}},
             }
         )
+        decision = self.check("--exact-route", "worker", expect_code=1)
+        self.assertEqual("refused", decision["status"])
+        self.assertIn("disabled by configuration", decision["reasons"])
+        self.assertEqual("global", decision["route_provenance"]["winner"]["scope"])
+        self.assertEqual("grok/grok-4.5/high", decision["candidate"])
+        self.assertEqual(["builtin", "repo"], decision["candidate_sources"])
+
+    def test_check_exact_route_gates_unmatched_routes_by_harness(self):
+        self.write_repo_layer(
+            {
+                "version": 2,
+                "routes": {
+                    "worker.bulk": {
+                        "work": "Bulk edits.",
+                        "agent": "codex",
+                        "model": "gpt-9-experimental",
+                        "effort": "low",
+                    }
+                },
+            }
+        )
+        decision = self.check(
+            "--exact-route",
+            "worker.bulk",
+            runtime={
+                "harnesses": {"codex": {"status": "auth-required"}}
+            },
+            expect_code=1,
+        )
+        self.assertEqual("refused", decision["status"])
+        self.assertIn("runtime status auth-required", decision["reasons"])
+        result = self.run_router(
+            "check",
+            "--exact-route",
+            "worker.bulk",
+            "--require-feature",
+            "vision",
+            expect_code=1,
+        )
+        self.assertIn("matches no configured candidate", result.stderr)
+
+    def test_builtin_defaults_route_without_persisted_layers(self):
+        (self.home / ".furanku-skills" / "commander" / "config.json").unlink()
+        decision = self.check("--exact-route", "worker")
+        self.assertEqual("exact", decision["status"])
+        self.assertEqual("codex", decision["selected"]["agent"])
+        self.assertEqual("gpt-5.6-luna", decision["selected"]["model"])
+        self.assertEqual("builtin", decision["provenance"]["winner"]["scope"])
+
+    def test_layer_candidate_patch_merges_over_builtin(self):
+        self.write_repo_layer(
+            {
+                "version": 4,
+                "routes": {},
+                "candidates": {
+                    "codex/gpt-5.6-sol/max": {
+                        "capabilities": {
+                            "reasoning": {"conservative": 0.6}
+                        }
+                    }
+                },
+            }
+        )
+        payload = json.loads(
+            self.run_router("brief", "--format", "json").stdout
+        )
+        merged = payload["candidates"]["codex/gpt-5.6-sol/max"]
+        self.assertEqual(0.6, merged["capabilities"]["reasoning"]["conservative"])
+        self.assertEqual(0.59, merged["capabilities"]["reasoning"]["score"])
         self.assertEqual(
-            "opencode/kimi-for-coding/k3/max", decision["selected"]["id"]
-        )
-        self.assertIn(
-            "context capacity unknown",
-            decision["rejected"]["codex/gpt-5.6-luna/max"],
+            ["builtin", "repo"],
+            payload["candidate_sources"]["codex/gpt-5.6-sol/max"],
         )
 
-    def test_unknown_required_evidence_returns_no_route_visibly(self):
-        decision = self.choose(
-            {
-                "role": "worker",
-                "summary": "Need direct empathy evidence",
-                "needs": {
-                    "product-empathy": {"minimum": 0.5, "weight": 1}
+    def test_harness_exhaustion_dominates_candidate_quota(self):
+        candidate = "claude/claude-fable-5[1m]/high"
+        decision = self.check(
+            "--candidate",
+            candidate,
+            "--reason",
+            "Top design tier.",
+            runtime={
+                "harnesses": {"claude": {"quota": {"status": "exhausted"}}},
+                "candidates": {
+                    candidate: {
+                        "quota": {
+                            "status": "known",
+                            "effective_percent_remaining": 80,
+                        }
+                    }
                 },
-            }
+            },
+            expect_code=1,
         )
-        self.assertEqual("no-route", decision["status"])
-        self.assertIn("no research-proven", decision["reason"])
+        self.assertEqual("refused", decision["status"])
+        self.assertIn("quota exhausted", decision["reasons"])
 
-    def test_v3_repository_patch_augments_catalog(self):
-        path = self.repo / ".furanku-skills" / "commander" / "config.json"
-        path.parent.mkdir(parents=True)
+    def test_partial_global_layer_briefs_cleanly(self):
+        path = self.home / ".furanku-skills" / "commander" / "config.json"
         path.write_text(
             json.dumps(
                 {
-                    "version": 3,
-                    "routes": {},
-                    "routing": {
-                        "candidates": {
-                            "codex/gpt-5.6-luna/max": {"enabled": False}
+                    "version": 4,
+                    "routes": {
+                        "captain": {
+                            "agent": "codex",
+                            "model": "gpt-5.6-sol",
+                            "effort": "xhigh",
                         }
                     },
                 }
             ),
             encoding="utf-8",
         )
-        decision = self.choose(
-            {"role": "worker", "specialization": "implementation"}
-        )
-        self.assertNotEqual(
-            "codex/gpt-5.6-luna/max", decision["selected"]["id"]
-        )
-        self.assertEqual(
-            ["disabled by configuration"],
-            decision["rejected"]["codex/gpt-5.6-luna/max"],
-        )
-        layers = decision["provenance"]["layers"]
-        repo_layer = next(layer for layer in layers if layer["scope"] == "repo")
-        self.assertEqual(3, repo_layer["version"])
+        brief = self.run_router("brief").stdout
+        self.assertIn("| captain | codex | gpt-5.6-sol | xhigh | global |", brief)
+        self.assertIn("| worker | codex | gpt-5.6-luna | max | builtin |", brief)
 
-    def test_exact_route_keeps_v2_launch_and_provenance(self):
-        decision = self.choose(
-            {"role": "worker", "exact_route": "worker"}
-        )
-        self.assertEqual("exact", decision["status"])
-        self.assertEqual("grok", decision["selected"]["agent"])
-        self.assertEqual(
-            "global", decision["provenance"]["winner"]["scope"]
-        )
-
-    def test_builtin_defaults_route_without_persisted_layers(self):
-        (self.home / ".furanku-skills" / "commander" / "config.json").unlink()
-
-        decision = self.choose({"role": "worker", "exact_route": "worker"})
-        self.assertEqual("exact", decision["status"])
-        self.assertEqual("codex", decision["selected"]["agent"])
-        self.assertEqual("gpt-5.6-luna", decision["selected"]["model"])
-        self.assertEqual("max", decision["selected"]["effort"])
-        self.assertEqual("builtin", decision["provenance"]["winner"]["scope"])
-
-        fit = self.choose(
-            {"role": "worker", "specialization": "implementation"}
-        )
-        self.assertEqual("selected", fit["status"])
-
-    def test_exact_route_must_match_declared_role(self):
-        request_path = self.base / "request.json"
-        request_path.write_text(
-            json.dumps({"role": "worker", "exact_route": "captain"}),
-            encoding="utf-8",
-        )
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPT),
-                "choose",
-                "--repo",
-                str(self.repo),
-                "--request-file",
-                str(request_path),
-            ],
-            capture_output=True,
-            text=True,
-            env=self.env,
-            check=False,
-        )
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn("does not match role 'worker'", result.stderr)
-
-    def test_removed_no_route_policy_remains_fail_closed(self):
-        path = self.repo / ".furanku-skills" / "commander" / "config.json"
-        path.parent.mkdir(parents=True)
-        path.write_text(
-            json.dumps(
-                {
-                    "version": 3,
-                    "routes": {},
-                    "routing": {"policy": {"on_no_sufficient": None}},
-                }
-            ),
-            encoding="utf-8",
-        )
-        decision = self.choose(
+    def test_candidate_tombstone_removes_candidate(self):
+        self.write_repo_layer(
             {
-                "role": "worker",
-                "needs": {
-                    "product-empathy": {"minimum": 0.5, "weight": 1}
-                },
+                "version": 4,
+                "routes": {},
+                "candidates": {"grok/grok-4.5/high": None},
             }
         )
-        self.assertEqual("no-route", decision["status"])
-        self.assertNotEqual("fallback", decision["status"])
+        payload = json.loads(
+            self.run_router("brief", "--format", "json").stdout
+        )
+        self.assertNotIn("grok/grok-4.5/high", payload["candidates"])
+        result = self.run_router(
+            "check",
+            "--candidate",
+            "grok/grok-4.5/high",
+            "--reason",
+            "Cheap pick.",
+            expect_code=1,
+        )
+        self.assertIn("unknown candidate", result.stderr)
 
-    def test_pin_requires_reason_and_keeps_hard_gates(self):
-        candidate = "grok/grok-4.5/high"
-        denied = self.choose(
+    def test_malformed_economics_override_fails_cleanly(self):
+        self.write_repo_layer(
             {
-                "role": "worker",
-                "pin": {
-                    "candidate": candidate,
-                    "reason": "User requested Grok",
-                },
+                "version": 4,
+                "routes": {},
+                "candidates": {"codex/gpt-5.6-sol/max": {"economics": "free"}},
+            }
+        )
+        result = self.run_router("brief", expect_code=1)
+        self.assertIn("economics must be an object", result.stderr)
+
+    def test_rendered_field_overrides_are_validated(self):
+        cases = {
+            "confidence must be a non-empty string": {
+                "capabilities": {"reasoning": {"confidence": 0.9}}
             },
-            {"candidates": {candidate: {"health": "unhealthy"}}},
+            "must be non-negative": {
+                "economics": {"task_cost_usd": {"value": -100}}
+            },
+            "must be positive": {
+                "economics": {"output_tokens_per_second": {"value": -5}}
+            },
+            "string evidence": {
+                "capabilities": {"reasoning": {"evidence": [1, 2]}}
+            },
+            "confidence must be a non-empty str": {
+                "capabilities": {"reasoning": {"confidence": None}}
+            },
+            "must be a finite number": {
+                "economics": {"task_cost_usd": {"value": 10**400}}
+            },
+        }
+        for message, patch in cases.items():
+            with self.subTest(message=message):
+                self.write_repo_layer(
+                    {
+                        "version": 4,
+                        "routes": {},
+                        "candidates": {"codex/gpt-5.6-sol/max": patch},
+                    }
+                )
+                result = self.run_router("brief", expect_code=1)
+                self.assertIn(message, result.stderr)
+
+    def test_malformed_runtime_state_fails_closed(self):
+        candidate = "grok/grok-4.5/high"
+        result = self.run_router(
+            "check",
+            "--candidate",
+            candidate,
+            "--reason",
+            "Cheap pick.",
+            runtime={"candidates": {candidate: ["not-a-dict"]}},
+            expect_code=1,
         )
-        self.assertEqual("no-route", denied["status"])
-        allowed = self.choose(
+        self.assertIn("must be an object", result.stderr)
+        for runtime in (
             {
-                "role": "worker",
-                "pin": {
-                    "candidate": candidate,
-                    "reason": "User requested Grok",
-                },
-            }
-        )
-        self.assertEqual("pinned", allowed["status"])
-        self.assertEqual("User requested Grok", allowed["reason"])
+                "harnesses": {"grok": "broken"},
+                "candidates": {candidate: {"quota": {"status": "known"}}},
+            },
+            {
+                "harnesses": {"grok": {"quota": "broken"}},
+                "candidates": {candidate: {"quota": {"status": "known"}}},
+            },
+            {"harnesses": ["broken"]},
+            {"candidates": "broken"},
+        ):
+            with self.subTest(runtime=runtime):
+                result = self.run_router(
+                    "check",
+                    "--candidate",
+                    candidate,
+                    "--reason",
+                    "Cheap pick.",
+                    runtime=runtime,
+                    expect_code=1,
+                )
+                self.assertIn("must be an object", result.stderr)
 
     def test_quota_axi_adapter_uses_effective_pace_and_skips_kimi(self):
-        routing = router.read_json(router.CATALOG, "routing catalog")["routing"]
+        catalog = router.read_json(router.CATALOG, "routing catalog")
         snapshot = {
             "schemaVersion": 3,
             "generatedAt": "2026-07-31T11:30:17Z",
@@ -374,11 +512,39 @@ class RouterTest(unittest.TestCase):
                 },
             ],
         }
-        runtime = router.quota_axi_runtime(snapshot, routing)
+        runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
         self.assertEqual(0.5, runtime["harnesses"]["codex"]["quota"]["pressure"])
         self.assertEqual(34, runtime["harnesses"]["codex"]["quota"]["effective_percent_remaining"])
-        self.assertNotIn("opencode", runtime["harnesses"])
+        opencode = runtime["harnesses"]["opencode"]["quota"]
+        self.assertEqual("unknown", opencode["status"])
+        self.assertIn("OpenCode K3", opencode["detail"])
         self.assertIn("not assumed", runtime["notes"][0])
+
+    def test_check_surfaces_kimi_credential_detail_in_warning(self):
+        candidate = "opencode/kimi-for-coding/k3/max"
+        decision = self.check(
+            "--candidate",
+            candidate,
+            "--reason",
+            "Spatial 3D outcome; kimi leads that evidence.",
+            runtime={
+                "harnesses": {
+                    "opencode": {
+                        "quota": {
+                            "status": "unknown",
+                            "detail": "local Kimi credentials are not assumed "
+                            "to represent the OpenCode K3 account",
+                        }
+                    }
+                }
+            },
+        )
+        self.assertEqual("selected", decision["status"])
+        self.assertIn(
+            "quota unknown: local Kimi credentials are not assumed to "
+            "represent the OpenCode K3 account",
+            decision["warnings"],
+        )
 
 
 if __name__ == "__main__":

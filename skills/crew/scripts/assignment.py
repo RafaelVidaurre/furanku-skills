@@ -48,13 +48,34 @@ def read_decision(value: str | None) -> dict:
         raise Error(f"invalid --decision-json: {exc}") from exc
     if not isinstance(decision, dict):
         raise Error("--decision-json must be an object")
-    if decision.get("status") not in {"selected", "pinned", "exact", "fallback"}:
+    status = decision.get("status")
+    if status not in {"selected", "exact"}:
         raise Error("routing decision is not launchable")
     selected = decision.get("selected")
     if not isinstance(selected, dict) or any(
-        not selected.get(field) for field in ("agent", "model", "effort")
+        not isinstance(selected.get(field), str) or not selected[field].strip()
+        for field in ("agent", "model", "effort")
     ):
         raise Error("routing decision lacks a launchable selection")
+    if status == "selected":
+        if not isinstance(selected.get("id"), str) or not selected["id"].strip():
+            raise Error("selected decision requires a candidate id")
+        reason = decision.get("reason")
+        if not isinstance(reason, str) or not reason.strip():
+            raise Error("selected decision requires a recorded rationale")
+    else:
+        route = decision.get("exact_route")
+        if not isinstance(route, str) or not route.strip():
+            raise Error("exact decision requires exact_route")
+        provenance = decision.get("provenance")
+        winner = provenance.get("winner") if isinstance(provenance, dict) else None
+        if not isinstance(winner, dict) or any(
+            not isinstance(winner.get(field), str) or not winner[field].strip()
+            for field in ("scope", "path")
+        ):
+            raise Error(
+                "exact decision requires route provenance with winner scope and path"
+            )
     return decision
 
 
@@ -96,13 +117,14 @@ def build_spec(args: argparse.Namespace) -> tuple[str, str]:
     decision = read_decision(args.decision_json)
     if decision:
         selected = decision["selected"]
-        decided_role = decision.get("judgment", {}).get("role")
-        if decided_role is not None and decided_role != args.role:
-            raise Error(
-                f"routing decision role {decided_role!r} does not match "
-                f"assignment role {args.role!r}"
-            )
-        route_id = decision.get("exact_route", "task-fit")
+        if decision["status"] == "exact":
+            route_id = decision["exact_route"]
+            if route_id != args.role and not route_id.startswith(f"{args.role}."):
+                raise Error(
+                    f"exact route {route_id!r} does not match role {args.role!r}"
+                )
+        else:
+            route_id = "judged"
         route_lines = []
     else:
         rows = read_routes(args.routes_json)
@@ -138,21 +160,27 @@ def build_spec(args: argparse.Namespace) -> tuple[str, str]:
         f"Role contract: {contract}",
     ]
     if decision:
-        lines += [
-            f"routing_status: {decision['status']}",
-            f"routing_sufficient: {json.dumps(decision.get('sufficient'))}",
-        ]
+        lines.append(f"routing_status: {decision['status']}")
         if selected.get("id"):
             lines.append(f"candidate: {selected['id']}")
-        specialization = decision.get("judgment", {}).get("specialization")
-        if specialization:
-            lines.append(f"specialization: {specialization}")
-        selection_mode = decision.get("judgment", {}).get("selection_mode")
-        if selection_mode:
-            lines.append(f"selection_mode: {selection_mode}")
+        winner = decision.get("provenance", {}).get("winner")
+        if winner:
+            lines.append(
+                f"route_source: {winner.get('scope')} — {winner.get('path')}"
+            )
         if decision.get("reason"):
             lines.append(
                 f"routing_reason: {json.dumps(decision['reason'], ensure_ascii=False)}"
+            )
+        if decision.get("warnings"):
+            lines.append(
+                "routing_warnings: "
+                + json.dumps(decision["warnings"], ensure_ascii=False)
+            )
+        if decision.get("quota"):
+            lines.append(
+                "routing_quota: "
+                + json.dumps(decision["quota"], ensure_ascii=False, sort_keys=True)
             )
     if args.bead:
         lines += [f"bead: {args.bead}", f"Read Bead {args.bead}: it is the work contract."]

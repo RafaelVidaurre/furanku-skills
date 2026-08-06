@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Choose a Crew harness/model/effort from research-backed task requirements."""
+"""Compile the Crew routing brief and gate-check launch decisions.
+
+The brief hands the spawning agent the information it lacks — candidate
+research evidence, economics, live quota, configured exact routes, and the
+user's routing preferences. The judgment about which candidate fits a task
+belongs to the agent reading the brief; `check` enforces only hard gates.
+"""
 
 from __future__ import annotations
 
@@ -18,14 +24,7 @@ except ModuleNotFoundError:  # pragma: no cover - package import in tests
 
 
 CATALOG = Path(__file__).resolve().parent.parent / "references" / "routing-catalog.json"
-ROLES = ("captain", "worker")
-OBJECTIVES = ("quality", "cost", "latency", "quota", "continuity")
-SELECTION_MODES = {
-    "specialization-default": None,
-    "best-quality": ["quality", "quota", "continuity", "latency", "cost"],
-    "cheapest-sufficient": ["cost", "quota", "continuity", "latency", "quality"],
-}
-DEFAULT_ON_NO_SUFFICIENT = "error"
+DIMENSIONS = ("reasoning", "implementation", "agentic", "ui", "spatial-3d")
 
 
 class Error(Exception):
@@ -42,34 +41,20 @@ def read_json(path: Path, label: str) -> dict:
     return value
 
 
-def pointer(parts: tuple[str, ...]) -> str:
-    if not parts:
-        return "/"
-    return "/" + "/".join(
-        part.replace("~", "~0").replace("/", "~1") for part in parts
-    )
-
-
-def merge_patch(target, patch, source, provenance, parts=()):
-    """Apply JSON merge-patch semantics and retain every leaf's source chain."""
+def merge_patch(target, patch):
+    """Apply JSON merge-patch semantics: objects merge, null removes."""
     if not isinstance(patch, dict):
-        provenance.setdefault(pointer(parts), []).append(source)
         return deepcopy(patch)
     if not isinstance(target, dict):
         target = {}
     result = deepcopy(target)
     for key, value in patch.items():
-        child = parts + (str(key),)
         if value is None:
             result.pop(key, None)
-            provenance.setdefault(pointer(child), []).append(source)
         elif isinstance(value, dict):
-            result[key] = merge_patch(
-                result.get(key, {}), value, source, provenance, child
-            )
+            result[key] = merge_patch(result.get(key, {}), value)
         else:
             result[key] = deepcopy(value)
-            provenance.setdefault(pointer(child), []).append(source)
     return result
 
 
@@ -82,29 +67,9 @@ def number(value, label, *, minimum=0.0, maximum=1.0):
     return value
 
 
-def validate_need(need, label):
-    if not isinstance(need, dict):
-        raise Error(f"{label} must be an object")
-    allowed = {"minimum", "weight", "critical", "accept_unknown"}
-    if not set(need) <= allowed or "minimum" not in need:
-        raise Error(f"{label} requires minimum and supports weight, critical, accept_unknown")
-    number(need["minimum"], f"{label}.minimum")
-    number(need.get("weight", 1.0), f"{label}.weight", maximum=1000.0)
-    for key in ("critical", "accept_unknown"):
-        if key in need and not isinstance(need[key], bool):
-            raise Error(f"{label}.{key} must be boolean")
-
-
-def validate_routing(routing):
-    if not isinstance(routing, dict):
-        raise Error("compiled routing policy must be an object")
-    allowed = {"candidates", "specializations", "policy"}
-    unknown = sorted(set(routing) - allowed)
-    if unknown:
-        raise Error(f"unknown routing sections: {', '.join(unknown)}")
-    candidates = routing.get("candidates")
+def validate_compiled_candidates(candidates):
     if not isinstance(candidates, dict) or not candidates:
-        raise Error("routing candidates must be a non-empty object")
+        raise Error("compiled candidates must be a non-empty object")
     for candidate_id, candidate in candidates.items():
         label = f"candidate {candidate_id!r}"
         if not isinstance(candidate, dict):
@@ -134,141 +99,131 @@ def validate_routing(routing):
             if assessment["status"] == "known":
                 number(assessment.get("score"), f"{cell}.score")
                 number(assessment.get("conservative"), f"{cell}.conservative")
-                if not assessment.get("assessed_at") or not assessment.get("evidence"):
-                    raise Error(f"{cell} requires assessed_at and evidence")
+                assessed_at = assessment.get("assessed_at")
+                evidence = assessment.get("evidence")
+                if (
+                    not isinstance(assessed_at, str)
+                    or not assessed_at.strip()
+                    or not isinstance(evidence, list)
+                    or not evidence
+                    or any(not isinstance(item, str) for item in evidence)
+                ):
+                    raise Error(
+                        f"{cell} requires an assessed_at string and string evidence"
+                    )
+                confidence = assessment.get("confidence")
+                if not isinstance(confidence, str) or not confidence.strip():
+                    raise Error(f"{cell}.confidence must be a non-empty string")
             elif not assessment.get("reason") or not assessment.get("researched_at"):
                 raise Error(f"{cell} unknown requires reason and researched_at")
-    specializations = routing.get("specializations", {})
-    if not isinstance(specializations, dict):
-        raise Error("routing specializations must be an object")
-    for name, specialization in specializations.items():
-        label = f"specialization {name!r}"
-        if not isinstance(specialization, dict):
-            raise Error(f"{label} must be an object")
-        forbidden = {"agent", "harness", "model", "effort", "candidate"} & set(specialization)
-        if forbidden:
-            raise Error(f"{label} cannot name a candidate: {', '.join(sorted(forbidden))}")
-        needs = specialization.get("needs")
-        if not isinstance(needs, dict) or not needs:
-            raise Error(f"{label}.needs must be a non-empty object")
-        for dimension, need in needs.items():
-            validate_need(need, f"{label}.needs.{dimension}")
-        priority = specialization.get("priority", ["cost", "latency", "quota"])
-        if not isinstance(priority, list) or not priority or any(x not in OBJECTIVES for x in priority):
-            raise Error(f"{label}.priority contains an unknown objective")
-    policy = routing.get("policy", {})
-    if not isinstance(policy, dict):
-        raise Error("routing policy must be an object")
-    number(policy.get("maximum_shortfall", 0.05), "policy.maximum_shortfall")
-    if policy.get("on_no_sufficient", DEFAULT_ON_NO_SUFFICIENT) not in {"fallback", "error"}:
-        raise Error("policy.on_no_sufficient must be fallback or error")
-    if policy.get("unknown_quota", "allow-with-warning") not in {"allow-with-warning", "ineligible"}:
-        raise Error("policy.unknown_quota must be allow-with-warning or ineligible")
+        economics = candidate.get("economics", {})
+        if not isinstance(economics, dict):
+            raise Error(f"{label}.economics must be an object")
+        for metric, data in economics.items():
+            if not isinstance(data, dict):
+                raise Error(f"{label}.economics.{metric} must be an object")
+            value = data.get("value")
+            if value is None:
+                continue
+            try:
+                finite = not isinstance(value, bool) and isinstance(
+                    value, (int, float)
+                ) and math.isfinite(float(value))
+            except OverflowError:
+                finite = False
+            if not finite:
+                raise Error(f"{label}.economics.{metric}.value must be a finite number")
+            if metric == "task_cost_usd" and value < 0:
+                raise Error(f"{label}.economics.{metric}.value must be non-negative")
+            if metric == "output_tokens_per_second" and value <= 0:
+                raise Error(f"{label}.economics.{metric}.value must be positive")
 
 
-def compile_policy(repo="."):
+def compile_brief(repo="."):
     catalog = read_json(CATALOG, "routing catalog")
-    if not {"version", "routing"} <= set(catalog) or catalog["version"] != 1:
-        raise Error("routing catalog must contain version 1 and routing")
-    provenance = {}
-    routing = merge_patch({}, catalog["routing"], {"scope": "builtin", "path": str(CATALOG)}, provenance)
+    if catalog.get("version") != 2 or not {"routes", "methodology", "candidates"} <= set(catalog):
+        raise Error("routing catalog must contain version 2 with routes, methodology, and candidates")
+    candidates = deepcopy(catalog["candidates"])
+    candidate_sources = {candidate_id: ["builtin"] for candidate_id in candidates}
+    preferences = []
     paths = exact_config.locations(repo)
     exact = exact_config.resolve(paths, repo)
-    layers = [{"scope": "builtin", "path": str(CATALOG), "version": 1}]
     for scope in exact_config.SCOPES:
         path = paths[scope]
         if not path.exists():
-            layers.append({"scope": scope, "path": str(path), "exists": False})
             continue
-        config = exact_config.load(path, scope == "global", scope, repo)
-        layer = {"scope": scope, "path": str(path), "exists": True, "version": config["version"]}
-        layers.append(layer)
-        if config["version"] == exact_config.ROUTING_VERSION:
-            routing = merge_patch(routing, config["routing"], layer, provenance)
-    validate_routing(routing)
-    return {"routing": routing, "exact": exact, "layers": layers, "provenance": provenance}
-
-
-def task_judgment(routing, request):
-    if not isinstance(request, dict):
-        raise Error("routing request must be an object")
-    role = request.get("role")
-    if role not in ROLES:
-        raise Error("routing request role must be captain or worker")
-    specialization = request.get("specialization")
-    needs, priority, required_features = {}, ["cost", "latency", "quota"], []
-    if specialization is not None:
-        spec = routing.get("specializations", {}).get(specialization)
-        if spec is None:
-            configured = ", ".join(sorted(routing.get("specializations", {})))
-            raise Error(
-                f"unknown specialization: {specialization}; "
-                f"configured specializations: {configured}; "
-                "use a configured specialization or omit specialization and "
-                "supply explicit needs"
+        # Partial layers are valid overlays; only the resolved routes table
+        # (already validated inside exact_config.resolve) needs the base rows.
+        config = exact_config.load(path, False, scope, repo)
+        if config["version"] != exact_config.PREFS_VERSION:
+            continue
+        for text in config.get("preferences", []):
+            preferences.append({"scope": scope, "text": text.strip()})
+        for candidate_id, patch in config.get("candidates", {}).items():
+            if patch is None:
+                candidates.pop(candidate_id, None)
+                candidate_sources.pop(candidate_id, None)
+                continue
+            candidates[candidate_id] = merge_patch(
+                candidates.get(candidate_id, {}), patch
             )
-        needs = deepcopy(spec["needs"])
-        priority = list(spec.get("priority", priority))
-        required_features = list(spec.get("requires", []))
-    overrides = request.get("needs", {})
-    if not isinstance(overrides, dict):
-        raise Error("routing request needs must be an object")
-    for dimension, need in overrides.items():
-        combined = {**needs.get(dimension, {}), **need} if isinstance(need, dict) else need
-        validate_need(combined, f"request.needs.{dimension}")
-        needs[dimension] = combined
-    requires = request.get("requires", {})
-    if not isinstance(requires, dict):
-        raise Error("routing request requires must be an object")
-    features = requires.get("features", [])
-    if not isinstance(features, list) or any(not isinstance(x, str) for x in features):
-        raise Error("routing request requires.features must be a string array")
-    required_features = sorted(set(required_features) | set(features))
-    minimum_context = requires.get("minimum_context")
-    if minimum_context is not None and (
-        isinstance(minimum_context, bool)
-        or not isinstance(minimum_context, int)
-        or minimum_context <= 0
-    ):
-        raise Error("routing request requires.minimum_context must be a positive integer")
-    selection_mode = request.get("selection_mode", "specialization-default")
-    if selection_mode not in SELECTION_MODES:
-        raise Error(
-            "routing request selection_mode must be specialization-default, "
-            "best-quality, or cheapest-sufficient"
-        )
-    if selection_mode != "specialization-default" and "priority" in request:
-        raise Error("selection_mode cannot be combined with priority")
-    if SELECTION_MODES[selection_mode] is not None:
-        priority = list(SELECTION_MODES[selection_mode])
-    elif "priority" in request:
-        priority = request["priority"]
-        if not isinstance(priority, list) or not priority or any(x not in OBJECTIVES for x in priority):
-            raise Error("routing request priority contains an unknown objective")
-    allow = request.get("allow")
-    if allow is not None and (not isinstance(allow, list) or any(not isinstance(x, str) for x in allow)):
-        raise Error("routing request allow must be a candidate-id array")
+            candidate_sources.setdefault(candidate_id, []).append(scope)
+    validate_compiled_candidates(candidates)
     return {
-        "role": role,
-        "summary": request.get("summary", ""),
-        "specialization": specialization,
-        "needs": needs,
-        "required_features": required_features,
-        "minimum_context": minimum_context,
-        "selection_mode": selection_mode,
-        "priority": priority,
-        "allow": set(allow) if allow is not None else None,
-        "current": request.get("current"),
-        "switching": request.get("switching", "free"),
+        "candidates": candidates,
+        "candidate_sources": candidate_sources,
+        "preferences": preferences,
+        "methodology": catalog["methodology"],
+        "exact": exact,
+        "layers": exact["layers_low_to_high"],
     }
 
 
+HARD_QUOTA_STATUSES = {"exhausted", "unavailable", "auth-required"}
+HARD_RUNTIME_STATUSES = {"unavailable", "auth-required", "unsupported"}
+HARD_HEALTH_STATUSES = {"unhealthy", "offline"}
+
+
 def runtime_for(runtime, candidate_id, candidate):
+    """Compose harness and candidate runtime state.
+
+    Candidate-scoped data refines the harness picture, but an account-wide
+    hard state (auth, health, exhausted quota) always dominates model-scoped
+    data — a per-model quota reading is meaningless once the account is out.
+    """
     runtime = runtime or {}
-    candidate_state = runtime.get("candidates", {}).get(candidate_id)
-    if candidate_state is not None:
-        return candidate_state
-    return runtime.get("harnesses", {}).get(candidate["launch"]["agent"], {})
+    agent = candidate["launch"]["agent"]
+    harnesses = runtime.get("harnesses", {})
+    if not isinstance(harnesses, dict):
+        raise Error("runtime harnesses must be an object")
+    candidate_states = runtime.get("candidates", {})
+    if not isinstance(candidate_states, dict):
+        raise Error("runtime candidates must be an object")
+    harness = harnesses.get(agent, {})
+    if not isinstance(harness, dict):
+        raise Error(f"runtime harness state for {agent} must be an object")
+    harness_quota = harness.get("quota")
+    if harness_quota is not None and not isinstance(harness_quota, dict):
+        raise Error(f"runtime quota for harness {agent} must be an object")
+    specific = candidate_states.get(candidate_id)
+    if specific is None:
+        return harness
+    if not isinstance(specific, dict):
+        raise Error(f"runtime state for {candidate_id} must be an object")
+    merged = deepcopy(harness)
+    for key, value in specific.items():
+        if key == "quota":
+            if (
+                isinstance(harness_quota, dict)
+                and harness_quota.get("status") in HARD_QUOTA_STATUSES
+            ):
+                continue
+        elif key == "status" and merged.get(key) in HARD_RUNTIME_STATUSES:
+            continue
+        elif key == "health" and merged.get(key) in HARD_HEALTH_STATUSES:
+            continue
+        merged[key] = deepcopy(value)
+    return merged
 
 
 def quota_pressure(scope):
@@ -284,7 +239,7 @@ def quota_pressure(scope):
     return min(1.0, abs(float(reserve)) / 100.0)
 
 
-def quota_axi_runtime(snapshot, routing):
+def quota_axi_runtime(snapshot, candidates):
     if snapshot.get("schemaVersion") != 3 or not isinstance(snapshot.get("providers"), list):
         raise Error("quota-axi input must use normalized schemaVersion 3")
     generated = {
@@ -297,9 +252,14 @@ def quota_axi_runtime(snapshot, routing):
     for provider in snapshot["providers"]:
         provider_id = provider.get("provider")
         if provider_id == "kimi":
-            generated["notes"].append(
-                "quota-axi Kimi auth is not assumed to represent the OpenCode K3 account"
+            detail = (
+                "local Kimi credentials are not assumed to represent the "
+                "OpenCode K3 account, so its quota stays unknown"
             )
+            generated["notes"].append(f"quota-axi: {detail}")
+            generated["harnesses"]["opencode"] = {
+                "quota": {"status": "unknown", "detail": detail}
+            }
             continue
         harness = provider_to_harness.get(provider_id)
         if harness is None:
@@ -338,7 +298,7 @@ def quota_axi_runtime(snapshot, routing):
             for scope in scopes:
                 if scope.get("scope") != "model:fable":
                     continue
-                for candidate_id, candidate in routing["candidates"].items():
+                for candidate_id, candidate in candidates.items():
                     launch = candidate["launch"]
                     if launch["agent"] == "claude" and "fable" in launch["model"]:
                         remaining = scope.get("effectivePercentRemaining")
@@ -382,274 +342,332 @@ def run_quota_axi():
         raise Error(f"quota-axi returned invalid JSON: {exc}") from exc
 
 
-def gate(candidate_id, candidate, judgment, runtime, policy):
+def quota_summary(state):
+    quota = state.get("quota") if isinstance(state, dict) else None
+    if not isinstance(quota, dict) or not quota:
+        return {"status": "unknown"}
+    summary = {"status": quota.get("status", "unknown")}
+    for key in ("effective_percent_remaining", "pressure", "bounded_by"):
+        if quota.get(key):
+            summary[key] = quota[key]
+    return summary
+
+
+def gate(candidate_id, candidate, runtime, required_features=(), minimum_context=None):
+    """Hard eligibility only. Judgment stays with the agent."""
     reasons, warnings = [], []
     if not candidate.get("enabled", True):
         reasons.append("disabled by configuration")
-    if judgment["allow"] is not None and candidate_id not in judgment["allow"]:
-        reasons.append("outside request allowlist")
-    missing = sorted(set(judgment["required_features"]) - set(candidate.get("features", [])))
+    missing = sorted(set(required_features) - set(candidate.get("features", [])))
     if missing:
         reasons.append("missing features: " + ", ".join(missing))
-    if judgment["minimum_context"] is not None:
+    if minimum_context is not None:
         available_context = candidate.get("context")
         if available_context is None:
             reasons.append("context capacity unknown")
-        elif available_context < judgment["minimum_context"]:
+        elif available_context < minimum_context:
             reasons.append(
-                f"context {available_context} below required "
-                f"{judgment['minimum_context']}"
+                f"context {available_context} below required {minimum_context}"
             )
     state = runtime_for(runtime, candidate_id, candidate)
     if not isinstance(state, dict):
         raise Error(f"runtime state for {candidate_id} must be an object")
-    if state.get("status") in {"unavailable", "auth-required", "unsupported"}:
+    if state.get("status") in HARD_RUNTIME_STATUSES:
         reasons.append(f"runtime status {state['status']}")
-    if state.get("health") in {"unhealthy", "offline"}:
+    if state.get("health") in HARD_HEALTH_STATUSES:
         reasons.append(f"runtime health {state['health']}")
     quota = state.get("quota", {})
     if not isinstance(quota, dict):
         raise Error(f"runtime quota for {candidate_id} must be an object")
     quota_status = quota.get("status", "unknown")
-    if quota_status in {"exhausted", "unavailable", "auth-required"}:
+    if quota_status in HARD_QUOTA_STATUSES:
         reasons.append(f"quota {quota_status}")
     elif quota_status in {"unknown", "stale"}:
-        if policy.get("unknown_quota", "allow-with-warning") == "ineligible":
-            reasons.append(f"quota {quota_status}")
-        else:
-            warnings.append(f"quota {quota_status}")
-    pressure = quota.get("pressure")
-    if pressure is not None:
-        pressure = number(pressure, f"runtime quota pressure for {candidate_id}")
-    return reasons, warnings, pressure
+        detail = quota.get("detail")
+        warnings.append(
+            f"quota {quota_status}: {detail}" if detail else f"quota {quota_status}"
+        )
+    return reasons, warnings
 
 
-def assess(candidate, needs, maximum_shortfall):
-    dimensions, weighted_gap, weighted_score, weight_sum = {}, 0.0, 0.0, 0.0
-    blocking_unknown = False
-    critical_gap = False
-    complete_score = True
-    for dimension, need in needs.items():
-        weight = float(need.get("weight", 1.0))
-        minimum = float(need["minimum"])
-        cell = candidate.get("capabilities", {}).get(dimension)
-        if not cell or cell.get("status") == "unknown":
-            accepted = bool(need.get("accept_unknown", False))
-            gap = 0.0 if accepted else minimum
-            blocking_unknown = blocking_unknown or not accepted
-            complete_score = False
-            dimensions[dimension] = {"status": "unknown", "required": minimum, "accepted": accepted, "shortfall": gap}
+def gate_check(candidate_id, candidate, runtime, required_features=(), minimum_context=None):
+    """Single gate-and-runtime resolution shared by every decision path."""
+    reasons, warnings = gate(
+        candidate_id,
+        candidate,
+        runtime,
+        required_features=required_features,
+        minimum_context=minimum_context,
+    )
+    state = runtime_for(runtime, candidate_id, candidate)
+    return reasons, warnings, quota_summary(state)
+
+
+def check(compiled, args, runtime):
+    if bool(args.candidate) == bool(args.exact_route):
+        raise Error("check requires exactly one of --candidate or --exact-route")
+    if args.exact_route:
+        rows = compiled["exact"]["config"]["routes"]
+        row = rows.get(args.exact_route)
+        if row is None:
+            raise Error(f"configured route not found: {args.exact_route}")
+        launch = {key: row[key] for key in ("agent", "model", "effort")}
+        candidate_id = next(
+            (
+                cid
+                for cid, candidate in compiled["candidates"].items()
+                if candidate["launch"] == launch
+            ),
+            None,
+        )
+        if candidate_id is not None:
+            reasons, warnings, quota = gate_check(
+                candidate_id,
+                compiled["candidates"][candidate_id],
+                runtime,
+                required_features=args.require_feature,
+                minimum_context=args.minimum_context,
+            )
         else:
-            effective = float(cell["conservative"])
-            gap = max(0.0, minimum - effective)
-            weighted_score += weight * effective
-            dimensions[dimension] = {
-                "status": "known",
-                "required": minimum,
-                "effective": effective,
-                "shortfall": gap,
-                "assessed_at": cell["assessed_at"],
-                "evidence": cell["evidence"],
+            if args.require_feature or args.minimum_context is not None:
+                raise Error(
+                    "feature and context gates need candidate evidence; route "
+                    f"{args.exact_route!r} matches no configured candidate"
+                )
+            reasons, warnings, quota = gate_check(
+                args.exact_route, {"launch": launch}, runtime
+            )
+        if reasons:
+            refusal = {
+                "status": "refused",
+                "exact_route": args.exact_route,
+                "reasons": reasons,
+                "warnings": warnings,
+                "route_provenance": compiled["exact"]["route_provenance"][
+                    args.exact_route
+                ],
             }
-        weighted_gap += weight * gap
-        weight_sum += weight
-        if need.get("critical") and gap > 0:
-            critical_gap = True
-    shortfall = weighted_gap / weight_sum if weight_sum else math.inf
-    score = weighted_score / weight_sum if weight_sum and complete_score else None
-    sufficient = bool(needs) and not blocking_unknown and not critical_gap and shortfall <= maximum_shortfall
+            if candidate_id is not None:
+                refusal["candidate"] = candidate_id
+                refusal["candidate_sources"] = compiled["candidate_sources"].get(
+                    candidate_id, []
+                )
+            return refusal
+        decision = {
+            "status": "exact",
+            "selected": {"id": candidate_id, **launch},
+            "exact_route": args.exact_route,
+            "provenance": compiled["exact"]["route_provenance"][args.exact_route],
+            "warnings": warnings,
+            "quota": quota,
+        }
+        if args.reason:
+            decision["reason"] = args.reason
+        return decision
+    candidate = compiled["candidates"].get(args.candidate)
+    if candidate is None:
+        known = ", ".join(sorted(compiled["candidates"]))
+        raise Error(f"unknown candidate: {args.candidate}; launchable candidates: {known}")
+    if not args.reason or not args.reason.strip():
+        raise Error("check --candidate requires --reason with the task judgment")
+    reasons, warnings, quota = gate_check(
+        args.candidate,
+        candidate,
+        runtime,
+        required_features=args.require_feature,
+        minimum_context=args.minimum_context,
+    )
+    if reasons:
+        return {
+            "status": "refused",
+            "candidate": args.candidate,
+            "reasons": reasons,
+            "warnings": warnings,
+        }
     return {
-        "sufficient": sufficient,
-        "shortfall": shortfall,
-        "score": score,
-        "dimensions": dimensions,
+        "status": "selected",
+        "selected": {"id": args.candidate, **candidate["launch"]},
+        "reason": args.reason.strip(),
+        "warnings": warnings,
+        "quota": quota,
+        "sources": compiled["candidate_sources"].get(args.candidate, []),
     }
 
 
-def operational(candidate, quality, pressure, current, candidate_id):
+markdown_cell = exact_config.markdown_cell
+
+
+def capability_cell(candidate, dimension):
+    cell = candidate.get("capabilities", {}).get(dimension)
+    if not cell or cell.get("status") != "known":
+        return "?"
+    confidence = (cell.get("confidence") or "?")[:1]
+    return f"{cell['conservative']:.2f} ({confidence})"
+
+
+def economics_cells(candidate):
     economics = candidate.get("economics", {})
     cost = economics.get("task_cost_usd", {}).get("value")
     speed = economics.get("output_tokens_per_second", {}).get("value")
-    return {
-        "quality": quality.get("score"),
-        "cost": float(cost) if isinstance(cost, (int, float)) else None,
-        "latency": 1.0 / float(speed) if isinstance(speed, (int, float)) and speed > 0 else None,
-        "quota": pressure,
-        "continuity": 0.0 if current == candidate_id else 1.0,
-    }
-
-
-def objective_value(values, name):
-    value = values.get(name)
-    if value is None:
-        return None
-    return -value if name == "quality" else value
-
-
-def dominates(left, right, priority):
-    comparable = [
-        name
-        for name in priority
-        if objective_value(left, name) is not None
-        and objective_value(right, name) is not None
-    ]
-    return bool(comparable) and all(
-        objective_value(left, name) <= objective_value(right, name)
-        for name in comparable
-    ) and any(
-        objective_value(left, name) < objective_value(right, name)
-        for name in comparable
+    return (
+        f"${cost:.2f}" if isinstance(cost, (int, float)) else "?",
+        f"{speed:.0f}" if isinstance(speed, (int, float)) else "?",
     )
 
 
-def exact_selection(compiled, route_id):
-    rows = compiled["exact"]["config"]["routes"]
-    row = rows.get(route_id)
-    if row is None:
-        raise Error(f"configured route not found: {route_id}")
-    return {
-        "status": "exact",
-        "sufficient": None,
-        "selected": {"id": None, **row},
-        "exact_route": route_id,
-        "provenance": compiled["exact"]["route_provenance"][route_id],
-    }
-
-
-def fallback_selection(compiled, role, reason, candidates):
-    row = compiled["exact"]["config"]["routes"][role]
-    candidate_id = next(
-        (cid for cid, candidate in candidates.items() if candidate["launch"] == row),
-        None,
-    )
-    return {
-        "status": "fallback",
-        "sufficient": False,
-        "selected": {"id": candidate_id, **row},
-        "reason": reason,
-        "provenance": compiled["exact"]["route_provenance"][role],
-    }
-
-
-def choose(compiled, request, runtime=None):
-    routing = compiled["routing"]
-    judgment = task_judgment(routing, request)
-    if "exact_route" in request:
-        route_id = request["exact_route"]
-        if not isinstance(route_id, str):
-            raise Error("routing request exact_route must be a string")
-        if route_id != judgment["role"] and not route_id.startswith(
-            f"{judgment['role']}."
-        ):
-            raise Error(
-                f"exact route {route_id!r} does not match role "
-                f"{judgment['role']!r}"
-            )
-        return exact_selection(compiled, route_id)
-    candidates = routing["candidates"]
-    pin = request.get("pin")
-    if pin is not None:
-        if not isinstance(pin, dict) or not pin.get("candidate") or not pin.get("reason"):
-            raise Error("routing request pin requires candidate and reason")
-        candidate = candidates.get(pin["candidate"])
-        if candidate is None:
-            raise Error(f"unknown pinned candidate: {pin['candidate']}")
-        reasons, warnings, _pressure = gate(pin["candidate"], candidate, judgment, runtime, routing.get("policy", {}))
-        if reasons:
-            return {"status": "no-route", "reason": "pinned candidate is ineligible", "rejected": {pin["candidate"]: reasons}}
-        return {
-            "status": "pinned",
-            "sufficient": None,
-            "selected": {"id": pin["candidate"], **candidate["launch"]},
-            "reason": pin["reason"],
-            "warnings": warnings,
-        }
-    if not judgment["needs"]:
-        return {
-            "status": "no-route",
-            "reason": "no task requirements were supplied",
-        }
-    policy = routing.get("policy", {})
-    maximum_shortfall = float(policy.get("maximum_shortfall", 0.05))
-    admitted, rejected = {}, {}
-    for candidate_id, candidate in candidates.items():
-        reasons, warnings, pressure = gate(candidate_id, candidate, judgment, runtime, policy)
-        if reasons:
-            rejected[candidate_id] = reasons
-            continue
-        quality = assess(candidate, judgment["needs"], maximum_shortfall)
-        admitted[candidate_id] = {
-            "candidate": candidate,
-            "quality": quality,
-            "operational": operational(
-                candidate,
-                quality,
-                pressure,
-                judgment["current"],
-                candidate_id,
-            ),
-            "warnings": warnings,
-        }
-    sufficient = {cid: row for cid, row in admitted.items() if row["quality"]["sufficient"]}
-    if not sufficient:
-        nearest = sorted(admitted, key=lambda cid: (admitted[cid]["quality"]["shortfall"], cid))
-        if policy.get("on_no_sufficient", DEFAULT_ON_NO_SUFFICIENT) == "fallback":
-            decision = fallback_selection(compiled, judgment["role"], "no research-proven sufficient candidate", candidates)
-            decision["nearest"] = nearest[:3]
-            decision["rejected"] = rejected
-            decision["evaluated"] = {cid: row["quality"] for cid, row in admitted.items()}
-            return decision
-        return {"status": "no-route", "reason": "no research-proven sufficient candidate", "nearest": nearest[:3], "rejected": rejected, "evaluated": {cid: row["quality"] for cid, row in admitted.items()}}
-    priority = judgment["priority"]
-    frontier = [
-        cid for cid, row in sufficient.items()
-        if not any(other != cid and dominates(sufficient[other]["operational"], row["operational"], priority) for other in sufficient)
-    ]
-    if judgment["switching"] == "avoid" and judgment["current"] in frontier:
-        selected_id = judgment["current"]
-        selected_by = ["continuity"]
-    else:
-        selected_id = min(
-            frontier,
-            key=lambda cid: tuple(
-                objective_value(sufficient[cid]["operational"], name)
-                if objective_value(sufficient[cid]["operational"], name) is not None
-                else math.inf
-                for name in priority
-            ) + (cid,),
+def quota_cell(state):
+    summary = quota_summary(state)
+    status = summary["status"]
+    remaining = summary.get("effective_percent_remaining")
+    if status == "known" and remaining is not None:
+        window = "/".join(summary.get("bounded_by", [])) or "window"
+        pressure = summary.get("pressure")
+        suffix = (
+            f", pace -{pressure * 100:.0f}pp"
+            if isinstance(pressure, (int, float)) and pressure > 0
+            else ""
         )
-        selected_by = priority
-    selected = sufficient[selected_id]
-    used_paths = {
-        pointer(("candidates", selected_id, "launch", field))
-        for field in ("agent", "model", "effort")
-    }
-    used_paths.update(
-        pointer(("candidates", selected_id, "capabilities", dimension, "conservative"))
-        for dimension in judgment["needs"]
+        return f"{remaining:.0f}% of {window}{suffix}"
+    return status
+
+
+def brief_markdown(compiled, runtime, repo_root):
+    lines = [
+        "# Crew routing brief",
+        "",
+        f"**Repo:** {repo_root}",
+        f"**Live quota:** {'yes, captured ' + str(runtime.get('captured_at')) if runtime else 'not loaded'}",
+        "",
+        "## User preferences",
+        "",
+    ]
+    if compiled["preferences"]:
+        lines.append(
+            "Listed low scope to high. On conflict: the principal's current "
+            "request wins; then the higher scope; then, within a scope, the "
+            "narrower applicable condition; then the later line. Ask when "
+            "applicability stays ambiguous."
+        )
+        lines.append("")
+        for entry in compiled["preferences"]:
+            lines.append(f"- ({entry['scope']}) {entry['text']}")
+    else:
+        lines.append("None configured.")
+    lines += [
+        "",
+        "## Exact routes",
+        "",
+        "| Route | Agent | Model | Effort | Source |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for route, row in compiled["exact"]["config"]["routes"].items():
+        source = compiled["exact"]["route_sources"][route]["scope"]
+        lines.append(
+            f"| {markdown_cell(route)} | {markdown_cell(row['agent'])} "
+            f"| {markdown_cell(row['model'])} | {markdown_cell(row['effort'])} "
+            f"| {markdown_cell(source)} |"
+        )
+    lines += [
+        "",
+        "## Candidates",
+        "",
+        "Capability cells show the conservative research estimate with "
+        "confidence (h/m/l); `?` means no public evidence. Cost is the "
+        "benchmark cost of one resolved task. Quota is provider-local: "
+        "remaining share of that provider's own window plus its pace "
+        "deficit — never compare raw percentages across providers; "
+        "quota-lighter means less pace pressure and more runway within "
+        "the candidate's own provider.",
+        "",
+        "| Candidate | Reasoning | Impl | Agentic | UI | 3D | $/task | tok/s | Context | Quota |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for candidate_id, candidate in sorted(compiled["candidates"].items()):
+        if not candidate.get("enabled", True):
+            continue
+        cost, speed = economics_cells(candidate)
+        context = candidate.get("context")
+        state = runtime_for(runtime, candidate_id, candidate)
+        lines.append(
+            f"| {markdown_cell(candidate_id)} "
+            f"| {capability_cell(candidate, 'reasoning')} "
+            f"| {capability_cell(candidate, 'implementation')} "
+            f"| {capability_cell(candidate, 'agentic')} "
+            f"| {capability_cell(candidate, 'ui')} "
+            f"| {capability_cell(candidate, 'spatial-3d')} "
+            f"| {cost} | {speed} "
+            f"| {f'{context:,}' if context else '?'} "
+            f"| {markdown_cell(quota_cell(state) if runtime else 'not loaded')} |"
+        )
+    disabled = sorted(
+        candidate_id
+        for candidate_id, candidate in compiled["candidates"].items()
+        if not candidate.get("enabled", True)
     )
-    used_paths.update(
-        pointer(("candidates", selected_id, "economics", metric, "value"))
-        for metric in ("task_cost_usd", "output_tokens_per_second")
-    )
+    if disabled:
+        lines += ["", "Disabled by configuration: " + ", ".join(disabled)]
+    if runtime and runtime.get("notes"):
+        lines += [""] + [f"Note: {note}" for note in runtime["notes"]]
+    lines += [
+        "",
+        "## Evidence",
+        "",
+    ]
+    for candidate_id, candidate in sorted(compiled["candidates"].items()):
+        lines.append(f"### {candidate_id}")
+        lines.append("")
+        sources = compiled["candidate_sources"].get(candidate_id, [])
+        if sources != ["builtin"]:
+            lines.append(f"- configured by: {', '.join(sources)}")
+        features = candidate.get("features", [])
+        if features:
+            lines.append(f"- features: {', '.join(features)}")
+        for dimension in DIMENSIONS:
+            cell = candidate.get("capabilities", {}).get(dimension)
+            if not cell:
+                continue
+            if cell.get("status") == "known":
+                lines.append(
+                    f"- {dimension}: score {cell['score']}, conservative "
+                    f"{cell['conservative']}, {cell.get('confidence', '?')} confidence, "
+                    f"assessed {cell['assessed_at']} — "
+                    + ", ".join(cell.get("evidence", []))
+                )
+            else:
+                lines.append(
+                    f"- {dimension}: unknown — {cell.get('reason', 'no evidence')}"
+                )
+        economics = candidate.get("economics", {})
+        for metric, unit in (
+            ("task_cost_usd", "USD/task"),
+            ("output_tokens_per_second", "tok/s"),
+        ):
+            data = economics.get(metric)
+            if isinstance(data, dict) and data.get("value") is not None:
+                lines.append(
+                    f"- {metric}: {data['value']} {unit} "
+                    f"({data.get('basis', '?')}, {data.get('assessed_at', '?')})"
+                )
+        lines.append("")
+    lines += ["## Evidence methodology", ""]
+    for key, text in compiled["methodology"].items():
+        lines.append(f"- {key}: {text}")
+    return "\n".join(lines) + "\n"
+
+
+def brief_json(compiled, runtime, repo_root):
     return {
-        "status": "selected",
-        "sufficient": True,
-        "selected": {"id": selected_id, **selected["candidate"]["launch"]},
-        "judgment": {**judgment, "allow": sorted(judgment["allow"]) if judgment["allow"] is not None else None},
-        "quality": selected["quality"],
-        "operational": selected["operational"],
-        "pareto_frontier": sorted(frontier),
-        "selected_by": selected_by,
-        "warnings": selected["warnings"],
-        "rejected": rejected,
-        "provenance": {
-            "layers": compiled["layers"],
-            "selected_candidate_sources": {
-                path: chain for path, chain in compiled["provenance"].items()
-                if path in used_paths
-            },
+        "repo": str(repo_root),
+        "preferences": compiled["preferences"],
+        "routes": {
+            "effective": compiled["exact"]["config"]["routes"],
+            "sources": compiled["exact"]["route_sources"],
         },
+        "candidates": compiled["candidates"],
+        "candidate_sources": compiled["candidate_sources"],
+        "methodology": compiled["methodology"],
+        "layers": compiled["layers"],
+        "runtime": runtime or None,
     }
 
 
@@ -658,40 +676,58 @@ def emit(value, compact=False):
     sys.stdout.write("\n")
 
 
+def load_runtime(args, candidates):
+    runtime = {}
+    if args.quota_axi:
+        runtime = quota_axi_runtime(run_quota_axi(), candidates)
+    if args.runtime_file:
+        runtime = merge_runtime(
+            runtime,
+            read_json(Path(args.runtime_file).expanduser(), "runtime"),
+        )
+    return runtime
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("report", "choose"))
+    parser.add_argument("command", choices=("brief", "check"))
     parser.add_argument("--repo", default=".")
-    parser.add_argument("--request-file", help="JSON file, or - for stdin")
+    parser.add_argument("--candidate", help="candidate ID chosen from the brief")
+    parser.add_argument(
+        "--exact-route", help="configured route ID for deterministic dispatch"
+    )
+    parser.add_argument(
+        "--reason", help="the task judgment behind the pick; recorded verbatim"
+    )
+    parser.add_argument(
+        "--require-feature",
+        action="append",
+        default=[],
+        help="hard feature requirement, repeatable",
+    )
+    parser.add_argument("--minimum-context", type=int)
     parser.add_argument("--runtime-file", help="ephemeral runtime JSON")
     parser.add_argument(
         "--quota-axi",
         action="store_true",
         help="read live provider quota with npx -y quota-axi --json",
     )
+    parser.add_argument("--format", choices=("markdown", "json"), default=None)
     parser.add_argument("--compact", action="store_true")
     args = parser.parse_args(argv)
     try:
-        compiled = compile_policy(args.repo)
-        if args.command == "report":
-            emit({"routing": compiled["routing"], "layers": compiled["layers"], "provenance": compiled["provenance"]}, args.compact)
+        compiled = compile_brief(args.repo)
+        repo_root, _common = exact_config.repo_info(args.repo)
+        runtime = load_runtime(args, compiled["candidates"])
+        if args.command == "brief":
+            if args.format == "json":
+                emit(brief_json(compiled, runtime, repo_root), args.compact)
+            else:
+                sys.stdout.write(brief_markdown(compiled, runtime, repo_root))
             return 0
-        if not args.request_file:
-            raise Error("choose requires --request-file")
-        if args.request_file == "-":
-            request = json.load(sys.stdin)
-        else:
-            request = read_json(Path(args.request_file).expanduser(), "request")
-        runtime = {}
-        if args.quota_axi:
-            runtime = quota_axi_runtime(run_quota_axi(), compiled["routing"])
-        if args.runtime_file:
-            runtime = merge_runtime(
-                runtime,
-                read_json(Path(args.runtime_file).expanduser(), "runtime"),
-            )
-        emit(choose(compiled, request, runtime), args.compact)
-        return 0
+        decision = check(compiled, args, runtime)
+        emit(decision, args.compact)
+        return 0 if decision["status"] != "refused" else 1
     except (Error, exact_config.Error, OSError, json.JSONDecodeError) as exc:
         print(f"crew-router: {exc}", file=sys.stderr)
         return 1
