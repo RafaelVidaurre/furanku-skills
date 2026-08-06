@@ -116,6 +116,17 @@
       "inject": [
         "Do not add subtitles, helper text, or descriptive copy beneath headings, labels, cards, or settings by default. Prefer one concise, self-explanatory heading or label. Only add supporting copy when the user explicitly asks for it or when it is necessary to prevent misunderstanding or error, and never use it to restate the heading."
       ]
+    },
+    {
+      "id": "cold-reader-clarity",
+      "category": "writing",
+      "title": "Cold-reader clarity",
+      "picker": "Every user-facing message stands alone — no reliance on unfollowed implementation discussion.",
+      "tags": ["writing", "clarity", "communication"],
+      "conflicts": [],
+      "inject": [
+        "Write every message directed at the user so it stands on its own for a cold reader — someone who has not followed the implementation discussion. Make the subject and claim explicit in the message itself."
+      ]
     }
   ]
 }
