@@ -128,7 +128,7 @@ Optional deep dive: [interactive testing guide](artifacts/testing-best-practices
 
 **Useful if:** you want a clear status of what changed recently, what’s in flight, and what’s blocked — based on real project evidence, not vibe.
 
-**What it does:** writes a human-readable progress report over several time windows (fresh work through about the last month).
+**What it does:** writes a human-readable progress report over several time windows (fresh work through about the last month). It remembers past findings in a machine-local ledger outside your repo, so nothing lands in your commits, diffs, or merges.
 
 ```text
 > Give me a progress report for this project.
