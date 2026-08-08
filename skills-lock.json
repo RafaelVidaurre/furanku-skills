@@ -1,12 +1,4 @@
 {
   "version": 1,
-  "skills": {
-    "notifai": {
-      "source": "RafaelVidaurre/notifai",
-      "ref": "v0.1.6",
-      "sourceType": "github",
-      "skillPath": "skills/notifai/SKILL.md",
-      "computedHash": "fe8b0974b19ce0f23ff688ba748de45eff946fe0dfbc719e9f3bc35998a466ad"
-    }
-  }
+  "skills": {}
 }
