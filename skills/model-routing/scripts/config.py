@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read, write, migrate, resolve, and report Crew routing configuration."""
+"""Read, write, resolve, and report model-routing configuration."""
 
 import argparse
 import hashlib
@@ -7,26 +7,20 @@ import json
 import os
 from pathlib import Path
 import re
-import shlex
 import subprocess
 import sys
 import tempfile
 
 
-VERSION = 2
-PREFS_VERSION = 4
+VERSION = 4
 BASE = ("captain", "worker")
-LEGACY_BASE = ("commander", "captain", "worker")
 SCOPES = ("global", "repo", "machine-repo")
+NAMESPACE = "model-routing"
 CATALOG = (
     Path(__file__).resolve().parent.parent / "references" / "routing-catalog.json"
 )
-ROUTE_ID = re.compile(
-    r"^(?:captain|worker)(?:\.[a-z0-9]+(?:-[a-z0-9]+)*)*$"
-)
-LEGACY_ROUTE_ID = re.compile(
-    r"^(?:commander|captain|worker)(?:\.[a-z0-9]+(?:-[a-z0-9]+)*)*$"
-)
+TOKEN = r"[a-z0-9]+(?:-[a-z0-9]+)*"
+ROUTE_ID = re.compile(rf"^{TOKEN}(?:\.{TOKEN})*$")
 
 
 class Error(Exception):
@@ -43,15 +37,22 @@ def git(repo, *args):
 
 
 def repo_info(repo):
-    root = Path(git(Path(repo).expanduser().resolve(), "rev-parse", "--show-toplevel"))
-    raw = Path(git(root, "rev-parse", "--git-common-dir"))
-    common = (root / raw).resolve() if not raw.is_absolute() else raw.resolve()
-    return root.resolve(), common
+    target = Path(repo).expanduser().resolve()
+    try:
+        root = Path(git(target, "rev-parse", "--show-toplevel"))
+        raw = Path(git(root, "rev-parse", "--git-common-dir"))
+        common = (root / raw).resolve() if not raw.is_absolute() else raw.resolve()
+        return root.resolve(), common
+    except (Error, FileNotFoundError):
+        # Non-git projects key machine-local configuration by resolved path.
+        if not target.is_dir():
+            raise Error(f"--repo must be an existing directory: {target}")
+        return target, target
 
 
 def locations(repo=None):
     home = Path.home()
-    base = home / ".furanku-skills" / "commander"
+    base = home / ".furanku-skills" / NAMESPACE
     paths = {"global": base / "config.json"}
     if repo is not None:
         root, common = repo_info(repo)
@@ -60,7 +61,7 @@ def locations(repo=None):
         label = re.sub(r"[^a-z0-9]+", "-", label_from.lower()).strip("-") or "repo"
         paths.update(
             {
-                "repo": root / ".furanku-skills" / "commander" / "config.json",
+                "repo": root / ".furanku-skills" / NAMESPACE / "config.json",
                 "machine-repo": base / "repos" / f"{label}-{digest[:16]}.json",
             }
         )
@@ -77,19 +78,17 @@ def parse_json(stream, source):
     return config
 
 
-def validate_rows(
-    routes, require_base, source, base, route_pattern, allow_empty=False
-):
+def validate_rows(routes, require_base, source, allow_empty=False):
     if not isinstance(routes, dict) or (not routes and not allow_empty):
         raise Error(f"{source} routes must be a non-empty object")
-    missing = [route for route in base if route not in routes]
+    missing = [route for route in BASE if route not in routes]
     if require_base and missing:
         raise Error(f"{source} is missing base routes: {', '.join(missing)}")
     for route_id, row in routes.items():
-        if not route_pattern.fullmatch(route_id) or not isinstance(row, dict):
+        if not ROUTE_ID.fullmatch(route_id) or not isinstance(row, dict):
             raise Error(f"invalid route {route_id!r} in {source}")
         fields = {"agent", "model", "effort"}
-        if route_id not in base:
+        if route_id not in BASE:
             fields.add("work")
         if set(row) != fields:
             raise Error(
@@ -124,102 +123,24 @@ def validate_candidate_overrides(candidates, source):
 
 
 def validate_schema(config, require_base, source):
-    version = config.get("version")
-    if type(version) is not int or version not in {VERSION, PREFS_VERSION}:
-        raise Error(
-            f"{source} must use routing config version {VERSION} or "
-            f"{PREFS_VERSION}"
-        )
-    if version == VERSION:
-        allowed = {"version", "routes"}
-    else:
-        allowed = {"version", "routes", "preferences", "candidates"}
+    if type(config.get("version")) is not int or config["version"] != VERSION:
+        raise Error(f"{source} must use routing config version {VERSION}")
+    allowed = {"version", "routes", "preferences", "candidates"}
     unknown = sorted(set(config) - allowed)
     if unknown or "routes" not in config:
         raise Error(
-            f"{source} version {version} must contain routes and only: "
-            f"{', '.join(sorted(allowed))}"
+            f"{source} must contain routes and only: {', '.join(sorted(allowed))}"
         )
     validate_rows(
-        config["routes"],
-        require_base,
-        source,
-        BASE,
-        ROUTE_ID,
-        allow_empty=not require_base,
+        config["routes"], require_base, source, allow_empty=not require_base
     )
-    if version == PREFS_VERSION:
-        validate_preferences(config.get("preferences", []), source)
-        validate_candidate_overrides(config.get("candidates", {}), source)
+    validate_preferences(config.get("preferences", []), source)
+    validate_candidate_overrides(config.get("candidates", {}), source)
 
 
-def validate_v1_schema(config, require_base, source):
-    if (
-        set(config) != {"version", "routes"}
-        or type(config.get("version")) is not int
-        or config.get("version") != 1
-    ):
-        raise Error(f"{source} must contain only version 1 and routes")
-    validate_rows(
-        config["routes"], require_base, source, LEGACY_BASE, LEGACY_ROUTE_ID
-    )
-
-
-def validate_v3_schema(config, require_base, source):
-    if set(config) != {"version", "routes", "routing"}:
-        raise Error(
-            f"{source} version 3 must contain only version, routes, and routing"
-        )
-    validate_rows(
-        config["routes"], require_base, source, BASE, ROUTE_ID, allow_empty=True
-    )
-    routing = config["routing"]
-    if not isinstance(routing, dict):
-        raise Error(f"{source} routing must be an object")
-    allowed = {"candidates", "specializations", "policy"}
-    unknown = sorted(set(routing) - allowed)
-    if unknown:
-        raise Error(
-            f"{source} has unknown routing sections: {', '.join(unknown)}"
-        )
-    # Version 3 used recursive merge-patch, so null sections and null entries
-    # are valid legacy tombstones; only null gets deletion treatment.
-    specializations = routing.get("specializations")
-    if specializations is not None and (
-        not isinstance(specializations, dict)
-        or any(
-            spec is not None and not isinstance(spec, dict)
-            for spec in specializations.values()
-        )
-    ):
-        raise Error(f"{source} routing specializations must be an object of objects")
-    policy = routing.get("policy")
-    if policy is not None and not isinstance(policy, dict):
-        raise Error(f"{source} routing policy must be an object")
-    candidates = routing.get("candidates")
-    if candidates is not None:
-        validate_candidate_overrides(candidates, source)
-
-
-def migration_command(scope, repo):
-    command = ["python3", str(Path(__file__).resolve()), "migrate", scope]
-    if scope != "global":
-        command += ["--repo", str(Path(repo).expanduser().resolve())]
-    return shlex.join(command)
-
-
-def load(path, require_base=False, scope=None, repo="."):
+def load(path, require_base=False):
     with path.open(encoding="utf-8") as stream:
         config = parse_json(stream, str(path))
-    if (
-        type(config.get("version")) is int
-        and config.get("version") in {1, 3}
-        and scope is not None
-    ):
-        raise Error(
-            f"{path} uses routing config version {config['version']}; "
-            f"preview migration with: {migration_command(scope, repo)}"
-        )
     validate_schema(config, require_base, str(path))
     return config
 
@@ -235,7 +156,7 @@ def builtin():
             f"{CATALOG} must contain version 2 with routes, methodology, "
             "and candidates"
         )
-    validate_rows(catalog["routes"], True, str(CATALOG), BASE, ROUTE_ID)
+    validate_rows(catalog["routes"], True, str(CATALOG))
     validate_candidate_overrides(catalog["candidates"], str(CATALOG))
     if not isinstance(catalog["methodology"], dict):
         raise Error(f"{CATALOG} methodology must be an object")
@@ -248,12 +169,12 @@ def ordered(routes):
     return {route: routes[route] for route in keys}
 
 
-def record(scope, path, repo="."):
+def record(scope, path):
     return {
         "scope": scope,
         "path": str(path),
         "exists": path.exists(),
-        "config": (load(path, False, scope, repo) if path.exists() else None),
+        "config": (load(path) if path.exists() else None),
     }
 
 
@@ -267,7 +188,7 @@ def selected(routes, route_ids):
     return {route: row for route, row in ordered(routes).items() if route in wanted}
 
 
-def resolve(paths, repo=".", route_ids=None):
+def resolve(paths, route_ids=None):
     catalog = builtin()
     routes, definitions, layers = {}, {}, []
     layers.append(
@@ -289,7 +210,7 @@ def resolve(paths, repo=".", route_ids=None):
     for scope in SCOPES:
         path = paths[scope]
         exists = path.exists()
-        config = load(path, False, scope, repo) if exists else None
+        config = load(path) if exists else None
         layers.append(
             {
                 "scope": scope,
@@ -344,14 +265,14 @@ def markdown_cell(value):
 
 
 def routing_report(paths, repo=".", route_ids=None):
-    result = resolve(paths, repo, route_ids)
+    result = resolve(paths, route_ids)
     root, _common = repo_info(repo)
     return {"repo": str(root), **result}
 
 
 def report_markdown(report):
     lines = [
-        "# Crew routing report",
+        "# Routing report",
         "",
         f"**Repo:** {report['repo']}",
         "**Layers (low → high):** "
@@ -410,10 +331,6 @@ def report_markdown(report):
     return "\n".join(lines) + "\n"
 
 
-def mode_for(scope):
-    return 0o644 if scope == "repo" else 0o600
-
-
 def save(path, config, private):
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
@@ -431,143 +348,6 @@ def save(path, config, private):
             os.unlink(temporary)
 
 
-def save_once(path, content, mode):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
-    except FileExistsError as error:
-        raise Error(f"migration backup already exists: {path}") from error
-    try:
-        if hasattr(os, "fchmod"):
-            os.fchmod(descriptor, mode)
-        with os.fdopen(descriptor, "wb") as stream:
-            stream.write(content)
-            stream.flush()
-            os.fsync(stream.fileno())
-    except Exception:
-        if path.exists():
-            path.unlink()
-        raise
-
-
-def ensure_backup(path, content, mode):
-    if path.exists():
-        if path.read_bytes() != content:
-            raise Error(f"migration backup conflicts with source: {path}")
-        return False
-    save_once(path, content, mode)
-    return True
-
-
-def read_versioned(path):
-    if not path.exists():
-        raise Error(f"config does not exist: {path}")
-    try:
-        raw = path.read_bytes()
-        config = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise Error(f"invalid JSON in {path}: {error}") from error
-    if not isinstance(config, dict):
-        raise Error(f"{path} must contain a JSON object")
-    if type(config.get("version")) is not int:
-        raise Error(f"{path} lacks an integer version")
-    return raw, config
-
-
-def migration_result(scope, path, from_version, to_version, migrated, **extra):
-    validate_schema(migrated, False, "migrated configuration")
-    backup = path.with_name(f"{path.stem}.v{from_version}{path.suffix}")
-    return {
-        "scope": scope,
-        "path": str(path),
-        "backup_path": str(backup),
-        "backup_exists": backup.exists(),
-        "from_version": from_version,
-        "to_version": to_version,
-        "preserved_routes": list(migrated["routes"]),
-        "config": migrated,
-        **extra,
-    }
-
-
-def migrate_v1(scope, path, raw, config):
-    validate_v1_schema(config, scope == "global", str(path))
-    conflicts = sorted(
-        route for route in config["routes"] if route.startswith("commander.")
-    )
-    if conflicts:
-        raise Error(
-            "automatic migration requires explicit disposition of legacy Commander "
-            f"specialists: {', '.join(conflicts)}"
-        )
-    routes = {
-        route: row
-        for route, row in config["routes"].items()
-        if route != "commander"
-    }
-    migrated = {"version": VERSION, "routes": ordered(routes)}
-    return raw, migration_result(
-        scope,
-        path,
-        1,
-        VERSION,
-        migrated,
-        removed_routes=(
-            ["commander"] if "commander" in config["routes"] else []
-        ),
-    )
-
-
-def migrate_v3(scope, path, raw, config):
-    validate_v3_schema(config, False, str(path))
-    routing = config["routing"]
-    preferences = []
-    for name, spec in (routing.get("specializations") or {}).items():
-        if spec is None:
-            continue
-        description = spec.get("description")
-        if isinstance(description, str) and description.strip():
-            preferences.append(
-                f"{description.strip()} (migrated from specialization {name!r}; "
-                "its numeric needs and priority were dropped)"
-            )
-        else:
-            preferences.append(
-                f"Specialization {name!r} was configured without a description; "
-                "restate its routing intent in plain language or delete this line."
-            )
-    migrated = {
-        "version": PREFS_VERSION,
-        "routes": ordered(config["routes"]),
-    }
-    if preferences:
-        migrated["preferences"] = preferences
-    if routing.get("candidates"):
-        migrated["candidates"] = routing["candidates"]
-    return raw, migration_result(
-        scope,
-        path,
-        3,
-        PREFS_VERSION,
-        migrated,
-        dropped_sections=sorted(
-            section
-            for section in ("specializations", "policy")
-            if routing.get(section)
-        ),
-        generated_preferences=preferences,
-    )
-
-
-def migration_preview(scope, path):
-    raw, config = read_versioned(path)
-    if config["version"] == 1:
-        return migrate_v1(scope, path, raw, config)
-    if config["version"] == 3:
-        return migrate_v3(scope, path, raw, config)
-    raise Error(f"{path} version {config['version']} does not need migration")
-
-
 def emit(value, compact=False):
     if compact:
         json.dump(value, sys.stdout, separators=(",", ":"), ensure_ascii=False)
@@ -580,15 +360,7 @@ def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "command",
-        choices=(
-            "template",
-            "read",
-            "resolve",
-            "report",
-            "write",
-            "delete",
-            "migrate",
-        ),
+        choices=("template", "read", "resolve", "report", "write", "delete"),
     )
     parser.add_argument("scope", nargs="?", choices=(*SCOPES, "all"))
     parser.add_argument("--repo", default=".")
@@ -598,7 +370,7 @@ def arguments():
     parser.add_argument("--route", action="append", default=[])
     parser.add_argument("--format", choices=("markdown", "json"))
     args = parser.parse_args()
-    if args.command in {"read", "write", "delete", "migrate"} and args.scope is None:
+    if args.command in {"read", "write", "delete"} and args.scope is None:
         parser.error(f"{args.command} requires a scope")
     if args.scope == "all" and args.command != "read":
         parser.error("scope 'all' is valid only for read")
@@ -610,8 +382,8 @@ def arguments():
         parser.error("--route is valid only for resolve and report")
     if args.command != "report" and args.format is not None:
         parser.error("--format is valid only for report")
-    if args.yes and args.command not in {"delete", "migrate"}:
-        parser.error("--yes is valid only for delete and migrate")
+    if args.yes and args.command != "delete":
+        parser.error("--yes is valid only for delete")
     return args
 
 
@@ -621,7 +393,7 @@ def main():
         if args.command == "template":
             emit(
                 {
-                    "version": PREFS_VERSION,
+                    "version": VERSION,
                     "routes": {},
                     "preferences": [],
                     "candidates": {},
@@ -637,18 +409,11 @@ def main():
         paths = locations(args.repo if needs_repo else None)
         if args.command == "read":
             if args.scope == "all":
-                emit(
-                    {
-                        "layers": [
-                            record(scope, paths[scope], args.repo)
-                            for scope in SCOPES
-                        ]
-                    }
-                )
+                emit({"layers": [record(scope, paths[scope]) for scope in SCOPES]})
             else:
-                emit(record(args.scope, paths[args.scope], args.repo))
+                emit(record(args.scope, paths[args.scope]))
         elif args.command == "resolve":
-            result = resolve(paths, args.repo, args.route)
+            result = resolve(paths, args.route)
             emit(result["config"]["routes"] if args.compact else result, args.compact)
         elif args.command == "report":
             report = routing_report(paths, args.repo, args.route)
@@ -665,7 +430,7 @@ def main():
             validate_schema(config, False, args.file)
             config["routes"] = ordered(config["routes"])
             save(paths[args.scope], config, args.scope != "repo")
-            emit(record(args.scope, paths[args.scope], args.repo))
+            emit(record(args.scope, paths[args.scope]))
         elif args.command == "delete":
             if not args.yes:
                 raise Error("delete requires --yes after user confirmation")
@@ -674,24 +439,8 @@ def main():
             if existed:
                 path.unlink()
             emit({"scope": args.scope, "path": str(path), "deleted": existed})
-        elif args.command == "migrate":
-            raw, preview = migration_preview(args.scope, paths[args.scope])
-            if args.yes:
-                backup = Path(preview["backup_path"])
-                preview["backup_created"] = ensure_backup(
-                    backup, raw, mode_for(args.scope)
-                )
-                save(
-                    paths[args.scope],
-                    preview["config"],
-                    args.scope != "repo",
-                )
-                preview["migrated"] = True
-            else:
-                preview["migrated"] = False
-            emit(preview)
     except (Error, OSError) as error:
-        print(f"crew-config: {error}", file=sys.stderr)
+        print(f"model-routing-config: {error}", file=sys.stderr)
         raise SystemExit(1)
 
 

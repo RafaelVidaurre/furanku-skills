@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for the Crew routing brief and launch gate-check."""
+"""Tests for the model-routing brief and launch gate-check."""
 
 import json
 import os
@@ -9,7 +9,8 @@ import sys
 import tempfile
 import unittest
 
-from skills.crew.scripts import router
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import router
 
 
 SCRIPT = Path(__file__).with_name("router.py")
@@ -47,7 +48,7 @@ class RouterTest(unittest.TestCase):
                 "claude-fable-5[1m] or gpt-5.6-sol at max.",
             ],
         }
-        path = self.home / ".furanku-skills" / "commander" / "config.json"
+        path = self.home / ".furanku-skills" / "model-routing" / "config.json"
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps(config), encoding="utf-8")
 
@@ -76,7 +77,7 @@ class RouterTest(unittest.TestCase):
         return json.loads(result.stdout)
 
     def write_repo_layer(self, config):
-        path = self.repo / ".furanku-skills" / "commander" / "config.json"
+        path = self.repo / ".furanku-skills" / "model-routing" / "config.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(config), encoding="utf-8")
 
@@ -138,6 +139,7 @@ class RouterTest(unittest.TestCase):
             "codex/gpt-5.6-sol/max",
             "--reason",
             "Cross-service design; wrong seams are expensive.",
+            runtime={"harnesses": {"codex": {"quota": {"status": "known"}}}},
         )
         self.assertEqual("selected", decision["status"])
         self.assertEqual("codex/gpt-5.6-sol/max", decision["selected"]["id"])
@@ -188,17 +190,61 @@ class RouterTest(unittest.TestCase):
         self.assertEqual("refused", decision["status"])
         self.assertIn("quota exhausted", decision["reasons"])
 
-    def test_check_warns_on_stale_quota_but_selects(self):
+    def test_check_stale_quota_needs_acceptance_then_records_it(self):
         candidate = "grok/grok-4.5/high"
+        runtime = {"candidates": {candidate: {"quota": {"status": "stale"}}}}
         decision = self.check(
             "--candidate",
             candidate,
             "--reason",
             "Low-risk mechanical change.",
-            runtime={"candidates": {candidate: {"quota": {"status": "stale"}}}},
+            runtime=runtime,
+            expect_code=2,
+        )
+        self.assertEqual("needs-acceptance", decision["status"])
+        self.assertIn("--accept-quota-unknown", decision["pending"][0])
+        decision = self.check(
+            "--candidate",
+            candidate,
+            "--reason",
+            "Low-risk mechanical change.",
+            "--accept-quota-unknown",
+            "Rafael accepted stale quota for a low-risk edit.",
+            runtime=runtime,
         )
         self.assertEqual("selected", decision["status"])
         self.assertIn("quota stale", decision["warnings"])
+        self.assertEqual(
+            "Rafael accepted stale quota for a low-risk edit.",
+            decision["quota_acceptance"],
+        )
+
+    def test_check_refuses_launcher_outside_launchable_via(self):
+        decision = self.check(
+            "--candidate",
+            "grok/grok-4.5/high",
+            "--reason",
+            "Low-risk mechanical change.",
+            "--launchable-via",
+            "claude,codex",
+            expect_code=1,
+        )
+        self.assertEqual("refused", decision["status"])
+        self.assertIn(
+            "launcher 'grok' is outside the consumer's reachable launchers: "
+            "claude, codex",
+            decision["reasons"],
+        )
+        decision = self.check(
+            "--candidate",
+            "grok/grok-4.5/high",
+            "--reason",
+            "Low-risk mechanical change.",
+            "--launchable-via",
+            "grok",
+            runtime={"harnesses": {"grok": {"quota": {"status": "known"}}}},
+        )
+        self.assertEqual("selected", decision["status"])
 
     def test_check_enforces_feature_and_context_gates(self):
         decision = self.check(
@@ -235,7 +281,11 @@ class RouterTest(unittest.TestCase):
         self.assertIn("claude/claude-fable-5[1m]/high", result.stderr)
 
     def test_check_exact_route_keeps_provenance(self):
-        decision = self.check("--exact-route", "worker")
+        decision = self.check(
+            "--exact-route",
+            "worker",
+            runtime={"harnesses": {"grok": {"quota": {"status": "known"}}}},
+        )
         self.assertEqual("exact", decision["status"])
         self.assertEqual("grok", decision["selected"]["agent"])
         self.assertEqual("grok/grok-4.5/high", decision["selected"]["id"])
@@ -271,7 +321,7 @@ class RouterTest(unittest.TestCase):
     def test_check_exact_route_gates_unmatched_routes_by_harness(self):
         self.write_repo_layer(
             {
-                "version": 2,
+                "version": 4,
                 "routes": {
                     "worker.bulk": {
                         "work": "Bulk edits.",
@@ -303,8 +353,12 @@ class RouterTest(unittest.TestCase):
         self.assertIn("matches no configured candidate", result.stderr)
 
     def test_builtin_defaults_route_without_persisted_layers(self):
-        (self.home / ".furanku-skills" / "commander" / "config.json").unlink()
-        decision = self.check("--exact-route", "worker")
+        (self.home / ".furanku-skills" / "model-routing" / "config.json").unlink()
+        decision = self.check(
+            "--exact-route",
+            "worker",
+            runtime={"harnesses": {"codex": {"quota": {"status": "known"}}}},
+        )
         self.assertEqual("exact", decision["status"])
         self.assertEqual("codex", decision["selected"]["agent"])
         self.assertEqual("gpt-5.6-luna", decision["selected"]["model"])
@@ -359,7 +413,7 @@ class RouterTest(unittest.TestCase):
         self.assertIn("quota exhausted", decision["reasons"])
 
     def test_partial_global_layer_briefs_cleanly(self):
-        path = self.home / ".furanku-skills" / "commander" / "config.json"
+        path = self.home / ".furanku-skills" / "model-routing" / "config.json"
         path.write_text(
             json.dumps(
                 {
@@ -527,6 +581,8 @@ class RouterTest(unittest.TestCase):
             candidate,
             "--reason",
             "Spatial 3D outcome; kimi leads that evidence.",
+            "--accept-quota-unknown",
+            "Principal accepted: K3 quota is structurally unreadable here.",
             runtime={
                 "harnesses": {
                     "opencode": {

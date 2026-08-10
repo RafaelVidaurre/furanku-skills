@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile the Crew routing brief and gate-check launch decisions.
+"""Compile the routing brief and gate-check launch decisions.
 
 The brief hands the spawning agent the information it lacks — candidate
 research evidence, economics, live quota, configured exact routes, and the
@@ -147,16 +147,14 @@ def compile_brief(repo="."):
     candidate_sources = {candidate_id: ["builtin"] for candidate_id in candidates}
     preferences = []
     paths = exact_config.locations(repo)
-    exact = exact_config.resolve(paths, repo)
+    exact = exact_config.resolve(paths)
     for scope in exact_config.SCOPES:
         path = paths[scope]
         if not path.exists():
             continue
         # Partial layers are valid overlays; only the resolved routes table
         # (already validated inside exact_config.resolve) needs the base rows.
-        config = exact_config.load(path, False, scope, repo)
-        if config["version"] != exact_config.PREFS_VERSION:
-            continue
+        config = exact_config.load(path)
         for text in config.get("preferences", []):
             preferences.append({"scope": scope, "text": text.strip()})
         for candidate_id, patch in config.get("candidates", {}).items():
@@ -353,11 +351,25 @@ def quota_summary(state):
     return summary
 
 
-def gate(candidate_id, candidate, runtime, required_features=(), minimum_context=None):
+def gate(
+    candidate_id,
+    candidate,
+    runtime,
+    required_features=(),
+    minimum_context=None,
+    allowed_launchers=None,
+):
     """Hard eligibility only. Judgment stays with the agent."""
     reasons, warnings = [], []
     if not candidate.get("enabled", True):
         reasons.append("disabled by configuration")
+    if allowed_launchers is not None:
+        agent = candidate["launch"]["agent"]
+        if agent not in allowed_launchers:
+            reasons.append(
+                f"launcher {agent!r} is outside the consumer's reachable "
+                "launchers: " + ", ".join(sorted(allowed_launchers))
+            )
     missing = sorted(set(required_features) - set(candidate.get("features", [])))
     if missing:
         reasons.append("missing features: " + ", ".join(missing))
@@ -390,7 +402,14 @@ def gate(candidate_id, candidate, runtime, required_features=(), minimum_context
     return reasons, warnings
 
 
-def gate_check(candidate_id, candidate, runtime, required_features=(), minimum_context=None):
+def gate_check(
+    candidate_id,
+    candidate,
+    runtime,
+    required_features=(),
+    minimum_context=None,
+    allowed_launchers=None,
+):
     """Single gate-and-runtime resolution shared by every decision path."""
     reasons, warnings = gate(
         candidate_id,
@@ -398,14 +417,45 @@ def gate_check(candidate_id, candidate, runtime, required_features=(), minimum_c
         runtime,
         required_features=required_features,
         minimum_context=minimum_context,
+        allowed_launchers=allowed_launchers,
     )
     state = runtime_for(runtime, candidate_id, candidate)
     return reasons, warnings, quota_summary(state)
 
 
+def acceptance_terms(quota, accept_note):
+    """Unknown quota never passes silently: it either blocks the decision as
+    needs-acceptance or records who accepted launching without live quota."""
+    status = quota.get("status", "unknown")
+    if status not in {"unknown", "stale"}:
+        return None, None
+    if accept_note:
+        return None, accept_note.strip()
+    return (
+        f"quota {status}: rerun with --accept-quota-unknown "
+        '"<who accepted and why>" after the principal accepts launching '
+        "without live quota",
+        None,
+    )
+
+
 def check(compiled, args, runtime):
     if bool(args.candidate) == bool(args.exact_route):
         raise Error("check requires exactly one of --candidate or --exact-route")
+    allowed_launchers = None
+    if args.launchable_via:
+        allowed_launchers = {
+            launcher.strip()
+            for value in args.launchable_via
+            for launcher in value.split(",")
+            if launcher.strip()
+        }
+        if not allowed_launchers:
+            raise Error("--launchable-via requires launcher names")
+    if args.accept_quota_unknown is not None and not args.accept_quota_unknown.strip():
+        raise Error(
+            "--accept-quota-unknown requires the acceptance basis as its value"
+        )
     if args.exact_route:
         rows = compiled["exact"]["config"]["routes"]
         row = rows.get(args.exact_route)
@@ -427,6 +477,7 @@ def check(compiled, args, runtime):
                 runtime,
                 required_features=args.require_feature,
                 minimum_context=args.minimum_context,
+                allowed_launchers=allowed_launchers,
             )
         else:
             if args.require_feature or args.minimum_context is not None:
@@ -435,7 +486,10 @@ def check(compiled, args, runtime):
                     f"{args.exact_route!r} matches no configured candidate"
                 )
             reasons, warnings, quota = gate_check(
-                args.exact_route, {"launch": launch}, runtime
+                args.exact_route,
+                {"launch": launch},
+                runtime,
+                allowed_launchers=allowed_launchers,
             )
         if reasons:
             refusal = {
@@ -453,6 +507,16 @@ def check(compiled, args, runtime):
                     candidate_id, []
                 )
             return refusal
+        pending, acceptance = acceptance_terms(quota, args.accept_quota_unknown)
+        if pending:
+            return {
+                "status": "needs-acceptance",
+                "selected": {"id": candidate_id, **launch},
+                "exact_route": args.exact_route,
+                "pending": [pending],
+                "warnings": warnings,
+                "quota": quota,
+            }
         decision = {
             "status": "exact",
             "selected": {"id": candidate_id, **launch},
@@ -461,6 +525,8 @@ def check(compiled, args, runtime):
             "warnings": warnings,
             "quota": quota,
         }
+        if acceptance:
+            decision["quota_acceptance"] = acceptance
         if args.reason:
             decision["reason"] = args.reason
         return decision
@@ -476,6 +542,7 @@ def check(compiled, args, runtime):
         runtime,
         required_features=args.require_feature,
         minimum_context=args.minimum_context,
+        allowed_launchers=allowed_launchers,
     )
     if reasons:
         return {
@@ -484,7 +551,17 @@ def check(compiled, args, runtime):
             "reasons": reasons,
             "warnings": warnings,
         }
-    return {
+    pending, acceptance = acceptance_terms(quota, args.accept_quota_unknown)
+    if pending:
+        return {
+            "status": "needs-acceptance",
+            "candidate": args.candidate,
+            "selected": {"id": args.candidate, **candidate["launch"]},
+            "pending": [pending],
+            "warnings": warnings,
+            "quota": quota,
+        }
+    decision = {
         "status": "selected",
         "selected": {"id": args.candidate, **candidate["launch"]},
         "reason": args.reason.strip(),
@@ -492,6 +569,9 @@ def check(compiled, args, runtime):
         "quota": quota,
         "sources": compiled["candidate_sources"].get(args.candidate, []),
     }
+    if acceptance:
+        decision["quota_acceptance"] = acceptance
+    return decision
 
 
 markdown_cell = exact_config.markdown_cell
@@ -532,11 +612,17 @@ def quota_cell(state):
 
 
 def brief_markdown(compiled, runtime, repo_root):
+    if not runtime:
+        live_quota = "not loaded"
+    elif runtime.get("captured_at"):
+        live_quota = f"yes, captured {runtime['captured_at']}"
+    else:
+        live_quota = "requested but unavailable — see notes"
     lines = [
-        "# Crew routing brief",
+        "# Routing brief",
         "",
         f"**Repo:** {repo_root}",
-        f"**Live quota:** {'yes, captured ' + str(runtime.get('captured_at')) if runtime else 'not loaded'}",
+        f"**Live quota:** {live_quota}",
         "",
         "## User preferences",
         "",
@@ -679,7 +765,17 @@ def emit(value, compact=False):
 def load_runtime(args, candidates):
     runtime = {}
     if args.quota_axi:
-        runtime = quota_axi_runtime(run_quota_axi(), candidates)
+        try:
+            runtime = quota_axi_runtime(run_quota_axi(), candidates)
+        except Error as exc:
+            # Degrade, never fabricate: quota stays unknown everywhere, the
+            # failure is on record, and check() forces the acceptance flow.
+            runtime = {
+                "captured_at": None,
+                "harnesses": {},
+                "candidates": {},
+                "notes": [f"quota-axi failed: {exc}; quota is unknown for every candidate"],
+            }
     if args.runtime_file:
         runtime = merge_runtime(
             runtime,
@@ -706,6 +802,16 @@ def main(argv=None):
         help="hard feature requirement, repeatable",
     )
     parser.add_argument("--minimum-context", type=int)
+    parser.add_argument(
+        "--launchable-via",
+        action="append",
+        default=[],
+        help="launchers the consumer's mechanism can drive (CSV, repeatable)",
+    )
+    parser.add_argument(
+        "--accept-quota-unknown",
+        help="who accepted launching without live quota, and why",
+    )
     parser.add_argument("--runtime-file", help="ephemeral runtime JSON")
     parser.add_argument(
         "--quota-axi",
@@ -727,9 +833,13 @@ def main(argv=None):
             return 0
         decision = check(compiled, args, runtime)
         emit(decision, args.compact)
-        return 0 if decision["status"] != "refused" else 1
+        if decision["status"] == "refused":
+            return 1
+        if decision["status"] == "needs-acceptance":
+            return 2
+        return 0
     except (Error, exact_config.Error, OSError, json.JSONDecodeError) as exc:
-        print(f"crew-router: {exc}", file=sys.stderr)
+        print(f"model-routing: {exc}", file=sys.stderr)
         return 1
 
 
