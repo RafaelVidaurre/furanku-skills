@@ -183,7 +183,7 @@ First use walks you through approving which model tools may run on your machine.
 
 **Useful if:** an agent is about to spawn or delegate work and you want the agent/model/effort pick to be evidence-based, quota-aware, and auditable — not vibes.
 
-**What it does:** compiles a routing brief (research-backed candidates, your preferences, live quota), lets the spawning agent judge the pick, then gate-checks it: disabled candidates, missing features, unreachable launchers, and exhausted quota are refused with reasons, and unknown quota needs an explicit sign-off.
+**What it does:** compiles a routing brief (research-backed candidates, your preferences, live quota), lets the spawning agent judge the pick, then gate-checks it: disabled candidates, missing features, agents the mechanism cannot launch, and exhausted quota are refused with reasons, and unknown quota needs an explicit sign-off.
 
 ```text
 > Which model should own this refactor? Show me the routing brief.

@@ -231,7 +231,7 @@ class RouterTest(unittest.TestCase):
         )
         self.assertEqual("refused", decision["status"])
         self.assertIn(
-            "launcher 'grok' is outside the consumer's reachable launchers: "
+            "agent 'grok' is outside the consumer's launchable agents: "
             "claude, codex",
             decision["reasons"],
         )

@@ -367,8 +367,8 @@ def gate(
         agent = candidate["launch"]["agent"]
         if agent not in allowed_launchers:
             reasons.append(
-                f"launcher {agent!r} is outside the consumer's reachable "
-                "launchers: " + ", ".join(sorted(allowed_launchers))
+                f"agent {agent!r} is outside the consumer's launchable "
+                "agents: " + ", ".join(sorted(allowed_launchers))
             )
     missing = sorted(set(required_features) - set(candidate.get("features", [])))
     if missing:
@@ -451,7 +451,7 @@ def check(compiled, args, runtime):
             if launcher.strip()
         }
         if not allowed_launchers:
-            raise Error("--launchable-via requires launcher names")
+            raise Error("--launchable-via requires catalog agent tokens")
     if args.accept_quota_unknown is not None and not args.accept_quota_unknown.strip():
         raise Error(
             "--accept-quota-unknown requires the acceptance basis as its value"
@@ -806,7 +806,7 @@ def main(argv=None):
         "--launchable-via",
         action="append",
         default=[],
-        help="launchers the consumer's mechanism can drive (CSV, repeatable)",
+        help="catalog agent tokens the consumer's mechanism can launch (CSV, repeatable)",
     )
     parser.add_argument(
         "--accept-quota-unknown",

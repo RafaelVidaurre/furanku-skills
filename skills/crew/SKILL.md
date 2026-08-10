@@ -41,12 +41,12 @@ When the user gives the current session a role, adopt it immediately with `repor
 
 ## Spawn an owner
 
-Load the `model-routing` skill and follow it: generate the brief, judge the pick, and gate-check it—passing the manifest's launchers as `--launchable-via`. Coordination role does not imply model strength. Run one check-and-packet pipeline per spawned owner; one owner's pick never determines another's:
+Load the `model-routing` skill and follow it: generate the brief, judge the pick, and gate-check it—passing the manifest's launchable agents as `--launchable-via`. Coordination role does not imply model strength. Run one check-and-packet pipeline per spawned owner; one owner's pick never determines another's:
 
 ```sh
 python3 <model-routing-dir>/scripts/router.py check --repo <root> \
   --candidate <id> --reason "<the task judgment behind this pick>" \
-  --launchable-via <manifest-launchers> --quota-axi --compact |
+  --launchable-via <manifest-launchable-agents> --quota-axi --compact |
 python3 <crew-skill-dir>/scripts/assignment.py packet --decision-json - \
   --manifest <manifest> --title "<outcome>" \
   --role captain|worker --reports-to user|commander|captain \

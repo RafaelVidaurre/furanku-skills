@@ -23,9 +23,9 @@ One brief serves the whole spawning session—reuse it across decisions and rege
 
 The brief carries what the session does not otherwise know: the user's routing preferences by scope, configured exact routes, and every launchable candidate with research evidence, task cost, speed, features, context capacity, and current quota. Judge each outcome on the dimensions the evidence covers—reasoning depth, implementation demands, agentic repository work, UI or spatial character—plus risk: how expensive a wrong result is, and whether the owner holds write authority. Choose the cheaper, quota-lighter candidate—as the brief defines quota-lighter—whenever it has no material task-relevant disadvantage. Spend premium capability only when the capability difference matters to the cost of being wrong, and let the rationale for an expensive pick name why cheaper candidates were insufficient. Preferences bind: resolve conflicts by the precedence order the brief states, and when applicability stays genuinely ambiguous, ask the principal instead of inventing precedence. Low-confidence or dated evidence and quota warnings belong in the rationale, not silently absorbed.
 
-Identify the outcome's hard requirements—vision, long context, a minimum context size—and the launchers the spawning mechanism can actually start; both become `check` flags, never mental notes.
+Identify the outcome's hard requirements—vision, long context, a minimum context size—and the catalog agent tokens the spawning mechanism can actually launch; both become `check` flags, never mental notes.
 
-**Complete when:** the pick has a written rationale naming the task judgment, and every hard requirement and launcher constraint is listed for the check.
+**Complete when:** the pick has a written rationale naming the task judgment, and every hard requirement and launchable-agent constraint is listed for the check.
 
 ## Gate-check the decision
 
@@ -39,9 +39,9 @@ python3 <skill-dir>/scripts/router.py check --repo <root> \
   --quota-axi --compact
 ```
 
-Use `check --exact-route <route-id>` instead of `--candidate`/`--reason` for a configured route. `--launchable-via` names the launchers the consumer's spawning mechanism can drive (for example `claude` alone for harness-native subagents); a candidate outside that set is refused, never silently substituted.
+Use `check --exact-route <route-id>` instead of `--candidate`/`--reason` for a configured route. `--launchable-via` names the catalog `agent` tokens the consumer's spawning mechanism can launch (for example `claude` alone for harness-native subagents); a candidate outside that set is refused, never silently substituted.
 
-`check` enforces only hard gates—disabled candidates, missing required features or context, unreachable launchers, authentication, exhausted quota—and emits one JSON decision:
+`check` enforces only hard gates—disabled candidates, missing required features or context, unlaunchable agents, authentication, exhausted quota—and emits one JSON decision:
 
 - `selected` (exit 0): judged pick passed; carries `selected` launch tuple, `reason`, `warnings`, `quota`.
 - `exact` (exit 0): configured route passed; carries `exact_route` and layer `provenance` instead of `reason`.
