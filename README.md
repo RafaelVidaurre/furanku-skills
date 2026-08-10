@@ -169,12 +169,26 @@ First use walks you through approving which model tools may run on your machine.
 
 **Useful if:** you run multi-agent work and want clear ownership (who plans, who implements, who reports to whom) instead of a pile of unnamed agents.
 
-**What it does:** defines simple roles — optional overall coordinator, lead for a larger front of work, and people focused on one concrete outcome — and helps pick sensible model setups when spawning them. Works best if you already use complementary coordination tools in your setup.
+**What it does:** defines simple roles — optional overall coordinator, lead for a larger front of work, and people focused on one concrete outcome. Model picks come from `model-routing`. Works with whatever your setup already has: harness-native subagents by default, or any orchestrator and issue tracker you configure per machine or project.
 
 ```text
 > Act as Commander and coordinate my projects without editing project files.
 > You are Captain for the editor work. Report to me.
-> Show the effective Crew routes for this repository.
+> Use GitHub issues as Crew's work record in this repo.
+```
+
+---
+
+### model-routing
+
+**Useful if:** an agent is about to spawn or delegate work and you want the agent/model/effort pick to be evidence-based, quota-aware, and auditable — not vibes.
+
+**What it does:** compiles a routing brief (research-backed candidates, your preferences, live quota), lets the spawning agent judge the pick, then gate-checks it: disabled candidates, missing features, unreachable launchers, and exhausted quota are refused with reasons, and unknown quota needs an explicit sign-off.
+
+```text
+> Which model should own this refactor? Show me the routing brief.
+> Prefer terra for bulk edits in this repo.
+> Show the effective routes for this repository.
 ```
 
 ## Repository layout
