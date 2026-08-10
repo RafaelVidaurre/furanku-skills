@@ -169,7 +169,7 @@ First use walks you through approving which model tools may run on your machine.
 
 **Useful if:** you run multi-agent work and want clear ownership (who plans, who implements, who reports to whom) instead of a pile of unnamed agents.
 
-**What it does:** defines simple roles — optional overall coordinator, lead for a larger front of work, and people focused on one concrete outcome. Model picks come from `model-routing`. Works with whatever your setup already has: harness-native subagents by default, or any orchestrator and issue tracker you configure per machine or project.
+**What it does:** defines simple roles — optional overall coordinator, lead for a larger front of work, and people focused on one concrete outcome. Model picks come from `model-routing`. Works with whatever your setup already has: the harness's strongest suitable native orchestration surface (Claude Workflow where available), or any orchestrator and issue tracker you configure per machine or project.
 
 ```text
 > Act as Commander and coordinate my projects without editing project files.
