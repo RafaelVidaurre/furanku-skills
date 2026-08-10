@@ -26,7 +26,14 @@ TOKEN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 EXTRA_KEY = re.compile(r"^[a-z][a-z0-9_]*$")
 WORK_REF = re.compile(r"^([a-z0-9]+(?:-[a-z0-9]+)*):(.+)$")
 ROLES = ("captain", "worker")
-MANIFEST_KEYS = {"mechanism", "launchers", "isolation", "communication", "retire", "extras"}
+MANIFEST_KEYS = {
+    "mechanism",
+    "launchable_agents",
+    "isolation",
+    "communication",
+    "retire",
+    "extras",
+}
 SEAM_KEYS = {"version", "work_record", "mechanism"}
 RESERVED_SPEC_KEYS = {
     "role", "reports_to", "mechanism", "agent", "model", "effort", "route",
@@ -113,11 +120,11 @@ def validate_manifest(manifest, label="manifest"):
     if unknown:
         raise Error(f"{label} has unknown keys: {', '.join(sorted(unknown))}")
     token(manifest.get("mechanism"), f"{label}.mechanism")
-    launchers = manifest.get("launchers")
-    if not isinstance(launchers, list) or not launchers:
-        raise Error(f"{label}.launchers must be a non-empty array")
-    for launcher in launchers:
-        token(launcher, f"{label}.launchers entry")
+    agents = manifest.get("launchable_agents")
+    if not isinstance(agents, list) or not agents:
+        raise Error(f"{label}.launchable_agents must be a non-empty array")
+    for agent in agents:
+        token(agent, f"{label}.launchable_agents entry")
     for key in ("communication", "retire"):
         if not isinstance(manifest.get(key), str) or not manifest[key].strip():
             raise Error(f"{label}.{key} must describe the mechanism's procedure")
@@ -331,12 +338,13 @@ def build_packet(args):
                 f"exact route {route_id!r} does not match role {args.role!r}"
             )
     agent = decision["selected"]["agent"]
-    if agent not in manifest["launchers"]:
+    if agent not in manifest["launchable_agents"]:
         raise Error(
             f"mechanism {manifest['mechanism']!r} cannot launch agent {agent!r}; "
-            "its launchers are: " + ", ".join(manifest["launchers"]) + ". "
-            "Re-run the routing check with --launchable-via "
-            + ",".join(manifest["launchers"])
+            "its launchable agents are: "
+            + ", ".join(manifest["launchable_agents"])
+            + ". Re-run the routing check with --launchable-via "
+            + ",".join(manifest["launchable_agents"])
             + " and re-judge."
         )
     extras = parse_extras(args.extra, manifest)

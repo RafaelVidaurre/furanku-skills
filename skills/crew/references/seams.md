@@ -35,7 +35,7 @@ A manifest is the checkable statement of what a mechanism can honor; `packet` re
 ```json
 {
   "mechanism": "<id>",
-  "launchers": ["<agent>", "..."],
+  "launchable_agents": ["<agent>", "..."],
   "isolation": false,
   "communication": "<how questions, escalation, status, and completion reach the principal>",
   "retire": "<how to enumerate and clean up the resources an assignment created>",
@@ -43,16 +43,16 @@ A manifest is the checkable statement of what a mechanism can honor; `packet` re
 }
 ```
 
-`launchers` lists the routing `agent` values the mechanism can start—`check --launchable-via` takes exactly this list. `extras` declares the mechanism-specific fields every packet must carry.
+`launchable_agents` lists the routing catalog's `agent` tokens this mechanism can start—the catalog's vocabulary, not the mechanism's own name—and `check --launchable-via` takes exactly this list. `extras` declares the mechanism-specific fields every packet must carry.
 
 ### harness-native (default)
 
-Always available: the subagent, background-agent, or workflow facility of whatever harness is running. Substitute the running harness's own agent id for `launchers`—a harness launches only its own vendor's models, which is why routing must see `--launchable-via`:
+Always available: the subagent, background-agent, or workflow facility of whatever harness is running. Set `launchable_agents` to the catalog agent tokens the running harness can actually start—a stock harness launches only its own vendor's models, which is why routing must see `--launchable-via`:
 
 ```json
 {
   "mechanism": "harness-native",
-  "launchers": ["claude"],
+  "launchable_agents": ["claude"],
   "isolation": false,
   "communication": "The harness's task notifications and agent messaging carry questions, status, and completion to the spawning session.",
   "retire": "Stop or dismiss the agent through the harness; no durable terminals or worktrees are created.",
@@ -60,7 +60,7 @@ Always available: the subagent, background-agent, or workflow facility of whatev
 }
 ```
 
-Launch by starting the harness agent with the packet's `spec` as its prompt. Cross-vendor candidates are unreachable here; when the routing brief favors one, either accept the refusal's re-judged in-vendor pick or switch to a mechanism whose launchers include it.
+Launch by starting the harness agent with the packet's `spec` as its prompt. Cross-vendor candidates are unreachable here; when the routing brief favors one, either accept the refusal's re-judged in-vendor pick or switch to a mechanism whose launchable agents include it.
 
 ### orca
 
@@ -69,7 +69,7 @@ Available when the `orchestration` and `orca-cli` skills are installed. Full cap
 ```json
 {
   "mechanism": "orca",
-  "launchers": ["claude", "codex", "opencode", "grok"],
+  "launchable_agents": ["claude", "codex", "opencode", "grok"],
   "isolation": true,
   "communication": "Orca dispatch carries questions, escalation, status, and completion; dependency order is represented once in Orca.",
   "retire": "Use current orchestration guidance to finish assignment state and current orca-cli guidance to retire the assignment's dedicated terminals and worktree.",

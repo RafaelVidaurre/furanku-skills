@@ -14,7 +14,7 @@ SCRIPT = Path(__file__).with_name("assignment.py")
 
 ORCA_MANIFEST = {
     "mechanism": "orca",
-    "launchers": ["claude", "codex", "opencode", "grok"],
+    "launchable_agents": ["claude", "codex", "opencode", "grok"],
     "isolation": True,
     "communication": "Orca dispatch carries questions and completion.",
     "retire": "Retire the assignment's terminals and worktree via orca-cli.",
@@ -23,7 +23,7 @@ ORCA_MANIFEST = {
 
 HARNESS_MANIFEST = {
     "mechanism": "harness-native",
-    "launchers": ["claude"],
+    "launchable_agents": ["claude"],
     "isolation": False,
     "communication": "Harness task notifications reach the spawning session.",
     "retire": "Stop the agent through the harness; nothing durable remains.",
@@ -282,7 +282,7 @@ class PacketTest(unittest.TestCase):
 
     def test_rejects_invalid_manifest(self):
         for label, patch in (
-            ("no launchers", {"launchers": []}),
+            ("no launchable agents", {"launchable_agents": []}),
             ("unknown key", {"surprise": True}),
             ("blank retire", {"retire": " "}),
             ("reserved extra", {"extras": {"role": ""}}),
