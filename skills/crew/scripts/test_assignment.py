@@ -98,6 +98,32 @@ class PacketTest(unittest.TestCase):
         self.assertIn('routing_warnings: ["quota stale"]', payload["spec"])
         self.assertIn("routing_quota_acceptance:", payload["spec"])
 
+    def test_existing_work_ref_preserves_launch_constraints_for_descendants(self):
+        result = run(
+            *packet_args(SELECTED),
+            "--launch-constraint",
+            "Use claudex for every thread spawned.",
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(
+            ["Use claudex for every thread spawned."],
+            payload["launch_constraints"],
+        )
+        self.assertIn(
+            'launch_constraint: "Use claudex for every thread spawned."',
+            payload["spec"],
+        )
+        self.assertEqual(
+            "beads:bead-1",
+            f'{payload["work"]["adapter"]}:{payload["work"]["ref"]}',
+        )
+
+    def test_rejects_blank_launch_constraint(self):
+        result = run(*packet_args(SELECTED), "--launch-constraint", "   ")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("--launch-constraint must be non-empty", result.stderr)
+
     def test_decision_json_reads_stdin(self):
         result = run(*BASE, "--decision-json", "-", stdin=json.dumps(SELECTED))
         self.assertEqual(0, result.returncode, result.stderr)
@@ -115,6 +141,47 @@ class PacketTest(unittest.TestCase):
         self.assertNotEqual(0, result.returncode)
         self.assertIn("cannot launch agent 'codex'", result.stderr)
         self.assertIn("--launchable-via claude", result.stderr)
+
+    def test_exact_manifest_mismatch_preserves_route_and_launch_constraints(self):
+        decision = {
+            "status": "exact",
+            "selected": {
+                "id": None,
+                "agent": "grok",
+                "model": "grok-4.5",
+                "effort": "high",
+            },
+            "exact_route": "worker",
+            "provenance": {
+                "winner": {"scope": "global", "path": "/tmp/config.json"}
+            },
+        }
+        args = packet_args(decision)
+        args[args.index(json.dumps(ORCA_MANIFEST))] = json.dumps(HARNESS_MANIFEST)
+        front = args.index("front_key=run-1/shell")
+        del args[front - 1 : front + 1]
+        result = run(
+            *args,
+            "--launch-constraint",
+            "Use harness-native for every thread.",
+        )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("preserve exact route 'worker'", result.stderr)
+        self.assertIn("unchanged launch constraints", result.stderr)
+        self.assertNotIn("re-judge", result.stderr)
+
+    def test_refused_exact_decision_preserves_route_and_reasons(self):
+        decision = {
+            "status": "refused",
+            "exact_route": "worker",
+            "reasons": ["agent 'grok' is outside launchable agents: claude"],
+            "warnings": [],
+        }
+        result = run(*packet_args(decision))
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("exact route 'worker' was refused", result.stderr)
+        self.assertIn("agent 'grok' is outside launchable agents", result.stderr)
+        self.assertIn("Preserve the route", result.stderr)
 
     def test_refuses_needs_acceptance_decision_with_flow_hint(self):
         decision = {

@@ -9,7 +9,7 @@ The agent about to spawn work—not a script—decides which agent, model, and e
 
 ## Generate the brief
 
-Use a configured exact route when the user asked for one; otherwise judge the work against the brief. Generate it with live quota and read it:
+Use a configured exact route when the principal asked for one; otherwise judge the work against the brief. An instruction naming only a mechanism, harness, or executable is a consumer launch constraint, not an exact-route request or routing override. For example, “use claudex” does not imply `agent: claude` or exclude other catalog agents its selected surface can launch. A combined instruction that also names an agent, model, or effort binds launch and routing independently. Generate the brief with live quota and read it:
 
 ```sh
 python3 <skill-dir>/scripts/router.py brief --repo <root> --quota-axi
@@ -34,7 +34,7 @@ Run one check per decision—each delegated outcome gets its own judgment and ra
 ```sh
 python3 <skill-dir>/scripts/router.py check --repo <root> \
   --candidate <id> --reason "<the task judgment behind this pick>" \
-  [--launchable-via <launcher,...>] \
+  [--launchable-via <agent,...>] \
   [--require-feature <feature>] [--minimum-context <tokens>] \
   --quota-axi --compact
 ```
@@ -45,12 +45,12 @@ Use `check --exact-route <route-id>` instead of `--candidate`/`--reason` for a c
 
 - `selected` (exit 0): judged pick passed; carries `selected` launch tuple, `reason`, `warnings`, `quota`.
 - `exact` (exit 0): configured route passed; carries `exact_route` and layer `provenance` instead of `reason`.
-- `refused` (exit 1): a hard gate failed; `reasons` names each gate. Answer by re-judging or surfacing the gate to the principal—never by launching the refused candidate directly.
+- `refused` (exit 1): a hard gate failed; `reasons` names each gate. Re-judge a refused candidate within unchanged principal constraints. Preserve a refused exact route until the principal authorizes a routing change; satisfy it through a permitted launch surface or surface the conflict. Never launch a refused decision directly.
 - `needs-acceptance` (exit 2): every gate passed but quota is unknown or stale. Obtain the principal's acceptance, then rerun with `--accept-quota-unknown "<who accepted and why>"`; the decision then records that basis as `quota_acceptance`.
 
 When the decision's warnings or quota materially contradict the judgment—quota far below what the brief showed, an unexplained warning—re-judge before launching instead of proceeding anyway.
 
-**Complete when:** the consumer holds a `selected` or `exact` decision JSON whose gates match the outcome's stated requirements, or a refusal has been answered by re-judging or escalating.
+**Complete when:** the consumer holds a `selected` or `exact` decision JSON whose gates match the outcome's stated requirements, a candidate refusal has been re-judged within unchanged constraints, or an exact-route refusal has been satisfied through a permitted launch surface or surfaced to the principal.
 
 ## View or modify configuration
 

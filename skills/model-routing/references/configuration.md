@@ -75,7 +75,7 @@ python3 "$CONFIG" read all --repo <root>
 python3 "$CONFIG" resolve --repo <root> --compact [--route <id> ...]
 python3 "$ROUTER" brief --repo <root> --format json
 python3 "$ROUTER" check --repo <root> --candidate <id> --reason "<judgment>" \
-  [--launchable-via <launcher,...>] [--accept-quota-unknown "<basis>"] [--quota-axi]
+  [--launchable-via <agent,...>] [--accept-quota-unknown "<basis>"] [--quota-axi]
 ```
 
 `check` hard-gates what its runtime inputs actually establish: `--quota-axi` supplies provider authentication and quota, so those gates are live in the documented flow; runtime health and inventory gate only when a `--runtime-file` supplies that state. When quota stays unknown or stale after the runtime inputs, `check` exits 2 with status `needs-acceptance` until `--accept-quota-unknown` records who accepted launching without live quota.

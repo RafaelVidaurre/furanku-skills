@@ -39,7 +39,7 @@ RESERVED_SPEC_KEYS = {
     "role", "reports_to", "mechanism", "agent", "model", "effort", "route",
     "candidate", "work_ref", "bootstrap_request", "routing_status",
     "routing_reason", "routing_warnings", "routing_quota",
-    "routing_quota_acceptance", "route_source",
+    "routing_quota_acceptance", "route_source", "launch_constraint",
 }
 
 
@@ -214,6 +214,32 @@ def read_decision(value):
             f"{pending}. Obtain the principal's acceptance and re-run the "
             "routing check with --accept-quota-unknown."
         )
+    if status == "refused":
+        reasons = decision.get("reasons")
+        if isinstance(reasons, list):
+            detail = "; ".join(
+                reason.strip()
+                for reason in reasons
+                if isinstance(reason, str) and reason.strip()
+            )
+        else:
+            detail = ""
+        detail = detail or "an unspecified hard gate failed"
+        route = decision.get("exact_route")
+        if isinstance(route, str) and route.strip():
+            raise Error(
+                f"exact route {route!r} was refused: {detail}. Preserve the route "
+                "and unchanged launch constraints; use a permitted launch surface "
+                "or surface the conflict to the principal."
+            )
+        candidate = decision.get("candidate")
+        label = (
+            f"candidate {candidate!r}" if isinstance(candidate, str) else "candidate"
+        )
+        raise Error(
+            f"routing {label} was refused: {detail}. Re-judge within unchanged "
+            "principal constraints or surface the conflict."
+        )
     if status not in {"selected", "exact"}:
         raise Error("routing decision is not launchable")
     selected = decision.get("selected")
@@ -267,6 +293,16 @@ def parse_extras(pairs, manifest):
         if pattern and not re.fullmatch(pattern, extras[key]):
             raise Error(f"--extra {key}={extras[key]!r} must match {pattern}")
     return extras
+
+
+def parse_launch_constraints(values):
+    constraints = []
+    for value in values:
+        if not value.strip():
+            raise Error("--launch-constraint must be non-empty")
+        if value not in constraints:
+            constraints.append(value)
+    return constraints
 
 
 def parse_work(args):
@@ -339,15 +375,24 @@ def build_packet(args):
             )
     agent = decision["selected"]["agent"]
     if agent not in manifest["launchable_agents"]:
-        raise Error(
+        message = (
             f"mechanism {manifest['mechanism']!r} cannot launch agent {agent!r}; "
             "its launchable agents are: "
             + ", ".join(manifest["launchable_agents"])
             + ". Re-run the routing check with --launchable-via "
             + ",".join(manifest["launchable_agents"])
-            + " and re-judge."
         )
+        if decision["status"] == "exact":
+            message += (
+                f"; preserve exact route {decision['exact_route']!r} and unchanged "
+                "launch constraints, then use a permitted launch surface or surface "
+                "the conflict to the principal."
+            )
+        else:
+            message += " and re-judge within unchanged principal constraints."
+        raise Error(message)
     extras = parse_extras(args.extra, manifest)
+    launch_constraints = parse_launch_constraints(args.launch_constraint)
     work = parse_work(args)
     routing = routing_summary(decision)
     contract = (
@@ -359,6 +404,10 @@ def build_packet(args):
         f"mechanism: {manifest['mechanism']}",
     ]
     lines += [f"{key}: {extras[key]}" for key in sorted(extras)]
+    lines += [
+        f"launch_constraint: {json.dumps(value, ensure_ascii=False)}"
+        for value in launch_constraints
+    ]
     lines += [
         f"agent: {routing['agent']}",
         f"model: {routing['model']}",
@@ -414,6 +463,7 @@ def build_packet(args):
         "reports_to": args.reports_to,
         "contract": str(contract),
         "work": work,
+        "launch_constraints": launch_constraints,
         "routing": routing,
         "mechanism": {"id": manifest["mechanism"], "extras": extras},
         "spec": "\n".join(lines) + "\n",
@@ -445,6 +495,12 @@ def main(argv=None):
         action="append",
         default=[],
         help="mechanism extra as key=value, repeatable",
+    )
+    packet.add_argument(
+        "--launch-constraint",
+        action="append",
+        default=[],
+        help="verbatim principal or inherited launch constraint, repeatable",
     )
     work = packet.add_mutually_exclusive_group(required=True)
     work.add_argument("--work-ref", help="<adapter>:<ref>, e.g. beads:abc123")

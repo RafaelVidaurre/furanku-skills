@@ -41,7 +41,9 @@ When the user gives the current session a role, adopt it immediately with `repor
 
 ## Spawn an owner
 
-Load the `model-routing` skill and follow it: generate the brief, judge the pick, and gate-check it—passing the manifest's launchable agents as `--launchable-via`. Coordination role does not imply model strength. Run one check-and-packet pipeline per spawned owner; one owner's pick never determines another's:
+Use model-routing's classification of launch constraints and routing instructions. Record each principal or inherited launch constraint verbatim in the assignment packet with repeatable `--launch-constraint`; satisfy it at dispatch and propagate it unchanged into every descendant packet. A combined instruction carries its launch and routing parts through their respective fields.
+
+Load the `model-routing` skill and follow it: generate the brief, judge the pick or honor a principal-requested configured exact route, and gate-check it—passing the manifest's launchable agents as `--launchable-via`. Crew accepts an exact route whose ID is the assignment role or starts with `<role>.`; other consumers define their own route IDs. Coordination role does not imply model strength. Run one check-and-packet pipeline per spawned owner; one owner's pick never determines another's:
 
 ```sh
 python3 <model-routing-dir>/scripts/router.py check --repo <root> \
@@ -50,14 +52,17 @@ python3 <model-routing-dir>/scripts/router.py check --repo <root> \
 python3 <crew-skill-dir>/scripts/assignment.py packet --decision-json - \
   --manifest <manifest> --title "<outcome>" \
   --role captain|worker --reports-to user|commander|captain \
-  --work-ref <adapter>:<ref> [--extra <key>=<value>]
+  --work-ref <adapter>:<ref> [--extra <key>=<value>] \
+  [--launch-constraint "<verbatim constraint>" ...]
 ```
 
-Pass an existing contract as `--work-ref` unchanged. When none exists, pass `--request "<verbatim user request>"` with `--work-record <adapter>` so the spawned owner establishes the first record—or `--work-record none` when the principal accepted running without one. `packet` refuses what the mechanism cannot honor—an unreachable launcher, a missing mechanism extra, an unlaunchable or unaccepted routing decision; answer a refusal by following its message, never by dispatching around it.
+When the principal requested a configured exact route, replace the first command with `router.py check --repo <root> --exact-route <route-id> --launchable-via <manifest-launchable-agents> --quota-axi --compact` and pipe that decision into the same `packet` command.
 
-Launch the packet's launch tuple through the mechanism and deliver the packet's `spec` as the owner's assignment, following the mechanism's Seams entry for naming and delivery.
+Pass an existing contract as `--work-ref` unchanged. When none exists, pass `--request "<verbatim user request>"` with `--work-record <adapter>` so the spawned owner establishes the first record—or `--work-record none` when the principal accepted running without one. Launch constraints remain packet fields in either path. `packet` refuses what the mechanism cannot honor—a missing mechanism extra or an unlaunchable or unaccepted routing decision. For a refused exact route, switch mechanisms only within the unchanged launch constraints; otherwise surface the conflict to the principal. Substitute another route or relax a launch constraint only with the principal's authorization. Re-judge a refused candidate within the unchanged launch and routing constraints.
 
-**Complete when:** the owner is launched with the intended role, principal, work pointer, and the packet built from a gate-checked decision, communication to the principal is live per the manifest, and the resources the assignment created are tracked by exact pointer.
+Translate the packet through the selected mechanism's field mapping in Seams and deliver its `spec` unchanged as the owner's assignment; packet field names do not imply same-named launch API parameters. If dispatch fails, distinguish an invalid invocation from a capability refusal: correct malformed or mis-mapped parameters and retry the same mechanism with the same gate-checked decision and unchanged constraints. Apply the refusal rules above only after a valid invocation demonstrates that the selected surface cannot honor the decision.
+
+**Complete when:** the owner is launched with the intended role, principal, work pointer, and packet built from a gate-checked decision; launch evidence satisfies any principal-named mechanism, harness, or executable and shows the selected agent capability, model, and effort were honored; any malformed dispatch is followed by a corrected retry on the same mechanism before a capability refusal or mechanism change; communication to the principal is live per the manifest; and the resources the assignment created are tracked by exact pointer.
 
 ## Retire an owner
 
