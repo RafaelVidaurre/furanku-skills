@@ -43,7 +43,7 @@ A manifest is the checkable statement of what a mechanism can honor; `packet` re
 }
 ```
 
-`launchable_agents` lists the routing catalog's `agent` tokens this mechanism can start—the catalog's vocabulary, not the mechanism's own name—and `check --launchable-via` takes exactly this list. `extras` declares the mechanism-specific fields every packet must carry.
+`launchable_agents` lists all and only the routing catalog's `agent` tokens the selected orchestration surface can start in the current session—the catalog's vocabulary, not the mechanism, harness, or executable name—and `check --launchable-via` takes exactly this list. The selected `agent` is a capability identity for routing and gating, not a generic launch API parameter; each mechanism profile defines how the packet maps to its API. Resolve the list from the selected surface's current capabilities rather than wrapper-wide capability. `extras` declares the mechanism-specific fields every packet must carry.
 
 ### harness-native (default)
 
@@ -55,7 +55,17 @@ When the current harness exposes Claude Code's Workflow tool, use Workflow as Cr
 
 - Start one workflow run for each delegation batch owned by the spawning session.
 - Map each Crew assignment to one workflow agent and pass that assignment's packet `spec` unchanged as its prompt.
-- Apply the packet's selected model and effort to that workflow agent; the `spec` records the launch tuple but does not enact it.
+- Pass the packet's selected `model` and `effort` as the workflow agent's `model` and `effort` options; the `spec` records them but does not enact them:
+
+  ```js
+  agent(packet.spec, {
+    model: packet.routing.model,
+    effort: packet.routing.effort,
+  })
+  ```
+
+- Keep four namespaces distinct: the Crew `role` (`captain` or `worker`) defines ownership in the prompt; routing `agent` identifies a provider/launcher capability; `model` selects the model; Workflow `agentType` optionally selects a registered subagent definition. Omit `agentType` unless a specific type from the current Workflow registry is intentionally required. Never derive it from the packet's `agent`, `model`, or Crew `role`.
+- If Workflow reports `agent({agentType}): agent type '<token>' not found` after a routing `agent` was copied into `agentType`, classify it as malformed field mapping rather than capability evidence; apply the mapping above and the failure recovery owned by **Spawn an owner**.
 - Encode dependency order once in the workflow script: await prerequisites before dependent agent calls, and run only independent assignments in parallel.
 - Retain the workflow run and agent identities as the assignment's coordination pointers. Use the workflow progress view and per-agent results for status, blockers, and completion.
 - End the run at any decision that needs principal input. Return the question or blocker in the agent result, obtain the answer in the spawning session, then start a follow-up run with that answer in its packet; workflows do not accept mid-run user input.
@@ -74,9 +84,9 @@ Use this manifest for the profile:
 }
 ```
 
-**Complete when:** every assignment has its own packet-backed workflow agent running its selected model and effort, dependency order exists once in the script, the run and agent identities are retained, and any principal decision is a boundary between runs.
+**Complete when:** every assignment has its own packet-backed workflow agent running its selected model and effort; the workflow script either omits `agentType` or identifies an intentionally selected type from the current registry without deriving it from packet fields; dependency order exists once in the script; the run and agent identities are retained; and any principal decision is a boundary between runs.
 
-For another native harness, launch through its strongest matching coordination facility with the packet's `spec` as the assignment. Cross-vendor candidates are unreachable unless that facility can actually launch them; when the routing brief favors one, either accept the refusal's re-judged reachable pick or switch to a mechanism whose launchable agents include it.
+For another native harness, define a profile that names its strongest matching coordination facility and maps packet fields to that facility's API. Deliver the packet's `spec` unchanged and retain the facility's coordination pointers.
 
 ### orca
 
@@ -116,7 +126,7 @@ Anything satisfying the manifest—a renamed or extended harness, tmux sessions,
 }
 ```
 
-List every routing-catalog agent the selected Workflow facility can actually launch. Stock Claude Code uses `["claude"]`; an extended harness that can run GPT and Grok models inside Workflow should declare `["claude", "codex", "grok"]`. Judge the Workflow surface itself, not the capabilities of the stock harness it extends or the wrapper's executable name.
+Custom Workflow profiles apply the Workflow field mapping above. Their `launchable_agents` values use the capability vocabulary defined under Mechanism manifests; provider/model reachability affects routing and gating, not `agentType`.
 
 ## Work-record adapters
 

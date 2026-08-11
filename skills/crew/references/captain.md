@@ -10,7 +10,7 @@ Use the assigned work record when one exists; otherwise use the current request 
 
 ## Decompose and dispatch
 
-Create Worker-owned outcomes that are bounded, independently checkable, and fully described by their work records. For each outcome, use the spawn process in `SKILL.md`, then launch the checked pick through the session's mechanism.
+Create Worker-owned outcomes that are bounded, independently checkable, and fully described by their work records. For each outcome, use the spawn process in `SKILL.md`, preserve every inherited launch constraint in the Worker packet, then launch the checked pick through the session's mechanism.
 
 Captain assigns only Workers. Return a separate Captain-shaped front to the principal—the user or Commander—for ownership.
 

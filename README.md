@@ -38,7 +38,7 @@ node /path/to/furanku-skills/bin/furanku-skills.js
 node /path/to/furanku-skills/bin/furanku-skills.js init
 ```
 
-Via npx (when the package is available):
+Via npx:
 
 ```bash
 npx furanku-skills
