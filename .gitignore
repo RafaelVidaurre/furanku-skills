@@ -7,3 +7,8 @@ __pycache__/
 
 # Commander analysis scratch (agent findings)
 skills/commander/.scratch/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key

@@ -17,6 +17,11 @@
       "description": "How to choose libraries: prefer what the project already has, then solid maintained packages, before writing your own."
     },
     {
+      "id": "workflow",
+      "title": "Workflow",
+      "description": "How agents execute work: choosing tools, interacting with systems, and verifying outcomes."
+    },
+    {
       "id": "writing",
       "title": "Writing & communication",
       "description": "How agents and authors write technical text so readers can act safely and correctly."
@@ -65,6 +70,17 @@
       "conflicts": [],
       "inject": [
         "Lean on the dependencies already in the project before writing your own implementation or adding packages. Do not assume a library lacks a capability without checking its documentation and types."
+      ]
+    },
+    {
+      "id": "prefer-programmatic-tools",
+      "category": "workflow",
+      "title": "Prefer programmatic tool surfaces",
+      "picker": "Use CLIs or MCPs when practical; reserve browser and computer use for visual verification or when no more agent-ergonomic surface exists.",
+      "tags": ["tools", "cli", "mcp", "browser", "computer-use"],
+      "conflicts": [],
+      "inject": [
+        "Prefer CLIs and MCP tools over browser or computer interaction when they can accomplish the task. Use browser or computer interaction when visual or browser verification is the goal, or when no more agent-ergonomic surface is available."
       ]
     },
     {
