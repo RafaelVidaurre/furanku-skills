@@ -1,0 +1,10 @@
+# PRR Audit
+
+Use this procedure only when the Audit section of `SKILL.md` directs you here. Treat the named sections in `SKILL.md` as the rules; this file defines the inspection order without restating those rules.
+
+1. **Inventory the record.** Read `PRR.md`, every area file, both annex files, `CONTEXT.md` when present, every `detail:` path named in the current view or annex, and code that materially depends on a tentative/open entry. Done when: every record, link, and relevant dependent is in the audit set.
+2. **Apply the canonical sections.** For each item, record which sections of `SKILL.md` apply: **Current view and history annex**, **IDs**, **Requirement entry**, **Durable claim wording**, **Source entry**, **Prior-state entry**, **Replacing current state**, and **Hard rules**. Evaluate the item only against those owning sections and cite the section for each deviation. Done when: every item either passes each applicable section or has a finding.
+3. **Trace relationships.** Resolve every ID, source reference, review reference, file path, pointer, index entry, and state transition; compare records whose identity, subject, evidence, or replacement path overlaps. Record broken, ambiguous, or contradictory relationships against their owning section. Done when: no relationship or overlap remains unchecked.
+4. **Compare the record with the product around it.** Check linked documents and relevant code against the current states, then route discrepancies through Conflicts or Digest as applicable. Done when: every material dependency either agrees with the current record or has a routed finding.
+5. **Apply or route findings.** Repair mechanical drift whose meaning is unchanged. Use the confirmation and replacement workflows for any claim, status, vision, merge, or wording change. Done when: each finding is fixed or presented to the user with a recommendation and the decision it requires.
+6. **Report.** Summarize repairs, confirmed conflicts, and outstanding decisions without copying annex history into the current view. Done when: the user can see what changed and what remains unresolved.
