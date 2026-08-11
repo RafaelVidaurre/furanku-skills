@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "furanku_skills",
+  "project_id": "c298ab3a-a99c-462c-b74f-f4616a062206"
+}
