@@ -512,6 +512,86 @@
         }
       }
     },
+    "claude/kimi-k3[1m]/max": {
+      "launch": {
+        "agent": "claude",
+        "model": "kimi-k3[1m]",
+        "effort": "max"
+      },
+      "features": [
+        "tools",
+        "vision",
+        "long-context"
+      ],
+      "context": 1000000,
+      "context_evidence": "The authenticated Kimi Code catalog advertises k3 at 1,048,576 tokens for this Allegretto account; Claude Code applies a 1,000,000-token effective [1m] window.",
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.57,
+          "conservative": 0.55,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/models/kimi-k3"
+          ]
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.69,
+          "conservative": 0.67,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://deepswe.datacurve.ai/"
+          ]
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.82,
+          "conservative": 0.75,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard/agent?stream=top"
+          ]
+        },
+        "ui": {
+          "status": "known",
+          "score": 0.94,
+          "conservative": 0.9,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard?category=webdev"
+          ]
+        },
+        "spatial-3d": {
+          "status": "known",
+          "score": 0.95,
+          "conservative": 0.92,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://www.designarena.ai/leaderboard"
+          ]
+        }
+      },
+      "economics": {
+        "task_cost_usd": {
+          "value": 4.65,
+          "basis": "DeepSWE; same Kimi Code account as OpenCode",
+          "assessed_at": "2026-07-31",
+          "source": "https://deepswe.datacurve.ai/"
+        },
+        "output_tokens_per_second": {
+          "value": 32,
+          "basis": "Artificial Analysis",
+          "assessed_at": "2026-07-31",
+          "source": "https://artificialanalysis.ai/models/kimi-k3"
+        }
+      }
+    },
     "claude/claude-opus-5/high": {
       "launch": {
         "agent": "claude",
@@ -586,6 +666,75 @@
           "basis": "Artificial Analysis",
           "assessed_at": "2026-07-31",
           "source": "https://artificialanalysis.ai/models/claude-opus-5-high"
+        }
+      }
+    },
+    "claude/grok-4.5-via-claude-code/high": {
+      "launch": {
+        "agent": "claude",
+        "model": "grok-4.5-via-claude-code",
+        "effort": "high"
+      },
+      "features": [
+        "tools",
+        "vision"
+      ],
+      "context": 500000,
+      "context_evidence": "xAI documents Grok 4.5 at 500,000 tokens; Claudex automatically selects its enforced wide profile for this route.",
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.54,
+          "conservative": 0.52,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/models/grok-4-5/"
+          ]
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.54,
+          "conservative": 0.53,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://deepswe.datacurve.ai/"
+          ]
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.62,
+          "conservative": 0.58,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard/agent?stream=top"
+          ]
+        },
+        "ui": {
+          "status": "known",
+          "score": 0.7,
+          "conservative": 0.65,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard?category=webdev"
+          ]
+        }
+      },
+      "economics": {
+        "task_cost_usd": {
+          "value": 2.42,
+          "basis": "DeepSWE",
+          "assessed_at": "2026-07-31",
+          "source": "https://deepswe.datacurve.ai/"
+        },
+        "output_tokens_per_second": {
+          "value": 67,
+          "basis": "Artificial Analysis",
+          "assessed_at": "2026-07-31",
+          "source": "https://artificialanalysis.ai/models/grok-4-5/"
         }
       }
     },

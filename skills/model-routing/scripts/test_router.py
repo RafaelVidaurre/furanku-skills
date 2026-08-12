@@ -535,7 +535,7 @@ class RouterTest(unittest.TestCase):
                 )
                 self.assertIn("must be an object", result.stderr)
 
-    def test_quota_axi_adapter_uses_effective_pace_and_skips_kimi(self):
+    def test_quota_axi_adapter_uses_effective_pace_and_marks_kimi_unknown(self):
         catalog = router.read_json(router.CATALOG, "routing catalog")
         snapshot = {
             "schemaVersion": 3,
@@ -571,8 +571,43 @@ class RouterTest(unittest.TestCase):
         self.assertEqual(34, runtime["harnesses"]["codex"]["quota"]["effective_percent_remaining"])
         opencode = runtime["harnesses"]["opencode"]["quota"]
         self.assertEqual("unknown", opencode["status"])
-        self.assertIn("OpenCode K3", opencode["detail"])
-        self.assertIn("not assumed", runtime["notes"][0])
+        self.assertIn("same account window", opencode["detail"])
+        claudex = runtime["candidates"][
+            "claude/kimi-k3[1m]/max"
+        ]["quota"]
+        self.assertEqual("unknown", claudex["status"])
+        self.assertIn("cannot read", runtime["notes"][0])
+
+    def test_quota_axi_projects_grok_quota_to_claudex_candidate(self):
+        catalog = router.read_json(router.CATALOG, "routing catalog")
+        snapshot = {
+            "schemaVersion": 3,
+            "generatedAt": "2026-08-12T09:30:00Z",
+            "providers": [
+                {
+                    "provider": "grok",
+                    "state": {"status": "fresh", "stale": False},
+                    "quotaSemantics": {
+                        "status": "known",
+                        "effectiveAvailability": [
+                            {
+                                "scope": "all_products",
+                                "effectivePercentRemaining": 57,
+                                "boundedBy": ["weekly"],
+                                "pace": {"worstReservePercentPoints": -20},
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+        runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
+        candidate = runtime["candidates"][
+            "claude/grok-4.5-via-claude-code/high"
+        ]["quota"]
+        self.assertEqual("known", candidate["status"])
+        self.assertEqual(57, candidate["effective_percent_remaining"])
+        self.assertEqual(candidate, runtime["harnesses"]["grok"]["quota"])
 
     def test_check_surfaces_kimi_credential_detail_in_warning(self):
         candidate = "opencode/kimi-for-coding/k3/max"
@@ -588,8 +623,8 @@ class RouterTest(unittest.TestCase):
                     "opencode": {
                         "quota": {
                             "status": "unknown",
-                            "detail": "local Kimi credentials are not assumed "
-                            "to represent the OpenCode K3 account",
+                            "detail": "quota-axi cannot read Kimi Code OAuth quota; "
+                            "OpenCode and Claudex K3 spend the same account window",
                         }
                     }
                 }
@@ -597,8 +632,8 @@ class RouterTest(unittest.TestCase):
         )
         self.assertEqual("selected", decision["status"])
         self.assertIn(
-            "quota unknown: local Kimi credentials are not assumed to "
-            "represent the OpenCode K3 account",
+            "quota unknown: quota-axi cannot read Kimi Code OAuth quota; "
+            "OpenCode and Claudex K3 spend the same account window",
             decision["warnings"],
         )
 

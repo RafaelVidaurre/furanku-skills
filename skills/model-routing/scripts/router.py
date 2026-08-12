@@ -251,13 +251,19 @@ def quota_axi_runtime(snapshot, candidates):
         provider_id = provider.get("provider")
         if provider_id == "kimi":
             detail = (
-                "local Kimi credentials are not assumed to represent the "
-                "OpenCode K3 account, so its quota stays unknown"
+                "quota-axi cannot read Kimi Code OAuth quota; OpenCode and "
+                "Claudex K3 spend the same account window, so quota stays unknown"
             )
             generated["notes"].append(f"quota-axi: {detail}")
             generated["harnesses"]["opencode"] = {
                 "quota": {"status": "unknown", "detail": detail}
             }
+            for candidate_id, candidate in candidates.items():
+                launch = candidate["launch"]
+                if launch["agent"] == "claude" and "kimi" in launch["model"]:
+                    generated["candidates"][candidate_id] = {
+                        "quota": {"status": "unknown", "detail": detail}
+                    }
             continue
         harness = provider_to_harness.get(provider_id)
         if harness is None:
@@ -310,6 +316,11 @@ def quota_axi_runtime(snapshot, candidates):
                             }
                         }
         generated["harnesses"][harness] = harness_state
+        if provider_id == "grok":
+            for candidate_id, candidate in candidates.items():
+                launch = candidate["launch"]
+                if launch["agent"] == "claude" and "grok" in launch["model"]:
+                    generated["candidates"][candidate_id] = deepcopy(harness_state)
     return generated
 
 
