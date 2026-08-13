@@ -680,30 +680,71 @@
         "vision"
       ],
       "context": 500000,
-      "context_evidence": "xAI documents Grok 4.6 at 500,000 tokens; Claudex automatically selects its enforced wide profile for this route.",
+      "context_evidence": "xAI documents Grok 4.6 at 500,000 tokens (https://docs.x.ai/developers/grok-4-6); Claudex automatically selects its enforced wide profile for this route.",
       "capabilities": {
         "reasoning": {
-          "status": "unknown",
-          "reason": "No independent Grok 4.6 reasoning benchmark evidence has been assessed yet.",
-          "researched_at": "2026-08-13"
+          "status": "known",
+          "score": 0.61,
+          "conservative": 0.59,
+          "confidence": "high",
+          "assessed_at": "2026-08-13",
+          "evidence": [
+            "https://artificialanalysis.ai/models/grok-4-6",
+            "https://artificialanalysis.ai/articles/grok-4-6-benchmarks-and-analysis"
+          ]
         },
         "implementation": {
-          "status": "unknown",
-          "reason": "No independent Grok 4.6 implementation benchmark evidence has been assessed yet.",
-          "researched_at": "2026-08-13"
+          "status": "known",
+          "score": 0.67,
+          "conservative": 0.63,
+          "confidence": "medium",
+          "assessed_at": "2026-08-13",
+          "evidence": [
+            "https://deepswe.datacurve.ai/",
+            "https://x.ai/news/grok-4-6"
+          ]
         },
         "agentic": {
-          "status": "unknown",
-          "reason": "No independent Grok 4.6 agentic benchmark evidence has been assessed yet.",
-          "researched_at": "2026-08-13"
+          "status": "known",
+          "score": 0.88,
+          "conservative": 0.82,
+          "confidence": "medium",
+          "assessed_at": "2026-08-13",
+          "evidence": [
+            "https://artificialanalysis.ai/articles/grok-4-6-benchmarks-and-analysis",
+            "https://x.ai/news/grok-4-6"
+          ]
         },
         "ui": {
+          "status": "known",
+          "score": 0.89,
+          "conservative": 0.84,
+          "confidence": "medium",
+          "assessed_at": "2026-08-13",
+          "evidence": [
+            "https://arena.ai/leaderboard?category=webdev"
+          ]
+        },
+        "spatial-3d": {
           "status": "unknown",
-          "reason": "No independent Grok 4.6 WebDev benchmark evidence has been assessed yet.",
+          "reason": "Design Arena did not expose a dated Grok 4.6 3D ranking on 2026-08-13.",
           "researched_at": "2026-08-13"
         }
       },
-      "economics": {}
+      "economics": {
+        "task_cost_usd": {
+          "value": 5.5,
+          "basis": "DeepSWE xhigh proxy",
+          "assessed_at": "2026-08-13",
+          "source": "https://deepswe.datacurve.ai/"
+        },
+        "output_tokens_per_second": {
+          "value": 65.5,
+          "basis": "Artificial Analysis",
+          "assessed_at": "2026-08-13",
+          "source": "https://artificialanalysis.ai/models/grok-4-6"
+        }
+      }
     },
     "grok/grok-4.6/high": {
       "launch": {
@@ -715,31 +756,72 @@
         "tools",
         "vision"
       ],
+      "context": 500000,
+      "context_evidence": "https://docs.x.ai/developers/grok-4-6",
       "capabilities": {
         "reasoning": {
-          "status": "unknown",
-          "reason": "No independent Grok 4.6 reasoning benchmark evidence has been assessed yet.",
-          "researched_at": "2026-08-13"
+          "status": "known",
+          "score": 0.61,
+          "conservative": 0.59,
+          "confidence": "high",
+          "assessed_at": "2026-08-13",
+          "evidence": [
+            "https://artificialanalysis.ai/models/grok-4-6",
+            "https://artificialanalysis.ai/articles/grok-4-6-benchmarks-and-analysis"
+          ]
         },
         "implementation": {
-          "status": "unknown",
-          "reason": "No independent Grok 4.6 implementation benchmark evidence has been assessed yet.",
-          "researched_at": "2026-08-13"
+          "status": "known",
+          "score": 0.67,
+          "conservative": 0.63,
+          "confidence": "medium",
+          "assessed_at": "2026-08-13",
+          "evidence": [
+            "https://deepswe.datacurve.ai/",
+            "https://x.ai/news/grok-4-6"
+          ]
         },
         "agentic": {
-          "status": "unknown",
-          "reason": "No independent Grok 4.6 agentic benchmark evidence has been assessed yet.",
-          "researched_at": "2026-08-13"
+          "status": "known",
+          "score": 0.88,
+          "conservative": 0.82,
+          "confidence": "medium",
+          "assessed_at": "2026-08-13",
+          "evidence": [
+            "https://artificialanalysis.ai/articles/grok-4-6-benchmarks-and-analysis",
+            "https://x.ai/news/grok-4-6"
+          ]
         },
         "ui": {
+          "status": "known",
+          "score": 0.89,
+          "conservative": 0.84,
+          "confidence": "medium",
+          "assessed_at": "2026-08-13",
+          "evidence": [
+            "https://arena.ai/leaderboard?category=webdev"
+          ]
+        },
+        "spatial-3d": {
           "status": "unknown",
-          "reason": "No independent Grok 4.6 WebDev benchmark evidence has been assessed yet.",
+          "reason": "Design Arena did not expose a dated Grok 4.6 3D ranking on 2026-08-13.",
           "researched_at": "2026-08-13"
         }
       },
-      "economics": {},
-      "context": 500000,
-      "context_evidence": "xAI documents Grok 4.6 at 500,000 tokens; Claudex automatically selects its enforced wide profile for this route."
+      "economics": {
+        "task_cost_usd": {
+          "value": 5.5,
+          "basis": "DeepSWE xhigh proxy",
+          "assessed_at": "2026-08-13",
+          "source": "https://deepswe.datacurve.ai/"
+        },
+        "output_tokens_per_second": {
+          "value": 65.5,
+          "basis": "Artificial Analysis",
+          "assessed_at": "2026-08-13",
+          "source": "https://artificialanalysis.ai/models/grok-4-6"
+        }
+      }
     }
   }
 }
