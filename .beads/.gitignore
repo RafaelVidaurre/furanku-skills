@@ -69,3 +69,8 @@ bd.db
 # They would override fork protection in .git/info/exclude.
 # Config files (metadata.json, config.yaml) are tracked by git by default
 # since no pattern above ignores them.
+
+
+# JSONL sidecars. Issue history lives in Dolt; these files are local-only.
+interactions.jsonl
+events.jsonl

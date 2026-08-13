@@ -148,7 +148,7 @@ class PacketTest(unittest.TestCase):
             "selected": {
                 "id": None,
                 "agent": "grok",
-                "model": "grok-4.5",
+                "model": "grok-4.6",
                 "effort": "high",
             },
             "exact_route": "worker",
@@ -200,7 +200,7 @@ class PacketTest(unittest.TestCase):
             "selected": {
                 "id": None,
                 "agent": "grok",
-                "model": "grok-4.5",
+                "model": "grok-4.6",
                 "effort": "high",
             },
             "exact_route": "worker",

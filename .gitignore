@@ -12,3 +12,6 @@ skills/commander/.scratch/
 .dolt/
 *.db
 .beads-credential-key
+
+# Beads 1.2+ runtime lock (repo-root, not inside .beads/)
+.beads.gate.lock

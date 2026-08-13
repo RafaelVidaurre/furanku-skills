@@ -38,7 +38,7 @@ class RouterTest(unittest.TestCase):
                 },
                 "worker": {
                     "agent": "grok",
-                    "model": "grok-4.5",
+                    "model": "grok-4.6",
                     "effort": "high",
                 },
             },
@@ -178,7 +178,7 @@ class RouterTest(unittest.TestCase):
         self.assertIn("disabled by configuration", decision["reasons"])
 
     def test_check_refuses_exhausted_quota(self):
-        candidate = "grok/grok-4.5/high"
+        candidate = "grok/grok-4.6/high"
         decision = self.check(
             "--candidate",
             candidate,
@@ -191,7 +191,7 @@ class RouterTest(unittest.TestCase):
         self.assertIn("quota exhausted", decision["reasons"])
 
     def test_check_stale_quota_needs_acceptance_then_records_it(self):
-        candidate = "grok/grok-4.5/high"
+        candidate = "grok/grok-4.6/high"
         runtime = {"candidates": {candidate: {"quota": {"status": "stale"}}}}
         decision = self.check(
             "--candidate",
@@ -222,7 +222,7 @@ class RouterTest(unittest.TestCase):
     def test_check_refuses_launcher_outside_launchable_via(self):
         decision = self.check(
             "--candidate",
-            "grok/grok-4.5/high",
+            "grok/grok-4.6/high",
             "--reason",
             "Low-risk mechanical change.",
             "--launchable-via",
@@ -237,7 +237,7 @@ class RouterTest(unittest.TestCase):
         )
         decision = self.check(
             "--candidate",
-            "grok/grok-4.5/high",
+            "grok/grok-4.6/high",
             "--reason",
             "Low-risk mechanical change.",
             "--launchable-via",
@@ -288,7 +288,7 @@ class RouterTest(unittest.TestCase):
         )
         self.assertEqual("exact", decision["status"])
         self.assertEqual("grok", decision["selected"]["agent"])
-        self.assertEqual("grok/grok-4.5/high", decision["selected"]["id"])
+        self.assertEqual("grok/grok-4.6/high", decision["selected"]["id"])
         self.assertEqual("global", decision["provenance"]["winner"]["scope"])
 
     def test_check_exact_route_refuses_exhausted_quota(self):
@@ -308,14 +308,14 @@ class RouterTest(unittest.TestCase):
             {
                 "version": 4,
                 "routes": {},
-                "candidates": {"grok/grok-4.5/high": {"enabled": False}},
+                "candidates": {"grok/grok-4.6/high": {"enabled": False}},
             }
         )
         decision = self.check("--exact-route", "worker", expect_code=1)
         self.assertEqual("refused", decision["status"])
         self.assertIn("disabled by configuration", decision["reasons"])
         self.assertEqual("global", decision["route_provenance"]["winner"]["scope"])
-        self.assertEqual("grok/grok-4.5/high", decision["candidate"])
+        self.assertEqual("grok/grok-4.6/high", decision["candidate"])
         self.assertEqual(["builtin", "repo"], decision["candidate_sources"])
 
     def test_check_exact_route_gates_unmatched_routes_by_harness(self):
@@ -438,17 +438,17 @@ class RouterTest(unittest.TestCase):
             {
                 "version": 4,
                 "routes": {},
-                "candidates": {"grok/grok-4.5/high": None},
+                "candidates": {"grok/grok-4.6/high": None},
             }
         )
         payload = json.loads(
             self.run_router("brief", "--format", "json").stdout
         )
-        self.assertNotIn("grok/grok-4.5/high", payload["candidates"])
+        self.assertNotIn("grok/grok-4.6/high", payload["candidates"])
         result = self.run_router(
             "check",
             "--candidate",
-            "grok/grok-4.5/high",
+            "grok/grok-4.6/high",
             "--reason",
             "Cheap pick.",
             expect_code=1,
@@ -500,7 +500,7 @@ class RouterTest(unittest.TestCase):
                 self.assertIn(message, result.stderr)
 
     def test_malformed_runtime_state_fails_closed(self):
-        candidate = "grok/grok-4.5/high"
+        candidate = "grok/grok-4.6/high"
         result = self.run_router(
             "check",
             "--candidate",
@@ -535,7 +535,7 @@ class RouterTest(unittest.TestCase):
                 )
                 self.assertIn("must be an object", result.stderr)
 
-    def test_quota_axi_adapter_uses_effective_pace_and_skips_kimi(self):
+    def test_quota_axi_adapter_uses_effective_pace_and_marks_kimi_unknown(self):
         catalog = router.read_json(router.CATALOG, "routing catalog")
         snapshot = {
             "schemaVersion": 3,
@@ -571,8 +571,43 @@ class RouterTest(unittest.TestCase):
         self.assertEqual(34, runtime["harnesses"]["codex"]["quota"]["effective_percent_remaining"])
         opencode = runtime["harnesses"]["opencode"]["quota"]
         self.assertEqual("unknown", opencode["status"])
-        self.assertIn("OpenCode K3", opencode["detail"])
-        self.assertIn("not assumed", runtime["notes"][0])
+        self.assertIn("same account window", opencode["detail"])
+        claudex = runtime["candidates"][
+            "claude/kimi-k3[1m]/max"
+        ]["quota"]
+        self.assertEqual("unknown", claudex["status"])
+        self.assertIn("cannot read", runtime["notes"][0])
+
+    def test_quota_axi_projects_grok_quota_to_claudex_candidate(self):
+        catalog = router.read_json(router.CATALOG, "routing catalog")
+        snapshot = {
+            "schemaVersion": 3,
+            "generatedAt": "2026-08-12T09:30:00Z",
+            "providers": [
+                {
+                    "provider": "grok",
+                    "state": {"status": "fresh", "stale": False},
+                    "quotaSemantics": {
+                        "status": "known",
+                        "effectiveAvailability": [
+                            {
+                                "scope": "all_products",
+                                "effectivePercentRemaining": 57,
+                                "boundedBy": ["weekly"],
+                                "pace": {"worstReservePercentPoints": -20},
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+        runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
+        candidate = runtime["candidates"][
+            "claude/grok-4.6-via-claude-code/high"
+        ]["quota"]
+        self.assertEqual("known", candidate["status"])
+        self.assertEqual(57, candidate["effective_percent_remaining"])
+        self.assertEqual(candidate, runtime["harnesses"]["grok"]["quota"])
 
     def test_check_surfaces_kimi_credential_detail_in_warning(self):
         candidate = "opencode/kimi-for-coding/k3/max"
@@ -588,8 +623,8 @@ class RouterTest(unittest.TestCase):
                     "opencode": {
                         "quota": {
                             "status": "unknown",
-                            "detail": "local Kimi credentials are not assumed "
-                            "to represent the OpenCode K3 account",
+                            "detail": "quota-axi cannot read Kimi Code OAuth quota; "
+                            "OpenCode and Claudex K3 spend the same account window",
                         }
                     }
                 }
@@ -597,8 +632,8 @@ class RouterTest(unittest.TestCase):
         )
         self.assertEqual("selected", decision["status"])
         self.assertIn(
-            "quota unknown: local Kimi credentials are not assumed to "
-            "represent the OpenCode K3 account",
+            "quota unknown: quota-axi cannot read Kimi Code OAuth quota; "
+            "OpenCode and Claudex K3 spend the same account window",
             decision["warnings"],
         )
 
