@@ -669,10 +669,10 @@
         }
       }
     },
-    "claude/grok-4.5-via-claude-code/high": {
+    "claude/grok-4.6-via-claude-code/high": {
       "launch": {
         "agent": "claude",
-        "model": "grok-4.5-via-claude-code",
+        "model": "grok-4.6-via-claude-code",
         "effort": "high"
       },
       "features": [
@@ -680,68 +680,35 @@
         "vision"
       ],
       "context": 500000,
-      "context_evidence": "xAI documents Grok 4.5 at 500,000 tokens; Claudex automatically selects its enforced wide profile for this route.",
+      "context_evidence": "xAI documents Grok 4.6 at 500,000 tokens; Claudex automatically selects its enforced wide profile for this route.",
       "capabilities": {
         "reasoning": {
-          "status": "known",
-          "score": 0.54,
-          "conservative": 0.52,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://artificialanalysis.ai/models/grok-4-5/"
-          ]
+          "status": "unknown",
+          "reason": "No independent Grok 4.6 reasoning benchmark evidence has been assessed yet.",
+          "researched_at": "2026-08-13"
         },
         "implementation": {
-          "status": "known",
-          "score": 0.54,
-          "conservative": 0.53,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://deepswe.datacurve.ai/"
-          ]
+          "status": "unknown",
+          "reason": "No independent Grok 4.6 implementation benchmark evidence has been assessed yet.",
+          "researched_at": "2026-08-13"
         },
         "agentic": {
-          "status": "known",
-          "score": 0.62,
-          "conservative": 0.58,
-          "confidence": "medium",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://arena.ai/leaderboard/agent?stream=top"
-          ]
+          "status": "unknown",
+          "reason": "No independent Grok 4.6 agentic benchmark evidence has been assessed yet.",
+          "researched_at": "2026-08-13"
         },
         "ui": {
-          "status": "known",
-          "score": 0.7,
-          "conservative": 0.65,
-          "confidence": "medium",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://arena.ai/leaderboard?category=webdev"
-          ]
+          "status": "unknown",
+          "reason": "No independent Grok 4.6 WebDev benchmark evidence has been assessed yet.",
+          "researched_at": "2026-08-13"
         }
       },
-      "economics": {
-        "task_cost_usd": {
-          "value": 2.42,
-          "basis": "DeepSWE",
-          "assessed_at": "2026-07-31",
-          "source": "https://deepswe.datacurve.ai/"
-        },
-        "output_tokens_per_second": {
-          "value": 67,
-          "basis": "Artificial Analysis",
-          "assessed_at": "2026-07-31",
-          "source": "https://artificialanalysis.ai/models/grok-4-5/"
-        }
-      }
+      "economics": {}
     },
-    "grok/grok-4.5/high": {
+    "grok/grok-4.6/high": {
       "launch": {
         "agent": "grok",
-        "model": "grok-4.5",
+        "model": "grok-4.6",
         "effort": "high"
       },
       "features": [
@@ -750,60 +717,29 @@
       ],
       "capabilities": {
         "reasoning": {
-          "status": "known",
-          "score": 0.54,
-          "conservative": 0.52,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://artificialanalysis.ai/models/grok-4-5/"
-          ]
+          "status": "unknown",
+          "reason": "No independent Grok 4.6 reasoning benchmark evidence has been assessed yet.",
+          "researched_at": "2026-08-13"
         },
         "implementation": {
-          "status": "known",
-          "score": 0.54,
-          "conservative": 0.53,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://deepswe.datacurve.ai/"
-          ]
+          "status": "unknown",
+          "reason": "No independent Grok 4.6 implementation benchmark evidence has been assessed yet.",
+          "researched_at": "2026-08-13"
         },
         "agentic": {
-          "status": "known",
-          "score": 0.62,
-          "conservative": 0.58,
-          "confidence": "medium",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://arena.ai/leaderboard/agent?stream=top"
-          ]
+          "status": "unknown",
+          "reason": "No independent Grok 4.6 agentic benchmark evidence has been assessed yet.",
+          "researched_at": "2026-08-13"
         },
         "ui": {
-          "status": "known",
-          "score": 0.7,
-          "conservative": 0.65,
-          "confidence": "medium",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://arena.ai/leaderboard?category=webdev"
-          ]
+          "status": "unknown",
+          "reason": "No independent Grok 4.6 WebDev benchmark evidence has been assessed yet.",
+          "researched_at": "2026-08-13"
         }
       },
-      "economics": {
-        "task_cost_usd": {
-          "value": 2.42,
-          "basis": "DeepSWE",
-          "assessed_at": "2026-07-31",
-          "source": "https://deepswe.datacurve.ai/"
-        },
-        "output_tokens_per_second": {
-          "value": 67,
-          "basis": "Artificial Analysis",
-          "assessed_at": "2026-07-31",
-          "source": "https://artificialanalysis.ai/models/grok-4-5/"
-        }
-      }
+      "economics": {},
+      "context": 500000,
+      "context_evidence": "xAI documents Grok 4.6 at 500,000 tokens; Claudex automatically selects its enforced wide profile for this route."
     }
   }
 }
