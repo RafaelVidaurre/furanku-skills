@@ -89,7 +89,7 @@ class RouterTest(unittest.TestCase):
 
     def test_brief_shows_exact_routes_and_candidate_evidence(self):
         brief = self.run_router("brief").stdout
-        self.assertIn("| captain | codex | gpt-5.6-sol | xhigh | global |", brief)
+        self.assertIn("| captain | codex | gpt-5.6-sol | xhigh | global | ask |", brief)
         self.assertIn("claude/claude-fable-5[1m]/high", brief)
         self.assertIn("## Evidence", brief)
         self.assertIn("https://deepswe.datacurve.ai/", brief)
@@ -430,8 +430,8 @@ class RouterTest(unittest.TestCase):
             encoding="utf-8",
         )
         brief = self.run_router("brief").stdout
-        self.assertIn("| captain | codex | gpt-5.6-sol | xhigh | global |", brief)
-        self.assertIn("| worker | codex | gpt-5.6-luna | max | builtin |", brief)
+        self.assertIn("| captain | codex | gpt-5.6-sol | xhigh | global | ask |", brief)
+        self.assertIn("| worker | codex | gpt-5.6-luna | max | builtin | ask |", brief)
 
     def test_candidate_tombstone_removes_candidate(self):
         self.write_repo_layer(
@@ -636,6 +636,373 @@ class RouterTest(unittest.TestCase):
             "OpenCode and Claudex K3 spend the same account window",
             decision["warnings"],
         )
+
+    def test_quota_axi_stale_carries_recovery_fields(self):
+        catalog = router.read_json(router.CATALOG, "routing catalog")
+        snapshot = {
+            "schemaVersion": 3,
+            "generatedAt": "2026-08-13T12:38:00Z",
+            "providers": [
+                {
+                    "provider": "grok",
+                    "state": {
+                        "status": "stale",
+                        "stale": True,
+                        "error": "Grok access token expired",
+                        "reason": "credentials_expired",
+                        "remedyCommand": "grok",
+                        "authStatus": "expired_refreshable",
+                        "refreshedAt": "2026-08-13T09:12:47.507Z",
+                    },
+                    "quotaSemantics": {
+                        "status": "unknown",
+                        "description": "The raw quota windows are stale.",
+                    },
+                }
+            ],
+        }
+        runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
+        quota = runtime["harnesses"]["grok"]["quota"]
+        self.assertEqual("stale", quota["status"])
+        self.assertEqual("Grok access token expired", quota["detail"])
+        self.assertEqual("credentials_expired", quota["cause"])
+        self.assertEqual("grok", quota["remedy"])
+        self.assertEqual("expired_refreshable", quota["auth_status"])
+        self.assertEqual("2026-08-13T09:12:47.507Z", quota["refreshed_at"])
+
+    def test_check_stale_quota_pending_names_remedy(self):
+        candidate = "grok/grok-4.6/high"
+        decision = self.check(
+            "--candidate",
+            candidate,
+            "--reason",
+            "Low-risk mechanical change.",
+            runtime={
+                "candidates": {
+                    candidate: {
+                        "quota": {
+                            "status": "stale",
+                            "detail": "Grok access token expired",
+                            "remedy": "grok",
+                            "refreshed_at": "2026-08-13T09:12:47.507Z",
+                        }
+                    }
+                }
+            },
+            expect_code=2,
+        )
+        pending = decision["pending"][0]
+        self.assertIn("Grok access token expired (last fresh 09:12)", pending)
+        self.assertIn("Refresh with `grok`", pending)
+        self.assertIn("--accept-quota-unknown", pending)
+        self.assertEqual("Grok access token expired", decision["quota"]["detail"])
+        self.assertEqual("grok", decision["quota"]["remedy"])
+
+    def test_exact_route_needs_acceptance_exposes_configured_fallback(self):
+        self.write_repo_layer(
+            {
+                "version": 4,
+                "routes": {
+                    "worker": {
+                        "agent": "grok",
+                        "model": "grok-4.6",
+                        "effort": "high",
+                        "on_quota_unusable": {
+                            "ask_seconds": 90,
+                            "fallback": {
+                                "agent": "codex",
+                                "model": "gpt-5.6-sol",
+                                "effort": "high",
+                            },
+                        },
+                    }
+                },
+            }
+        )
+        brief = self.run_router("brief").stdout
+        self.assertIn(
+            "| worker | grok | grok-4.6 | high | repo | "
+            "ask 90s → codex/gpt-5.6-sol/high |",
+            brief,
+        )
+        decision = self.check(
+            "--exact-route",
+            "worker",
+            runtime={"harnesses": {"grok": {"quota": {"status": "stale"}}}},
+            expect_code=2,
+        )
+        self.assertEqual("needs-acceptance", decision["status"])
+        self.assertEqual("grok", decision["selected"]["agent"])
+        self.assertEqual(90, decision["quota_fallback"]["ask_seconds"])
+        self.assertEqual(
+            {
+                "agent": "codex",
+                "model": "gpt-5.6-sol",
+                "effort": "high",
+            },
+            decision["quota_fallback"]["launch"],
+        )
+        self.assertIn("--use-quota-fallback", decision["quota_fallback"]["next"])
+
+    def test_use_quota_fallback_after_wait_selects_fallback(self):
+        self.write_repo_layer(
+            {
+                "version": 4,
+                "routes": {
+                    "worker": {
+                        "agent": "grok",
+                        "model": "grok-4.6",
+                        "effort": "high",
+                        "on_quota_unusable": {
+                            "fallback": {
+                                "agent": "codex",
+                                "model": "gpt-5.6-sol",
+                                "effort": "high",
+                            }
+                        },
+                    }
+                },
+            }
+        )
+        decision = self.check(
+            "--exact-route",
+            "worker",
+            "--use-quota-fallback",
+            "principal did not respond within 120s",
+            runtime={
+                "harnesses": {
+                    "grok": {"quota": {"status": "stale"}},
+                    "codex": {
+                        "quota": {
+                            "status": "known",
+                            "effective_percent_remaining": 99,
+                        }
+                    },
+                }
+            },
+        )
+        self.assertEqual("exact", decision["status"])
+        self.assertEqual("codex", decision["selected"]["agent"])
+        self.assertEqual("gpt-5.6-sol", decision["selected"]["model"])
+        self.assertEqual("high", decision["selected"]["effort"])
+        self.assertTrue(decision["quota_fallback"]["used"])
+        self.assertEqual(
+            "principal did not respond within 120s",
+            decision["quota_fallback"]["basis"],
+        )
+        self.assertIn("used quota fallback after wait", decision["warnings"][-1])
+
+    def test_use_quota_fallback_keeps_primary_when_quota_is_now_known(self):
+        self.write_repo_layer(
+            {
+                "version": 4,
+                "routes": {
+                    "worker": {
+                        "agent": "grok",
+                        "model": "grok-4.6",
+                        "effort": "high",
+                        "on_quota_unusable": {
+                            "fallback": {
+                                "agent": "codex",
+                                "model": "gpt-5.6-sol",
+                                "effort": "high",
+                            }
+                        },
+                    }
+                },
+            }
+        )
+        decision = self.check(
+            "--exact-route",
+            "worker",
+            "--use-quota-fallback",
+            "waited 120s",
+            runtime={"harnesses": {"grok": {"quota": {"status": "known"}}}},
+        )
+        self.assertEqual("exact", decision["status"])
+        self.assertEqual("grok", decision["selected"]["agent"])
+        self.assertNotIn("quota_fallback", decision)
+
+    def test_use_quota_fallback_does_not_bypass_exhausted_primary(self):
+        self.write_repo_layer(
+            {
+                "version": 4,
+                "routes": {
+                    "worker": {
+                        "agent": "grok",
+                        "model": "grok-4.6",
+                        "effort": "high",
+                        "on_quota_unusable": {
+                            "fallback": {
+                                "agent": "codex",
+                                "model": "gpt-5.6-sol",
+                                "effort": "high",
+                            }
+                        },
+                    }
+                },
+            }
+        )
+        decision = self.check(
+            "--exact-route",
+            "worker",
+            "--use-quota-fallback",
+            "waited 120s",
+            runtime={
+                "harnesses": {
+                    "grok": {"quota": {"status": "exhausted"}},
+                    "codex": {"quota": {"status": "known"}},
+                }
+            },
+            expect_code=1,
+        )
+        self.assertEqual("refused", decision["status"])
+        self.assertIn("quota exhausted", decision["reasons"])
+        self.assertEqual("grok/grok-4.6/high", decision["candidate"])
+
+    def test_use_quota_fallback_stays_pending_when_fallback_also_stale(self):
+        self.write_repo_layer(
+            {
+                "version": 4,
+                "routes": {
+                    "worker": {
+                        "agent": "grok",
+                        "model": "grok-4.6",
+                        "effort": "high",
+                        "on_quota_unusable": {
+                            "fallback": {
+                                "agent": "codex",
+                                "model": "gpt-5.6-sol",
+                                "effort": "high",
+                            }
+                        },
+                    }
+                },
+            }
+        )
+        decision = self.check(
+            "--exact-route",
+            "worker",
+            "--use-quota-fallback",
+            "waited 120s",
+            runtime={
+                "harnesses": {
+                    "grok": {"quota": {"status": "stale"}},
+                    "codex": {"quota": {"status": "stale"}},
+                }
+            },
+            expect_code=2,
+        )
+        self.assertEqual("needs-acceptance", decision["status"])
+        self.assertEqual("grok", decision["selected"]["agent"])
+        self.assertIn(
+            "configured fallback also has unknown or stale quota",
+            decision["pending"],
+        )
+
+    def test_use_quota_fallback_requires_exact_route_and_basis(self):
+        result = self.run_router(
+            "check",
+            "--candidate",
+            "grok/grok-4.6/high",
+            "--reason",
+            "Cheap pick.",
+            "--use-quota-fallback",
+            "waited",
+            expect_code=1,
+        )
+        self.assertIn("requires --exact-route", result.stderr)
+        result = self.run_router(
+            "check",
+            "--exact-route",
+            "worker",
+            "--use-quota-fallback",
+            "   ",
+            expect_code=1,
+        )
+        self.assertIn("requires the wait basis", result.stderr)
+        result = self.run_router(
+            "check",
+            "--exact-route",
+            "worker",
+            "--use-quota-fallback",
+            "waited 120s",
+            runtime={"harnesses": {"grok": {"quota": {"status": "stale"}}}},
+            expect_code=1,
+        )
+        self.assertIn("has no on_quota_unusable fallback", result.stderr)
+
+    def test_load_quota_axi_retries_stale_provider_once(self):
+        catalog = router.read_json(router.CATALOG, "routing catalog")
+        calls = []
+
+        def fake_run(providers=None):
+            calls.append(tuple(providers) if providers else None)
+            if providers == ["grok"]:
+                return {
+                    "schemaVersion": 3,
+                    "generatedAt": "2026-08-13T12:47:18Z",
+                    "providers": [
+                        {
+                            "provider": "grok",
+                            "state": {"status": "fresh", "stale": False},
+                            "quotaSemantics": {
+                                "status": "known",
+                                "effectiveAvailability": [
+                                    {
+                                        "scope": "all_products",
+                                        "effectivePercentRemaining": 41,
+                                        "boundedBy": ["credits"],
+                                        "pace": {"worstReservePercentPoints": 0},
+                                    }
+                                ],
+                            },
+                        }
+                    ],
+                }
+            return {
+                "schemaVersion": 3,
+                "generatedAt": "2026-08-13T12:31:48Z",
+                "providers": [
+                    {
+                        "provider": "grok",
+                        "state": {
+                            "status": "stale",
+                            "stale": True,
+                            "error": "Grok access token expired",
+                            "remedyCommand": "grok",
+                        },
+                        "quotaSemantics": {"status": "unknown"},
+                    },
+                    {
+                        "provider": "codex",
+                        "state": {"status": "fresh", "stale": False},
+                        "quotaSemantics": {
+                            "status": "known",
+                            "effectiveAvailability": [
+                                {
+                                    "scope": "all_models",
+                                    "effectivePercentRemaining": 99,
+                                    "boundedBy": ["weekly"],
+                                    "pace": {"worstReservePercentPoints": 10},
+                                }
+                            ],
+                        },
+                    },
+                ],
+            }
+
+        original = router.run_quota_axi
+        router.run_quota_axi = fake_run
+        try:
+            runtime = router.load_quota_axi(catalog["candidates"])
+        finally:
+            router.run_quota_axi = original
+        self.assertEqual([None, ("grok",)], calls)
+        self.assertEqual("known", runtime["harnesses"]["grok"]["quota"]["status"])
+        self.assertEqual(41, runtime["harnesses"]["grok"]["quota"]["effective_percent_remaining"])
+        self.assertEqual("known", runtime["harnesses"]["codex"]["quota"]["status"])
+        self.assertIn("retried stale provider(s): grok", runtime["notes"][-1])
 
 
 if __name__ == "__main__":

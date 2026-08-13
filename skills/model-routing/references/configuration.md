@@ -23,7 +23,16 @@ Every layer is a version 4 document. A persisted layer defines only the routes i
 {
   "version": 4,
   "routes": {
-    "captain": { "agent": "codex", "model": "gpt-5.6-sol", "effort": "xhigh" }
+    "captain": { "agent": "codex", "model": "gpt-5.6-sol", "effort": "xhigh" },
+    "worker": {
+      "agent": "grok",
+      "model": "grok-4.6",
+      "effort": "high",
+      "on_quota_unusable": {
+        "ask_seconds": 120,
+        "fallback": { "agent": "codex", "model": "gpt-5.6-sol", "effort": "high" }
+      }
+    }
   },
   "preferences": [
     "Captains default to gpt-5.6-sol at xhigh.",
@@ -37,6 +46,7 @@ Every layer is a version 4 document. A persisted layer defines only the routes i
 ```
 
 - `preferences` are plain-language routing statements addressed to the spawning agent. They may name models, candidates, tiers, budgets, or conditions—anything the user wants weighed. They are not machine-enforced; the brief presents them and the spawn guidance makes them binding on the agent's judgment.
+- `on_quota_unusable` is optional on any route. Omit it or set `"ask"` to keep asking. An object requires a `fallback` launch tuple different from the route and may set `ask_seconds` (default 120): the agent asks once per quota blocker, then `check --use-quota-fallback` may take that fallback if the principal has not answered. Whole-row replacement still applies — a later layer that omits the field removes the fallback.
 - `candidates` add new launchable candidates or patch builtin ones. A candidate carries one exact `agent/model/effort` launch tuple; capability assessments carry a score, conservative value, confidence, date, and public evidence; unavailable evidence remains unknown. `{"enabled": false}` removes a candidate from play; `check` refuses it.
 - Runtime authentication, health, inventory, and quota remain ephemeral inputs; never persist them as capability evidence.
 
@@ -77,6 +87,8 @@ python3 "$CONFIG" resolve --repo <root> --compact [--route <id> ...]
 python3 "$ROUTER" brief --repo <root> --format json
 python3 "$ROUTER" check --repo <root> --candidate <id> --reason "<judgment>" \
   [--launchable-via <agent,...>] [--accept-quota-unknown "<basis>"] [--quota-axi]
+python3 "$ROUTER" check --repo <root> --exact-route <id> \
+  [--use-quota-fallback "<who waited and how long>"] --quota-axi
 ```
 
-`check` hard-gates what its runtime inputs actually establish: `--quota-axi` supplies provider authentication and quota, so those gates are live in the documented flow; runtime health and inventory gate only when a `--runtime-file` supplies that state. When quota stays unknown or stale after the runtime inputs, `check` exits 2 with status `needs-acceptance` until `--accept-quota-unknown` records who accepted launching without live quota.
+`check` hard-gates what its runtime inputs actually establish: `--quota-axi` supplies provider authentication and quota, so those gates are live in the documented flow; runtime health and inventory gate only when a `--runtime-file` supplies that state. When quota stays unknown or stale after the runtime inputs, `check` exits 2 with status `needs-acceptance` until `--accept-quota-unknown` records who accepted launching without live quota. `--use-quota-fallback` is valid only with `--exact-route`: it re-checks the primary route first and uses the configured fallback only while quota is still unknown or stale.

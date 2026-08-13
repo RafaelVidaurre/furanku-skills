@@ -21,6 +21,9 @@ CATALOG = (
 )
 TOKEN = r"[a-z0-9]+(?:-[a-z0-9]+)*"
 ROUTE_ID = re.compile(rf"^{TOKEN}(?:\.{TOKEN})*$")
+LAUNCH_FIELDS = ("agent", "model", "effort")
+OPTIONAL_ROUTE_FIELDS = {"on_quota_unusable"}
+DEFAULT_ASK_SECONDS = 120
 
 
 class Error(Exception):
@@ -78,6 +81,47 @@ def parse_json(stream, source):
     return config
 
 
+def launch_of(row):
+    return {key: row[key] for key in LAUNCH_FIELDS}
+
+
+def validate_launch_tuple(row, label):
+    if not isinstance(row, dict) or set(row) != set(LAUNCH_FIELDS):
+        raise Error(f"{label} requires only agent, model, and effort")
+    if any(not isinstance(row[key], str) or not row[key].strip() for key in LAUNCH_FIELDS):
+        raise Error(f"{label} has an empty value")
+
+
+def quota_unusable_policy(row):
+    """Return the ask-then-fallback policy, or None when the route only asks."""
+    policy = row.get("on_quota_unusable", "ask")
+    if policy == "ask":
+        return None
+    return {
+        "ask_seconds": policy.get("ask_seconds", DEFAULT_ASK_SECONDS),
+        "launch": dict(policy["fallback"]),
+    }
+
+
+def validate_on_quota_unusable(value, row, source, route_id):
+    label = f"route {route_id!r} on_quota_unusable in {source}"
+    if value == "ask":
+        return
+    if not isinstance(value, dict):
+        raise Error(f"{label} must be \"ask\" or an object")
+    allowed = {"ask_seconds", "fallback"}
+    unknown = sorted(set(value) - allowed)
+    if "fallback" not in value or unknown:
+        raise Error(f"{label} requires fallback and only: ask_seconds, fallback")
+    validate_launch_tuple(value["fallback"], f"{label}.fallback")
+    if launch_of(value["fallback"]) == launch_of(row):
+        raise Error(f"{label}.fallback must differ from the route")
+    if "ask_seconds" in value:
+        seconds = value["ask_seconds"]
+        if type(seconds) is not int or isinstance(seconds, bool) or seconds < 1:
+            raise Error(f"{label}.ask_seconds must be a positive integer")
+
+
 def validate_rows(routes, require_base, source, allow_empty=False):
     if not isinstance(routes, dict) or (not routes and not allow_empty):
         raise Error(f"{source} routes must be a non-empty object")
@@ -87,18 +131,29 @@ def validate_rows(routes, require_base, source, allow_empty=False):
     for route_id, row in routes.items():
         if not ROUTE_ID.fullmatch(route_id) or not isinstance(row, dict):
             raise Error(f"invalid route {route_id!r} in {source}")
-        fields = {"agent", "model", "effort"}
+        required = set(LAUNCH_FIELDS)
         if route_id not in BASE:
-            fields.add("work")
-        if set(row) != fields:
+            required.add("work")
+        allowed = required | OPTIONAL_ROUTE_FIELDS
+        absent = sorted(required - set(row))
+        unknown = sorted(set(row) - allowed)
+        if absent:
             raise Error(
                 f"route {route_id!r} in {source} requires: "
-                f"{', '.join(sorted(fields))}"
+                f"{', '.join(sorted(required))}"
             )
-        if any(
-            not isinstance(value, str) or not value.strip() for value in row.values()
-        ):
-            raise Error(f"route {route_id!r} in {source} has an empty value")
+        if unknown:
+            raise Error(
+                f"route {route_id!r} in {source} has unknown fields: "
+                f"{', '.join(unknown)}"
+            )
+        for key in required:
+            if not isinstance(row[key], str) or not row[key].strip():
+                raise Error(f"route {route_id!r} in {source} has an empty value")
+        if "on_quota_unusable" in row:
+            validate_on_quota_unusable(
+                row["on_quota_unusable"], row, source, route_id
+            )
 
 
 def validate_preferences(preferences, source):

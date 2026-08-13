@@ -180,6 +180,11 @@ def compile_brief(repo="."):
 HARD_QUOTA_STATUSES = {"exhausted", "unavailable", "auth-required"}
 HARD_RUNTIME_STATUSES = {"unavailable", "auth-required", "unsupported"}
 HARD_HEALTH_STATUSES = {"unhealthy", "offline"}
+PROVIDER_TO_HARNESS = {"claude": "claude", "codex": "codex", "grok": "grok"}
+HARNESS_TO_PROVIDER = {
+    harness: provider for provider, harness in PROVIDER_TO_HARNESS.items()
+}
+QUOTA_DIAGNOSTIC_KEYS = ("detail", "cause", "remedy", "auth_status", "refreshed_at")
 
 
 def runtime_for(runtime, candidate_id, candidate):
@@ -237,6 +242,34 @@ def quota_pressure(scope):
     return min(1.0, abs(float(reserve)) / 100.0)
 
 
+def copy_quota_diagnostics(quota, state, semantics):
+    if not isinstance(state, dict):
+        state = {}
+    if not isinstance(semantics, dict):
+        semantics = {}
+    error = state.get("error")
+    description = semantics.get("description")
+    if isinstance(error, str) and error.strip():
+        quota["detail"] = error.strip()
+    elif isinstance(description, str) and description.strip():
+        quota["detail"] = description.strip()
+    mapping = (
+        ("reason", "cause"),
+        ("remedyCommand", "remedy"),
+        ("authStatus", "auth_status"),
+        ("refreshedAt", "refreshed_at"),
+    )
+    for source_key, dest_key in mapping:
+        value = state.get(source_key)
+        if isinstance(value, str) and value.strip():
+            quota[dest_key] = value.strip()
+    return quota
+
+
+def quota_from_unusable_state(status, state, semantics=None):
+    return copy_quota_diagnostics({"status": status}, state, semantics)
+
+
 def quota_axi_runtime(snapshot, candidates):
     if snapshot.get("schemaVersion") != 3 or not isinstance(snapshot.get("providers"), list):
         raise Error("quota-axi input must use normalized schemaVersion 3")
@@ -246,7 +279,6 @@ def quota_axi_runtime(snapshot, candidates):
         "candidates": {},
         "notes": [],
     }
-    provider_to_harness = {"claude": "claude", "codex": "codex", "grok": "grok"}
     for provider in snapshot["providers"]:
         provider_id = provider.get("provider")
         if provider_id == "kimi":
@@ -265,7 +297,7 @@ def quota_axi_runtime(snapshot, candidates):
                         "quota": {"status": "unknown", "detail": detail}
                     }
             continue
-        harness = provider_to_harness.get(provider_id)
+        harness = PROVIDER_TO_HARNESS.get(provider_id)
         if harness is None:
             continue
         state = provider.get("state", {})
@@ -275,9 +307,11 @@ def quota_axi_runtime(snapshot, candidates):
             harness_state["status"] = "auth-required"
             harness_state["quota"] = {"status": "auth-required"}
         elif state.get("stale") or state.get("status") != "fresh":
-            harness_state["quota"] = {"status": "stale"}
+            harness_state["quota"] = quota_from_unusable_state("stale", state, semantics)
         elif semantics.get("status") != "known":
-            harness_state["quota"] = {"status": "unknown"}
+            harness_state["quota"] = quota_from_unusable_state(
+                "unknown", state, semantics
+            )
         else:
             scopes = semantics.get("effectiveAvailability", [])
             base_scope = next(
@@ -336,9 +370,12 @@ def merge_runtime(base, overlay):
     return result
 
 
-def run_quota_axi():
+def run_quota_axi(providers=None):
+    command = ["npx", "-y", "quota-axi", "--json"]
+    if providers:
+        command.extend(["--provider", ",".join(providers)])
     result = subprocess.run(
-        ["npx", "-y", "quota-axi", "--json"],
+        command,
         capture_output=True,
         text=True,
         check=False,
@@ -351,12 +388,49 @@ def run_quota_axi():
         raise Error(f"quota-axi returned invalid JSON: {exc}") from exc
 
 
+def stale_providers(runtime):
+    found = []
+    harnesses = runtime.get("harnesses") if isinstance(runtime, dict) else None
+    if not isinstance(harnesses, dict):
+        return found
+    for harness, state in harnesses.items():
+        quota = state.get("quota") if isinstance(state, dict) else None
+        if not isinstance(quota, dict) or quota.get("status") != "stale":
+            continue
+        provider = HARNESS_TO_PROVIDER.get(harness)
+        if provider and provider not in found:
+            found.append(provider)
+    return found
+
+
+def load_quota_axi(candidates):
+    runtime = quota_axi_runtime(run_quota_axi(), candidates)
+    stale = stale_providers(runtime)
+    if not stale:
+        return runtime
+    try:
+        retry = quota_axi_runtime(run_quota_axi(stale), candidates)
+    except Error as exc:
+        runtime.setdefault("notes", []).append(
+            f"quota-axi retry for {', '.join(stale)} failed: {exc}"
+        )
+        return runtime
+    merged = merge_runtime(runtime, retry)
+    merged.setdefault("notes", []).append(
+        "quota-axi retried stale provider(s): " + ", ".join(stale)
+    )
+    return merged
+
+
 def quota_summary(state):
     quota = state.get("quota") if isinstance(state, dict) else None
     if not isinstance(quota, dict) or not quota:
         return {"status": "unknown"}
     summary = {"status": quota.get("status", "unknown")}
     for key in ("effective_percent_remaining", "pressure", "bounded_by"):
+        if quota.get(key):
+            summary[key] = quota[key]
+    for key in QUOTA_DIAGNOSTIC_KEYS:
         if quota.get(key):
             summary[key] = quota[key]
     return summary
@@ -434,6 +508,12 @@ def gate_check(
     return reasons, warnings, quota_summary(state)
 
 
+def last_fresh_stamp(value):
+    if not isinstance(value, str) or "T" not in value:
+        return value
+    return value.split("T", 1)[1][:5]
+
+
 def acceptance_terms(quota, accept_note):
     """Unknown quota never passes silently: it either blocks the decision as
     needs-acceptance or records who accepted launching without live quota."""
@@ -442,12 +522,84 @@ def acceptance_terms(quota, accept_note):
         return None, None
     if accept_note:
         return None, accept_note.strip()
+    detail = quota.get("detail")
+    if isinstance(detail, str) and detail.strip():
+        clause = detail.strip()
+        refreshed = quota.get("refreshed_at")
+        if isinstance(refreshed, str) and refreshed.strip():
+            clause += f" (last fresh {last_fresh_stamp(refreshed)})"
+        parts = [clause + "."]
+        remedy = quota.get("remedy")
+        if isinstance(remedy, str) and remedy.strip():
+            parts.append(f"Refresh with `{remedy.strip()}`, then re-check.")
+        parts.append(
+            "Or accept launching without live quota: --accept-quota-unknown "
+            '"<who accepted and why>"'
+        )
+        return " ".join(parts), None
     return (
         f"quota {status}: rerun with --accept-quota-unknown "
         '"<who accepted and why>" after the principal accepts launching '
         "without live quota",
         None,
     )
+
+
+def match_candidate(compiled, launch):
+    return next(
+        (
+            candidate_id
+            for candidate_id, candidate in compiled["candidates"].items()
+            if candidate["launch"] == launch
+        ),
+        None,
+    )
+
+
+def gate_launch(
+    compiled,
+    launch,
+    candidate_id,
+    runtime,
+    args,
+    allowed_launchers,
+    unmatched_label,
+):
+    if candidate_id is not None:
+        return gate_check(
+            candidate_id,
+            compiled["candidates"][candidate_id],
+            runtime,
+            required_features=args.require_feature,
+            minimum_context=args.minimum_context,
+            allowed_launchers=allowed_launchers,
+        )
+    if args.require_feature or args.minimum_context is not None:
+        raise Error(
+            "feature and context gates need candidate evidence; "
+            f"{unmatched_label} matches no configured candidate"
+        )
+    return gate_check(
+        unmatched_label,
+        {"launch": launch},
+        runtime,
+        allowed_launchers=allowed_launchers,
+    )
+
+
+def planned_quota_fallback(row):
+    policy = exact_config.quota_unusable_policy(row)
+    if not policy:
+        return None
+    return {
+        "ask_seconds": policy["ask_seconds"],
+        "launch": policy["launch"],
+        "next": (
+            f"Ask the principal. If they do not answer within "
+            f"{policy['ask_seconds']}s, re-check this exact route with "
+            "--use-quota-fallback \"<who waited and how long>\"."
+        ),
+    }
 
 
 def check(compiled, args, runtime):
@@ -467,41 +619,29 @@ def check(compiled, args, runtime):
         raise Error(
             "--accept-quota-unknown requires the acceptance basis as its value"
         )
+    if args.use_quota_fallback is not None:
+        if not args.exact_route:
+            raise Error("--use-quota-fallback requires --exact-route")
+        if not args.use_quota_fallback.strip():
+            raise Error(
+                "--use-quota-fallback requires the wait basis as its value"
+            )
     if args.exact_route:
         rows = compiled["exact"]["config"]["routes"]
         row = rows.get(args.exact_route)
         if row is None:
             raise Error(f"configured route not found: {args.exact_route}")
-        launch = {key: row[key] for key in ("agent", "model", "effort")}
-        candidate_id = next(
-            (
-                cid
-                for cid, candidate in compiled["candidates"].items()
-                if candidate["launch"] == launch
-            ),
-            None,
+        launch = exact_config.launch_of(row)
+        candidate_id = match_candidate(compiled, launch)
+        reasons, warnings, quota = gate_launch(
+            compiled,
+            launch,
+            candidate_id,
+            runtime,
+            args,
+            allowed_launchers,
+            f"route {args.exact_route!r}",
         )
-        if candidate_id is not None:
-            reasons, warnings, quota = gate_check(
-                candidate_id,
-                compiled["candidates"][candidate_id],
-                runtime,
-                required_features=args.require_feature,
-                minimum_context=args.minimum_context,
-                allowed_launchers=allowed_launchers,
-            )
-        else:
-            if args.require_feature or args.minimum_context is not None:
-                raise Error(
-                    "feature and context gates need candidate evidence; route "
-                    f"{args.exact_route!r} matches no configured candidate"
-                )
-            reasons, warnings, quota = gate_check(
-                args.exact_route,
-                {"launch": launch},
-                runtime,
-                allowed_launchers=allowed_launchers,
-            )
         if reasons:
             refusal = {
                 "status": "refused",
@@ -519,8 +659,91 @@ def check(compiled, args, runtime):
                 )
             return refusal
         pending, acceptance = acceptance_terms(quota, args.accept_quota_unknown)
+        if pending and args.use_quota_fallback:
+            policy = exact_config.quota_unusable_policy(row)
+            if not policy:
+                raise Error(
+                    f"route {args.exact_route!r} has no on_quota_unusable fallback"
+                )
+            fallback_launch = policy["launch"]
+            fallback_id = match_candidate(compiled, fallback_launch)
+            fb_reasons, fb_warnings, fb_quota = gate_launch(
+                compiled,
+                fallback_launch,
+                fallback_id,
+                runtime,
+                args,
+                allowed_launchers,
+                f"route {args.exact_route!r} quota fallback",
+            )
+            if fb_reasons:
+                refusal = {
+                    "status": "refused",
+                    "exact_route": args.exact_route,
+                    "reasons": [
+                        f"quota fallback refused: {reason}" for reason in fb_reasons
+                    ],
+                    "warnings": warnings + fb_warnings,
+                    "route_provenance": compiled["exact"]["route_provenance"][
+                        args.exact_route
+                    ],
+                    "quota_fallback": {
+                        "used": False,
+                        "from": launch,
+                        "to": fallback_launch,
+                        "ask_seconds": policy["ask_seconds"],
+                        "basis": args.use_quota_fallback.strip(),
+                    },
+                }
+                if fallback_id is not None:
+                    refusal["candidate"] = fallback_id
+                    refusal["candidate_sources"] = compiled["candidate_sources"].get(
+                        fallback_id, []
+                    )
+                return refusal
+            fb_pending, _fb_acceptance = acceptance_terms(fb_quota, None)
+            if fb_pending:
+                decision = {
+                    "status": "needs-acceptance",
+                    "selected": {"id": candidate_id, **launch},
+                    "exact_route": args.exact_route,
+                    "pending": [
+                        pending,
+                        "configured fallback also has unknown or stale quota",
+                    ],
+                    "warnings": warnings + fb_warnings,
+                    "quota": quota,
+                    "quota_fallback": planned_quota_fallback(row),
+                }
+                return decision
+            used = {
+                "used": True,
+                "from": launch,
+                "to": fallback_launch,
+                "ask_seconds": policy["ask_seconds"],
+                "basis": args.use_quota_fallback.strip(),
+            }
+            decision = {
+                "status": "exact",
+                "selected": {"id": fallback_id, **fallback_launch},
+                "exact_route": args.exact_route,
+                "provenance": compiled["exact"]["route_provenance"][args.exact_route],
+                "warnings": warnings
+                + fb_warnings
+                + [
+                    "used quota fallback after wait: "
+                    f"{launch['agent']}/{launch['model']}/{launch['effort']} → "
+                    f"{fallback_launch['agent']}/{fallback_launch['model']}/"
+                    f"{fallback_launch['effort']}"
+                ],
+                "quota": fb_quota,
+                "quota_fallback": used,
+            }
+            if args.reason:
+                decision["reason"] = args.reason
+            return decision
         if pending:
-            return {
+            decision = {
                 "status": "needs-acceptance",
                 "selected": {"id": candidate_id, **launch},
                 "exact_route": args.exact_route,
@@ -528,6 +751,10 @@ def check(compiled, args, runtime):
                 "warnings": warnings,
                 "quota": quota,
             }
+            planned = planned_quota_fallback(row)
+            if planned:
+                decision["quota_fallback"] = planned
+            return decision
         decision = {
             "status": "exact",
             "selected": {"id": candidate_id, **launch},
@@ -606,6 +833,17 @@ def economics_cells(candidate):
     )
 
 
+def quota_unusable_cell(row):
+    policy = exact_config.quota_unusable_policy(row)
+    if not policy:
+        return "ask"
+    fallback = policy["launch"]
+    return (
+        f"ask {policy['ask_seconds']}s → "
+        f"{fallback['agent']}/{fallback['model']}/{fallback['effort']}"
+    )
+
+
 def quota_cell(state):
     summary = quota_summary(state)
     status = summary["status"]
@@ -654,15 +892,16 @@ def brief_markdown(compiled, runtime, repo_root):
         "",
         "## Exact routes",
         "",
-        "| Route | Agent | Model | Effort | Source |",
-        "| --- | --- | --- | --- | --- |",
+        "| Route | Agent | Model | Effort | Source | If quota unusable |",
+        "| --- | --- | --- | --- | --- | --- |",
     ]
     for route, row in compiled["exact"]["config"]["routes"].items():
         source = compiled["exact"]["route_sources"][route]["scope"]
         lines.append(
             f"| {markdown_cell(route)} | {markdown_cell(row['agent'])} "
             f"| {markdown_cell(row['model'])} | {markdown_cell(row['effort'])} "
-            f"| {markdown_cell(source)} |"
+            f"| {markdown_cell(source)} "
+            f"| {markdown_cell(quota_unusable_cell(row))} |"
         )
     lines += [
         "",
@@ -777,7 +1016,7 @@ def load_runtime(args, candidates):
     runtime = {}
     if args.quota_axi:
         try:
-            runtime = quota_axi_runtime(run_quota_axi(), candidates)
+            runtime = load_quota_axi(candidates)
         except Error as exc:
             # Degrade, never fabricate: quota stays unknown everywhere, the
             # failure is on record, and check() forces the acceptance flow.
@@ -822,6 +1061,10 @@ def main(argv=None):
     parser.add_argument(
         "--accept-quota-unknown",
         help="who accepted launching without live quota, and why",
+    )
+    parser.add_argument(
+        "--use-quota-fallback",
+        help="after the configured ask wait, use the exact route's quota fallback",
     )
     parser.add_argument("--runtime-file", help="ephemeral runtime JSON")
     parser.add_argument(

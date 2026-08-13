@@ -526,6 +526,43 @@ class ConfigTest(unittest.TestCase):
         )
         self.assertEqual(primary["path"], secondary["path"])
 
+    def test_on_quota_unusable_ask_then_fallback(self):
+        config = self.base_config()
+        config["routes"]["worker"]["on_quota_unusable"] = {
+            "ask_seconds": 90,
+            "fallback": row("codex", "gpt-5.6-sol", "high"),
+        }
+        self.write("global", config)
+        result = json.loads(
+            self.run_config("resolve", "--repo", str(self.repo), "--compact").stdout
+        )
+        self.assertEqual(
+            {
+                "ask_seconds": 90,
+                "fallback": row("codex", "gpt-5.6-sol", "high"),
+            },
+            result["worker"]["on_quota_unusable"],
+        )
+
+        same = self.base_config()
+        same["routes"]["worker"]["on_quota_unusable"] = {
+            "fallback": row("worker-agent", "worker-model", "medium"),
+        }
+        refused = self.run_config("write", "global", input_value=same, ok=False)
+        self.assertIn("fallback must differ from the route", refused.stderr)
+
+        bad_seconds = self.base_config()
+        bad_seconds["routes"]["worker"]["on_quota_unusable"] = {
+            "ask_seconds": 0,
+            "fallback": row("codex", "gpt-5.6-sol", "high"),
+        }
+        refused = self.run_config("write", "global", input_value=bad_seconds, ok=False)
+        self.assertIn("ask_seconds must be a positive integer", refused.stderr)
+
+        ask_only = self.base_config()
+        ask_only["routes"]["worker"]["on_quota_unusable"] = "ask"
+        self.write("global", ask_only)
+
 
 if __name__ == "__main__":
     unittest.main()

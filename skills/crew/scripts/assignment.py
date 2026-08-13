@@ -209,10 +209,22 @@ def read_decision(value):
     status = decision.get("status")
     if status == "needs-acceptance":
         pending = "; ".join(decision.get("pending", [])) or "quota acceptance pending"
+        extra = ""
+        fallback = decision.get("quota_fallback")
+        if isinstance(fallback, dict) and isinstance(fallback.get("launch"), dict):
+            launch = fallback["launch"]
+            seconds = fallback.get("ask_seconds", 120)
+            extra = (
+                f" A quota fallback is configured ({seconds}s → "
+                f"{launch.get('agent')}/{launch.get('model')}/{launch.get('effort')}). "
+                "Surface pending to the principal; if they do not answer in time, "
+                "re-check with --use-quota-fallback."
+            )
         raise Error(
             "routing decision needs acceptance before dispatch: "
             f"{pending}. Obtain the principal's acceptance and re-run the "
             "routing check with --accept-quota-unknown."
+            + extra
         )
     if status == "refused":
         reasons = decision.get("reasons")
@@ -354,6 +366,8 @@ def routing_summary(decision):
             summary["candidate"] = selected["id"]
     if decision.get("quota_acceptance"):
         summary["quota_acceptance"] = decision["quota_acceptance"]
+    if decision.get("quota_fallback"):
+        summary["quota_fallback"] = decision["quota_fallback"]
     return summary
 
 
@@ -439,6 +453,11 @@ def build_packet(args):
         lines.append(
             "routing_quota_acceptance: "
             + json.dumps(routing["quota_acceptance"], ensure_ascii=False)
+        )
+    if routing.get("quota_fallback"):
+        lines.append(
+            "routing_quota_fallback: "
+            + json.dumps(routing["quota_fallback"], ensure_ascii=False, sort_keys=True)
         )
     if work["type"] == "ref":
         lines += [
