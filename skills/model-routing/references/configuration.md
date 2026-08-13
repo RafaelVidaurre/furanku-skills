@@ -27,7 +27,8 @@ Every layer is a version 4 document. A persisted layer defines only the routes i
   },
   "preferences": [
     "Captains default to gpt-5.6-sol at xhigh.",
-    "For the most complex architecture or systems design, use claude-fable-5[1m] or gpt-5.6-sol at max."
+    "Treat grok-4.6 at high as a peer of claude-fable-5[1m] and gpt-5.6-sol at high for intelligence, architecture, and most complex problems.",
+    "For the most complex architecture or systems design, use claude-fable-5[1m], gpt-5.6-sol at max, or grok-4.6 at high."
   ],
   "candidates": {
     "opencode/kimi-for-coding/k3/max": { "enabled": false }
