@@ -207,6 +207,11 @@ def resolve_seams(repo):
 def read_decision(value):
     decision = read_json_arg(value, "--decision-json")
     status = decision.get("status")
+    exact_route = decision.get("exact_route")
+    if isinstance(exact_route, str) and exact_route.strip():
+        route_basis = decision.get("route_basis")
+        if not isinstance(route_basis, str) or not route_basis.strip():
+            raise Error("exact route decision requires a recorded route basis")
     if status == "needs-acceptance":
         pending = "; ".join(decision.get("pending", [])) or "quota acceptance pending"
         extra = ""
@@ -361,6 +366,7 @@ def routing_summary(decision):
         summary["reason"] = decision["reason"]
     else:
         summary["route"] = decision["exact_route"]
+        summary["route_basis"] = decision["route_basis"]
         summary["source"] = decision["provenance"]["winner"]
         if selected.get("id"):
             summary["candidate"] = selected["id"]
@@ -433,6 +439,10 @@ def build_packet(args):
         lines.append(f"candidate: {routing['candidate']}")
     if routing["status"] == "exact":
         lines.append(f"route: {routing['route']}")
+        lines.append(
+            "route_basis: "
+            + json.dumps(routing["route_basis"], ensure_ascii=False)
+        )
         lines.append(
             f"route_source: {routing['source']['scope']} — {routing['source']['path']}"
         )

@@ -88,7 +88,8 @@ python3 "$ROUTER" brief --repo <root> --format json
 python3 "$ROUTER" check --repo <root> --candidate <id> --reason "<judgment>" \
   [--launchable-via <agent,...>] [--accept-quota-unknown "<basis>"] [--quota-axi]
 python3 "$ROUTER" check --repo <root> --exact-route <id> \
+  --route-basis "<verbatim principal request>" \
   [--use-quota-fallback "<who waited and how long>"] --quota-axi
 ```
 
-`check` hard-gates what its runtime inputs actually establish: `--quota-axi` supplies provider authentication and quota, so those gates are live in the documented flow; runtime health and inventory gate only when a `--runtime-file` supplies that state. When quota stays unknown or stale after the runtime inputs, `check` exits 2 with status `needs-acceptance` until `--accept-quota-unknown` records who accepted launching without live quota. `--use-quota-fallback` is valid only with `--exact-route`: it re-checks the primary route first and uses the configured fallback only while quota is still unknown or stale.
+`check` hard-gates what its runtime inputs actually establish: `--quota-axi` supplies provider authentication and quota, so those gates are live in the documented flow; runtime health and inventory gate only when a `--runtime-file` supplies that state. When quota stays unknown or stale after the runtime inputs, `check` exits 2 with status `needs-acceptance` until `--accept-quota-unknown` records who accepted launching without live quota. `--use-quota-fallback` is valid only with `--exact-route`: preserve the same `--route-basis`, re-check the primary route first, and use the configured fallback only while quota is still unknown or stale.

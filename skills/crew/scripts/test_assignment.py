@@ -30,6 +30,8 @@ HARNESS_MANIFEST = {
     "extras": {},
 }
 
+ROUTE_BASIS = "Principal requested the Worker route for this task."
+
 SELECTED = {
     "status": "selected",
     "selected": {
@@ -152,6 +154,7 @@ class PacketTest(unittest.TestCase):
                 "effort": "high",
             },
             "exact_route": "worker",
+            "route_basis": ROUTE_BASIS,
             "provenance": {
                 "winner": {"scope": "global", "path": "/tmp/config.json"}
             },
@@ -174,6 +177,7 @@ class PacketTest(unittest.TestCase):
         decision = {
             "status": "refused",
             "exact_route": "worker",
+            "route_basis": ROUTE_BASIS,
             "reasons": ["agent 'grok' is outside launchable agents: claude"],
             "warnings": [],
         }
@@ -224,14 +228,18 @@ class PacketTest(unittest.TestCase):
                 "effort": "high",
             },
             "exact_route": "worker",
+            "route_basis": ROUTE_BASIS,
             "provenance": {"winner": {"scope": "global", "path": "/tmp/config.json"}},
         }
-        result = run(*packet_args(decision), "--format", "spec")
+        result = run(*packet_args(decision))
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("route: worker", result.stdout)
-        self.assertIn("routing_status: exact", result.stdout)
-        self.assertIn("route_source: global — /tmp/config.json", result.stdout)
-        self.assertNotIn("candidate:", result.stdout)
+        payload = json.loads(result.stdout)
+        self.assertEqual(ROUTE_BASIS, payload["routing"]["route_basis"])
+        self.assertIn("route: worker", payload["spec"])
+        self.assertIn("routing_status: exact", payload["spec"])
+        self.assertIn(f'route_basis: "{ROUTE_BASIS}"', payload["spec"])
+        self.assertIn("route_source: global — /tmp/config.json", payload["spec"])
+        self.assertNotIn("candidate:", payload["spec"])
 
     def test_exact_decision_records_used_quota_fallback(self):
         decision = {
@@ -243,6 +251,7 @@ class PacketTest(unittest.TestCase):
                 "effort": "high",
             },
             "exact_route": "worker",
+            "route_basis": ROUTE_BASIS,
             "provenance": {"winner": {"scope": "global", "path": "/tmp/config.json"}},
             "quota_fallback": {
                 "used": True,
@@ -267,6 +276,7 @@ class PacketTest(unittest.TestCase):
                 "effort": "high",
             },
             "exact_route": "captain",
+            "route_basis": "Principal requested the Captain route for this task.",
             "provenance": {"winner": {"scope": "global", "path": "/tmp/config.json"}},
         }
         result = run(*packet_args(decision))
@@ -294,15 +304,25 @@ class PacketTest(unittest.TestCase):
                 "status": "exact",
                 "selected": {**launchable, "id": None},
             },
+            "exact without route basis": {
+                "status": "exact",
+                "selected": {**launchable, "id": None},
+                "exact_route": "worker",
+                "provenance": {
+                    "winner": {"scope": "global", "path": "/tmp/config.json"}
+                },
+            },
             "exact without provenance": {
                 "status": "exact",
                 "selected": {**launchable, "id": None},
                 "exact_route": "worker",
+                "route_basis": ROUTE_BASIS,
             },
             "exact with empty provenance winner": {
                 "status": "exact",
                 "selected": {**launchable, "id": None},
                 "exact_route": "worker",
+                "route_basis": ROUTE_BASIS,
                 "provenance": {"winner": {}},
             },
             "unlaunchable status": {"status": "refused"},

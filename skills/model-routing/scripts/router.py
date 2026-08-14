@@ -25,6 +25,12 @@ except ModuleNotFoundError:  # pragma: no cover - package import in tests
 
 CATALOG = Path(__file__).resolve().parent.parent / "references" / "routing-catalog.json"
 DIMENSIONS = ("reasoning", "implementation", "agentic", "ui", "spatial-3d")
+EXACT_ROUTE_SEMANTICS = (
+    "Exact routes are dispatch shorthands. Use one only when the principal "
+    "requests its route ID for the current task; route names, work descriptions, "
+    "and configuration sources never activate one. Otherwise judge each outcome "
+    "against Candidates."
+)
 
 
 class Error(Exception):
@@ -619,6 +625,19 @@ def check(compiled, args, runtime):
         raise Error(
             "--accept-quota-unknown requires the acceptance basis as its value"
         )
+    if args.route_basis is not None and not args.exact_route:
+        raise Error("--route-basis requires --exact-route")
+    if args.exact_route and (
+        args.route_basis is None or not args.route_basis.strip()
+    ):
+        raise Error(
+            "check --exact-route requires --route-basis with the principal's "
+            "request for this task"
+        )
+    if args.exact_route and args.reason is not None:
+        raise Error(
+            "--reason applies to --candidate; exact routes record --route-basis"
+        )
     if args.use_quota_fallback is not None:
         if not args.exact_route:
             raise Error("--use-quota-fallback requires --exact-route")
@@ -627,6 +646,10 @@ def check(compiled, args, runtime):
                 "--use-quota-fallback requires the wait basis as its value"
             )
     if args.exact_route:
+        route_context = {
+            "exact_route": args.exact_route,
+            "route_basis": args.route_basis.strip(),
+        }
         rows = compiled["exact"]["config"]["routes"]
         row = rows.get(args.exact_route)
         if row is None:
@@ -645,7 +668,7 @@ def check(compiled, args, runtime):
         if reasons:
             refusal = {
                 "status": "refused",
-                "exact_route": args.exact_route,
+                **route_context,
                 "reasons": reasons,
                 "warnings": warnings,
                 "route_provenance": compiled["exact"]["route_provenance"][
@@ -679,7 +702,7 @@ def check(compiled, args, runtime):
             if fb_reasons:
                 refusal = {
                     "status": "refused",
-                    "exact_route": args.exact_route,
+                    **route_context,
                     "reasons": [
                         f"quota fallback refused: {reason}" for reason in fb_reasons
                     ],
@@ -706,7 +729,7 @@ def check(compiled, args, runtime):
                 decision = {
                     "status": "needs-acceptance",
                     "selected": {"id": candidate_id, **launch},
-                    "exact_route": args.exact_route,
+                    **route_context,
                     "pending": [
                         pending,
                         "configured fallback also has unknown or stale quota",
@@ -726,7 +749,7 @@ def check(compiled, args, runtime):
             decision = {
                 "status": "exact",
                 "selected": {"id": fallback_id, **fallback_launch},
-                "exact_route": args.exact_route,
+                **route_context,
                 "provenance": compiled["exact"]["route_provenance"][args.exact_route],
                 "warnings": warnings
                 + fb_warnings
@@ -739,14 +762,12 @@ def check(compiled, args, runtime):
                 "quota": fb_quota,
                 "quota_fallback": used,
             }
-            if args.reason:
-                decision["reason"] = args.reason
             return decision
         if pending:
             decision = {
                 "status": "needs-acceptance",
                 "selected": {"id": candidate_id, **launch},
-                "exact_route": args.exact_route,
+                **route_context,
                 "pending": [pending],
                 "warnings": warnings,
                 "quota": quota,
@@ -758,15 +779,13 @@ def check(compiled, args, runtime):
         decision = {
             "status": "exact",
             "selected": {"id": candidate_id, **launch},
-            "exact_route": args.exact_route,
+            **route_context,
             "provenance": compiled["exact"]["route_provenance"][args.exact_route],
             "warnings": warnings,
             "quota": quota,
         }
         if acceptance:
             decision["quota_acceptance"] = acceptance
-        if args.reason:
-            decision["reason"] = args.reason
         return decision
     candidate = compiled["candidates"].get(args.candidate)
     if candidate is None:
@@ -892,15 +911,17 @@ def brief_markdown(compiled, runtime, repo_root):
         "",
         "## Exact routes",
         "",
-        "| Route | Agent | Model | Effort | Source | If quota unusable |",
-        "| --- | --- | --- | --- | --- | --- |",
+        EXACT_ROUTE_SEMANTICS,
+        "",
+        "| Route | Intended work | Agent | Model | Effort | Source | If quota unusable |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     for route, row in compiled["exact"]["config"]["routes"].items():
         source = compiled["exact"]["route_sources"][route]["scope"]
         lines.append(
-            f"| {markdown_cell(route)} | {markdown_cell(row['agent'])} "
-            f"| {markdown_cell(row['model'])} | {markdown_cell(row['effort'])} "
-            f"| {markdown_cell(source)} "
+            f"| {markdown_cell(route)} | {markdown_cell(row.get('work', '—'))} "
+            f"| {markdown_cell(row['agent'])} | {markdown_cell(row['model'])} "
+            f"| {markdown_cell(row['effort'])} | {markdown_cell(source)} "
             f"| {markdown_cell(quota_unusable_cell(row))} |"
         )
     lines += [
@@ -996,6 +1017,7 @@ def brief_json(compiled, runtime, repo_root):
         "repo": str(repo_root),
         "preferences": compiled["preferences"],
         "routes": {
+            "semantics": EXACT_ROUTE_SEMANTICS,
             "effective": compiled["exact"]["config"]["routes"],
             "sources": compiled["exact"]["route_sources"],
         },
@@ -1040,10 +1062,14 @@ def main(argv=None):
     parser.add_argument("--repo", default=".")
     parser.add_argument("--candidate", help="candidate ID chosen from the brief")
     parser.add_argument(
-        "--exact-route", help="configured route ID for deterministic dispatch"
+        "--exact-route", help="principal-requested route ID for deterministic dispatch"
     )
     parser.add_argument(
-        "--reason", help="the task judgment behind the pick; recorded verbatim"
+        "--route-basis",
+        help="verbatim principal request authorizing the exact route for this task",
+    )
+    parser.add_argument(
+        "--reason", help="the task judgment behind the candidate pick; recorded verbatim"
     )
     parser.add_argument(
         "--require-feature",

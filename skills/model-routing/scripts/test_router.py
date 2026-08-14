@@ -14,6 +14,7 @@ import router
 
 
 SCRIPT = Path(__file__).with_name("router.py")
+ROUTE_BASIS = "Principal requested the Worker route for this task."
 
 
 class RouterTest(unittest.TestCase):
@@ -87,9 +88,13 @@ class RouterTest(unittest.TestCase):
         self.assertIn("- (global) Captains default to gpt-5.6-sol at xhigh.", brief)
         self.assertIn("claude-fable-5[1m] or gpt-5.6-sol at max", brief)
 
-    def test_brief_shows_exact_routes_and_candidate_evidence(self):
+    def test_brief_shows_exact_route_activation_and_candidate_evidence(self):
         brief = self.run_router("brief").stdout
-        self.assertIn("| captain | codex | gpt-5.6-sol | xhigh | global | ask |", brief)
+        self.assertIn(router.EXACT_ROUTE_SEMANTICS, brief)
+        self.assertIn(
+            "| captain | — | codex | gpt-5.6-sol | xhigh | global | ask |",
+            brief,
+        )
         self.assertIn("claude/claude-fable-5[1m]/high", brief)
         self.assertIn("## Evidence", brief)
         self.assertIn("https://deepswe.datacurve.ai/", brief)
@@ -127,6 +132,7 @@ class RouterTest(unittest.TestCase):
         )
         self.assertIn("claude/claude-fable-5[1m]/high", payload["candidates"])
         self.assertEqual("global", payload["preferences"][0]["scope"])
+        self.assertEqual(router.EXACT_ROUTE_SEMANTICS, payload["routes"]["semantics"])
         self.assertEqual(
             "xhigh", payload["routes"]["effective"]["captain"]["effort"]
         )
@@ -158,6 +164,23 @@ class RouterTest(unittest.TestCase):
             expect_code=1,
         )
         self.assertIn("requires --reason", result.stderr)
+
+    def test_check_exact_route_requires_and_records_route_basis(self):
+        result = self.run_router(
+            "check",
+            "--exact-route",
+            "worker",
+            expect_code=1,
+        )
+        self.assertIn("requires --route-basis", result.stderr)
+        decision = self.check(
+            "--exact-route",
+            "worker",
+            "--route-basis",
+            ROUTE_BASIS,
+            runtime={"harnesses": {"grok": {"quota": {"status": "known"}}}},
+        )
+        self.assertEqual(ROUTE_BASIS, decision["route_basis"])
 
     def test_check_refuses_disabled_candidate(self):
         self.write_repo_layer(
@@ -284,17 +307,22 @@ class RouterTest(unittest.TestCase):
         decision = self.check(
             "--exact-route",
             "worker",
+            "--route-basis",
+            ROUTE_BASIS,
             runtime={"harnesses": {"grok": {"quota": {"status": "known"}}}},
         )
         self.assertEqual("exact", decision["status"])
         self.assertEqual("grok", decision["selected"]["agent"])
         self.assertEqual("grok/grok-4.6/high", decision["selected"]["id"])
+        self.assertEqual(ROUTE_BASIS, decision["route_basis"])
         self.assertEqual("global", decision["provenance"]["winner"]["scope"])
 
     def test_check_exact_route_refuses_exhausted_quota(self):
         decision = self.check(
             "--exact-route",
             "worker",
+            "--route-basis",
+            ROUTE_BASIS,
             runtime={
                 "harnesses": {"grok": {"quota": {"status": "exhausted"}}}
             },
@@ -311,7 +339,13 @@ class RouterTest(unittest.TestCase):
                 "candidates": {"grok/grok-4.6/high": {"enabled": False}},
             }
         )
-        decision = self.check("--exact-route", "worker", expect_code=1)
+        decision = self.check(
+            "--exact-route",
+            "worker",
+            "--route-basis",
+            ROUTE_BASIS,
+            expect_code=1,
+        )
         self.assertEqual("refused", decision["status"])
         self.assertIn("disabled by configuration", decision["reasons"])
         self.assertEqual("global", decision["route_provenance"]["winner"]["scope"])
@@ -332,9 +366,13 @@ class RouterTest(unittest.TestCase):
                 },
             }
         )
+        brief = self.run_router("brief").stdout
+        self.assertIn("| worker.bulk | Bulk edits. |", brief)
         decision = self.check(
             "--exact-route",
             "worker.bulk",
+            "--route-basis",
+            "Principal requested the worker.bulk route for this task.",
             runtime={
                 "harnesses": {"codex": {"status": "auth-required"}}
             },
@@ -346,6 +384,8 @@ class RouterTest(unittest.TestCase):
             "check",
             "--exact-route",
             "worker.bulk",
+            "--route-basis",
+            "Principal requested the worker.bulk route for this task.",
             "--require-feature",
             "vision",
             expect_code=1,
@@ -357,6 +397,8 @@ class RouterTest(unittest.TestCase):
         decision = self.check(
             "--exact-route",
             "worker",
+            "--route-basis",
+            ROUTE_BASIS,
             runtime={"harnesses": {"codex": {"quota": {"status": "known"}}}},
         )
         self.assertEqual("exact", decision["status"])
@@ -430,8 +472,8 @@ class RouterTest(unittest.TestCase):
             encoding="utf-8",
         )
         brief = self.run_router("brief").stdout
-        self.assertIn("| captain | codex | gpt-5.6-sol | xhigh | global | ask |", brief)
-        self.assertIn("| worker | codex | gpt-5.6-luna | max | builtin | ask |", brief)
+        self.assertIn("| captain | — | codex | gpt-5.6-sol | xhigh | global | ask |", brief)
+        self.assertIn("| worker | — | codex | gpt-5.6-luna | max | builtin | ask |", brief)
 
     def test_candidate_tombstone_removes_candidate(self):
         self.write_repo_layer(
@@ -721,13 +763,15 @@ class RouterTest(unittest.TestCase):
         )
         brief = self.run_router("brief").stdout
         self.assertIn(
-            "| worker | grok | grok-4.6 | high | repo | "
+            "| worker | — | grok | grok-4.6 | high | repo | "
             "ask 90s → codex/gpt-5.6-sol/high |",
             brief,
         )
         decision = self.check(
             "--exact-route",
             "worker",
+            "--route-basis",
+            ROUTE_BASIS,
             runtime={"harnesses": {"grok": {"quota": {"status": "stale"}}}},
             expect_code=2,
         )
@@ -767,6 +811,8 @@ class RouterTest(unittest.TestCase):
         decision = self.check(
             "--exact-route",
             "worker",
+            "--route-basis",
+            ROUTE_BASIS,
             "--use-quota-fallback",
             "principal did not respond within 120s",
             runtime={
@@ -815,6 +861,8 @@ class RouterTest(unittest.TestCase):
         decision = self.check(
             "--exact-route",
             "worker",
+            "--route-basis",
+            ROUTE_BASIS,
             "--use-quota-fallback",
             "waited 120s",
             runtime={"harnesses": {"grok": {"quota": {"status": "known"}}}},
@@ -846,6 +894,8 @@ class RouterTest(unittest.TestCase):
         decision = self.check(
             "--exact-route",
             "worker",
+            "--route-basis",
+            ROUTE_BASIS,
             "--use-quota-fallback",
             "waited 120s",
             runtime={
@@ -883,6 +933,8 @@ class RouterTest(unittest.TestCase):
         decision = self.check(
             "--exact-route",
             "worker",
+            "--route-basis",
+            ROUTE_BASIS,
             "--use-quota-fallback",
             "waited 120s",
             runtime={
@@ -916,6 +968,8 @@ class RouterTest(unittest.TestCase):
             "check",
             "--exact-route",
             "worker",
+            "--route-basis",
+            ROUTE_BASIS,
             "--use-quota-fallback",
             "   ",
             expect_code=1,
@@ -925,6 +979,8 @@ class RouterTest(unittest.TestCase):
             "check",
             "--exact-route",
             "worker",
+            "--route-basis",
+            ROUTE_BASIS,
             "--use-quota-fallback",
             "waited 120s",
             runtime={"harnesses": {"grok": {"quota": {"status": "stale"}}}},

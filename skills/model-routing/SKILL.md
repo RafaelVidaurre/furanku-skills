@@ -9,7 +9,7 @@ The agent about to spawn work—not a script—decides which agent, model, and e
 
 ## Generate the brief
 
-Use a configured exact route when the principal asked for one; otherwise judge the work against the brief. An instruction naming only a mechanism, harness, or executable is a consumer launch constraint, not an exact-route request or routing override. For example, “use claudex” does not imply `agent: claude` or exclude other catalog agents its selected surface can launch. A combined instruction that also names an agent, model, or effort binds launch and routing independently. Generate the brief with live quota and read it:
+Generate the brief before choosing; its Exact routes section is the normative source for when a configured route applies. An instruction naming only a mechanism, harness, or executable is a consumer launch constraint, not an exact-route request or routing override. For example, “use claudex” does not imply `agent: claude` or exclude other catalog agents its selected surface can launch. A combined instruction that also names an agent, model, or effort binds launch and routing independently. Generate the brief with live quota and read it:
 
 ```sh
 python3 <skill-dir>/scripts/router.py brief --repo <root> --quota-axi
@@ -17,7 +17,7 @@ python3 <skill-dir>/scripts/router.py brief --repo <root> --quota-axi
 
 One brief serves the whole spawning session—reuse it across decisions and regenerate only after a configuration change or when the brief's printed quota capture time is more than 30 minutes old. If quota-axi fails, the brief says so in its notes and quota stays unknown; the acceptance gate in `check` handles that—never estimate quota yourself.
 
-**Complete when:** the current session holds a brief fresh by the rule above.
+**Complete when:** the current session holds a fresh brief and has read its exact-route activation rule.
 
 ## Judge the pick
 
@@ -29,7 +29,7 @@ Identify the outcome's hard requirements—vision, long context, a minimum conte
 
 ## Gate-check the decision
 
-Run one check per decision—each delegated outcome gets its own judgment and rationale; one decision never determines another:
+Run one check per decision—each delegated outcome carries its own judgment and rationale or its own principal route basis; one decision never determines another:
 
 ```sh
 python3 <skill-dir>/scripts/router.py check --repo <root> \
@@ -39,18 +39,18 @@ python3 <skill-dir>/scripts/router.py check --repo <root> \
   --quota-axi --compact
 ```
 
-Use `check --exact-route <route-id>` instead of `--candidate`/`--reason` for a configured route. `--launchable-via` names the catalog `agent` tokens the consumer's spawning mechanism can launch (for example `claude` alone for harness-native subagents); a candidate outside that set is refused, never silently substituted.
+When the brief's activation rule applies, use `check --exact-route <route-id> --route-basis "<verbatim principal request>"` instead of `--candidate`/`--reason`. Preserve that basis on every quota-acceptance or fallback re-check. `--launchable-via` names the catalog `agent` tokens the consumer's spawning mechanism can launch (for example `claude` alone for harness-native subagents); a candidate outside that set is refused, never silently substituted.
 
 `check` enforces only hard gates—disabled candidates, missing required features or context, unlaunchable agents, authentication, exhausted quota—and emits one JSON decision:
 
 - `selected` (exit 0): judged pick passed; carries `selected` launch tuple, `reason`, `warnings`, `quota`.
-- `exact` (exit 0): configured route passed; carries `exact_route` and layer `provenance` instead of `reason`.
+- `exact` (exit 0): principal-requested route passed; carries the task's `route_basis`, `exact_route`, and configuration-layer `provenance` instead of a candidate judgment.
 - `refused` (exit 1): a hard gate failed; `reasons` names each gate. Re-judge a refused candidate within unchanged principal constraints. Preserve a refused exact route until the principal authorizes a routing change; satisfy it through a permitted launch surface or surface the conflict. Never launch a refused decision directly.
 - `needs-acceptance` (exit 2): every gate passed but quota is unknown or stale. `pending` names the cheapest recovery first — refresh credentials when a remedy is present, otherwise accept unknown quota. An exact route that returns `needs-acceptance` stays the route: surface `pending` (and any `quota_fallback`) to the principal; do not substitute another candidate. If they accept, rerun with `--accept-quota-unknown "<who accepted and why>"`. If `quota_fallback` is present, one ask covers every same-blocker exact-route check in the session; when the principal does not answer within `ask_seconds`, re-check that same exact route with `--use-quota-fallback "<who waited and how long>"` — that re-check tries the primary first and uses the fallback only while quota is still unknown or stale.
 
 When the decision's warnings or quota materially contradict the judgment—quota far below what the brief showed, an unexplained warning—re-judge before launching instead of proceeding anyway.
 
-**Complete when:** the consumer holds a `selected` or `exact` decision JSON whose gates match the outcome's stated requirements; a candidate refusal has been re-judged within unchanged constraints; an exact-route refusal has been satisfied through a permitted launch surface or surfaced to the principal; or an exact-route `needs-acceptance` has been accepted, surfaced with no fallback configured, or re-checked with `--use-quota-fallback` after the configured wait.
+**Complete when:** the consumer holds a `selected` decision with its task judgment or an `exact` decision with its principal route basis, and the gates match the outcome's stated requirements; a candidate refusal has been re-judged within unchanged constraints; an exact-route refusal has been satisfied through a permitted launch surface or surfaced to the principal; or an exact-route `needs-acceptance` has been accepted, surfaced with no fallback configured, or re-checked with the same basis and `--use-quota-fallback` after the configured wait.
 
 ## View or modify configuration
 

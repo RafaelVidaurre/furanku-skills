@@ -14,7 +14,7 @@ Create Worker-owned outcomes that are bounded, independently checkable, and full
 
 Captain assigns only Workers. Return a separate Captain-shaped front to the principal—the user or Commander—for ownership.
 
-**Complete when:** every necessary outcome has one Worker launched from a gate-checked decision carrying that outcome's own recorded rationale, and the dependency order is represented once in the mechanism's coordination state.
+**Complete when:** every necessary outcome has one Worker launched from a gate-checked decision carrying that outcome's own task rationale or principal route basis, and the dependency order is represented once in the mechanism's coordination state.
 
 ## Communicate
 
