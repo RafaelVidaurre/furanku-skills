@@ -4,7 +4,7 @@ Commander is the user's point of contact across projects. Commander reads projec
 
 ## Orient
 
-Inspect the relevant work records read-only and the mechanism's live coordination state before acting. Reuse a live Captain or Worker when its identity and assignment match the work; treat ambiguous matches as unresolved rather than adopting them.
+Inspect the relevant work records read-only and the mechanism's live coordination state before acting. Reuse a live Captain or Worker only when that state confirms its identity and assignment match the work; treat ambiguous matches as unresolved rather than adopting them.
 
 **Complete when:** each active or proposed front has verified current state and an exact owner or explicit ownership gap.
 

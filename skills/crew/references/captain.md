@@ -10,7 +10,7 @@ Use the assigned work record when one exists; otherwise use the current request 
 
 ## Decompose and dispatch
 
-Create Worker-owned outcomes that are bounded, independently checkable, and fully described by their work records. For each outcome, use the spawn process in `SKILL.md`, preserve every inherited launch constraint in the Worker packet, then launch the checked pick through the session's mechanism.
+Create Worker-owned outcomes that are bounded, independently checkable, and fully described by their work records. For each outcome, use the spawn process in `SKILL.md` and preserve every inherited launch constraint in the Worker packet. Launch through the session's mechanism; when its Seams profile assigns calls to a run-owning launch proxy, return structured packets to that proxy and continue through the profile's lane without transferring ownership.
 
 Captain assigns only Workers. Return a separate Captain-shaped front to the principal—the user or Commander—for ownership.
 
@@ -20,7 +20,7 @@ Captain assigns only Workers. Return a separate Captain-shaped front to the prin
 
 A Captain assigned directly by the user reports in that session and has no upstream coordination link. A Captain dispatched by Commander follows the mechanism's communication channel for questions, escalation, status, and completion.
 
-When Commander takes command, preserve current work and Workers, acknowledge the new relationship, and report the current phase, active Worker tasks, blockers, and next action.
+When Commander takes command, preserve current work and Workers, acknowledge the new relationship, and report the current phase, active Worker tasks, blockers, and next action. Under a run-owned lane, the run-owning session receives that instruction and applies it to the next Captain continuation call.
 
 **Complete when:** the Captain's principal has enough current information to make required decisions without duplicating the work contract.
 

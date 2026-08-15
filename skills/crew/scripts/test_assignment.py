@@ -91,10 +91,17 @@ class PacketTest(unittest.TestCase):
             payload["mechanism"],
         )
         self.assertEqual("codex/gpt-5.6-luna/max", payload["routing"]["candidate"])
+        self.assertIn('outcome: "Deliver shell palette"', payload["spec"])
         self.assertIn("role: worker", payload["spec"])
         self.assertIn("reports_to: captain", payload["spec"])
         self.assertIn("mechanism: orca", payload["spec"])
+        self.assertIn("isolation: true", payload["spec"])
+        self.assertIn(
+            'coordination: "Orca dispatch carries questions and completion."',
+            payload["spec"],
+        )
         self.assertIn("front_key: run-1/shell", payload["spec"])
+        self.assertIn("skills/crew/SKILL.md", payload["spec"])
         self.assertIn("references/worker.md", payload["spec"])
         self.assertIn("work_ref: beads:bead-1", payload["spec"])
         self.assertIn('routing_warnings: ["quota stale"]', payload["spec"])

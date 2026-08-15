@@ -36,10 +36,11 @@ MANIFEST_KEYS = {
 }
 SEAM_KEYS = {"version", "work_record", "mechanism"}
 RESERVED_SPEC_KEYS = {
-    "role", "reports_to", "mechanism", "agent", "model", "effort", "route",
-    "candidate", "work_ref", "bootstrap_request", "routing_status",
-    "routing_reason", "routing_warnings", "routing_quota",
-    "routing_quota_acceptance", "route_source", "launch_constraint",
+    "outcome", "role", "reports_to", "mechanism", "isolation", "coordination",
+    "agent", "model", "effort", "route", "candidate", "work_ref",
+    "bootstrap_request", "routing_status", "routing_reason", "routing_warnings",
+    "routing_quota", "routing_quota_acceptance", "route_source",
+    "launch_constraint",
 }
 
 
@@ -415,13 +416,16 @@ def build_packet(args):
     launch_constraints = parse_launch_constraints(args.launch_constraint)
     work = parse_work(args)
     routing = routing_summary(decision)
-    contract = (
-        Path(__file__).resolve().parent.parent / "references" / f"{args.role}.md"
-    )
+    skill = Path(__file__).resolve().parent.parent / "SKILL.md"
+    contract = skill.parent / "references" / f"{args.role}.md"
     lines = [
+        "outcome: " + json.dumps(title, ensure_ascii=False),
         f"role: {args.role}",
         f"reports_to: {args.reports_to}",
         f"mechanism: {manifest['mechanism']}",
+        "isolation: " + json.dumps(manifest.get("isolation", False)),
+        "coordination: "
+        + json.dumps(manifest["communication"], ensure_ascii=False),
     ]
     lines += [f"{key}: {extras[key]}" for key in sorted(extras)]
     lines += [
@@ -432,6 +436,7 @@ def build_packet(args):
         f"agent: {routing['agent']}",
         f"model: {routing['model']}",
         f"effort: {routing['effort']}",
+        f"Crew contract: {skill}",
         f"Role contract: {contract}",
         f"routing_status: {routing['status']}",
     ]

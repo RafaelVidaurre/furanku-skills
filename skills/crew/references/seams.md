@@ -53,9 +53,11 @@ Always available: the native coordination facilities of whatever harness is runn
 
 When the current harness exposes Claude Code's Workflow tool, use Workflow as Crew's orchestration surface. The manifest below describes stock Claude Code. A renamed or extended harness qualifies when the session exposes Workflow, but its own configured manifest is authoritative about which agents that Workflow can launch.
 
-- Start one workflow run for each delegation batch owned by the spawning session.
-- Map each Crew assignment to one workflow agent and pass that assignment's packet `spec` unchanged as its prompt.
-- Pass the packet's selected `model` and `effort` as the workflow agent's `model` and `effort` options; the `spec` records them but does not enact them:
+- Start one workflow run for each delegation batch owned by the spawning session. The script owns every `agent()` call: a Workflow agent cannot call Workflow, append calls to its parent run, or receive later sibling results through an inbox.
+- Map a leaf assignment to one workflow agent and pass that assignment's packet `spec` unchanged as its prompt.
+- Map a Captain assignment to one scripted lane: the first Captain call receives its packet `spec` unchanged and returns structured lane state plus gate-checked Worker packets; the script launches those packets in dependency order; a Captain continuation call receives the original packet, prior lane state, and Worker results to integrate. State travels through script values rather than agent identity. A message to another session never substitutes for a lane call.
+- Captain lane calls return state, packets, decisions, or integration only; they do not invoke `Agent`, shell launchers, or `SendMessage` to dispatch. Use an intentionally non-spawning `agentType` when the registry provides one, and treat any nested launch as a failed lane rather than hidden Worker progress.
+- Pass each packet's selected `model` and `effort` as that call's `model` and `effort` options; the `spec` records them but does not enact them:
 
   ```js
   agent(packet.spec, {
@@ -64,11 +66,11 @@ When the current harness exposes Claude Code's Workflow tool, use Workflow as Cr
   })
   ```
 
-- Keep four namespaces distinct: the Crew `role` (`captain` or `worker`) defines ownership in the prompt; routing `agent` identifies a provider/launcher capability; `model` selects the model; Workflow `agentType` optionally selects a registered subagent definition. Omit `agentType` unless a specific type from the current Workflow registry is intentionally required. Never derive it from the packet's `agent`, `model`, or Crew `role`.
-- If Workflow reports `agent({agentType}): agent type '<token>' not found` after a routing `agent` was copied into `agentType`, classify it as malformed field mapping rather than capability evidence; apply the mapping above and the failure recovery owned by **Spawn an owner**.
+- Keep four namespaces distinct: the Crew `role` (`captain` or `worker`) defines ownership in the prompt; routing `agent` identifies a provider/launcher capability; `model` selects the model; Workflow `agentType` optionally selects a registered subagent definition. Omit `agentType` unless a specific type from the current Workflow registry is intentionally required, including a non-spawning Captain type. Never derive it from the packet's `agent`, `model`, or Crew `role`.
+- If Workflow reports `agent({agentType}): agent type '<token>' not found` after a routing `agent` was copied into `agentType`, classify it as malformed field mapping rather than capability evidence; apply the mapping above and the failure recovery owned by **Spawn an owner**. If workflow progress reports that an environment or availability rule substituted a different resolved model, classify that as a capability refusal and follow the same recovery instead of accepting the substituted route.
 - Encode dependency order once in the workflow script: await prerequisites before dependent agent calls, and run only independent assignments in parallel.
-- Retain the workflow run and agent identities as the assignment's coordination pointers. Use the workflow progress view and per-agent results for status, blockers, and completion.
-- End the run at any decision that needs principal input. Return the question or blocker in the agent result, obtain the answer in the spawning session, then start a follow-up run with that answer in its packet; workflows do not accept mid-run user input.
+- Retain the session-scoped workflow run ID, durable script path, lane labels, packet pointers, and work pointers as coordination state. Use the workflow progress view and per-agent results for status, blockers, and completion; an `agent()` result is a value, not a durable agent address. Across sessions, continue from the script and work record rather than treating the old run ID as live.
+- End the run at any decision that needs principal input. Return the question or blocker with accumulated lane state, obtain the answer in the spawning session, then start a new run whose script contains only the continuation and receives the original packet, that state, and the answer; do not use run resume to replay completed lane calls. Workflows do not accept mid-run user input.
 - Stop an unfinished run through the harness workflow controls when its assignments are abandoned. A completed run needs no cleanup; preserve reusable workflow definitions unless the assignment created one solely for itself.
 
 Use this manifest for the profile:
@@ -78,13 +80,13 @@ Use this manifest for the profile:
   "mechanism": "harness-native",
   "launchable_agents": ["claude"],
   "isolation": false,
-  "communication": "Launch a Claude Workflow with one agent per Crew assignment, delivering each packet spec unchanged and applying its selected model and effort; Workflow progress and per-agent results carry status, blockers, questions, and completion to the spawning session, and principal input starts a follow-up run.",
+  "communication": "Launch a Claude Workflow with one scripted lane per Crew assignment: one agent call for a leaf, or Captain planning, Worker calls, and Captain continuation for a delegated front; deliver each initial packet spec unchanged, apply each packet's selected model and effort, carry lane state through script values, and use a follow-up run for principal input.",
   "retire": "Stop an unfinished run through the harness workflow controls; completed runs require no cleanup, and reusable workflow definitions remain in place.",
   "extras": {}
 }
 ```
 
-**Complete when:** every assignment has its own packet-backed workflow agent running its selected model and effort; the workflow script either omits `agentType` or identifies an intentionally selected type from the current registry without deriving it from packet fields; dependency order exists once in the script; the run and agent identities are retained; and any principal decision is a boundary between runs.
+**Complete when:** every assignment has a packet-backed lane whose requested model and effort were passed and whose resolved model shows no substitution; every Captain lane contains non-spawning planning, packet-backed Worker calls launched by the script, and a continuation with their results; the workflow script either omits `agentType` or identifies an intentionally selected type from the current registry without deriving it from packet fields; dependency order exists once in the script; session-scoped run and durable script, lane, packet, and work pointers are retained; no assignment was sent to an unrelated session; and any principal decision is a state-carrying boundary between new runs.
 
 For another native harness, define a profile that names its strongest matching coordination facility and maps packet fields to that facility's API. Deliver the packet's `spec` unchanged and retain the facility's coordination pointers.
 
@@ -118,7 +120,7 @@ Anything satisfying the manifest—a renamed or extended harness, tmux sessions,
       "mechanism": "my-workflow-harness",
       "launchable_agents": ["claude", "codex", "grok"],
       "isolation": false,
-      "communication": "Launch the harness Workflow facility with one agent per Crew assignment, delivering each packet spec unchanged and applying its selected model and effort; its workflow view and per-agent results carry status, blockers, questions, and completion to the spawning session, and principal input starts follow-up work.",
+      "communication": "Launch the harness Workflow facility with one scripted lane per Crew assignment: one agent call for a leaf, or Captain planning, Worker calls, and Captain continuation for a delegated front; deliver each initial packet spec unchanged, apply each packet's selected model and effort, carry lane state through script values, and use a follow-up run for principal input.",
       "retire": "Stop unfinished workflow runs through the harness; completed runs require no cleanup.",
       "extras": {}
     }
