@@ -663,7 +663,11 @@ class RouterTest(unittest.TestCase):
         quota = runtime["harnesses"]["codex"]["quota"]
         self.assertEqual("exhausted", quota["status"])
         self.assertEqual(
-            {"email": "services@skillcap.studio", "account_id": "b930a4d7"},
+            {
+                "email": "services@skillcap.studio",
+                "account_id": "b930a4d7",
+                "provider": "codex",
+            },
             quota["account"],
         )
 
@@ -739,6 +743,56 @@ class RouterTest(unittest.TestCase):
             any("could not name the account" in warning for warning in warnings),
             warnings,
         )
+
+    def test_projected_quota_is_checked_against_its_own_provider(self):
+        """A proxy-routed candidate launches through `claude` but bills the
+        upstream provider, so its account must be checked against that
+        provider's configured account, not the launch harness's."""
+        catalog = router.read_json(router.CATALOG, "routing catalog")
+        snapshot = {
+            "schemaVersion": 3,
+            "generatedAt": "2026-08-16T12:31:05Z",
+            "providers": [
+                {
+                    "provider": "grok",
+                    "account": {"email": "rafael@vidaurre.io"},
+                    "state": {"status": "fresh", "stale": False},
+                    "quotaSemantics": {
+                        "status": "known",
+                        "effectiveAvailability": [
+                            {
+                                "scope": "all_models",
+                                "effectivePercentRemaining": 70,
+                                "boundedBy": ["weekly"],
+                                "pace": {"worstReservePercentPoints": 0},
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+        runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
+        candidate_id = "claude/grok-4.6-via-claude-code/high"
+        candidate = catalog["candidates"][candidate_id]
+        quota = runtime["candidates"][candidate_id]["quota"]
+        self.assertEqual("grok", quota["account"]["provider"])
+        # A claude-account expectation must not be applied to a grok reading.
+        reasons, _warnings = router.gate(
+            candidate_id,
+            candidate,
+            runtime,
+            expected_accounts={"claude": "someone-else@example.com"},
+        )
+        self.assertEqual([], reasons)
+        # The grok expectation is the one that governs it.
+        reasons, _warnings = router.gate(
+            candidate_id,
+            candidate,
+            runtime,
+            expected_accounts={"grok": "someone-else@example.com"},
+        )
+        self.assertEqual(1, len(reasons))
+        self.assertIn("rafael@vidaurre.io", reasons[0])
 
     def test_quota_summary_reports_the_measured_account(self):
         summary = router.quota_summary(

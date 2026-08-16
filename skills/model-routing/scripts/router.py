@@ -281,7 +281,7 @@ def quota_from_unusable_state(status, state, semantics=None):
     return copy_quota_diagnostics({"status": status}, state, semantics)
 
 
-def account_identity(provider):
+def account_identity(provider, provider_id=None):
     """Identity of the account a provider's quota was measured for.
 
     Tools that read OAuth quota report whichever account the ambient
@@ -297,7 +297,15 @@ def account_identity(provider):
         value = account.get(source_key)
         if isinstance(value, str) and value.strip():
             identity[dest_key] = value.strip()
-    return identity or None
+    if not identity:
+        return None
+    # Quota is projected across harnesses (a proxy-routed candidate bills the
+    # upstream provider's account, not its launch harness), so the reading
+    # carries the provider it was measured on rather than letting the consumer
+    # infer one from the launch tuple.
+    if provider_id:
+        identity["provider"] = provider_id
+    return identity
 
 
 def attach_account(state, identity):
@@ -340,7 +348,7 @@ def quota_axi_runtime(snapshot, candidates):
         harness = PROVIDER_TO_HARNESS.get(provider_id)
         if harness is None:
             continue
-        identity = account_identity(provider)
+        identity = account_identity(provider, provider_id)
         state = provider.get("state", {})
         semantics = provider.get("quotaSemantics", {})
         harness_state = {}
@@ -540,7 +548,13 @@ def gate(
         raise Error(f"runtime quota for {candidate_id} must be an object")
     quota_status = quota.get("status", "unknown")
     measured = quota_account_email(quota)
-    provider = HARNESS_TO_PROVIDER.get(candidate["launch"]["agent"])
+    # Compare against the provider the reading was measured on. Falling back to
+    # the launch harness would check a proxy-routed candidate against the wrong
+    # provider's configured account.
+    account = quota.get("account") if isinstance(quota, dict) else None
+    provider = (account or {}).get("provider") or HARNESS_TO_PROVIDER.get(
+        candidate["launch"]["agent"]
+    )
     expected = (expected_accounts or {}).get(provider)
     # A reading of the wrong account is not evidence about this launch, whether
     # it reports headroom or exhaustion. Refuse before the status is trusted.
