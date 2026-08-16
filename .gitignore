@@ -13,5 +13,8 @@ __pycache__/
 # Beads 1.2+ runtime lock (repo-root, not inside .beads/)
 .beads.gate.lock
 
+# Beads recovery snapshots (machine-local, created by the v1.2.1 recovery)
+.beads.backup-pre-recovery/
+
 # Machine-local notification config (notifai)
 .notifai/
