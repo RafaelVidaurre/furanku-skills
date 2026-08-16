@@ -87,6 +87,12 @@ def validate_compiled_candidates(candidates):
             raise Error(f"{label}.launch values must be non-empty strings")
         if "enabled" in candidate and not isinstance(candidate["enabled"], bool):
             raise Error(f"{label}.enabled must be boolean")
+        pool = candidate.get("quota_pool")
+        if pool is not None:
+            if not isinstance(pool, dict) or not pool.get("provider"):
+                raise Error(f"{label}.quota_pool requires the billed provider")
+            if not isinstance(pool.get("detail", ""), str):
+                raise Error(f"{label}.quota_pool detail must be a string")
         features = candidate.get("features", [])
         if not isinstance(features, list) or any(not isinstance(x, str) for x in features):
             raise Error(f"{label}.features must be a string array")
@@ -196,6 +202,10 @@ HARNESS_TO_PROVIDER = {
     harness: provider for provider, harness in PROVIDER_TO_HARNESS.items()
 }
 QUOTA_DIAGNOSTIC_KEYS = ("detail", "cause", "remedy", "auth_status", "refreshed_at")
+POOLED_QUOTA_DETAIL = (
+    "served by a rotating credential proxy that selects an account per request, "
+    "so no single-account reading describes this candidate"
+)
 
 
 def runtime_for(runtime, candidate_id, candidate):
@@ -219,6 +229,21 @@ def runtime_for(runtime, candidate_id, candidate):
     harness_quota = harness.get("quota")
     if harness_quota is not None and not isinstance(harness_quota, dict):
         raise Error(f"runtime quota for harness {agent} must be an object")
+    pool = candidate.get("quota_pool")
+    if isinstance(pool, dict):
+        # A pooled candidate does not bill its launch harness: a rotating
+        # credential proxy chooses the serving account per request and moves
+        # off exhausted ones. The harness's own availability still gates the
+        # launch, but no single-account reading describes this candidate's
+        # quota, so it stays unknown and takes the acceptance path instead of
+        # borrowing a number that describes a different account.
+        pooled = deepcopy(harness)
+        pooled["quota"] = {
+            "status": "unknown",
+            "detail": pool.get("detail") or POOLED_QUOTA_DETAIL,
+            "account": {"pooled": True, "provider": pool.get("provider")},
+        }
+        return pooled
     specific = candidate_states.get(candidate_id)
     if specific is None:
         return harness
@@ -501,7 +526,12 @@ def quota_account_email(quota):
     return email if isinstance(email, str) and email.strip() else None
 
 
-def account_phrase(email):
+def account_phrase(account):
+    """How a verdict names the account it describes."""
+    if isinstance(account, dict) and account.get("pooled"):
+        provider = account.get("provider")
+        return f"pooled {provider} accounts" if provider else "pooled accounts"
+    email = quota_account_email({"account": account})
     return f"account {email}" if email else "account unattributed"
 
 
@@ -565,12 +595,14 @@ def gate(
             "the launch account"
         )
     elif quota_status in HARD_QUOTA_STATUSES:
-        reasons.append(f"quota {quota_status} ({account_phrase(measured)})")
+        reasons.append(f"quota {quota_status} ({account_phrase(account)})")
     elif quota_status in {"unknown", "stale"}:
         detail = quota.get("detail")
-        base = f"quota {quota_status} ({account_phrase(measured)})"
+        base = f"quota {quota_status} ({account_phrase(account)})"
         warnings.append(f"{base}: {detail}" if detail else base)
-    if expected and not measured:
+    # A pooled reading names no account by design, so only an unattributed one
+    # is worth flagging against a configured account.
+    if expected and not measured and not (account or {}).get("pooled"):
         warnings.append(
             f"quota could not name the account it measured, so it cannot be "
             f"checked against the configured {provider} account {expected}"
@@ -621,7 +653,7 @@ def acceptance_terms(quota, accept_note):
         refreshed = quota.get("refreshed_at")
         if isinstance(refreshed, str) and refreshed.strip():
             clause += f" (last fresh {last_fresh_stamp(refreshed)})"
-        parts = [clause + "."]
+        parts = [clause if clause.endswith((".", "!", "?")) else clause + "."]
         remedy = quota.get("remedy")
         if isinstance(remedy, str) and remedy.strip():
             parts.append(f"Refresh with `{remedy.strip()}`, then re-check.")

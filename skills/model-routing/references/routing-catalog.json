@@ -822,6 +822,233 @@
           "source": "https://artificialanalysis.ai/models/grok-4-6"
         }
       }
+    },
+    "claude/gpt-5.6-sol-via-claude-code/max": {
+      "launch": {
+        "agent": "claude",
+        "model": "gpt-5.6-sol-via-claude-code",
+        "effort": "max"
+      },
+      "features": [
+        "tools",
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.59,
+          "conservative": 0.57,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/articles/gpt-5-6-has-landed"
+          ]
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.73,
+          "conservative": 0.71,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://deepswe.datacurve.ai/"
+          ]
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.9,
+          "conservative": 0.84,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard/agent?stream=top"
+          ]
+        },
+        "ui": {
+          "status": "known",
+          "score": 0.85,
+          "conservative": 0.8,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard?category=webdev"
+          ]
+        },
+        "spatial-3d": {
+          "status": "known",
+          "score": 0.84,
+          "conservative": 0.78,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://www.designarena.ai/leaderboard"
+          ]
+        }
+      },
+      "economics": {
+        "task_cost_usd": {
+          "value": 8.39,
+          "basis": "DeepSWE",
+          "assessed_at": "2026-07-31",
+          "source": "https://deepswe.datacurve.ai/"
+        },
+        "output_tokens_per_second": {
+          "value": 70,
+          "basis": "xhigh proxy",
+          "assessed_at": "2026-07-31",
+          "source": "https://artificialanalysis.ai/models/gpt-5-6-sol-xhigh/"
+        }
+      },
+      "quota_pool": {
+        "provider": "codex",
+        "detail": "Claudex reaches Sol through CLIProxyAPI, which round-robins the registered Codex credentials and switches account when one is quota-exceeded; the serving account is chosen per request, so a single-account reading does not describe this candidate."
+      }
+    },
+    "claude/gpt-5.6-sol-via-claude-code/xhigh": {
+      "launch": {
+        "agent": "claude",
+        "model": "gpt-5.6-sol-via-claude-code",
+        "effort": "xhigh"
+      },
+      "features": [
+        "tools",
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.58,
+          "conservative": 0.56,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-5-6-sol-xhigh/"
+          ]
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.73,
+          "conservative": 0.7,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://deepswe.datacurve.ai/"
+          ]
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.9,
+          "conservative": 0.86,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard/agent?stream=top"
+          ]
+        },
+        "ui": {
+          "status": "known",
+          "score": 0.85,
+          "conservative": 0.82,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard?category=webdev"
+          ]
+        },
+        "spatial-3d": {
+          "status": "known",
+          "score": 0.84,
+          "conservative": 0.8,
+          "confidence": "medium",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://www.designarena.ai/leaderboard"
+          ]
+        }
+      },
+      "economics": {
+        "task_cost_usd": {
+          "value": 8.39,
+          "basis": "DeepSWE max proxy",
+          "assessed_at": "2026-07-31",
+          "source": "https://deepswe.datacurve.ai/"
+        },
+        "output_tokens_per_second": {
+          "value": 70,
+          "basis": "Artificial Analysis",
+          "assessed_at": "2026-07-31",
+          "source": "https://artificialanalysis.ai/models/gpt-5-6-sol-xhigh/"
+        }
+      },
+      "quota_pool": {
+        "provider": "codex",
+        "detail": "Claudex reaches Sol through CLIProxyAPI, which round-robins the registered Codex credentials and switches account when one is quota-exceeded; the serving account is chosen per request, so a single-account reading does not describe this candidate."
+      }
+    },
+    "claude/gpt-5.6-sol-via-claude-code/high": {
+      "launch": {
+        "agent": "claude",
+        "model": "gpt-5.6-sol-via-claude-code",
+        "effort": "high"
+      },
+      "features": [
+        "tools",
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.56,
+          "conservative": 0.54,
+          "confidence": "high",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-5-6-sol-high"
+          ]
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.68,
+          "conservative": 0.64,
+          "confidence": "low",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-5-6-sol-high"
+          ]
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.75,
+          "conservative": 0.7,
+          "confidence": "low",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-5-6-sol-high"
+          ]
+        },
+        "ui": {
+          "status": "known",
+          "score": 0.78,
+          "conservative": 0.74,
+          "confidence": "low",
+          "assessed_at": "2026-07-31",
+          "evidence": [
+            "https://arena.ai/leaderboard?category=webdev"
+          ]
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 63,
+          "basis": "Artificial Analysis",
+          "assessed_at": "2026-07-31",
+          "source": "https://artificialanalysis.ai/models/gpt-5-6-sol-high"
+        }
+      },
+      "quota_pool": {
+        "provider": "codex",
+        "detail": "Claudex reaches Sol through CLIProxyAPI, which round-robins the registered Codex credentials and switches account when one is quota-exceeded; the serving account is chosen per request, so a single-account reading does not describe this candidate."
+      }
     }
   }
 }

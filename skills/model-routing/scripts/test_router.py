@@ -794,6 +794,86 @@ class RouterTest(unittest.TestCase):
         self.assertEqual(1, len(reasons))
         self.assertIn("rafael@vidaurre.io", reasons[0])
 
+    def test_pooled_candidate_does_not_inherit_its_harness_quota(self):
+        """Claudex bills the proxy's credential pool, not the Claude account it
+        launches through, so an exhausted harness must not refuse it."""
+        catalog = router.read_json(router.CATALOG, "routing catalog")
+        candidate_id = "claude/gpt-5.6-sol-via-claude-code/xhigh"
+        candidate = catalog["candidates"][candidate_id]
+        runtime = {"harnesses": {"claude": {"quota": {"status": "exhausted"}}}}
+        reasons, warnings = router.gate(candidate_id, candidate, runtime)
+        self.assertEqual([], reasons)
+        self.assertTrue(
+            any("pooled codex accounts" in warning for warning in warnings),
+            warnings,
+        )
+        self.assertTrue(
+            any("chosen per request" in warning for warning in warnings), warnings
+        )
+
+    def test_pooled_candidate_still_gated_by_harness_availability(self):
+        """The proxy supplies the account, but the harness still has to run."""
+        catalog = router.read_json(router.CATALOG, "routing catalog")
+        candidate_id = "claude/gpt-5.6-sol-via-claude-code/xhigh"
+        candidate = catalog["candidates"][candidate_id]
+        runtime = {"harnesses": {"claude": {"status": "auth-required"}}}
+        reasons, _warnings = router.gate(candidate_id, candidate, runtime)
+        self.assertIn("runtime status auth-required", reasons)
+
+    def test_pooled_candidate_ignores_a_single_account_exhaustion(self):
+        """The incident: Sol exhausted on the measured Codex account must not
+        take the pooled Sol route down with it."""
+        catalog = router.read_json(router.CATALOG, "routing catalog")
+        runtime = router.quota_axi_runtime(
+            self.codex_snapshot(0, {"email": "services@skillcap.studio"}),
+            catalog["candidates"],
+        )
+        native = "codex/gpt-5.6-sol/xhigh"
+        reasons, _warnings = router.gate(
+            native, catalog["candidates"][native], runtime
+        )
+        self.assertEqual(
+            ["quota exhausted (account services@skillcap.studio)"], reasons
+        )
+        pooled = "claude/gpt-5.6-sol-via-claude-code/xhigh"
+        reasons, _warnings = router.gate(
+            pooled, catalog["candidates"][pooled], runtime
+        )
+        self.assertEqual([], reasons)
+
+    def test_pooled_quota_is_not_flagged_as_unattributed(self):
+        """A pooled reading names no account by design; saying it "could not"
+        name one misreports a deliberate property as a failure."""
+        catalog = router.read_json(router.CATALOG, "routing catalog")
+        candidate_id = "claude/gpt-5.6-sol-via-claude-code/xhigh"
+        candidate = catalog["candidates"][candidate_id]
+        _reasons, warnings = router.gate(
+            candidate_id,
+            candidate,
+            {"harnesses": {"claude": {}}},
+            expected_accounts={"codex": "services@skillcap.studio"},
+        )
+        self.assertFalse(
+            any("could not name the account" in warning for warning in warnings),
+            warnings,
+        )
+
+    def test_quota_pool_requires_a_billed_provider(self):
+        with self.assertRaises(router.Error) as caught:
+            router.validate_compiled_candidates(
+                {
+                    "claude/x/high": {
+                        "launch": {
+                            "agent": "claude",
+                            "model": "x",
+                            "effort": "high",
+                        },
+                        "quota_pool": {"detail": "no provider"},
+                    }
+                }
+            )
+        self.assertIn("quota_pool requires the billed provider", str(caught.exception))
+
     def test_quota_summary_reports_the_measured_account(self):
         summary = router.quota_summary(
             {
