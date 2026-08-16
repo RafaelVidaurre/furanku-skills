@@ -239,7 +239,7 @@ def runtime_for(runtime, candidate_id, candidate):
         # borrowing a number that describes a different account.
         pooled = deepcopy(harness)
         pooled["quota"] = {
-            "status": "unknown",
+            "status": "pooled",
             "detail": pool.get("detail") or POOLED_QUOTA_DETAIL,
             "account": {"pooled": True, "provider": pool.get("provider")},
         }
@@ -596,7 +596,12 @@ def gate(
         )
     elif quota_status in HARD_QUOTA_STATUSES:
         reasons.append(f"quota {quota_status} ({account_phrase(account)})")
-    elif quota_status in {"unknown", "stale"}:
+    elif quota_status in {"unknown", "stale", "pooled"}:
+        # `pooled` is a settled state, not a failed reading: the surface has no
+        # single account to measure and rotates off exhausted credentials by
+        # itself, so it warns rather than demanding an acceptance for every
+        # launch. Acceptance stays for quota that is normally readable and
+        # currently is not.
         detail = quota.get("detail")
         base = f"quota {quota_status} ({account_phrase(account)})"
         warnings.append(f"{base}: {detail}" if detail else base)

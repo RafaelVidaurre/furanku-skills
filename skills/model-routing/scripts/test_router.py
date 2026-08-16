@@ -804,7 +804,7 @@ class RouterTest(unittest.TestCase):
         reasons, warnings = router.gate(candidate_id, candidate, runtime)
         self.assertEqual([], reasons)
         self.assertTrue(
-            any("pooled codex accounts" in warning for warning in warnings),
+            any("quota pooled (pooled codex accounts)" in warning for warning in warnings),
             warnings,
         )
         self.assertTrue(
@@ -840,6 +840,21 @@ class RouterTest(unittest.TestCase):
             pooled, catalog["candidates"][pooled], runtime
         )
         self.assertEqual([], reasons)
+
+    def test_pooled_candidate_passes_without_per_launch_acceptance(self):
+        """Pooled quota is settled, not degraded: gating every launch behind a
+        sign-off would trade a false refusal for constant friction."""
+        catalog = router.read_json(router.CATALOG, "routing catalog")
+        candidate_id = "claude/gpt-5.6-sol-via-claude-code/xhigh"
+        candidate = catalog["candidates"][candidate_id]
+        state = router.runtime_for(
+            {"harnesses": {"claude": {}}}, candidate_id, candidate
+        )
+        pending, acceptance = router.acceptance_terms(
+            router.quota_summary(state), None
+        )
+        self.assertIsNone(pending)
+        self.assertIsNone(acceptance)
 
     def test_pooled_quota_is_not_flagged_as_unattributed(self):
         """A pooled reading names no account by design; saying it "could not"
