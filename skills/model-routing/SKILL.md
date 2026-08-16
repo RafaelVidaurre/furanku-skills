@@ -50,6 +50,8 @@ When the brief's activation rule applies, use `check --exact-route <route-id> --
 
 When the decision's warnings or quota materially contradict the judgment—quota far below what the brief showed, an unexplained warning—re-judge before launching instead of proceeding anyway.
 
+Every quota verdict names the account it measured, because one machine may hold several accounts per provider and quota tools read whichever the environment selects. Report a quota refusal with that account: "exhausted for `<account>`" is answerable, while a bare "exhausted" strands the principal when they meant a different account. If a verdict reads `account unattributed`, quota could not be tied to an identity — say so rather than presenting it as settled. Never switch accounts by changing the measuring environment alone: that moves which account is measured, not which one the launch bills. Record the billing account per provider under `accounts` in configuration so the mismatch is refused instead of trusted.
+
 **Complete when:** the consumer holds a `selected` decision with its task judgment or an `exact` decision with its principal route basis, and the gates match the outcome's stated requirements; a candidate refusal has been re-judged within unchanged constraints; an exact-route refusal has been satisfied through a permitted launch surface or surfaced to the principal; or an exact-route `needs-acceptance` has been accepted, surfaced with no fallback configured, or re-checked with the same basis and `--use-quota-fallback` after the configured wait.
 
 ## View or modify configuration

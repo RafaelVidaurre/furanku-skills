@@ -41,6 +41,9 @@ Every layer is a version 4 document. A persisted layer defines only the routes i
   ],
   "candidates": {
     "opencode/kimi-for-coding/k3/max": { "enabled": false }
+  },
+  "accounts": {
+    "codex": "services@skillcap.studio"
   }
 }
 ```
@@ -48,6 +51,7 @@ Every layer is a version 4 document. A persisted layer defines only the routes i
 - `preferences` are plain-language routing statements addressed to the spawning agent. They may name models, candidates, tiers, budgets, or conditions—anything the user wants weighed. They are not machine-enforced; the brief presents them and the spawn guidance makes them binding on the agent's judgment.
 - `on_quota_unusable` is optional on any route. Omit it or set `"ask"` to keep asking. An object requires a `fallback` launch tuple different from the route and may set `ask_seconds` (default 120): the agent asks once per quota blocker, then `check --use-quota-fallback` may take that fallback if the principal has not answered. Whole-row replacement still applies — a later layer that omits the field removes the fallback.
 - `candidates` add new launchable candidates or patch builtin ones. A candidate carries one exact `agent/model/effort` launch tuple; capability assessments carry a score, conservative value, confidence, date, and public evidence; unavailable evidence remains unknown. `{"enabled": false}` removes a candidate from play; `check` refuses it.
+- `accounts` map a provider (`claude`, `codex`, `grok`) to the account its launches bill. Quota tools report whichever account the ambient environment selects — for Codex, whatever `$CODEX_HOME` points at — which is not necessarily the account that pays for the work. Where a provider is listed, `check` refuses any quota reading measured against a different account, in both directions: apparent headroom on the wrong account is refused exactly like exhaustion, because neither describes the launch. Set this wherever one machine holds several accounts for one provider.
 - Runtime authentication, health, inventory, and quota remain ephemeral inputs; never persist them as capability evidence.
 
 ## View configuration

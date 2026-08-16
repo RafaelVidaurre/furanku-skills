@@ -22,6 +22,7 @@ CATALOG = (
 TOKEN = r"[a-z0-9]+(?:-[a-z0-9]+)*"
 ROUTE_ID = re.compile(rf"^{TOKEN}(?:\.{TOKEN})*$")
 LAUNCH_FIELDS = ("agent", "model", "effort")
+PROVIDERS = ("claude", "codex", "grok")
 OPTIONAL_ROUTE_FIELDS = {"on_quota_unusable"}
 DEFAULT_ASK_SECONDS = 120
 
@@ -177,10 +178,32 @@ def validate_candidate_overrides(candidates, source):
             )
 
 
+def validate_accounts(accounts, source):
+    """Provider → the account that provider's launches bill.
+
+    Quota tools measure whichever account the ambient environment selects, so
+    the router needs the intended account stated to detect a reading taken
+    against a different one.
+    """
+    if not isinstance(accounts, dict):
+        raise Error(f"{source} accounts must be an object of provider: account")
+    for provider, account in accounts.items():
+        if provider not in PROVIDERS:
+            raise Error(
+                f"{source} accounts has unknown provider {provider!r}; "
+                f"known providers: {', '.join(sorted(PROVIDERS))}"
+            )
+        if not isinstance(account, str) or not account.strip():
+            raise Error(
+                f"{source} accounts[{provider!r}] must be a non-empty account "
+                "identifier"
+            )
+
+
 def validate_schema(config, require_base, source):
     if type(config.get("version")) is not int or config["version"] != VERSION:
         raise Error(f"{source} must use routing config version {VERSION}")
-    allowed = {"version", "routes", "preferences", "candidates"}
+    allowed = {"version", "routes", "preferences", "candidates", "accounts"}
     unknown = sorted(set(config) - allowed)
     if unknown or "routes" not in config:
         raise Error(
@@ -191,6 +214,7 @@ def validate_schema(config, require_base, source):
     )
     validate_preferences(config.get("preferences", []), source)
     validate_candidate_overrides(config.get("candidates", {}), source)
+    validate_accounts(config.get("accounts", {}), source)
 
 
 def load(path, require_base=False):

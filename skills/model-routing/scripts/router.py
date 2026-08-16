@@ -152,6 +152,7 @@ def compile_brief(repo="."):
     candidates = deepcopy(catalog["candidates"])
     candidate_sources = {candidate_id: ["builtin"] for candidate_id in candidates}
     preferences = []
+    accounts = {}
     paths = exact_config.locations(repo)
     exact = exact_config.resolve(paths)
     for scope in exact_config.SCOPES:
@@ -163,6 +164,9 @@ def compile_brief(repo="."):
         config = exact_config.load(path)
         for text in config.get("preferences", []):
             preferences.append({"scope": scope, "text": text.strip()})
+        # Narrower scopes win: the machine states which account a provider
+        # bills, and a project may override it.
+        accounts.update(config.get("accounts", {}))
         for candidate_id, patch in config.get("candidates", {}).items():
             if patch is None:
                 candidates.pop(candidate_id, None)
@@ -177,6 +181,7 @@ def compile_brief(repo="."):
         "candidates": candidates,
         "candidate_sources": candidate_sources,
         "preferences": preferences,
+        "accounts": accounts,
         "methodology": catalog["methodology"],
         "exact": exact,
         "layers": exact["layers_low_to_high"],
@@ -276,6 +281,35 @@ def quota_from_unusable_state(status, state, semantics=None):
     return copy_quota_diagnostics({"status": status}, state, semantics)
 
 
+def account_identity(provider):
+    """Identity of the account a provider's quota was measured for.
+
+    Tools that read OAuth quota report whichever account the ambient
+    environment selects (for Codex, whatever $CODEX_HOME points at). That
+    account is not necessarily the one a spawned agent bills, so the identity
+    travels with the reading instead of being dropped.
+    """
+    account = provider.get("account")
+    if not isinstance(account, dict):
+        return None
+    identity = {}
+    for source_key, dest_key in (("email", "email"), ("accountId", "account_id")):
+        value = account.get(source_key)
+        if isinstance(value, str) and value.strip():
+            identity[dest_key] = value.strip()
+    return identity or None
+
+
+def attach_account(state, identity):
+    """Stamp the measured account onto a runtime state's quota reading."""
+    if not identity or not isinstance(state, dict):
+        return state
+    quota = state.get("quota")
+    if isinstance(quota, dict):
+        quota["account"] = deepcopy(identity)
+    return state
+
+
 def quota_axi_runtime(snapshot, candidates):
     if snapshot.get("schemaVersion") != 3 or not isinstance(snapshot.get("providers"), list):
         raise Error("quota-axi input must use normalized schemaVersion 3")
@@ -306,6 +340,7 @@ def quota_axi_runtime(snapshot, candidates):
         harness = PROVIDER_TO_HARNESS.get(provider_id)
         if harness is None:
             continue
+        identity = account_identity(provider)
         state = provider.get("state", {})
         semantics = provider.get("quotaSemantics", {})
         harness_state = {}
@@ -346,16 +381,21 @@ def quota_axi_runtime(snapshot, candidates):
                     launch = candidate["launch"]
                     if launch["agent"] == "claude" and "fable" in launch["model"]:
                         remaining = scope.get("effectivePercentRemaining")
-                        generated["candidates"][candidate_id] = {
-                            "quota": {
-                                "status": "exhausted" if remaining == 0 else "known",
-                                "pressure": quota_pressure(scope),
-                                "effective_percent_remaining": remaining,
-                                "bounded_by": scope.get("boundedBy", []),
-                                "pace": scope.get("pace", {}),
-                            }
-                        }
-        generated["harnesses"][harness] = harness_state
+                        generated["candidates"][candidate_id] = attach_account(
+                            {
+                                "quota": {
+                                    "status": (
+                                        "exhausted" if remaining == 0 else "known"
+                                    ),
+                                    "pressure": quota_pressure(scope),
+                                    "effective_percent_remaining": remaining,
+                                    "bounded_by": scope.get("boundedBy", []),
+                                    "pace": scope.get("pace", {}),
+                                }
+                            },
+                            identity,
+                        )
+        generated["harnesses"][harness] = attach_account(harness_state, identity)
         if provider_id == "grok":
             for candidate_id, candidate in candidates.items():
                 launch = candidate["launch"]
@@ -377,7 +417,10 @@ def merge_runtime(base, overlay):
 
 
 def run_quota_axi(providers=None):
-    command = ["npx", "-y", "quota-axi", "--json"]
+    # --full is required: plain --json omits the per-provider account block, and
+    # a quota reading that cannot name its account cannot be checked against the
+    # account the launch will actually bill.
+    command = ["npx", "-y", "quota-axi", "--json", "--full"]
     if providers:
         command.extend(["--provider", ",".join(providers)])
     result = subprocess.run(
@@ -433,13 +476,25 @@ def quota_summary(state):
     if not isinstance(quota, dict) or not quota:
         return {"status": "unknown"}
     summary = {"status": quota.get("status", "unknown")}
-    for key in ("effective_percent_remaining", "pressure", "bounded_by"):
+    for key in ("effective_percent_remaining", "pressure", "bounded_by", "account"):
         if quota.get(key):
             summary[key] = quota[key]
     for key in QUOTA_DIAGNOSTIC_KEYS:
         if quota.get(key):
             summary[key] = quota[key]
     return summary
+
+
+def quota_account_email(quota):
+    account = quota.get("account") if isinstance(quota, dict) else None
+    if not isinstance(account, dict):
+        return None
+    email = account.get("email")
+    return email if isinstance(email, str) and email.strip() else None
+
+
+def account_phrase(email):
+    return f"account {email}" if email else "account unattributed"
 
 
 def gate(
@@ -449,6 +504,7 @@ def gate(
     required_features=(),
     minimum_context=None,
     allowed_launchers=None,
+    expected_accounts=None,
 ):
     """Hard eligibility only. Judgment stays with the agent."""
     reasons, warnings = [], []
@@ -483,12 +539,27 @@ def gate(
     if not isinstance(quota, dict):
         raise Error(f"runtime quota for {candidate_id} must be an object")
     quota_status = quota.get("status", "unknown")
-    if quota_status in HARD_QUOTA_STATUSES:
-        reasons.append(f"quota {quota_status}")
+    measured = quota_account_email(quota)
+    provider = HARNESS_TO_PROVIDER.get(candidate["launch"]["agent"])
+    expected = (expected_accounts or {}).get(provider)
+    # A reading of the wrong account is not evidence about this launch, whether
+    # it reports headroom or exhaustion. Refuse before the status is trusted.
+    if expected and measured and expected != measured:
+        reasons.append(
+            f"quota measured for account {measured}, but {provider} is "
+            f"configured to bill {expected}; this reading does not describe "
+            "the launch account"
+        )
+    elif quota_status in HARD_QUOTA_STATUSES:
+        reasons.append(f"quota {quota_status} ({account_phrase(measured)})")
     elif quota_status in {"unknown", "stale"}:
         detail = quota.get("detail")
+        base = f"quota {quota_status} ({account_phrase(measured)})"
+        warnings.append(f"{base}: {detail}" if detail else base)
+    if expected and not measured:
         warnings.append(
-            f"quota {quota_status}: {detail}" if detail else f"quota {quota_status}"
+            f"quota could not name the account it measured, so it cannot be "
+            f"checked against the configured {provider} account {expected}"
         )
     return reasons, warnings
 
@@ -500,6 +571,7 @@ def gate_check(
     required_features=(),
     minimum_context=None,
     allowed_launchers=None,
+    expected_accounts=None,
 ):
     """Single gate-and-runtime resolution shared by every decision path."""
     reasons, warnings = gate(
@@ -509,6 +581,7 @@ def gate_check(
         required_features=required_features,
         minimum_context=minimum_context,
         allowed_launchers=allowed_launchers,
+        expected_accounts=expected_accounts,
     )
     state = runtime_for(runtime, candidate_id, candidate)
     return reasons, warnings, quota_summary(state)
@@ -571,6 +644,7 @@ def gate_launch(
     allowed_launchers,
     unmatched_label,
 ):
+    expected_accounts = compiled.get("accounts", {})
     if candidate_id is not None:
         return gate_check(
             candidate_id,
@@ -579,6 +653,7 @@ def gate_launch(
             required_features=args.require_feature,
             minimum_context=args.minimum_context,
             allowed_launchers=allowed_launchers,
+            expected_accounts=expected_accounts,
         )
     if args.require_feature or args.minimum_context is not None:
         raise Error(
@@ -590,6 +665,7 @@ def gate_launch(
         {"launch": launch},
         runtime,
         allowed_launchers=allowed_launchers,
+        expected_accounts=expected_accounts,
     )
 
 
@@ -800,6 +876,7 @@ def check(compiled, args, runtime):
         required_features=args.require_feature,
         minimum_context=args.minimum_context,
         allowed_launchers=allowed_launchers,
+        expected_accounts=compiled.get("accounts", {}),
     )
     if reasons:
         return {
