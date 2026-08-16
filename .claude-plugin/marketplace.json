@@ -1,0 +1,14 @@
+{
+  "name": "furanku-skills",
+  "owner": {
+    "name": "Rafael Vidaurre"
+  },
+  "plugins": [
+    {
+      "name": "experimental",
+      "source": "./",
+      "description": "Skills still proving themselves — behavior and interface may change.",
+      "skills": ["./skills/council"]
+    }
+  ]
+}

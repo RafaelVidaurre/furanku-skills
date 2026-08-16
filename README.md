@@ -24,6 +24,8 @@ npx skills add rafaelvidaurre/furanku-skills --skill testing-best-practices
 
 After install, talk to your agent as usual. When a skill fits, it should load and follow it.
 
+The picker shows skills in groups: most live in the main (**General**) group; skills still proving themselves appear under **Experimental** (currently `council`).
+
 ## Command-line tool
 
 The collection ships one CLI: **`furanku-skills`**.
@@ -69,6 +71,8 @@ npx furanku-skills init --yes --no-skills --guidance simplest-current,prefer-lib
 | **`init`** | Interactive (or flagged) project setup — agents file, skills install, guidance |
 | **`agents-md`** | Only create empty `AGENTS.md` + `CLAUDE.md` → `AGENTS.md` symlink |
 | **`guidance-composer`** | Compose engineering rules from a catalog into the project ([guide](skills/guidance-composer/README.md)) |
+| **`menu`** | Open the interactive menu explicitly (same as running with no command) |
+| **`version`** | Print the installed version |
 
 ```bash
 node bin/furanku-skills.js help
@@ -110,16 +114,16 @@ Optional deep dive: [interactive testing guide](artifacts/testing-best-practices
 
 ---
 
-### product-memory
+### prr
 
-**Useful if:** product decisions get lost across chats, agents, or weeks — and you want a durable place for “what the user said” vs “what we currently believe the product is.”
+**Useful if:** product decisions get lost across chats, agents, or weeks — and you want a durable, trustworthy record of what the product is supposed to be.
 
-**What it does:** keeps structured product notes under `docs/product-memory/` (requirements, decisions, open questions, risks) so later sessions can continue without reinventing the story.
+**What it does:** keeps a Product Requirements Record in `prr/` at your repo root: requirements, scope exclusions, and open questions, each confirmed with you and backed by verbatim evidence of what you actually said. It also listens while you work — when a coding session drifts into product intent (“users should be able to…”, “that’s out of scope”), it captures it instead of letting it evaporate.
 
 ```text
-> Initialize product memory for this project.
-> Capture this conversation into product memory.
-> Reconcile product memory after this scope change.
+> Start tracking product requirements for this project.
+> Digest the tentative requirements and open questions.
+> Audit the PRR — anything unconfirmed or contradictory?
 ```
 
 ---
@@ -150,7 +154,7 @@ Optional deep dive: [interactive testing guide](artifacts/testing-best-practices
 
 ---
 
-### council
+### council (experimental)
 
 **Useful if:** a decision is hard enough that you want several AI models to argue it out before you trust a single answer.
 
@@ -194,13 +198,16 @@ First use walks you through approving which model tools may run on your machine.
 ## Repository layout
 
 ```text
+.claude-plugin/
+  marketplace.json # skill groups shown by `npx skills` (e.g. experimental)
 skills/
   <name>/
     SKILL.md       # what the agent follows
     README.md      # human docs (where present)
     references/    # extra detail the skill loads when needed
     scripts/       # helpers
-    bin/           # CLIs (where present)
+    assets/        # templates the skill copies (where present)
+    bin/ lib/ test/ # CLI-bearing skills only (guidance-composer)
 ```
 
 ## License

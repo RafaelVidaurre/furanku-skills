@@ -3,8 +3,8 @@
 Research date: 2026-07-16 (Europe/Lisbon)
 
 This is a dated evidence artifact for a superseded Commander implementation.
-The maintained Crew routing contract lives in
-[`skills/crew/references/configuration.md`](../skills/crew/references/configuration.md).
+The maintained routing contract lives in
+[`skills/model-routing/references/configuration.md`](../skills/model-routing/references/configuration.md).
 
 Scope: exact model and effort strings that Commander can pass to the locally
 installed Codex, Claude Code, and Grok CLI harnesses. This report separates:

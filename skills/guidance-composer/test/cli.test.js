@@ -236,7 +236,11 @@ test("resolveScopeAndRoot global uses ~/.codex", () => {
   assert.equal(r.scope, "global");
   assert.equal(r.root, defaultGlobalRoot());
   assert.equal(r.defaultInstructionName, "AGENTS.md");
-  assert.ok(r.root.endsWith(".codex") || r.root.endsWith(`${path.sep}.codex`));
+  // $CODEX_HOME relocates the Codex home (lib/harnesses.js), so the ~/.codex
+  // layout only holds when it is unset.
+  if (!process.env.CODEX_HOME) {
+    assert.ok(r.root.endsWith(".codex") || r.root.endsWith(`${path.sep}.codex`));
+  }
 });
 
 test("cli inject --scope global into temp HOME/.codex/AGENTS.md", () => {
@@ -263,7 +267,14 @@ test("cli inject --scope global into temp HOME/.codex/AGENTS.md", () => {
     ],
     {
       cwd: home,
-      env: { ...process.env, HOME: home, USERPROFILE: home },
+      // CODEX_HOME must be pinned to the temp dir: the CLI honors it over
+      // $HOME/.codex, so inheriting a real one writes to the user's own config.
+      env: {
+        ...process.env,
+        HOME: home,
+        USERPROFILE: home,
+        CODEX_HOME: agentsDir,
+      },
     }
   );
   assert.equal(result.status, 0, result.stderr + result.stdout);
@@ -293,10 +304,22 @@ test("cli diff --scope global reports scope", () => {
       "agents",
       "--yes",
     ],
-    { env: { ...process.env, HOME: home, USERPROFILE: home } }
+    {
+      env: {
+        ...process.env,
+        HOME: home,
+        USERPROFILE: home,
+        CODEX_HOME: agentsDir,
+      },
+    }
   );
   const diff = run(["diff", "--scope", "global", "--json"], {
-    env: { ...process.env, HOME: home, USERPROFILE: home },
+    env: {
+      ...process.env,
+      HOME: home,
+      USERPROFILE: home,
+      CODEX_HOME: agentsDir,
+    },
   });
   assert.equal(diff.status, 0, diff.stderr);
   const report = JSON.parse(diff.stdout);

@@ -11,9 +11,16 @@
     "lib/",
     "skills/guidance-composer/bin/",
     "skills/guidance-composer/lib/",
-    "skills/guidance-composer/references/catalog.json",
-    "skills/*/SKILL.md"
+    "skills/*/SKILL.md",
+    "skills/*/references/**",
+    "skills/*/scripts/**",
+    "skills/*/assets/**",
+    "skills/decision-trail/LICENSE.txt",
+    "!skills/**/__pycache__/**"
   ],
+  "scripts": {
+    "test": "node --test test/*.test.js skills/guidance-composer/test/*.test.js && python3 -m pytest skills/crew/scripts skills/model-routing/scripts -q"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/RafaelVidaurre/furanku-skills.git"

@@ -5,9 +5,6 @@
 __pycache__/
 *.pyc
 
-# Commander analysis scratch (agent findings)
-skills/commander/.scratch/
-
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db
@@ -15,3 +12,6 @@ skills/commander/.scratch/
 
 # Beads 1.2+ runtime lock (repo-root, not inside .beads/)
 .beads.gate.lock
+
+# Machine-local notification config (notifai)
+.notifai/

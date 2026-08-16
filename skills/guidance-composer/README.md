@@ -171,7 +171,11 @@ gc inject --ids prefer-libraries --mode inline --harness agents --dry-run --yes
 | `--root …` | Override root (project: cwd; global: Codex home for AGENTS.md / linked files). |
 | `--yes` | Confirm write when you’re not in the interactive wizard. |
 | `--replace` | Replace the tool-owned list instead of adding to it. |
+| `--force` | Allow known conflicting ids. |
 | `--dry-run` | Show what would be written, don’t save. |
+| `--no-pointer` | Linked mode: leave the instruction-file pointer alone. |
+| `--pointer` | Custom mode: also write the instruction-file pointer. |
+| `--create-agents-md` | Create missing selected instruction files. |
 | `--verbose` | Print path notes (Cursor settings limitation, no shared store, …). |
 
 ---
@@ -198,7 +202,8 @@ Topics grow over time. Check live with `gc list`. Currently:
 | **Simplicity & scope** | Prefer the smallest solution that fully meets *current* needs; optional hard line against keeping old contracts. |
 | **Architecture** | Durable design choices when they matter; keep components modular and concerns separated. |
 | **Dependencies** | Prefer what the project already uses (check docs/types first), then solid maintained libraries, before writing your own. |
-| **Writing & communication** | Controlled technical English (ASD-STE100): short active sentences, one meaning per word, clear instructions for non-native readers. |
+| **Workflow** | Prefer programmatic tool surfaces over ad-hoc ones. |
+| **Writing & communication** | Controlled technical English (ASD-STE100), UI description style, and cold-reader clarity. |
 
 Each entry has a short id (for example `simplest-current`). That id is what you pass to `--ids`.
 
