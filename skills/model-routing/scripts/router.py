@@ -4,7 +4,8 @@
 The brief hands the spawning agent the information it lacks — candidate
 research evidence, economics, live quota, configured exact routes, and the
 user's routing preferences. The judgment about which candidate fits a task
-belongs to the agent reading the brief; `check` enforces only hard gates.
+belongs to the agent reading the brief; `check` enforces hard gates and the
+explicit justification required for maximum effort.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from copy import deepcopy
 import json
 import math
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -25,6 +27,20 @@ except ModuleNotFoundError:  # pragma: no cover - package import in tests
 
 CATALOG = Path(__file__).resolve().parent.parent / "references" / "routing-catalog.json"
 DIMENSIONS = ("reasoning", "implementation", "agentic", "ui", "spatial-3d")
+EFFORT_RANK = {
+    "minimal": 0,
+    "low": 1,
+    "medium": 2,
+    "high": 3,
+    "xhigh": 4,
+    "max": 5,
+}
+MAX_EFFORT_POLICY = (
+    "When the same agent and model have an enabled lower-effort candidate, max "
+    "is exceptional: check requires --max-effort-basis to explicitly compare the "
+    "strongest lower effort and name why it is materially insufficient. Missing "
+    "cost evidence or a broad task does not erase the larger reasoning budget."
+)
 EXACT_ROUTE_SEMANTICS = (
     "Exact routes are dispatch shorthands. Use one only when the principal "
     "requests its route ID for the current task; route names, work descriptions, "
@@ -161,8 +177,20 @@ def validate_compiled_candidates(candidates):
                 finite = False
             if not finite:
                 raise Error(f"{label}.economics.{metric}.value must be a finite number")
-            if metric == "task_cost_usd" and value < 0:
-                raise Error(f"{label}.economics.{metric}.value must be non-negative")
+            if metric == "task_cost_usd":
+                if value < 0:
+                    raise Error(
+                        f"{label}.economics.{metric}.value must be non-negative"
+                    )
+                basis = data.get("basis", "")
+                if isinstance(basis, str) and re.search(
+                    r"\b(?:minimal|low|medium|high|xhigh|max)\s+proxy\b",
+                    basis.lower(),
+                ):
+                    raise Error(
+                        f"{label}.economics.{metric} requires exact effort evidence; "
+                        "effort-level proxy costs must remain unknown"
+                    )
             if metric == "output_tokens_per_second" and value <= 0:
                 raise Error(f"{label}.economics.{metric}.value must be positive")
 
@@ -746,6 +774,47 @@ def match_candidate(compiled, launch):
     )
 
 
+def candidate_sort_key(item):
+    candidate_id, candidate = item
+    launch = candidate["launch"]
+    effort = launch["effort"]
+    return (
+        launch["agent"],
+        launch["model"],
+        EFFORT_RANK.get(effort, len(EFFORT_RANK)),
+        effort,
+        candidate_id,
+    )
+
+
+def lower_effort_siblings(compiled, candidate_id):
+    candidate = compiled["candidates"][candidate_id]
+    launch = candidate["launch"]
+    if launch["effort"] != "max":
+        return []
+    siblings = [
+        item
+        for item in compiled["candidates"].items()
+        if item[0] != candidate_id
+        and item[1].get("enabled", True)
+        and item[1]["launch"]["agent"] == launch["agent"]
+        and item[1]["launch"]["model"] == launch["model"]
+        and EFFORT_RANK.get(item[1]["launch"]["effort"], len(EFFORT_RANK))
+        < EFFORT_RANK["max"]
+    ]
+    return [
+        sibling_id
+        for sibling_id, _candidate in sorted(siblings, key=candidate_sort_key)
+    ]
+
+
+def effort_named(text, effort):
+    return re.search(
+        rf"(?<![a-z0-9]){re.escape(effort.lower())}(?![a-z0-9])",
+        text.lower(),
+    ) is not None
+
+
 def gate_launch(
     compiled,
     launch,
@@ -811,6 +880,13 @@ def check(compiled, args, runtime):
     if args.accept_quota_unknown is not None and not args.accept_quota_unknown.strip():
         raise Error(
             "--accept-quota-unknown requires the acceptance basis as its value"
+        )
+    if args.max_effort_basis is not None and not args.max_effort_basis.strip():
+        raise Error("--max-effort-basis requires the comparison basis as its value")
+    if args.exact_route and args.max_effort_basis is not None:
+        raise Error(
+            "--max-effort-basis applies to --candidate; exact routes record "
+            "--route-basis"
         )
     if args.route_basis is not None and not args.exact_route:
         raise Error("--route-basis requires --exact-route")
@@ -980,6 +1056,7 @@ def check(compiled, args, runtime):
         raise Error(f"unknown candidate: {args.candidate}; launchable candidates: {known}")
     if not args.reason or not args.reason.strip():
         raise Error("check --candidate requires --reason with the task judgment")
+    lower_effort = lower_effort_siblings(compiled, args.candidate)
     reasons, warnings, quota = gate_check(
         args.candidate,
         candidate,
@@ -989,23 +1066,49 @@ def check(compiled, args, runtime):
         allowed_launchers=allowed_launchers,
         expected_accounts=compiled.get("accounts", {}),
     )
+    if lower_effort:
+        strongest_lower = lower_effort[-1]
+        strongest_effort = compiled["candidates"][strongest_lower]["launch"]["effort"]
+        if args.max_effort_basis is None:
+            reasons.insert(
+                0,
+                "maximum effort needs an explicit comparison against enabled "
+                "lower-effort candidates: "
+                + ", ".join(lower_effort)
+                + "; rerun with --max-effort-basis \"<why the strongest lower "
+                "effort is materially insufficient>\"",
+            )
+        elif not effort_named(args.max_effort_basis, strongest_effort):
+            reasons.insert(
+                0,
+                "maximum effort basis must explicitly compare the strongest "
+                f"lower effort ({strongest_effort}: {strongest_lower})",
+            )
     if reasons:
-        return {
+        decision = {
             "status": "refused",
             "candidate": args.candidate,
             "reasons": reasons,
             "warnings": warnings,
         }
+        if lower_effort:
+            decision["lower_effort_candidates"] = lower_effort
+        return decision
     pending, acceptance = acceptance_terms(quota, args.accept_quota_unknown)
     if pending:
-        return {
+        decision = {
             "status": "needs-acceptance",
             "candidate": args.candidate,
             "selected": {"id": args.candidate, **candidate["launch"]},
+            "reason": args.reason.strip(),
             "pending": [pending],
             "warnings": warnings,
             "quota": quota,
         }
+        if lower_effort:
+            decision["lower_effort_candidates"] = lower_effort
+            decision["max_effort_basis"] = args.max_effort_basis.strip()
+        return decision
     decision = {
         "status": "selected",
         "selected": {"id": args.candidate, **candidate["launch"]},
@@ -1014,6 +1117,9 @@ def check(compiled, args, runtime):
         "quota": quota,
         "sources": compiled["candidate_sources"].get(args.candidate, []),
     }
+    if lower_effort:
+        decision["lower_effort_candidates"] = lower_effort
+        decision["max_effort_basis"] = args.max_effort_basis.strip()
     if acceptance:
         decision["quota_acceptance"] = acceptance
     return decision
@@ -1118,16 +1224,22 @@ def brief_markdown(compiled, runtime, repo_root):
         "",
         "Capability cells show the conservative research estimate with "
         "confidence (h/m/l); `?` means no public evidence. Cost is the "
-        "benchmark cost of one resolved task. Quota is provider-local: "
+        "benchmark cost of one task only when the source names the exact model "
+        "and effort; effort proxies stay `?`. Quota is provider-local: "
         "remaining share of that provider's own window plus its pace "
         "deficit — never compare raw percentages across providers; "
         "quota-lighter means less pace pressure and more runway within "
-        "the candidate's own provider.",
+        "the candidate's own provider. Candidates sharing an agent and model "
+        "are ordered from lower to higher effort.",
+        "",
+        MAX_EFFORT_POLICY,
         "",
         "| Candidate | Reasoning | Impl | Agentic | UI | 3D | $/task | tok/s | Context | Quota |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
-    for candidate_id, candidate in sorted(compiled["candidates"].items()):
+    for candidate_id, candidate in sorted(
+        compiled["candidates"].items(), key=candidate_sort_key
+    ):
         if not candidate.get("enabled", True):
             continue
         cost, speed = economics_cells(candidate)
@@ -1158,7 +1270,9 @@ def brief_markdown(compiled, runtime, repo_root):
         "## Evidence",
         "",
     ]
-    for candidate_id, candidate in sorted(compiled["candidates"].items()):
+    for candidate_id, candidate in sorted(
+        compiled["candidates"].items(), key=candidate_sort_key
+    ):
         lines.append(f"### {candidate_id}")
         lines.append("")
         sources = compiled["candidate_sources"].get(candidate_id, [])
@@ -1211,6 +1325,7 @@ def brief_json(compiled, runtime, repo_root):
         },
         "candidates": compiled["candidates"],
         "candidate_sources": compiled["candidate_sources"],
+        "candidate_policy": {"maximum_effort": MAX_EFFORT_POLICY},
         "methodology": compiled["methodology"],
         "layers": compiled["layers"],
         "runtime": runtime or None,
@@ -1258,6 +1373,13 @@ def main(argv=None):
     )
     parser.add_argument(
         "--reason", help="the task judgment behind the candidate pick; recorded verbatim"
+    )
+    parser.add_argument(
+        "--max-effort-basis",
+        help=(
+            "why the strongest enabled lower effort for the same agent and model "
+            "is materially insufficient; name that effort explicitly"
+        ),
     )
     parser.add_argument(
         "--require-feature",

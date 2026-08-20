@@ -99,6 +99,26 @@ class RouterTest(unittest.TestCase):
             brief,
         )
         self.assertIn("claude/claude-fable-5[1m]/high", brief)
+        self.assertIn(router.MAX_EFFORT_POLICY, brief)
+        self.assertLess(
+            brief.index("| codex/gpt-5.6-sol/high |"),
+            brief.index("| codex/gpt-5.6-sol/xhigh |"),
+        )
+        self.assertLess(
+            brief.index("| codex/gpt-5.6-sol/xhigh |"),
+            brief.index("| codex/gpt-5.6-sol/max |"),
+        )
+        rows = {
+            line.split("|", 2)[1].strip(): line
+            for line in brief.splitlines()
+            if line.startswith("|") and "/" in line
+        }
+        self.assertIn("| ? | 70 |", rows["codex/gpt-5.6-sol/xhigh"])
+        self.assertIn("| $8.39 | 70 |", rows["codex/gpt-5.6-sol/max"])
+        self.assertIn(
+            "exact model and effort; effort proxies stay `?`",
+            brief,
+        )
         self.assertIn("## Evidence", brief)
         self.assertIn("https://deepswe.datacurve.ai/", brief)
         self.assertIn("## Evidence methodology", brief)
@@ -137,6 +157,10 @@ class RouterTest(unittest.TestCase):
         self.assertEqual("global", payload["preferences"][0]["scope"])
         self.assertEqual(router.EXACT_ROUTE_SEMANTICS, payload["routes"]["semantics"])
         self.assertEqual(
+            router.MAX_EFFORT_POLICY,
+            payload["candidate_policy"]["maximum_effort"],
+        )
+        self.assertEqual(
             "xhigh", payload["routes"]["effective"]["captain"]["effort"]
         )
         scopes = [layer["scope"] for layer in payload["layers"]]
@@ -147,17 +171,66 @@ class RouterTest(unittest.TestCase):
             "--candidate",
             "codex/gpt-5.6-sol/max",
             "--reason",
-            "Cross-service design; wrong seams are expensive.",
+            "Bounded final architecture acceptance; a false pass is costly.",
+            "--max-effort-basis",
+            "High and xhigh lack the required final adversarial depth for this acceptance gate.",
             runtime={"harnesses": {"codex": {"quota": {"status": "known"}}}},
         )
         self.assertEqual("selected", decision["status"])
         self.assertEqual("codex/gpt-5.6-sol/max", decision["selected"]["id"])
         self.assertEqual("max", decision["selected"]["effort"])
         self.assertEqual(
-            "Cross-service design; wrong seams are expensive.",
+            "Bounded final architecture acceptance; a false pass is costly.",
             decision["reason"],
         )
+        self.assertEqual(
+            "High and xhigh lack the required final adversarial depth for this acceptance gate.",
+            decision["max_effort_basis"],
+        )
+        self.assertEqual(
+            ["codex/gpt-5.6-sol/high", "codex/gpt-5.6-sol/xhigh"],
+            decision["lower_effort_candidates"],
+        )
         self.assertEqual(["builtin"], decision["sources"])
+
+    def test_check_refuses_max_without_lower_effort_comparison(self):
+        decision = self.check(
+            "--candidate",
+            "claude/gpt-5.6-sol-via-claude-code/max",
+            "--reason",
+            "Strongest implementation evidence for eleven broad correctness findings.",
+            runtime={"harnesses": {"claude": {"quota": {"status": "known"}}}},
+            expect_code=1,
+        )
+        self.assertEqual("refused", decision["status"])
+        self.assertIn(
+            "maximum effort needs an explicit comparison",
+            decision["reasons"][0],
+        )
+        self.assertEqual(
+            [
+                "claude/gpt-5.6-sol-via-claude-code/high",
+                "claude/gpt-5.6-sol-via-claude-code/xhigh",
+            ],
+            decision["lower_effort_candidates"],
+        )
+
+    def test_check_refuses_max_basis_that_does_not_name_xhigh(self):
+        decision = self.check(
+            "--candidate",
+            "claude/gpt-5.6-sol-via-claude-code/max",
+            "--reason",
+            "Bounded final acceptance.",
+            "--max-effort-basis",
+            "Maximum effort is strongest for this costly decision.",
+            runtime={"harnesses": {"claude": {"quota": {"status": "known"}}}},
+            expect_code=1,
+        )
+        self.assertEqual("refused", decision["status"])
+        self.assertIn(
+            "must explicitly compare the strongest lower effort (xhigh:",
+            decision["reasons"][0],
+        )
 
     def test_check_requires_reason_for_candidate_picks(self):
         result = self.run_router(
@@ -184,6 +257,30 @@ class RouterTest(unittest.TestCase):
             runtime={"harnesses": {"grok": {"quota": {"status": "known"}}}},
         )
         self.assertEqual(ROUTE_BASIS, decision["route_basis"])
+
+    def test_check_exact_max_route_uses_principal_basis(self):
+        self.write_repo_layer(
+            {
+                "version": 4,
+                "routes": {
+                    "acceptance": {
+                        "work": "Principal-requested final acceptance",
+                        "agent": "codex",
+                        "model": "gpt-5.6-sol",
+                        "effort": "max",
+                    }
+                },
+            }
+        )
+        decision = self.check(
+            "--exact-route",
+            "acceptance",
+            "--route-basis",
+            "Principal requested the acceptance route for this task.",
+            runtime={"harnesses": {"codex": {"quota": {"status": "known"}}}},
+        )
+        self.assertEqual("exact", decision["status"])
+        self.assertEqual("max", decision["selected"]["effort"])
 
     def test_check_refuses_disabled_candidate(self):
         self.write_repo_layer(
@@ -592,6 +689,14 @@ class RouterTest(unittest.TestCase):
             },
             "must be a finite number": {
                 "economics": {"task_cost_usd": {"value": 10**400}}
+            },
+            "requires exact effort evidence": {
+                "economics": {
+                    "task_cost_usd": {
+                        "value": 1.0,
+                        "basis": "DeepSWE max proxy",
+                    }
+                }
             },
         }
         for message, patch in cases.items():

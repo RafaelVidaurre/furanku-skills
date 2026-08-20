@@ -15,6 +15,7 @@
   "methodology": {
     "reasoning": "Artificial Analysis Intelligence Index divided by 100 when exact; otherwise a labeled effort proxy.",
     "implementation": "DeepSWE resolved-task rate when exact; otherwise a labeled effort proxy.",
+    "task-cost": "DeepSWE average task cost only when the benchmark names the exact model and effort. An equivalent launch tuple may transfer across harnesses; effort-level proxies remain unknown.",
     "agentic": "Ordinal normalization of dated Agent Arena or agentic-work evidence.",
     "ui": "Ordinal normalization of the dated Arena WebDev preference ranking.",
     "spatial-3d": "Ordinal normalization of the dated Design Arena browser-3D ranking.",
@@ -88,12 +89,6 @@
         }
       },
       "economics": {
-        "task_cost_usd": {
-          "value": 21.63,
-          "basis": "DeepSWE max proxy",
-          "assessed_at": "2026-07-31",
-          "source": "https://deepswe.datacurve.ai/"
-        },
         "output_tokens_per_second": {
           "value": 74,
           "basis": "max/fallback proxy",
@@ -242,12 +237,6 @@
         }
       },
       "economics": {
-        "task_cost_usd": {
-          "value": 8.39,
-          "basis": "DeepSWE max proxy",
-          "assessed_at": "2026-07-31",
-          "source": "https://deepswe.datacurve.ai/"
-        },
         "output_tokens_per_second": {
           "value": 70,
           "basis": "Artificial Analysis",
@@ -659,12 +648,6 @@
         }
       },
       "economics": {
-        "task_cost_usd": {
-          "value": 11.84,
-          "basis": "DeepSWE max proxy",
-          "assessed_at": "2026-07-31",
-          "source": "https://deepswe.datacurve.ai/"
-        },
         "output_tokens_per_second": {
           "value": 56,
           "basis": "Artificial Analysis",
@@ -736,12 +719,6 @@
         }
       },
       "economics": {
-        "task_cost_usd": {
-          "value": 5.5,
-          "basis": "DeepSWE xhigh proxy",
-          "assessed_at": "2026-08-13",
-          "source": "https://deepswe.datacurve.ai/"
-        },
         "output_tokens_per_second": {
           "value": 65.5,
           "basis": "Artificial Analysis",
@@ -817,12 +794,6 @@
         }
       },
       "economics": {
-        "task_cost_usd": {
-          "value": 5.5,
-          "basis": "DeepSWE xhigh proxy",
-          "assessed_at": "2026-08-13",
-          "source": "https://deepswe.datacurve.ai/"
-        },
         "output_tokens_per_second": {
           "value": 65.5,
           "basis": "Artificial Analysis",
@@ -975,12 +946,6 @@
         }
       },
       "economics": {
-        "task_cost_usd": {
-          "value": 8.39,
-          "basis": "DeepSWE max proxy",
-          "assessed_at": "2026-07-31",
-          "source": "https://deepswe.datacurve.ai/"
-        },
         "output_tokens_per_second": {
           "value": 70,
           "basis": "Artificial Analysis",

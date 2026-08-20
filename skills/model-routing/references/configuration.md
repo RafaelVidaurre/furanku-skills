@@ -94,10 +94,11 @@ python3 "$CONFIG" read all --repo <root>
 python3 "$CONFIG" resolve --repo <root> --compact [--route <id> ...]
 python3 "$ROUTER" brief --repo <root> --format json
 python3 "$ROUTER" check --repo <root> --candidate <id> --reason "<judgment>" \
+  [--max-effort-basis "<why xhigh or the strongest lower effort is insufficient>"] \
   [--launchable-via <agent,...>] [--accept-quota-unknown "<basis>"] [--quota-axi]
 python3 "$ROUTER" check --repo <root> --exact-route <id> \
   --route-basis "<verbatim principal request>" \
   [--use-quota-fallback "<who waited and how long>"] --quota-axi
 ```
 
-`check` hard-gates what its runtime inputs actually establish: `--quota-axi` supplies provider authentication and quota, so those gates are live in the documented flow; runtime health and inventory gate only when a `--runtime-file` supplies that state. When quota stays unknown or stale after the runtime inputs, `check` exits 2 with status `needs-acceptance` until `--accept-quota-unknown` records who accepted launching without live quota. `--use-quota-fallback` is valid only with `--exact-route`: preserve the same `--route-basis`, re-check the primary route first, and use the configured fallback only while quota is still unknown or stale.
+`check` hard-gates what its runtime inputs actually establish: `--quota-axi` supplies provider authentication and quota, so those gates are live in the documented flow; runtime health and inventory gate only when a `--runtime-file` supplies that state. It also refuses a judged `max` candidate that has enabled lower-effort siblings for the same agent and model until `--max-effort-basis` explicitly names the strongest lower effort and records why it is materially insufficient; exact routes use the principal's route basis instead. When quota stays unknown or stale after the runtime inputs, `check` exits 2 with status `needs-acceptance` until `--accept-quota-unknown` records who accepted launching without live quota. `--use-quota-fallback` is valid only with `--exact-route`: preserve the same `--route-basis`, re-check the primary route first, and use the configured fallback only while quota is still unknown or stale.
