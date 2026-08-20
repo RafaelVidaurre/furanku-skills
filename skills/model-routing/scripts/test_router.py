@@ -3,6 +3,7 @@
 
 import json
 import os
+from copy import deepcopy
 from pathlib import Path
 import subprocess
 import sys
@@ -234,14 +235,76 @@ class RouterTest(unittest.TestCase):
             "--reason",
             "Low-risk mechanical change.",
             "--accept-quota-unknown",
-            "Rafael accepted stale quota for a low-risk edit.",
+            "Principal accepted stale quota for a low-risk edit.",
             runtime=runtime,
         )
         self.assertEqual("selected", decision["status"])
         self.assertIn("quota stale (account unattributed)", decision["warnings"])
         self.assertEqual(
-            "Rafael accepted stale quota for a low-risk edit.",
+            "Principal accepted stale quota for a low-risk edit.",
             decision["quota_acceptance"],
+        )
+
+    def test_external_quota_provider_does_not_inherit_launcher_quota(self):
+        candidate = "claude/openrouter/auto-beta/high"
+        self.write_repo_layer(
+            {
+                "version": 4,
+                "routes": {},
+                "candidates": {
+                    candidate: {
+                        "launch": {
+                            "agent": "claude",
+                            "model": "openrouter/auto-beta",
+                            "effort": "high",
+                        },
+                        "quota_provider": {
+                            "provider": "openrouter",
+                            "detail": "quota-axi does not support OpenRouter",
+                        },
+                    }
+                },
+            }
+        )
+        runtime = {
+            "harnesses": {
+                "claude": {
+                    "quota": {
+                        "status": "exhausted",
+                        "account": {"provider": "claude"},
+                    }
+                }
+            }
+        }
+
+        decision = self.check(
+            "--candidate",
+            candidate,
+            "--reason",
+            "Task-aware routing is useful for this mixed workload.",
+            runtime=runtime,
+            expect_code=2,
+        )
+        self.assertEqual("needs-acceptance", decision["status"])
+        self.assertEqual("unknown", decision["quota"]["status"])
+        self.assertEqual(
+            "openrouter", decision["quota"]["account"]["provider"]
+        )
+        self.assertIn("quota-axi does not support OpenRouter", decision["pending"][0])
+
+        accepted = self.check(
+            "--candidate",
+            candidate,
+            "--reason",
+            "Task-aware routing is useful for this mixed workload.",
+            "--accept-quota-unknown",
+            "Principal accepted OpenRouter quota being unavailable.",
+            runtime=runtime,
+        )
+        self.assertEqual("selected", accepted["status"])
+        self.assertEqual(
+            "Principal accepted OpenRouter quota being unavailable.",
+            accepted["quota_acceptance"],
         )
 
     def test_check_refuses_launcher_outside_launchable_via(self):
@@ -615,11 +678,11 @@ class RouterTest(unittest.TestCase):
         self.assertEqual(34, runtime["harnesses"]["codex"]["quota"]["effective_percent_remaining"])
         opencode = runtime["harnesses"]["opencode"]["quota"]
         self.assertEqual("unknown", opencode["status"])
-        self.assertIn("same account window", opencode["detail"])
-        claudex = runtime["candidates"][
+        self.assertIn("cannot read Kimi Code OAuth quota", opencode["detail"])
+        proxy = runtime["candidates"][
             "claude/kimi-k3[1m]/max"
         ]["quota"]
-        self.assertEqual("unknown", claudex["status"])
+        self.assertEqual("unknown", proxy["status"])
         self.assertIn("cannot read", runtime["notes"][0])
 
     def codex_snapshot(self, remaining, account=None):
@@ -653,19 +716,33 @@ class RouterTest(unittest.TestCase):
                 return candidate_id, candidate
         self.fail("routing catalog has no codex candidate")
 
+    def pooled_codex_proxy_candidate(self, catalog):
+        candidate_id = "claude/gpt-5.6-sol-via-claude-code/xhigh"
+        candidate = deepcopy(catalog["candidates"][candidate_id])
+        candidate.pop("quota_provider", None)
+        candidate["quota_pool"] = {
+            "provider": "codex",
+            "detail": (
+                "Rotating proxy credentials are chosen per request; no "
+                "single-account reading describes this candidate."
+            ),
+        }
+        catalog["candidates"][candidate_id] = candidate
+        return candidate_id, candidate
+
     def test_quota_axi_carries_the_measured_account_identity(self):
         catalog = router.read_json(router.CATALOG, "routing catalog")
         snapshot = self.codex_snapshot(
             0,
-            {"email": "services@skillcap.studio", "accountId": "b930a4d7"},
+            {"email": "launch-account@example.com", "accountId": "account-1234"},
         )
         runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
         quota = runtime["harnesses"]["codex"]["quota"]
         self.assertEqual("exhausted", quota["status"])
         self.assertEqual(
             {
-                "email": "services@skillcap.studio",
-                "account_id": "b930a4d7",
+                "email": "launch-account@example.com",
+                "account_id": "account-1234",
                 "provider": "codex",
             },
             quota["account"],
@@ -675,12 +752,12 @@ class RouterTest(unittest.TestCase):
         catalog = router.read_json(router.CATALOG, "routing catalog")
         candidate_id, candidate = self.codex_candidate()
         runtime = router.quota_axi_runtime(
-            self.codex_snapshot(0, {"email": "services@skillcap.studio"}),
+            self.codex_snapshot(0, {"email": "launch-account@example.com"}),
             catalog["candidates"],
         )
         reasons, _warnings = router.gate(candidate_id, candidate, runtime)
         self.assertEqual(
-            ["quota exhausted (account services@skillcap.studio)"], reasons
+            ["quota exhausted (account launch-account@example.com)"], reasons
         )
 
     def test_gate_flags_an_exhausted_verdict_it_cannot_attribute(self):
@@ -698,31 +775,31 @@ class RouterTest(unittest.TestCase):
         catalog = router.read_json(router.CATALOG, "routing catalog")
         candidate_id, candidate = self.codex_candidate()
         runtime = router.quota_axi_runtime(
-            self.codex_snapshot(85, {"email": "rafael@vidaurre.io"}),
+            self.codex_snapshot(85, {"email": "measured-account@example.com"}),
             catalog["candidates"],
         )
         reasons, _warnings = router.gate(
             candidate_id,
             candidate,
             runtime,
-            expected_accounts={"codex": "services@skillcap.studio"},
+            expected_accounts={"codex": "launch-account@example.com"},
         )
         self.assertEqual(1, len(reasons))
-        self.assertIn("measured for account rafael@vidaurre.io", reasons[0])
-        self.assertIn("services@skillcap.studio", reasons[0])
+        self.assertIn("measured for account measured-account@example.com", reasons[0])
+        self.assertIn("launch-account@example.com", reasons[0])
 
     def test_gate_accepts_quota_measured_on_the_configured_account(self):
         catalog = router.read_json(router.CATALOG, "routing catalog")
         candidate_id, candidate = self.codex_candidate()
         runtime = router.quota_axi_runtime(
-            self.codex_snapshot(85, {"email": "services@skillcap.studio"}),
+            self.codex_snapshot(85, {"email": "launch-account@example.com"}),
             catalog["candidates"],
         )
         reasons, warnings = router.gate(
             candidate_id,
             candidate,
             runtime,
-            expected_accounts={"codex": "services@skillcap.studio"},
+            expected_accounts={"codex": "launch-account@example.com"},
         )
         self.assertEqual([], reasons)
         self.assertEqual([], warnings)
@@ -737,7 +814,7 @@ class RouterTest(unittest.TestCase):
             candidate_id,
             candidate,
             runtime,
-            expected_accounts={"codex": "services@skillcap.studio"},
+            expected_accounts={"codex": "launch-account@example.com"},
         )
         self.assertTrue(
             any("could not name the account" in warning for warning in warnings),
@@ -755,7 +832,7 @@ class RouterTest(unittest.TestCase):
             "providers": [
                 {
                     "provider": "grok",
-                    "account": {"email": "rafael@vidaurre.io"},
+                    "account": {"email": "measured-account@example.com"},
                     "state": {"status": "fresh", "stale": False},
                     "quotaSemantics": {
                         "status": "known",
@@ -792,14 +869,13 @@ class RouterTest(unittest.TestCase):
             expected_accounts={"grok": "someone-else@example.com"},
         )
         self.assertEqual(1, len(reasons))
-        self.assertIn("rafael@vidaurre.io", reasons[0])
+        self.assertIn("measured-account@example.com", reasons[0])
 
     def test_pooled_candidate_does_not_inherit_its_harness_quota(self):
-        """Claudex bills the proxy's credential pool, not the Claude account it
+        """A proxy bills its credential pool, not the launcher account it
         launches through, so an exhausted harness must not refuse it."""
         catalog = router.read_json(router.CATALOG, "routing catalog")
-        candidate_id = "claude/gpt-5.6-sol-via-claude-code/xhigh"
-        candidate = catalog["candidates"][candidate_id]
+        candidate_id, candidate = self.pooled_codex_proxy_candidate(catalog)
         runtime = {"harnesses": {"claude": {"quota": {"status": "exhausted"}}}}
         reasons, warnings = router.gate(candidate_id, candidate, runtime)
         self.assertEqual([], reasons)
@@ -814,8 +890,7 @@ class RouterTest(unittest.TestCase):
     def test_pooled_candidate_still_gated_by_harness_availability(self):
         """The proxy supplies the account, but the harness still has to run."""
         catalog = router.read_json(router.CATALOG, "routing catalog")
-        candidate_id = "claude/gpt-5.6-sol-via-claude-code/xhigh"
-        candidate = catalog["candidates"][candidate_id]
+        candidate_id, candidate = self.pooled_codex_proxy_candidate(catalog)
         runtime = {"harnesses": {"claude": {"status": "auth-required"}}}
         reasons, _warnings = router.gate(candidate_id, candidate, runtime)
         self.assertIn("runtime status auth-required", reasons)
@@ -824,8 +899,9 @@ class RouterTest(unittest.TestCase):
         """The incident: Sol exhausted on the measured Codex account must not
         take the pooled Sol route down with it."""
         catalog = router.read_json(router.CATALOG, "routing catalog")
+        pooled, _candidate = self.pooled_codex_proxy_candidate(catalog)
         runtime = router.quota_axi_runtime(
-            self.codex_snapshot(0, {"email": "services@skillcap.studio"}),
+            self.codex_snapshot(0, {"email": "launch-account@example.com"}),
             catalog["candidates"],
         )
         native = "codex/gpt-5.6-sol/xhigh"
@@ -833,9 +909,8 @@ class RouterTest(unittest.TestCase):
             native, catalog["candidates"][native], runtime
         )
         self.assertEqual(
-            ["quota exhausted (account services@skillcap.studio)"], reasons
+            ["quota exhausted (account launch-account@example.com)"], reasons
         )
-        pooled = "claude/gpt-5.6-sol-via-claude-code/xhigh"
         reasons, _warnings = router.gate(
             pooled, catalog["candidates"][pooled], runtime
         )
@@ -845,8 +920,7 @@ class RouterTest(unittest.TestCase):
         """Pooled quota is settled, not degraded: gating every launch behind a
         sign-off would trade a false refusal for constant friction."""
         catalog = router.read_json(router.CATALOG, "routing catalog")
-        candidate_id = "claude/gpt-5.6-sol-via-claude-code/xhigh"
-        candidate = catalog["candidates"][candidate_id]
+        candidate_id, candidate = self.pooled_codex_proxy_candidate(catalog)
         state = router.runtime_for(
             {"harnesses": {"claude": {}}}, candidate_id, candidate
         )
@@ -860,13 +934,12 @@ class RouterTest(unittest.TestCase):
         """A pooled reading names no account by design; saying it "could not"
         name one misreports a deliberate property as a failure."""
         catalog = router.read_json(router.CATALOG, "routing catalog")
-        candidate_id = "claude/gpt-5.6-sol-via-claude-code/xhigh"
-        candidate = catalog["candidates"][candidate_id]
+        candidate_id, candidate = self.pooled_codex_proxy_candidate(catalog)
         _reasons, warnings = router.gate(
             candidate_id,
             candidate,
             {"harnesses": {"claude": {}}},
-            expected_accounts={"codex": "services@skillcap.studio"},
+            expected_accounts={"codex": "launch-account@example.com"},
         )
         self.assertFalse(
             any("could not name the account" in warning for warning in warnings),
@@ -894,12 +967,12 @@ class RouterTest(unittest.TestCase):
             {
                 "quota": {
                     "status": "exhausted",
-                    "account": {"email": "services@skillcap.studio"},
+                    "account": {"email": "launch-account@example.com"},
                 }
             }
         )
         self.assertEqual(
-            {"email": "services@skillcap.studio"}, summary["account"]
+            {"email": "launch-account@example.com"}, summary["account"]
         )
 
     def test_run_quota_axi_requests_account_attribution(self):
@@ -962,8 +1035,7 @@ class RouterTest(unittest.TestCase):
                     "opencode": {
                         "quota": {
                             "status": "unknown",
-                            "detail": "quota-axi cannot read Kimi Code OAuth quota; "
-                            "OpenCode and Claudex K3 spend the same account window",
+                            "detail": "quota-axi cannot read Kimi Code OAuth quota",
                         }
                     }
                 }
@@ -972,8 +1044,7 @@ class RouterTest(unittest.TestCase):
         self.assertEqual("selected", decision["status"])
         self.assertIn(
             "quota unknown (account unattributed): quota-axi cannot read Kimi "
-            "Code OAuth quota; "
-            "OpenCode and Claudex K3 spend the same account window",
+            "Code OAuth quota",
             decision["warnings"],
         )
 

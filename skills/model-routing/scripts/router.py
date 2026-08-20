@@ -93,6 +93,22 @@ def validate_compiled_candidates(candidates):
                 raise Error(f"{label}.quota_pool requires the billed provider")
             if not isinstance(pool.get("detail", ""), str):
                 raise Error(f"{label}.quota_pool detail must be a string")
+        quota_provider = candidate.get("quota_provider")
+        if quota_provider is not None:
+            if (
+                not isinstance(quota_provider, dict)
+                or not isinstance(quota_provider.get("provider"), str)
+                or not quota_provider["provider"].strip()
+            ):
+                raise Error(
+                    f"{label}.quota_provider requires the billed provider"
+                )
+            if not isinstance(quota_provider.get("detail", ""), str):
+                raise Error(f"{label}.quota_provider detail must be a string")
+            if pool is not None:
+                raise Error(
+                    f"{label} cannot define both quota_pool and quota_provider"
+                )
         features = candidate.get("features", [])
         if not isinstance(features, list) or any(not isinstance(x, str) for x in features):
             raise Error(f"{label}.features must be a string array")
@@ -245,6 +261,42 @@ def runtime_for(runtime, candidate_id, candidate):
         }
         return pooled
     specific = candidate_states.get(candidate_id)
+    quota_provider = candidate.get("quota_provider")
+    if isinstance(quota_provider, dict):
+        # The launch harness and billing provider are different. Keep harness
+        # authentication and health, but never inherit a quota reading for an
+        # account that this candidate does not bill. A candidate-scoped runtime
+        # reading may supply provider quota later; until then it is unknown and
+        # follows the explicit acceptance path.
+        external = deepcopy(harness)
+        external.pop("quota", None)
+        if specific is not None:
+            if not isinstance(specific, dict):
+                raise Error(
+                    f"runtime state for {candidate_id} must be an object"
+                )
+            for key, value in specific.items():
+                if key == "status" and external.get(key) in HARD_RUNTIME_STATUSES:
+                    continue
+                if key == "health" and external.get(key) in HARD_HEALTH_STATUSES:
+                    continue
+                external[key] = deepcopy(value)
+        quota = external.get("quota")
+        if not isinstance(quota, dict) or not quota:
+            external["quota"] = {
+                "status": "unknown",
+                "detail": quota_provider.get("detail")
+                or (
+                    f"live quota is unavailable for "
+                    f"{quota_provider['provider']}"
+                ),
+                "account": {"provider": quota_provider["provider"]},
+            }
+        else:
+            account = quota.setdefault("account", {})
+            if isinstance(account, dict):
+                account.setdefault("provider", quota_provider["provider"])
+        return external
     if specific is None:
         return harness
     if not isinstance(specific, dict):
@@ -343,6 +395,19 @@ def attach_account(state, identity):
     return state
 
 
+def project_provider_runtime(generated, candidates, provider_id, state, identity):
+    """Attach provider runtime to proxy candidates that declare who bills them."""
+    for candidate_id, candidate in candidates.items():
+        quota_provider = candidate.get("quota_provider")
+        if not isinstance(quota_provider, dict):
+            continue
+        if quota_provider.get("provider") != provider_id:
+            continue
+        generated["candidates"][candidate_id] = attach_account(
+            deepcopy(state), identity
+        )
+
+
 def quota_axi_runtime(snapshot, candidates):
     if snapshot.get("schemaVersion") != 3 or not isinstance(snapshot.get("providers"), list):
         raise Error("quota-axi input must use normalized schemaVersion 3")
@@ -354,26 +419,23 @@ def quota_axi_runtime(snapshot, candidates):
     }
     for provider in snapshot["providers"]:
         provider_id = provider.get("provider")
+        identity = account_identity(provider, provider_id)
         if provider_id == "kimi":
-            detail = (
-                "quota-axi cannot read Kimi Code OAuth quota; OpenCode and "
-                "Claudex K3 spend the same account window, so quota stays unknown"
-            )
+            detail = "quota-axi cannot read Kimi Code OAuth quota"
             generated["notes"].append(f"quota-axi: {detail}")
-            generated["harnesses"]["opencode"] = {
+            harness_state = {
                 "quota": {"status": "unknown", "detail": detail}
             }
-            for candidate_id, candidate in candidates.items():
-                launch = candidate["launch"]
-                if launch["agent"] == "claude" and "kimi" in launch["model"]:
-                    generated["candidates"][candidate_id] = {
-                        "quota": {"status": "unknown", "detail": detail}
-                    }
+            generated["harnesses"]["opencode"] = attach_account(
+                deepcopy(harness_state), identity
+            )
+            project_provider_runtime(
+                generated, candidates, provider_id, harness_state, identity
+            )
             continue
         harness = PROVIDER_TO_HARNESS.get(provider_id)
         if harness is None:
             continue
-        identity = account_identity(provider, provider_id)
         state = provider.get("state", {})
         semantics = provider.get("quotaSemantics", {})
         harness_state = {}
@@ -429,11 +491,9 @@ def quota_axi_runtime(snapshot, candidates):
                             identity,
                         )
         generated["harnesses"][harness] = attach_account(harness_state, identity)
-        if provider_id == "grok":
-            for candidate_id, candidate in candidates.items():
-                launch = candidate["launch"]
-                if launch["agent"] == "claude" and "grok" in launch["model"]:
-                    generated["candidates"][candidate_id] = deepcopy(harness_state)
+        project_provider_runtime(
+            generated, candidates, provider_id, harness_state, identity
+        )
     return generated
 
 

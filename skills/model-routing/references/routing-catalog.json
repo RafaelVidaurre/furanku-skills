@@ -524,7 +524,7 @@
         "long-context"
       ],
       "context": 1000000,
-      "context_evidence": "The authenticated Kimi Code catalog advertises k3 at 1,048,576 tokens for this Allegretto account; Claude Code applies a 1,000,000-token effective [1m] window.",
+      "context_evidence": "Kimi documents K3 with a 1,000,000-token context window (https://platform.kimi.com/); the [1m] launch alias requests that window from Claude Code.",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -580,7 +580,7 @@
       "economics": {
         "task_cost_usd": {
           "value": 4.65,
-          "basis": "DeepSWE; same Kimi Code account as OpenCode",
+          "basis": "DeepSWE; equivalent K3 launch proxy",
           "assessed_at": "2026-07-31",
           "source": "https://deepswe.datacurve.ai/"
         },
@@ -590,6 +590,10 @@
           "assessed_at": "2026-07-31",
           "source": "https://artificialanalysis.ai/models/kimi-k3"
         }
+      },
+      "quota_provider": {
+        "provider": "kimi",
+        "detail": "This proxy route bills Kimi Code rather than the Claude launcher; quota-axi does not expose live Kimi Code quota."
       }
     },
     "claude/claude-opus-5/high": {
@@ -680,7 +684,7 @@
         "vision"
       ],
       "context": 500000,
-      "context_evidence": "xAI documents Grok 4.6 at 500,000 tokens (https://docs.x.ai/developers/grok-4-6); Claudex automatically selects its enforced wide profile for this route.",
+      "context_evidence": "https://docs.x.ai/developers/grok-4-6",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -744,6 +748,10 @@
           "assessed_at": "2026-08-13",
           "source": "https://artificialanalysis.ai/models/grok-4-6"
         }
+      },
+      "quota_provider": {
+        "provider": "grok",
+        "detail": "This proxy route bills the Grok provider rather than the Claude launcher."
       }
     },
     "grok/grok-4.6/high": {
@@ -899,9 +907,9 @@
           "source": "https://artificialanalysis.ai/models/gpt-5-6-sol-xhigh/"
         }
       },
-      "quota_pool": {
+      "quota_provider": {
         "provider": "codex",
-        "detail": "Claudex reaches Sol through CLIProxyAPI, which round-robins the registered Codex credentials and switches account when one is quota-exceeded; the serving account is chosen per request, so a single-account reading does not describe this candidate."
+        "detail": "This proxy route bills the Codex provider rather than the Claude launcher. Configure quota_pool in a private layer when the deployment rotates credentials."
       }
     },
     "claude/gpt-5.6-sol-via-claude-code/xhigh": {
@@ -980,9 +988,9 @@
           "source": "https://artificialanalysis.ai/models/gpt-5-6-sol-xhigh/"
         }
       },
-      "quota_pool": {
+      "quota_provider": {
         "provider": "codex",
-        "detail": "Claudex reaches Sol through CLIProxyAPI, which round-robins the registered Codex credentials and switches account when one is quota-exceeded; the serving account is chosen per request, so a single-account reading does not describe this candidate."
+        "detail": "This proxy route bills the Codex provider rather than the Claude launcher. Configure quota_pool in a private layer when the deployment rotates credentials."
       }
     },
     "claude/gpt-5.6-sol-via-claude-code/high": {
@@ -1045,9 +1053,9 @@
           "source": "https://artificialanalysis.ai/models/gpt-5-6-sol-high"
         }
       },
-      "quota_pool": {
+      "quota_provider": {
         "provider": "codex",
-        "detail": "Claudex reaches Sol through CLIProxyAPI, which round-robins the registered Codex credentials and switches account when one is quota-exceeded; the serving account is chosen per request, so a single-account reading does not describe this candidate."
+        "detail": "This proxy route bills the Codex provider rather than the Claude launcher. Configure quota_pool in a private layer when the deployment rotates credentials."
       }
     }
   }
