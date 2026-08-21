@@ -1209,7 +1209,11 @@ class RouterTest(unittest.TestCase):
         )
         pending = decision["pending"][0]
         self.assertIn("Grok access token expired (last fresh 09:12)", pending)
-        self.assertIn("Refresh with `grok`", pending)
+        self.assertIn(
+            "Run `grok` with no prompt, wait until the session has loaded, "
+            "then exit it and re-check.",
+            pending,
+        )
         self.assertIn("--accept-quota-unknown", pending)
         self.assertEqual("Grok access token expired", decision["quota"]["detail"])
         self.assertEqual("grok", decision["quota"]["remedy"])

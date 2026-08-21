@@ -749,7 +749,10 @@ def acceptance_terms(quota, accept_note):
         parts = [clause if clause.endswith((".", "!", "?")) else clause + "."]
         remedy = quota.get("remedy")
         if isinstance(remedy, str) and remedy.strip():
-            parts.append(f"Refresh with `{remedy.strip()}`, then re-check.")
+            parts.append(
+                f"Run `{remedy.strip()}` with no prompt, wait until the "
+                "session has loaded, then exit it and re-check."
+            )
         parts.append(
             "Or accept launching without live quota: --accept-quota-unknown "
             '"<who accepted and why>"'
