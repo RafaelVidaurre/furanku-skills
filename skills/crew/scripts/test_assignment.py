@@ -511,7 +511,9 @@ class SeamsTest(unittest.TestCase):
         self.assertEqual(
             {"adapter": "beads", "source": "global"}, payload["work_record"]
         )
-        self.assertEqual({"id": "orca", "source": "repo"}, payload["mechanism"])
+        self.assertEqual("orca", payload["mechanism"]["id"])
+        self.assertEqual("repo", payload["mechanism"]["source"])
+        self.assertEqual("orca", payload["mechanism"]["manifest"]["mechanism"])
 
     def test_custom_mechanism_manifest_round_trips(self):
         manifest = {**HARNESS_MANIFEST, "mechanism": "tmux-farm"}
@@ -542,6 +544,105 @@ class SeamsTest(unittest.TestCase):
         plain.mkdir()
         payload = json.loads(self.seams(repo=plain).stdout)
         self.assertEqual(str(plain.resolve()), payload["repo"])
+
+    def registry_layer(self, disabled):
+        manifest = {**HARNESS_MANIFEST, "mechanism": "claudex-workflow"}
+        return {
+            "version": 1,
+            "mechanism": {"id": "orca"},
+            "mechanisms": {
+                "claudex-workflow": {"disabled": disabled, "manifest": manifest}
+            },
+        }
+
+    def test_disabled_registry_entry_keeps_manifest_but_blocks_selection(self):
+        self.write_layer("global", self.registry_layer(disabled=True))
+        payload = json.loads(self.seams().stdout)
+        self.assertEqual("orca", payload["mechanism"]["id"])
+        self.assertTrue(payload["mechanisms"]["claudex-workflow"]["disabled"])
+        self.write_layer(
+            "repo", {"version": 1, "mechanism": {"id": "claudex-workflow"}}
+        )
+        result = self.seams(expect_code=1)
+        self.assertIn("'claudex-workflow' is disabled", result.stderr)
+
+    def test_enabled_registry_entry_supplies_active_manifest(self):
+        layer = self.registry_layer(disabled=False)
+        layer["mechanism"] = {"id": "claudex-workflow"}
+        self.write_layer("global", layer)
+        payload = json.loads(self.seams().stdout)
+        self.assertEqual(
+            "claudex-workflow", payload["mechanism"]["manifest"]["mechanism"]
+        )
+
+    def test_rejects_registry_entry_with_unknown_keys(self):
+        self.write_layer(
+            "global",
+            {"version": 1, "mechanisms": {"claudex-workflow": {"paused": True}}},
+        )
+        result = self.seams(expect_code=1)
+        self.assertIn("allows only: disabled, manifest", result.stderr)
+
+    def packet_via(self, manifest_arg, extra=None):
+        args = [
+            sys.executable,
+            str(SCRIPT),
+            "packet",
+            "--title",
+            "Deliver shell palette",
+            "--role",
+            "worker",
+            "--reports-to",
+            "captain",
+            "--manifest",
+            manifest_arg,
+            "--repo",
+            str(self.repo),
+            "--work-ref",
+            "beads:bead-1",
+            "--decision-json",
+            json.dumps(SELECTED),
+        ]
+        if extra:
+            args += ["--extra", extra]
+        return subprocess.run(
+            args, capture_output=True, text=True, env=self.env, check=False
+        )
+
+    def test_packet_resolves_manifest_by_known_mechanism_id(self):
+        result = self.packet_via("orca", extra="front_key=run-1/shell")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("orca", json.loads(result.stdout)["mechanism"]["id"])
+
+    def test_packet_resolves_manifest_from_registry_and_refuses_disabled(self):
+        manifest = {
+            **HARNESS_MANIFEST,
+            "mechanism": "claudex-workflow",
+            "launchable_agents": ["claude", "codex"],
+        }
+        self.write_layer(
+            "global",
+            {
+                "version": 1,
+                "mechanism": {"id": "orca"},
+                "mechanisms": {"claudex-workflow": {"manifest": manifest}},
+            },
+        )
+        result = self.packet_via("claudex-workflow")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(
+            "claudex-workflow", json.loads(result.stdout)["mechanism"]["id"]
+        )
+        self.write_layer("global", self.registry_layer(disabled=True))
+        refused = self.packet_via("claudex-workflow")
+        self.assertEqual(1, refused.returncode)
+        self.assertIn("'claudex-workflow' is disabled", refused.stderr)
+
+    def test_packet_unresolvable_manifest_id_names_options(self):
+        result = self.packet_via("tmux-farm")
+        self.assertEqual(1, result.returncode)
+        self.assertIn("no manifest for mechanism id 'tmux-farm'", result.stderr)
+        self.assertIn("orca", result.stderr)
 
 
 if __name__ == "__main__":

@@ -18,11 +18,16 @@ The repo key matches model-routing's: canonical Git common directory, or the res
 {
   "version": 1,
   "work_record": { "adapter": "beads" },
-  "mechanism": { "id": "orca" }
+  "mechanism": { "id": "orca" },
+  "mechanisms": {
+    "claudex-workflow": { "disabled": true, "manifest": { "…": "…" } }
+  }
 }
 ```
 
-To change a seam: write the complete version 1 document at the user-selected scope, rerun `seams`, and confirm the seam reports the intended value and source scope. A custom mechanism embeds its full manifest as `mechanism.manifest`; `seams` validates and returns it.
+`mechanism` selects the active mechanism. `mechanisms` is an optional registry of named mechanisms whose manifests stay configured while unused; set `disabled: true` on an entry to park it — selecting a disabled mechanism is refused by `seams` and `packet` until the flag is removed, and no configuration needs to be deleted or copied aside. A custom mechanism's manifest lives either inline as `mechanism.manifest` or in the registry entry; `seams` validates it and attaches the active mechanism's manifest to its output.
+
+To change a seam: write the complete version 1 document at the user-selected scope, rerun `seams`, and confirm the seam reports the intended value and source scope.
 
 ## Selection precedence
 
@@ -92,24 +97,13 @@ For another native harness, define a profile that names its strongest matching c
 
 ### orca
 
-Available when the `orchestration` and `orca-cli` skills are installed. Full capability: cross-vendor CLI launch, dispatch DAGs, dedicated terminals and worktrees:
-
-```json
-{
-  "mechanism": "orca",
-  "launchable_agents": ["claude", "codex", "opencode", "grok"],
-  "isolation": true,
-  "communication": "Orca dispatch carries questions, escalation, status, and completion; dependency order is represented once in Orca.",
-  "retire": "Use current orchestration guidance to finish assignment state and current orca-cli guidance to retire the assignment's dedicated terminals and worktree.",
-  "extras": { "front_key": "^[^/]+/[^/]+$" }
-}
-```
+Available when the `orchestration` and `orca-cli` skills are installed. Full capability: cross-vendor CLI launch, dispatch DAGs, dedicated terminals and worktrees. Its manifest ships in `assignment.py`: `seams` attaches it when orca is selected, and `packet --manifest orca` resolves it by id — launchable agents `claude`, `codex`, `opencode`, `grok`; isolation true; required extra `front_key` matching `<run-key>/<front>`.
 
 Pass `--extra front_key=<run-key>/<front>`. Name each Crew Orca tab `<Role> - <work summary>` (for example `Captain - payments integration`) so the role is visible at a glance.
 
 ### Custom mechanisms
 
-Anything satisfying the manifest—a renamed or extended harness, tmux sessions, cloud sessions, another orchestrator. Store the manifest in configuration as `mechanism.manifest`; the mechanism's `communication` string must name its launch, delivery, and reporting procedures, while `retire` names cleanup. Write both so a cold agent can execute them. This is also how to pin a custom harness to a preferred native facility when capability discovery would be ambiguous:
+Anything satisfying the manifest—a renamed or extended harness, tmux sessions, cloud sessions, another orchestrator. Store the manifest in configuration as `mechanism.manifest`, or under `mechanisms.<id>.manifest` to keep it registered while another mechanism is active; the mechanism's `communication` string must name its launch, delivery, and reporting procedures, while `retire` names cleanup. Write both so a cold agent can execute them. This is also how to pin a custom harness to a preferred native facility when capability discovery would be ambiguous:
 
 ```json
 {

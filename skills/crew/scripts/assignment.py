@@ -34,7 +34,24 @@ MANIFEST_KEYS = {
     "retire",
     "extras",
 }
-SEAM_KEYS = {"version", "work_record", "mechanism"}
+SEAM_KEYS = {"version", "work_record", "mechanism", "mechanisms"}
+KNOWN_MANIFESTS = {
+    "orca": {
+        "mechanism": "orca",
+        "launchable_agents": ["claude", "codex", "opencode", "grok"],
+        "isolation": True,
+        "communication": (
+            "Orca dispatch carries questions, escalation, status, and "
+            "completion; dependency order is represented once in Orca."
+        ),
+        "retire": (
+            "Use current orchestration guidance to finish assignment state and "
+            "current orca-cli guidance to retire the assignment's dedicated "
+            "terminals and worktree."
+        ),
+        "extras": {"front_key": "^[^/]+/[^/]+$"},
+    },
+}
 RESERVED_SPEC_KEYS = {
     "outcome", "role", "reports_to", "mechanism", "isolation", "coordination",
     "agent", "model", "effort", "route", "candidate", "work_ref",
@@ -175,6 +192,28 @@ def load_seam_layer(path, scope):
             validate_manifest(mechanism["manifest"], f"{scope} mechanism.manifest")
             if mechanism["manifest"]["mechanism"] != mechanism["id"]:
                 raise Error(f"{scope} mechanism.manifest names a different mechanism")
+    registry = data.get("mechanisms")
+    if registry is not None:
+        if not isinstance(registry, dict):
+            raise Error(f"{scope} crew config mechanisms must map mechanism id to entry")
+        for mech_id, entry in registry.items():
+            token(mech_id, f"{scope} mechanisms id")
+            if not isinstance(entry, dict) or not set(entry) <= {"disabled", "manifest"}:
+                raise Error(
+                    f"{scope} crew config mechanisms.{mech_id} allows only: "
+                    "disabled, manifest"
+                )
+            if not isinstance(entry.get("disabled", False), bool):
+                raise Error(f"{scope} mechanisms.{mech_id}.disabled must be boolean")
+            if "manifest" in entry:
+                validate_manifest(
+                    entry["manifest"], f"{scope} mechanisms.{mech_id}.manifest"
+                )
+                if entry["manifest"]["mechanism"] != mech_id:
+                    raise Error(
+                        f"{scope} mechanisms.{mech_id}.manifest names a "
+                        "different mechanism"
+                    )
     return data
 
 
@@ -184,6 +223,7 @@ def resolve_seams(repo):
         "repo": str(root),
         "work_record": {"adapter": None, "source": "unset"},
         "mechanism": {"id": "harness-native", "source": "default"},
+        "mechanisms": {},
         "layers": [],
     }
     for scope in SCOPES:
@@ -199,7 +239,53 @@ def resolve_seams(repo):
             result["work_record"] = {**data["work_record"], "source": scope}
         if data.get("mechanism") is not None:
             result["mechanism"] = {**data["mechanism"], "source": scope}
+        for mech_id, entry in (data.get("mechanisms") or {}).items():
+            result["mechanisms"][mech_id] = {**entry, "source": scope}
+    active = result["mechanism"]
+    entry = result["mechanisms"].get(active["id"])
+    if entry and entry.get("disabled"):
+        raise Error(
+            f"mechanism {active['id']!r} is disabled ({entry['source']} scope); "
+            "select another mechanism or remove its disabled flag"
+        )
+    if "manifest" not in active:
+        if entry and entry.get("manifest"):
+            active["manifest"] = entry["manifest"]
+        elif active["id"] in KNOWN_MANIFESTS:
+            active["manifest"] = KNOWN_MANIFESTS[active["id"]]
     return result
+
+
+def resolve_manifest_id(mech_id, repo):
+    seams = resolve_seams(repo)
+    entry = seams["mechanisms"].get(mech_id)
+    if entry and entry.get("disabled"):
+        raise Error(
+            f"mechanism {mech_id!r} is disabled ({entry['source']} scope); "
+            "enable it or select another mechanism"
+        )
+    if entry and entry.get("manifest"):
+        return entry["manifest"]
+    active = seams["mechanism"]
+    if active["id"] == mech_id and active.get("manifest"):
+        return active["manifest"]
+    if mech_id in KNOWN_MANIFESTS:
+        return KNOWN_MANIFESTS[mech_id]
+    resolvable = sorted({*KNOWN_MANIFESTS, *seams["mechanisms"]})
+    raise Error(
+        f"no manifest for mechanism id {mech_id!r}; resolvable ids here: "
+        + (", ".join(resolvable) or "none")
+        + f". Pass the manifest as JSON or a file path, or register it under "
+        f"mechanisms.{mech_id}.manifest in crew config"
+    )
+
+
+def load_manifest(value, repo):
+    """--manifest accepts '-', inline JSON, a file path, or a mechanism id."""
+    if value != "-" and not value.lstrip().startswith("{"):
+        if not Path(value).expanduser().exists() and TOKEN.fullmatch(value):
+            return resolve_manifest_id(value, repo)
+    return validate_manifest(read_json_arg(value, "--manifest"))
 
 
 # --- packet ----------------------------------------------------------------
@@ -386,7 +472,7 @@ def build_packet(args):
         raise Error("a Captain cannot assign another Captain")
     if args.manifest == "-" and args.decision_json == "-":
         raise Error("only one of --decision-json and --manifest may read stdin")
-    manifest = validate_manifest(read_json_arg(args.manifest, "--manifest"))
+    manifest = load_manifest(args.manifest, args.repo)
     decision = read_decision(args.decision_json)
     if decision["status"] == "exact":
         route_id = decision["exact_route"]
@@ -522,7 +608,12 @@ def main(argv=None):
         "--decision-json", required=True, help="model-routing check output; '-' = stdin"
     )
     packet.add_argument(
-        "--manifest", required=True, help="mechanism manifest JSON, file, or '-'"
+        "--manifest",
+        required=True,
+        help="mechanism manifest JSON, file, '-', or a resolvable mechanism id",
+    )
+    packet.add_argument(
+        "--repo", default=".", help="repo root for resolving --manifest by id"
     )
     packet.add_argument(
         "--extra",

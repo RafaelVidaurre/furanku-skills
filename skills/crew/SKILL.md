@@ -30,7 +30,7 @@ Before the session's first assignment—and for any request to view or change Cr
 python3 <crew-skill-dir>/scripts/assignment.py seams --repo <root>
 ```
 
-Apply the precedence order in Seams to the output, then hold the session's mechanism manifest (from Seams' known-mechanism entries or the configuration) and work-record adapter. A seam change is written at the user-selected scope and confirmed by rerunning `seams`.
+Apply the precedence order in Seams to the output, then hold the session's mechanism manifest (attached to the `seams` output, or defined by the harness profile in Seams) and work-record adapter. A seam change is written at the user-selected scope and confirmed by rerunning `seams`; to park a mechanism without deleting its configuration, set `disabled: true` on its `mechanisms` entry.
 
 **Complete when:** the session holds one mechanism manifest and one work-record adapter with a stated source, or the work-record question has been put to the principal.
 
@@ -51,13 +51,13 @@ python3 <model-routing-dir>/scripts/router.py check --repo <root> \
   --candidate <id> --reason "<the task judgment behind this pick>" \
   --launchable-via <manifest-launchable-agents> --quota-axi --compact |
 python3 <crew-skill-dir>/scripts/assignment.py packet --decision-json - \
-  --manifest <manifest> --title "<outcome>" \
+  --manifest <mechanism-id-or-manifest> --repo <root> --title "<outcome>" \
   --role captain|worker --reports-to user|commander|captain \
   --work-ref <adapter>:<ref> [--extra <key>=<value>] \
   [--launch-constraint "<verbatim constraint>" ...]
 ```
 
-When the brief's activation rule applies because the principal requested a configured exact route, check it with `router.py check --repo <root> --exact-route <route-id> --route-basis "<verbatim principal request>" --launchable-via <manifest-launchable-agents> --quota-axi --compact` and pipe that decision into the same `packet` command. Preserve `--route-basis` unchanged on every re-check.
+When the brief's activation rule applies because the principal requested a configured exact route, check it with `router.py check --repo <root> --exact-route <route-id> --route-basis "<verbatim principal request>" --launchable-via <manifest-launchable-agents> --quota-axi --compact` and pipe that decision into the same `packet` command. Preserve `--route-basis` unchanged on every re-check. To rebuild or retry a packet, save the check output once (`check … > decision.json`) and pass `--decision-json decision.json`; a packet rebuild never re-runs an unchanged check.
 
 Pass an existing contract as `--work-ref` unchanged. When none exists, pass `--request "<verbatim user request>"` with `--work-record <adapter>` so the spawned owner establishes the first record—or `--work-record none` when the principal accepted running without one. Launch constraints remain packet fields in either path. `packet` refuses what the mechanism cannot honor—a missing mechanism extra or an unlaunchable or unaccepted routing decision. For a refused exact route, switch mechanisms only within the unchanged launch constraints; otherwise surface the conflict to the principal. Substitute another route or relax a launch constraint only with the principal's authorization. Re-judge a refused candidate within the unchanged launch and routing constraints. Follow model-routing for `needs-acceptance`: keep the exact route; when `pending` names a remedy, run that session-refresh and re-check; otherwise surface `pending`, and after a configured wait use that skill's `--use-quota-fallback` check — do not invent a different candidate.
 
