@@ -196,10 +196,10 @@ class RouterTest(unittest.TestCase):
     def test_check_refuses_max_without_lower_effort_comparison(self):
         decision = self.check(
             "--candidate",
-            "claude/gpt-5.6-sol-via-claude-code/max",
+            "claudex/gpt-5.6-sol/max",
             "--reason",
             "Strongest implementation evidence for eleven broad correctness findings.",
-            runtime={"harnesses": {"claude": {"quota": {"status": "known"}}}},
+            runtime={"harnesses": {"claudex": {"quota": {"status": "known"}}}},
             expect_code=1,
         )
         self.assertEqual("refused", decision["status"])
@@ -209,8 +209,8 @@ class RouterTest(unittest.TestCase):
         )
         self.assertEqual(
             [
-                "claude/gpt-5.6-sol-via-claude-code/high",
-                "claude/gpt-5.6-sol-via-claude-code/xhigh",
+                "claudex/gpt-5.6-sol/high",
+                "claudex/gpt-5.6-sol/xhigh",
             ],
             decision["lower_effort_candidates"],
         )
@@ -218,12 +218,12 @@ class RouterTest(unittest.TestCase):
     def test_check_refuses_max_basis_that_does_not_name_xhigh(self):
         decision = self.check(
             "--candidate",
-            "claude/gpt-5.6-sol-via-claude-code/max",
+            "claudex/gpt-5.6-sol/max",
             "--reason",
             "Bounded final acceptance.",
             "--max-effort-basis",
             "Maximum effort is strongest for this costly decision.",
-            runtime={"harnesses": {"claude": {"quota": {"status": "known"}}}},
+            runtime={"harnesses": {"claudex": {"quota": {"status": "known"}}}},
             expect_code=1,
         )
         self.assertEqual("refused", decision["status"])
@@ -428,6 +428,38 @@ class RouterTest(unittest.TestCase):
             "--launchable-via",
             "grok",
             runtime={"harnesses": {"grok": {"quota": {"status": "known"}}}},
+        )
+        self.assertEqual("selected", decision["status"])
+
+    def test_check_refuses_a_proxy_only_model_when_its_launcher_is_absent(self):
+        """The incident: a model only claudex can serve stayed reachable
+        because it shared the `claude` token with stock Claude Code, so a
+        consumer that had parked claudex still routed work to it."""
+        decision = self.check(
+            "--candidate",
+            "claudex/gpt-5.6-sol/high",
+            "--reason",
+            "Captain tier for a hostile-repository security front.",
+            "--launchable-via",
+            "claude,codex,grok",
+            expect_code=1,
+        )
+        self.assertEqual("refused", decision["status"])
+        self.assertIn(
+            "agent 'claudex' is outside the consumer's launchable agents: "
+            "claude, codex, grok",
+            decision["reasons"],
+        )
+        # The same model stays reachable through the launcher that does serve
+        # it: parking claudex retires the proxy route, not Sol itself.
+        decision = self.check(
+            "--candidate",
+            "codex/gpt-5.6-sol/high",
+            "--reason",
+            "Captain tier for a hostile-repository security front.",
+            "--launchable-via",
+            "claude,codex,grok",
+            runtime={"harnesses": {"codex": {"quota": {"status": "known"}}}},
         )
         self.assertEqual("selected", decision["status"])
 
@@ -822,7 +854,7 @@ class RouterTest(unittest.TestCase):
         self.fail("routing catalog has no codex candidate")
 
     def pooled_codex_proxy_candidate(self, catalog):
-        candidate_id = "claude/gpt-5.6-sol-via-claude-code/xhigh"
+        candidate_id = "claudex/gpt-5.6-sol/xhigh"
         candidate = deepcopy(catalog["candidates"][candidate_id])
         candidate.pop("quota_provider", None)
         candidate["quota_pool"] = {
@@ -954,7 +986,7 @@ class RouterTest(unittest.TestCase):
             ],
         }
         runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
-        candidate_id = "claude/grok-4.6-via-claude-code/high"
+        candidate_id = "claudex/grok-4.6/high"
         candidate = catalog["candidates"][candidate_id]
         quota = runtime["candidates"][candidate_id]["quota"]
         self.assertEqual("grok", quota["account"]["provider"])
@@ -981,7 +1013,7 @@ class RouterTest(unittest.TestCase):
         launches through, so an exhausted harness must not refuse it."""
         catalog = router.read_json(router.CATALOG, "routing catalog")
         candidate_id, candidate = self.pooled_codex_proxy_candidate(catalog)
-        runtime = {"harnesses": {"claude": {"quota": {"status": "exhausted"}}}}
+        runtime = {"harnesses": {"claudex": {"quota": {"status": "exhausted"}}}}
         reasons, warnings = router.gate(candidate_id, candidate, runtime)
         self.assertEqual([], reasons)
         self.assertTrue(
@@ -996,7 +1028,7 @@ class RouterTest(unittest.TestCase):
         """The proxy supplies the account, but the harness still has to run."""
         catalog = router.read_json(router.CATALOG, "routing catalog")
         candidate_id, candidate = self.pooled_codex_proxy_candidate(catalog)
-        runtime = {"harnesses": {"claude": {"status": "auth-required"}}}
+        runtime = {"harnesses": {"claudex": {"status": "auth-required"}}}
         reasons, _warnings = router.gate(candidate_id, candidate, runtime)
         self.assertIn("runtime status auth-required", reasons)
 
@@ -1027,7 +1059,7 @@ class RouterTest(unittest.TestCase):
         catalog = router.read_json(router.CATALOG, "routing catalog")
         candidate_id, candidate = self.pooled_codex_proxy_candidate(catalog)
         state = router.runtime_for(
-            {"harnesses": {"claude": {}}}, candidate_id, candidate
+            {"harnesses": {"claudex": {}}}, candidate_id, candidate
         )
         pending, acceptance = router.acceptance_terms(
             router.quota_summary(state), None
@@ -1043,7 +1075,7 @@ class RouterTest(unittest.TestCase):
         _reasons, warnings = router.gate(
             candidate_id,
             candidate,
-            {"harnesses": {"claude": {}}},
+            {"harnesses": {"claudex": {}}},
             expected_accounts={"codex": "launch-account@example.com"},
         )
         self.assertFalse(
@@ -1120,7 +1152,7 @@ class RouterTest(unittest.TestCase):
         }
         runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
         candidate = runtime["candidates"][
-            "claude/grok-4.6-via-claude-code/high"
+            "claudex/grok-4.6/high"
         ]["quota"]
         self.assertEqual("known", candidate["status"])
         self.assertEqual(57, candidate["effective_percent_remaining"])

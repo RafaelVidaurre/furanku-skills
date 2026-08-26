@@ -5,8 +5,14 @@ Research date: 2026-08-13 (Europe/Lisbon)
 ## Question and boundary
 
 This report replaces the 2026-08-13 catalog reset that left both Grok 4.6
-candidates (`grok/grok-4.6/high` and `claude/grok-4.6-via-claude-code/high`)
+candidates (`grok/grok-4.6/high` and `claudex/grok-4.6/high`)
 as unknown. It does **not** change selector weights or exact routes.
+
+> Renamed 2026-08-26: `claude/grok-4.6-via-claude-code/high` became
+> `claudex/grok-4.6/high` when claudex gained its own catalog agent token.
+> Same model, same effort, same evidence — only the launcher identity moved
+> out of the model name.
+
 
 The 2026-07-31 Crew matrix measured **Grok 4.5 high**. Those numbers must not
 be relabelled as 4.6. This file is the 4.6 assessment.
@@ -128,7 +134,7 @@ Reading:
 ## Recommendation for both catalog candidates
 
 Apply the same cells to `grok/grok-4.6/high` and
-`claude/grok-4.6-via-claude-code/high`. Same model and effort; harness
+`claudex/grok-4.6/high`. Same model and effort; harness
 transfer is already expressed in the conservative column.
 
 Do **not** copy Grok 4.5 scores. Do **not** invent Agent Arena or Design

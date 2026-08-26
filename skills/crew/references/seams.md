@@ -48,7 +48,7 @@ A manifest is the checkable statement of what a mechanism can honor; `packet` re
 }
 ```
 
-`launchable_agents` lists all and only the routing catalog's `agent` tokens the selected orchestration surface can start in the current session—the catalog's vocabulary, not the mechanism, harness, or executable name—and `check --launchable-via` takes exactly this list. The selected `agent` is a capability identity for routing and gating, not a generic launch API parameter; each mechanism profile defines how the packet maps to its API. Resolve the list from the selected surface's current capabilities rather than wrapper-wide capability. `extras` declares the mechanism-specific fields every packet must carry.
+`launchable_agents` lists all and only the routing catalog's `agent` tokens the selected orchestration surface can start in the current session—the catalog's vocabulary, not the mechanism name—and `check --launchable-via` takes exactly this list. The selected `agent` is a capability identity for routing and gating, not a generic launch API parameter; each mechanism profile defines how the packet maps to its API. Resolve the list from the selected surface's current capabilities rather than wrapper-wide capability: a launcher that reaches models no other launcher can serve holds its own token, so omitting that token is what makes its models unreachable. Omit the token of any launcher this session will not use, including one whose registry entry is `disabled`—parking a mechanism does not by itself retire the routes that only it can serve. `extras` declares the mechanism-specific fields every packet must carry.
 
 ### harness-native (default)
 

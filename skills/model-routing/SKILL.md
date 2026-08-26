@@ -9,7 +9,7 @@ The agent about to spawn work—not a script—decides which agent, model, and e
 
 ## Generate the brief
 
-Generate the brief before choosing; its Exact routes section is the normative source for when a configured route applies. An instruction naming only a mechanism, harness, or executable is a consumer launch constraint, not an exact-route request or routing override. For example, “use claudex” does not imply `agent: claude` or exclude other catalog agents its selected surface can launch. A combined instruction that also names an agent, model, or effort binds launch and routing independently. Generate the brief with live quota and read it:
+Generate the brief before choosing; its Exact routes section is the normative source for when a configured route applies. An instruction naming only a mechanism or orchestration surface is a consumer launch constraint, not an exact-route request or routing override. For example, “use Orca” does not bind any `agent` or exclude catalog agents that surface can launch. A launcher that serves models no other launcher can reach is a distinct capability identity and carries its own catalog `agent` token, so naming it does bind routing: `claudex` is such a token, and its candidates are unreachable to a consumer whose `--launchable-via` omits it. A combined instruction that also names an agent, model, or effort binds launch and routing independently. Generate the brief with live quota and read it:
 
 ```sh
 python3 <skill-dir>/scripts/router.py brief --repo <root> --quota-axi

@@ -656,10 +656,10 @@
         }
       }
     },
-    "claude/grok-4.6-via-claude-code/high": {
+    "claudex/grok-4.6/high": {
       "launch": {
-        "agent": "claude",
-        "model": "grok-4.6-via-claude-code",
+        "agent": "claudex",
+        "model": "grok-4.6",
         "effort": "high"
       },
       "features": [
@@ -728,7 +728,7 @@
       },
       "quota_provider": {
         "provider": "grok",
-        "detail": "This proxy route bills the Grok provider rather than the Claude launcher."
+        "detail": "This proxy route bills the Grok provider rather than the claudex launcher."
       }
     },
     "grok/grok-4.6/high": {
@@ -802,10 +802,10 @@
         }
       }
     },
-    "claude/gpt-5.6-sol-via-claude-code/max": {
+    "claudex/gpt-5.6-sol/max": {
       "launch": {
-        "agent": "claude",
-        "model": "gpt-5.6-sol-via-claude-code",
+        "agent": "claudex",
+        "model": "gpt-5.6-sol",
         "effort": "max"
       },
       "features": [
@@ -880,13 +880,13 @@
       },
       "quota_provider": {
         "provider": "codex",
-        "detail": "This proxy route bills the Codex provider rather than the Claude launcher. Configure quota_pool in a private layer when the deployment rotates credentials."
+        "detail": "This proxy route bills the Codex provider rather than the claudex launcher. Configure quota_pool in a private layer when the deployment rotates credentials."
       }
     },
-    "claude/gpt-5.6-sol-via-claude-code/xhigh": {
+    "claudex/gpt-5.6-sol/xhigh": {
       "launch": {
-        "agent": "claude",
-        "model": "gpt-5.6-sol-via-claude-code",
+        "agent": "claudex",
+        "model": "gpt-5.6-sol",
         "effort": "xhigh"
       },
       "features": [
@@ -955,13 +955,13 @@
       },
       "quota_provider": {
         "provider": "codex",
-        "detail": "This proxy route bills the Codex provider rather than the Claude launcher. Configure quota_pool in a private layer when the deployment rotates credentials."
+        "detail": "This proxy route bills the Codex provider rather than the claudex launcher. Configure quota_pool in a private layer when the deployment rotates credentials."
       }
     },
-    "claude/gpt-5.6-sol-via-claude-code/high": {
+    "claudex/gpt-5.6-sol/high": {
       "launch": {
-        "agent": "claude",
-        "model": "gpt-5.6-sol-via-claude-code",
+        "agent": "claudex",
+        "model": "gpt-5.6-sol",
         "effort": "high"
       },
       "features": [
@@ -1020,7 +1020,7 @@
       },
       "quota_provider": {
         "provider": "codex",
-        "detail": "This proxy route bills the Codex provider rather than the Claude launcher. Configure quota_pool in a private layer when the deployment rotates credentials."
+        "detail": "This proxy route bills the Codex provider rather than the claudex launcher. Configure quota_pool in a private layer when the deployment rotates credentials."
       }
     }
   }
