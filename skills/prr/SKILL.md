@@ -11,6 +11,8 @@ The PRR (`prr/` at the repo root) is the durable picture of what the user wants 
 
 A candidate requirement is any statement of product intent: what the product should do, who it is for, how it should behave or feel, and what it must never do — scope exclusions are first-class requirements. Technical decisions stay out unless the technology is itself part of the product; route technical rationale to the repo's ADRs or decision log instead.
 
+An observation that the current implementation does something unwanted is not, by itself, product intent. When the user reports accidental, unrequested, or regressed behavior to remove and no current PRR state makes that behavior part of the intended product, treat it as corrective work and do not create a candidate — including a derived “must never happen” claim. A negative requirement qualifies only when the user's words establish the prohibition or exclusion itself as an enduring product boundary beyond correcting the reported behavior.
+
 ## Layout
 
 ```
@@ -114,7 +116,7 @@ When a confirmed claim, status, or vision changes:
 Armed in any repo containing `prr/`. In other repos, stay dormant until the user asks to track product requirements (see Bootstrap).
 
 1. The moment conversation surfaces a candidate requirement — including asides during coding, debugging, or grilling sessions — record the claim and the verbatim exchange in a scratch file outside the repository (a temp directory), never inside the repo or `prr/`: unconfirmed candidates must not survive as repo content. Quote at capture time — a quote reconstructed later from memory or a context summary is not verbatim and must never be presented as one. Done when: the exact quote is preserved outside the repo and the conversation continued uninterrupted.
-2. Check each candidate against the current vision and every existing entry. A contradiction goes through Conflicts immediately. Any candidate that changes, answers, or refines an existing claim, status, or the vision attaches to that current state and, if confirmed, uses Replacing current state instead of creating a duplicate. The rest accumulate as new. Done when: every pending candidate is classified as conflicting, attached to the current state it affects, or new.
+2. Check each candidate against the current vision and every existing entry. A contradiction goes through Conflicts immediately. Any candidate that changes, answers, refines, or withdraws an existing claim, status, or the vision attaches to that current state and, if confirmed, uses Replacing current state instead of creating a duplicate. Withdrawing a requirement drops or replaces its current state; it does not create an inverse requirement unless the user separately confirms that inverse as enduring product intent. The rest accumulate as new. Done when: every pending candidate is classified as conflicting, attached to the current state it affects, or new.
 3. At a natural pause — task complete, topic shift, session wrap-up, or five accumulated candidates, whichever comes first — present the batch. Show verbatim evidence and wording that satisfies Durable claim wording. A requirement candidate also gets a proposed status from the Requirement entry definitions; a vision change has no status. Resolve any question blocking those checks before asking for confirmation. Use the applicable compact form:
 
    ```markdown
