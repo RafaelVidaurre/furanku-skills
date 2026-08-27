@@ -1,6 +1,6 @@
 ---
 name: prr
-description: "Maintain a Product Requirements Record — prr/ files keeping a confirmed, verbatim-sourced picture of what the user wants the product to be. Capture proactively: in any repo containing prr/, fire whenever conversation surfaces product intent — statements like 'users should be able to…', 'it must never…', 'that's out of scope', 'the point of this feature is…', 'actually the product should…' — even as an aside during coding or debugging. Fire on request when the user asks to start tracking product requirements or set up a PRR; when the user asks to digest, review, or decide on tentative requirements or open questions; or when the user asks to audit or clean up the PRR."
+description: "Maintain a Product Requirements Record — prr/ files keeping a confirmed, verbatim-sourced picture of what the user wants the product to be. Capture proactively: in any repo containing prr/, fire whenever conversation surfaces durable product intent — statements like 'users should be able to…', 'it must never…', 'that's out of scope', 'the point of this feature is…', 'actually the product should…' — even as an aside during coding or debugging. Treat reports that the implementation is broken, regressed, or fails existing intent as corrective work, not requirements. Fire on request when the user asks to start tracking product requirements or set up a PRR; when the user asks to digest, review, or decide on tentative requirements or open questions; or when the user asks to audit or clean up the PRR."
 ---
 
 # Product Requirements Record
@@ -9,9 +9,9 @@ The PRR (`prr/` at the repo root) is the durable picture of what the user wants 
 
 ## What belongs
 
-A candidate requirement is any statement of product intent: what the product should do, who it is for, how it should behave or feel, and what it must never do — scope exclusions are first-class requirements. Technical decisions stay out unless the technology is itself part of the product; route technical rationale to the repo's ADRs or decision log instead.
+A candidate requirement is a statement of durable product intent: what the product should do, who it is for, how it should behave or feel, and what it must never do — scope exclusions are first-class requirements. Durable intent changes or adds information about the target product state after the current task is complete. Technical decisions stay out unless the technology is itself part of the product; route technical rationale to the repo's ADRs or decision log instead.
 
-An observation that the current implementation does something unwanted is not, by itself, product intent. When the user reports accidental, unrequested, or regressed behavior to remove and no current PRR state makes that behavior part of the intended product, treat it as corrective work and do not create a candidate — including a derived “must never happen” claim. A negative requirement qualifies only when the user's words establish the prohibition or exclusion itself as an enduring product boundary beyond correcting the reported behavior.
+A report that the current implementation is accidental, broken, unrequested, regressed, or fails an already-established target is corrective work. The connection to an existing requirement strengthens that classification when the requirement already entails the desired result; it does not make the defect a refinement. Do not create a candidate or derive a “must never happen” claim from the desired correction. A negative requirement qualifies only when the user's words establish the prohibition or exclusion itself as an enduring product boundary beyond fixing the reported behavior.
 
 ## Layout
 
@@ -83,7 +83,7 @@ Context: discussing the billing rework
 > **User:** exactly
 ```
 
-Quotes are verbatim — the user's exact words, never paraphrased or tidied. The quote is the insurance against your synthesis being wrong: a claim can be re-derived from its source later, but lost wording is gone forever. A back-and-forth exchange is one source when the meaning lives in the exchange. A source may also quote a document the user authored or explicitly endorsed: cite the file path and quote the relevant passage verbatim in place of the exchange.
+Quotes are verbatim — the user's exact words, never paraphrased or tidied. The stored quote is the evidence: a claim can be re-derived from it later, but lost wording is gone forever. Make each source self-contained with enough stable topic context to understand the exchange. Session labels, session IDs, transcript paths, and transcript links are ephemeral locators, not evidence; omit them from scratch and durable sources. A back-and-forth exchange is one source when the meaning lives in the exchange. A source may also quote a document the user authored or explicitly endorsed: cite its repository path and quote the relevant passage verbatim in place of the exchange.
 
 ### Prior-state entry (in `prr/superseded.md`)
 
@@ -105,7 +105,7 @@ When a confirmed claim, status, or vision changes:
 
 ## Hard rules
 
-1. Nothing enters the PRR, and no claim, status, or vision changes, without user confirmation. Candidates the user never confirmed are discarded when the session ends — never written "to be safe."
+1. Only statements that pass Capture's classification gate become candidates. Nothing enters the PRR, and no claim, status, or vision changes, without user confirmation. Candidates the user never confirmed are discarded when the session ends — never written "to be safe."
 2. Every requirement and the product vision cite at least one verbatim source.
 3. Rewording a confirmed claim or vision — including merges and cleanups — requires the user to re-confirm the new wording.
 4. The PRR owns each claim and its sources; a linked PRD owns elaboration (UX detail, edge cases, acceptance criteria). A PRD that contradicts a PRR claim is a conflict — handle it exactly like a conflicting user statement.
@@ -115,9 +115,19 @@ When a confirmed claim, status, or vision changes:
 
 Armed in any repo containing `prr/`. In other repos, stay dormant until the user asks to track product requirements (see Bootstrap).
 
-1. The moment conversation surfaces a candidate requirement — including asides during coding, debugging, or grilling sessions — record the claim and the verbatim exchange in a scratch file outside the repository (a temp directory), never inside the repo or `prr/`: unconfirmed candidates must not survive as repo content. Quote at capture time — a quote reconstructed later from memory or a context summary is not verbatim and must never be presented as one. Done when: the exact quote is preserved outside the repo and the conversation continued uninterrupted.
-2. Check each candidate against the current vision and every existing entry. A contradiction goes through Conflicts immediately. Any candidate that changes, answers, refines, or withdraws an existing claim, status, or the vision attaches to that current state and, if confirmed, uses Replacing current state instead of creating a duplicate. Withdrawing a requirement drops or replaces its current state; it does not create an inverse requirement unless the user separately confirms that inverse as enduring product intent. The rest accumulate as new. Done when: every pending candidate is classified as conflicting, attached to the current state it affects, or new.
-3. At a natural pause — task complete, topic shift, session wrap-up, or five accumulated candidates, whichever comes first — present the batch. Show verbatim evidence and wording that satisfies Durable claim wording. A requirement candidate also gets a proposed status from the Requirement entry definitions; a vision change has no status. Resolve any question blocking those checks before asking for confirmation. Use the applicable compact form:
+1. Before writing scratch, classify the user's statement by the target state it establishes. Ask: **after the reported defect or current task is finished, does this statement still add or change information about what the product is meant to be?** Route it using this boundary:
+
+   | User evidence | Route |
+   | --- | --- |
+   | Reports current behavior as broken, chaotic, accidental, duplicated, missing, or regressed; asks to fix or track it; and does not separately change the target state | Corrective work only. Use the requested work tracker when one is named. Create no scratch candidate and no confirmation prompt. |
+   | Restates behavior already entailed by an accepted requirement while reporting that the implementation violates it | Corrective work only. The accepted requirement remains unchanged. |
+   | Establishes a new enduring behavior or boundary not already entailed by the current PRR | New candidate. |
+   | Explicitly changes, withdraws, or contradicts a current requirement or vision | Candidate attached to that state; use Conflicts when both cannot hold. |
+
+   A tracker instruction such as “file this as a bug” routes corrective work but is not itself evidence of product intent; separately classify any enduring product statement in the same exchange. Do not turn a complaint into normative language the user did not supply. Done when: the statement is routed to corrective work, a new candidate, or a change/conflict, and only the latter two continue to step 2.
+2. The moment a statement passes the gate — including durable intent surfaced as an aside during coding, debugging, or grilling — record the claim and verbatim exchange in a scratch file outside the repository (a temp directory), never inside the repo or `prr/`: unconfirmed candidates must not survive as repo content. Include concise topic context, not a session label, ID, transcript path, or transcript link. Quote at capture time — a quote reconstructed later from memory or a context summary is not verbatim and must never be presented as one. Done when: the exact quote and stable topic context are preserved outside the repo and the conversation continued uninterrupted.
+3. Check each candidate against the current vision and every existing entry. A contradiction goes through Conflicts immediately. Any candidate that changes, answers, refines, or withdraws an existing claim, status, or the vision attaches to that current state and, if confirmed, uses Replacing current state instead of creating a duplicate. Withdrawing a requirement drops or replaces its current state; it does not create an inverse requirement unless the user separately confirms that inverse as enduring product intent. The rest accumulate as new. Done when: every pending candidate is classified as conflicting, attached to the current state it affects, or new.
+4. At a natural pause — task complete, topic shift, session wrap-up, or five accumulated candidates, whichever comes first — present the batch. Show verbatim evidence and wording that satisfies Durable claim wording. A requirement candidate also gets a proposed status from the Requirement entry definitions; a vision change has no status. Resolve any question blocking those checks before asking for confirmation. Use the applicable compact form:
 
    ```markdown
    Evidence:
@@ -135,7 +145,7 @@ Armed in any repo containing `prr/`. In other repos, stay dormant until the user
    ```
 
    Silence on a candidate is not confirmation — unaddressed or deferred candidates stay pending and return at the next pause, then are discarded at session end like any unconfirmed candidate. A blanket "yes" confirms every candidate in the presented batch. Done when: every presented requirement is confirmed with a status, every presented vision is confirmed, or the candidate is edited, rejected, or explicitly deferred.
-4. Write the confirmed outcomes in one pass. For a new requirement, append a source containing the complete evidence-and-confirmation exchange — including any edit to the proposed wording or status — and add the entry with the minimal complete evidence for its final state. For an attached change, apply Replacing current state. Then add cross-area pointers, write resolved terms to `CONTEXT.md`, and update the `PRR.md` index. Remove confirmed and rejected candidates from scratch; only pending candidates remain there. Done when: every new or changed entry has one current state with an ID, status, `confirmed` date, and evidence that directly supports that final state; `PRR.md` reflects every area and open entry; and scratch contains no resolved candidate.
+5. Write the confirmed outcomes in one pass. For a new requirement, append a source containing the complete evidence-and-confirmation exchange — including any edit to the proposed wording or status — and add the entry with the minimal complete evidence for its final state. For an attached change, apply Replacing current state. Then add cross-area pointers, write resolved terms to `CONTEXT.md`, and update the `PRR.md` index. Remove confirmed and rejected candidates from scratch; only pending candidates remain there. Done when: every new or changed entry has one current state with an ID, status, `confirmed` date, and evidence that directly supports that final state; `PRR.md` reflects every area and open entry; and scratch contains no resolved candidate.
 
 ## Conflicts
 
@@ -143,8 +153,8 @@ When a new candidate — or a PRD's content — contradicts an existing entry, s
 
 1. Present to the user: the existing claim with its verbatim source, the new candidate with its verbatim evidence, and a plain explanation of why the two cannot both hold. Done when: the user has both evidence sets and the reason in front of them.
 2. Route their decision: **keep** the current state and reject or correct the conflicting candidate; **replace** the current requirement or vision; **amend** it in place; or **narrow** the candidate until both can hold. Done when: the user has chosen one outcome for the conflict.
-3. Complete confirmation before writing: send replacement or amended wording through Capture step 3; reclassify a narrowed candidate through Capture step 2 and confirm it if it still expresses product intent; treat `keep` as rejection of the candidate after the existing wording shown in step 1 is explicitly retained. Done when: every resulting current or new state has confirmed final wording and any applicable status, and every rejected candidate has an explicit rejection.
-4. Apply each confirmed current-state change through Replacing current state and each confirmed new requirement through Capture step 4. For `keep`, append the resolution exchange to `sources.md`, leave the current source set unchanged, and identify any PRD or code that must be brought back into alignment. Done when: the current view contains only the surviving states, every displaced state is in the annex, and no candidate or dependent document remains in an undefined outcome.
+3. Complete confirmation before writing: send replacement or amended wording through Capture step 4; route a narrowed candidate through Capture steps 1–4 again; treat `keep` as rejection of the candidate after the existing wording shown in step 1 is explicitly retained. Done when: every resulting current or new state has confirmed final wording and any applicable status, and every rejected candidate has an explicit rejection.
+4. Apply each confirmed current-state change through Replacing current state and each confirmed new requirement through Capture step 5. For `keep`, append the resolution exchange to `sources.md`, leave the current source set unchanged, and identify any PRD or code that must be brought back into alignment. Done when: the current view contains only the surviving states, every displaced state is in the annex, and no candidate or dependent document remains in an undefined outcome.
 
 ## Digest
 
