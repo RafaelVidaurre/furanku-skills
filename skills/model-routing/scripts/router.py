@@ -123,6 +123,14 @@ def validate_compiled_candidates(candidates):
                 raise Error(f"{label}.quota_provider detail must be a string")
             if pool is not None:
                 raise Error(f"{label} cannot define both quota_pool and quota_provider")
+        quota_account = candidate.get("quota_account")
+        if quota_account is not None and quota_account not in exact_config.PROVIDERS:
+            raise Error(
+                f"{label}.quota_account must name a configured provider: "
+                + ", ".join(sorted(exact_config.PROVIDERS))
+            )
+        if pool is not None and quota_account is not None:
+            raise Error(f"{label} cannot define both quota_pool and quota_account")
         features = candidate.get("features", [])
         if not isinstance(features, list) or any(
             not isinstance(x, str) for x in features
@@ -225,8 +233,8 @@ def compile_brief(repo="."):
         config = exact_config.load(path)
         for text in config.get("preferences", []):
             preferences.append({"scope": scope, "text": text.strip()})
-        # Narrower scopes win: the machine states which account a provider
-        # bills, and a project may override it.
+        # Narrower scopes win in the private account registry. A candidate
+        # must opt into one of these identities through quota_account.
         accounts.update(config.get("accounts", {}))
         for candidate_id, patch in config.get("candidates", {}).items():
             if patch is None:
@@ -238,6 +246,13 @@ def compile_brief(repo="."):
             )
             candidate_sources.setdefault(candidate_id, []).append(scope)
     validate_compiled_candidates(candidates)
+    for candidate_id, candidate in candidates.items():
+        provider = candidate.get("quota_account")
+        if provider and provider not in accounts:
+            raise Error(
+                f"candidate {candidate_id!r}.quota_account names {provider!r}, "
+                f"but configuration has no accounts[{provider!r}]"
+            )
     return {
         "candidates": candidates,
         "candidate_sources": candidate_sources,
@@ -681,14 +696,22 @@ def gate(
     provider = (account or {}).get("provider") or HARNESS_TO_PROVIDER.get(
         candidate["launch"]["agent"]
     )
-    expected = (expected_accounts or {}).get(provider)
+    fixed_provider = candidate.get("quota_account")
+    expected = (
+        (expected_accounts or {}).get(fixed_provider) if fixed_provider else None
+    )
+    if fixed_provider and provider and fixed_provider != provider:
+        reasons.append(
+            f"candidate pins quota to {fixed_provider}, but its runtime reading "
+            f"comes from {provider}"
+        )
     # A reading of the wrong account is not evidence about this launch, whether
     # it reports headroom or exhaustion. Refuse before the status is trusted.
     if expected and measured and expected != measured:
         reasons.append(
-            f"quota measured for account {measured}, but {provider} is "
+            f"quota measured for account {measured}, but this candidate is "
             f"configured to bill {expected}; this reading does not describe "
-            "the launch account"
+            "the candidate's fixed launch account"
         )
     elif quota_status in HARD_QUOTA_STATUSES:
         reasons.append(f"quota {quota_status} ({account_phrase(account)})")
@@ -706,7 +729,8 @@ def gate(
     if expected and not measured and not (account or {}).get("pooled"):
         warnings.append(
             f"quota could not name the account it measured, so it cannot be "
-            f"checked against the configured {provider} account {expected}"
+            f"checked against the candidate's fixed {fixed_provider} account "
+            f"{expected}"
         )
     return reasons, warnings
 

@@ -946,6 +946,8 @@ class RouterTest(unittest.TestCase):
         the launch still bills the configured one."""
         catalog = router.read_json(router.CATALOG, "routing catalog")
         candidate_id, candidate = self.codex_candidate()
+        candidate = deepcopy(candidate)
+        candidate["quota_account"] = "codex"
         runtime = router.quota_axi_runtime(
             self.codex_snapshot(85, {"email": "measured-account@example.com"}),
             catalog["candidates"],
@@ -960,9 +962,29 @@ class RouterTest(unittest.TestCase):
         self.assertIn("measured for account measured-account@example.com", reasons[0])
         self.assertIn("launch-account@example.com", reasons[0])
 
+    def test_generic_candidate_does_not_inherit_a_provider_account_pin(self):
+        """An account-scoped launcher bills its active session, not whichever
+        account another session happened to record machine-wide."""
+        catalog = router.read_json(router.CATALOG, "routing catalog")
+        candidate_id, candidate = self.codex_candidate()
+        runtime = router.quota_axi_runtime(
+            self.codex_snapshot(85, {"email": "active-session@example.com"}),
+            catalog["candidates"],
+        )
+        reasons, warnings = router.gate(
+            candidate_id,
+            candidate,
+            runtime,
+            expected_accounts={"codex": "other-session@example.com"},
+        )
+        self.assertEqual([], reasons)
+        self.assertEqual([], warnings)
+
     def test_gate_accepts_quota_measured_on_the_configured_account(self):
         catalog = router.read_json(router.CATALOG, "routing catalog")
         candidate_id, candidate = self.codex_candidate()
+        candidate = deepcopy(candidate)
+        candidate["quota_account"] = "codex"
         runtime = router.quota_axi_runtime(
             self.codex_snapshot(85, {"email": "launch-account@example.com"}),
             catalog["candidates"],
@@ -979,6 +1001,8 @@ class RouterTest(unittest.TestCase):
     def test_gate_warns_when_an_expected_account_cannot_be_verified(self):
         catalog = router.read_json(router.CATALOG, "routing catalog")
         candidate_id, candidate = self.codex_candidate()
+        candidate = deepcopy(candidate)
+        candidate["quota_account"] = "codex"
         runtime = router.quota_axi_runtime(
             self.codex_snapshot(85), catalog["candidates"]
         )
@@ -1022,7 +1046,8 @@ class RouterTest(unittest.TestCase):
         }
         runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
         candidate_id = "claudex/grok-4.6/high"
-        candidate = catalog["candidates"][candidate_id]
+        candidate = deepcopy(catalog["candidates"][candidate_id])
+        candidate["quota_account"] = "grok"
         quota = runtime["candidates"][candidate_id]["quota"]
         self.assertEqual("grok", quota["account"]["provider"])
         # A claude-account expectation must not be applied to a grok reading.
