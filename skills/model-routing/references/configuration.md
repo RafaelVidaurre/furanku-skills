@@ -41,7 +41,18 @@ Every layer is a version 4 document. A persisted layer defines only the routes i
   ],
   "candidates": {
     "opencode/kimi-for-coding/k3/max": { "enabled": false },
-    "codex/gpt-5.6-sol/high": { "quota_account": "codex" }
+    "codex-fixed/gpt-5.6-sol/high": {
+      "launch": {
+        "agent": "codex-fixed",
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      },
+      "quota_provider": {
+        "provider": "codex",
+        "detail": "This fixed launcher bills the registered Codex account."
+      },
+      "quota_account": "codex"
+    }
   },
   "accounts": {
     "codex": "codex-account@example.com"
