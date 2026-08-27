@@ -91,6 +91,60 @@ class RouterTest(unittest.TestCase):
         self.assertIn("- (global) Captains default to gpt-5.6-sol at xhigh.", brief)
         self.assertIn("claude-fable-5[1m] or gpt-5.6-sol at max", brief)
 
+    def test_brief_limits_candidates_to_consumer_launchers(self):
+        brief = self.run_router("brief", "--launchable-via", "codex").stdout
+        self.assertIn("**Launchable agents:** codex", brief)
+        self.assertIn("| codex/gpt-5.6-sol/high |", brief)
+        self.assertNotIn("| grok/grok-4.6/high |", brief)
+        self.assertNotIn("### grok/grok-4.6/high", brief)
+        self.assertIn("| worker | — | grok | grok-4.6 | high |", brief)
+
+        payload = json.loads(
+            self.run_router(
+                "brief", "--launchable-via", "codex", "--format", "json"
+            ).stdout
+        )
+        self.assertEqual(["codex"], payload["launchable_agents"])
+        self.assertEqual("grok", payload["routes"]["effective"]["worker"]["agent"])
+        self.assertTrue(payload["candidates"])
+        self.assertTrue(
+            all(
+                candidate["launch"]["agent"] == "codex"
+                for candidate in payload["candidates"].values()
+            )
+        )
+        visible_ids = set(payload["candidates"])
+        self.assertTrue(
+            all(
+                set(layer["candidates_defined"]) <= visible_ids
+                for layer in payload["layers"]
+            )
+        )
+
+        codex_candidate = "codex/gpt-5.6-sol/high"
+        grok_candidate = "grok/grok-4.6/high"
+        payload = json.loads(
+            self.run_router(
+                "brief",
+                "--launchable-via",
+                "codex",
+                "--format",
+                "json",
+                runtime={
+                    "harnesses": {
+                        "codex": {"quota": {"status": "known"}},
+                        "grok": {"quota": {"status": "known"}},
+                    },
+                    "candidates": {
+                        codex_candidate: {"inventory": "ready"},
+                        grok_candidate: {"inventory": "ready"},
+                    },
+                },
+            ).stdout
+        )
+        self.assertEqual(["codex"], list(payload["runtime"]["harnesses"]))
+        self.assertEqual([codex_candidate], list(payload["runtime"]["candidates"]))
+
     def test_brief_shows_exact_route_activation_and_candidate_evidence(self):
         brief = self.run_router("brief").stdout
         self.assertIn(router.EXACT_ROUTE_SEMANTICS, brief)
@@ -144,15 +198,11 @@ class RouterTest(unittest.TestCase):
             }
         )
         brief = self.run_router("brief").stdout
-        self.assertIn(
-            "Disabled by configuration: codex/gpt-5.6-luna/max", brief
-        )
+        self.assertIn("Disabled by configuration: codex/gpt-5.6-luna/max", brief)
         self.assertNotIn("| codex/gpt-5.6-luna/max |", brief)
 
     def test_brief_json_carries_candidates_preferences_and_layers(self):
-        payload = json.loads(
-            self.run_router("brief", "--format", "json").stdout
-        )
+        payload = json.loads(self.run_router("brief", "--format", "json").stdout)
         self.assertIn("claude/claude-fable-5[1m]/high", payload["candidates"])
         self.assertEqual("global", payload["preferences"][0]["scope"])
         self.assertEqual(router.EXACT_ROUTE_SEMANTICS, payload["routes"]["semantics"])
@@ -160,9 +210,7 @@ class RouterTest(unittest.TestCase):
             router.MAX_EFFORT_POLICY,
             payload["candidate_policy"]["maximum_effort"],
         )
-        self.assertEqual(
-            "xhigh", payload["routes"]["effective"]["captain"]["effort"]
-        )
+        self.assertEqual("xhigh", payload["routes"]["effective"]["captain"]["effort"])
         scopes = [layer["scope"] for layer in payload["layers"]]
         self.assertEqual(["builtin", "global", "repo", "machine-repo"], scopes)
 
@@ -384,9 +432,7 @@ class RouterTest(unittest.TestCase):
         )
         self.assertEqual("needs-acceptance", decision["status"])
         self.assertEqual("unknown", decision["quota"]["status"])
-        self.assertEqual(
-            "openrouter", decision["quota"]["account"]["provider"]
-        )
+        self.assertEqual("openrouter", decision["quota"]["account"]["provider"])
         self.assertIn("quota-axi does not support OpenRouter", decision["pending"][0])
 
         accepted = self.check(
@@ -416,8 +462,7 @@ class RouterTest(unittest.TestCase):
         )
         self.assertEqual("refused", decision["status"])
         self.assertIn(
-            "agent 'grok' is outside the consumer's launchable agents: "
-            "claude, codex",
+            "agent 'grok' is outside the consumer's launchable agents: claude, codex",
             decision["reasons"],
         )
         decision = self.check(
@@ -517,9 +562,7 @@ class RouterTest(unittest.TestCase):
             "worker",
             "--route-basis",
             ROUTE_BASIS,
-            runtime={
-                "harnesses": {"grok": {"quota": {"status": "exhausted"}}}
-            },
+            runtime={"harnesses": {"grok": {"quota": {"status": "exhausted"}}}},
             expect_code=1,
         )
         self.assertEqual("refused", decision["status"])
@@ -567,9 +610,7 @@ class RouterTest(unittest.TestCase):
             "worker.bulk",
             "--route-basis",
             "Principal requested the worker.bulk route for this task.",
-            runtime={
-                "harnesses": {"codex": {"status": "auth-required"}}
-            },
+            runtime={"harnesses": {"codex": {"status": "auth-required"}}},
             expect_code=1,
         )
         self.assertEqual("refused", decision["status"])
@@ -607,16 +648,12 @@ class RouterTest(unittest.TestCase):
                 "routes": {},
                 "candidates": {
                     "codex/gpt-5.6-sol/max": {
-                        "capabilities": {
-                            "reasoning": {"conservative": 0.6}
-                        }
+                        "capabilities": {"reasoning": {"conservative": 0.6}}
                     }
                 },
             }
         )
-        payload = json.loads(
-            self.run_router("brief", "--format", "json").stdout
-        )
+        payload = json.loads(self.run_router("brief", "--format", "json").stdout)
         merged = payload["candidates"]["codex/gpt-5.6-sol/max"]
         self.assertEqual(0.6, merged["capabilities"]["reasoning"]["conservative"])
         self.assertEqual(0.59, merged["capabilities"]["reasoning"]["score"])
@@ -666,8 +703,12 @@ class RouterTest(unittest.TestCase):
             encoding="utf-8",
         )
         brief = self.run_router("brief").stdout
-        self.assertIn("| captain | — | codex | gpt-5.6-sol | xhigh | global | ask |", brief)
-        self.assertIn("| worker | — | codex | gpt-5.6-luna | max | builtin | ask |", brief)
+        self.assertIn(
+            "| captain | — | codex | gpt-5.6-sol | xhigh | global | ask |", brief
+        )
+        self.assertIn(
+            "| worker | — | codex | gpt-5.6-luna | max | builtin | ask |", brief
+        )
 
     def test_candidate_tombstone_removes_candidate(self):
         self.write_repo_layer(
@@ -677,9 +718,7 @@ class RouterTest(unittest.TestCase):
                 "candidates": {"grok/grok-4.6/high": None},
             }
         )
-        payload = json.loads(
-            self.run_router("brief", "--format", "json").stdout
-        )
+        payload = json.loads(self.run_router("brief", "--format", "json").stdout)
         self.assertNotIn("grok/grok-4.6/high", payload["candidates"])
         result = self.run_router(
             "check",
@@ -707,15 +746,11 @@ class RouterTest(unittest.TestCase):
             "confidence must be a non-empty string": {
                 "capabilities": {"reasoning": {"confidence": 0.9}}
             },
-            "must be non-negative": {
-                "economics": {"task_cost_usd": {"value": -100}}
-            },
+            "must be non-negative": {"economics": {"task_cost_usd": {"value": -100}}},
             "must be positive": {
                 "economics": {"output_tokens_per_second": {"value": -5}}
             },
-            "string evidence": {
-                "capabilities": {"reasoning": {"evidence": [1, 2]}}
-            },
+            "string evidence": {"capabilities": {"reasoning": {"evidence": [1, 2]}}},
             "confidence must be a non-empty str": {
                 "capabilities": {"reasoning": {"confidence": None}}
             },
@@ -812,13 +847,13 @@ class RouterTest(unittest.TestCase):
         }
         runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
         self.assertEqual(0.5, runtime["harnesses"]["codex"]["quota"]["pressure"])
-        self.assertEqual(34, runtime["harnesses"]["codex"]["quota"]["effective_percent_remaining"])
+        self.assertEqual(
+            34, runtime["harnesses"]["codex"]["quota"]["effective_percent_remaining"]
+        )
         opencode = runtime["harnesses"]["opencode"]["quota"]
         self.assertEqual("unknown", opencode["status"])
         self.assertIn("cannot read Kimi Code OAuth quota", opencode["detail"])
-        proxy = runtime["candidates"][
-            "claude/kimi-k3[1m]/max"
-        ]["quota"]
+        proxy = runtime["candidates"]["claude/kimi-k3[1m]/max"]["quota"]
         self.assertEqual("unknown", proxy["status"])
         self.assertIn("cannot read", runtime["notes"][0])
 
@@ -1017,7 +1052,10 @@ class RouterTest(unittest.TestCase):
         reasons, warnings = router.gate(candidate_id, candidate, runtime)
         self.assertEqual([], reasons)
         self.assertTrue(
-            any("quota pooled (pooled codex accounts)" in warning for warning in warnings),
+            any(
+                "quota pooled (pooled codex accounts)" in warning
+                for warning in warnings
+            ),
             warnings,
         )
         self.assertTrue(
@@ -1042,15 +1080,11 @@ class RouterTest(unittest.TestCase):
             catalog["candidates"],
         )
         native = "codex/gpt-5.6-sol/xhigh"
-        reasons, _warnings = router.gate(
-            native, catalog["candidates"][native], runtime
-        )
+        reasons, _warnings = router.gate(native, catalog["candidates"][native], runtime)
         self.assertEqual(
             ["quota exhausted (account launch-account@example.com)"], reasons
         )
-        reasons, _warnings = router.gate(
-            pooled, catalog["candidates"][pooled], runtime
-        )
+        reasons, _warnings = router.gate(pooled, catalog["candidates"][pooled], runtime)
         self.assertEqual([], reasons)
 
     def test_pooled_candidate_passes_without_per_launch_acceptance(self):
@@ -1061,9 +1095,7 @@ class RouterTest(unittest.TestCase):
         state = router.runtime_for(
             {"harnesses": {"claudex": {}}}, candidate_id, candidate
         )
-        pending, acceptance = router.acceptance_terms(
-            router.quota_summary(state), None
-        )
+        pending, acceptance = router.acceptance_terms(router.quota_summary(state), None)
         self.assertIsNone(pending)
         self.assertIsNone(acceptance)
 
@@ -1108,9 +1140,7 @@ class RouterTest(unittest.TestCase):
                 }
             }
         )
-        self.assertEqual(
-            {"email": "launch-account@example.com"}, summary["account"]
-        )
+        self.assertEqual({"email": "launch-account@example.com"}, summary["account"])
 
     def test_run_quota_axi_requests_account_attribution(self):
         captured = {}
@@ -1151,9 +1181,7 @@ class RouterTest(unittest.TestCase):
             ],
         }
         runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
-        candidate = runtime["candidates"][
-            "claudex/grok-4.6/high"
-        ]["quota"]
+        candidate = runtime["candidates"]["claudex/grok-4.6/high"]["quota"]
         self.assertEqual("known", candidate["status"])
         self.assertEqual(57, candidate["effective_percent_remaining"])
         self.assertEqual(candidate, runtime["harnesses"]["grok"]["quota"])
@@ -1566,7 +1594,9 @@ class RouterTest(unittest.TestCase):
             router.run_quota_axi = original
         self.assertEqual([None, ("grok",)], calls)
         self.assertEqual("known", runtime["harnesses"]["grok"]["quota"]["status"])
-        self.assertEqual(41, runtime["harnesses"]["grok"]["quota"]["effective_percent_remaining"])
+        self.assertEqual(
+            41, runtime["harnesses"]["grok"]["quota"]["effective_percent_remaining"]
+        )
         self.assertEqual("known", runtime["harnesses"]["codex"]["quota"]["status"])
         self.assertIn("retried stale provider(s): grok", runtime["notes"][-1])
 

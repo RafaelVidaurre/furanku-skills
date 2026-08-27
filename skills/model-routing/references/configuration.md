@@ -67,7 +67,8 @@ Run both views because exact dispatch and the routing brief are separate surface
 CONFIG=<skill-dir>/scripts/config.py
 ROUTER=<skill-dir>/scripts/router.py
 python3 "$CONFIG" report --repo <root> [--route <id> ...]
-python3 "$ROUTER" brief --repo <root> [--quota-axi]
+python3 "$ROUTER" brief --repo <root> [--quota-axi] \
+  [--launchable-via <agent,...>]
 ```
 
 The first shows persisted layers, exact rows, and whole-row winners. The second shows what a spawning agent sees: preferences with scope tags, effective routes, and the merged candidate table with evidence. A raw file alone does not establish effective configuration.

@@ -9,10 +9,11 @@ The agent about to spawn work—not a script—decides which agent, model, and e
 
 ## Generate the brief
 
-Generate the brief before choosing; its Exact routes section is the normative source for when a configured route applies. An instruction naming only a mechanism or orchestration surface is a consumer launch constraint, not an exact-route request or routing override. For example, “use Orca” does not bind any `agent` or exclude catalog agents that surface can launch. A launcher that serves models no other launcher can reach is a distinct capability identity and carries its own catalog `agent` token, so naming it does bind routing: `claudex` is such a token, and its candidates are unreachable to a consumer whose `--launchable-via` omits it. A combined instruction that also names an agent, model, or effort binds launch and routing independently. Generate the brief with live quota and read it:
+Generate the brief before choosing; its Exact routes section is the normative source for when a configured route applies. An instruction naming only a mechanism or orchestration surface is a consumer launch constraint, not an exact-route request or routing override. For example, “use Orca” does not bind any `agent` or exclude catalog agents that surface can launch. A launcher that serves models no other launcher can reach is a distinct capability identity and carries its own catalog `agent` token, so naming it does bind routing: `claudex` is such a token, and its candidates are unreachable to a consumer whose launchable-agent set omits it. A combined instruction that also names an agent, model, or effort binds launch and routing independently. Generate the brief with live quota and, when known, limit it to what the consumer can launch:
 
 ```sh
-python3 <skill-dir>/scripts/router.py brief --repo <root> --quota-axi
+python3 <skill-dir>/scripts/router.py brief --repo <root> --quota-axi \
+  [--launchable-via <agent,...>]
 ```
 
 One brief serves the whole spawning session—reuse it across decisions and regenerate only after a configuration change or when the brief's printed quota capture time is more than 30 minutes old. If quota-axi fails, the brief says so in its notes and quota stays unknown; the acceptance gate in `check` handles that—never estimate quota yourself.
@@ -23,9 +24,9 @@ One brief serves the whole spawning session—reuse it across decisions and rege
 
 The brief carries what the session does not otherwise know: the user's routing preferences by scope, configured exact routes, and every launchable candidate with research evidence, task cost, speed, features, context capacity, and current quota. Judge each outcome on the dimensions the evidence covers—reasoning depth, implementation demands, agentic repository work, UI or spatial character—plus risk: how expensive a wrong result is, and whether the owner holds write authority. Cost means subscription-quota burden for subscription routes and cash only for metered routes: choose the candidate that spends less of its own provider's subscription quota—as the brief defines quota-lighter—whenever it has no material task-relevant disadvantage, and never argue a subscription route is free because the subscription is already paid or its quota is pooled. For candidates sharing an agent and model, lower effort is presumptively cheaper when exact effort-matched benchmark cost is unknown. Broad scope, many findings, a prior failed run, and generic cost-of-error arguments do not alone establish that max is necessary; split broad implementation or remediation into independently verifiable outcomes. Spend premium capability only when the capability difference matters to the cost of being wrong, and let the rationale for an expensive pick name why cheaper candidates were insufficient. Preferences bind: resolve conflicts by the precedence order the brief states, and when applicability stays genuinely ambiguous, ask the principal instead of inventing precedence. Low-confidence or dated evidence and quota warnings belong in the rationale, not silently absorbed.
 
-Identify the outcome's hard requirements—vision, long context, a minimum context size—and the catalog agent tokens the spawning mechanism can actually launch; both become `check` flags, never mental notes.
+Identify the outcome's hard requirements—vision, long context, a minimum context size—and the catalog agent tokens the spawning mechanism can actually launch. Give these to the check directly, or use a consumer adapter that derives them from its structured manifest. Keep the rationale concise: record the task-specific judgment, not a retelling of the routing policy.
 
-**Complete when:** the pick has a written rationale naming the task judgment, and every hard requirement and launchable-agent constraint is listed for the check.
+**Complete when:** the pick has a written rationale naming the task judgment, every hard requirement is listed for the check, and launchable-agent constraints are either listed or injected by the consumer adapter.
 
 ## Gate-check the decision
 
@@ -37,10 +38,10 @@ python3 <skill-dir>/scripts/router.py check --repo <root> \
   [--max-effort-basis "<why xhigh or the strongest lower effort is insufficient>"] \
   [--launchable-via <agent,...>] \
   [--require-feature <feature>] [--minimum-context <tokens>] \
-  --quota-axi --compact
+  --quota-axi
 ```
 
-When the brief's activation rule applies, use `check --exact-route <route-id> --route-basis "<verbatim principal request>"` instead of `--candidate`/`--reason`. Preserve that basis on every quota-acceptance or fallback re-check. `--launchable-via` names the catalog `agent` tokens the consumer's spawning mechanism can launch (for example `claude` alone for harness-native subagents); a candidate outside that set is refused, never silently substituted.
+When the brief's activation rule applies, use `check --exact-route <route-id> --route-basis "<verbatim principal request>"` instead of `--candidate`/`--reason`. Preserve that basis on every quota-acceptance or fallback re-check. `--launchable-via` names the catalog `agent` tokens the consumer's spawning mechanism can launch (for example `claude` alone for harness-native subagents); a candidate outside that set is refused, never silently substituted. A consumer that already owns this list should inject it rather than asking the spawning agent to transcribe it. `--compact` changes JSON whitespace only and is never part of the routing proof.
 
 `check` enforces hard gates—disabled candidates, missing required features or context, unlaunchable agents, authentication, exhausted quota—and maximum-effort proportionality. A judged `max` candidate is refused when the same agent and model have an enabled lower-effort candidate unless `--max-effort-basis` explicitly names the strongest lower effort and records why it is materially insufficient. Principal-requested exact routes remain governed by their verbatim route basis. The check emits one JSON decision:
 

@@ -48,11 +48,11 @@ A manifest is the checkable statement of what a mechanism can honor; `packet` re
 }
 ```
 
-`launchable_agents` lists all and only the routing catalog's `agent` tokens the selected orchestration surface can start in the current session—the catalog's vocabulary, not the mechanism name—and `check --launchable-via` takes exactly this list. The selected `agent` is a capability identity for routing and gating, not a generic launch API parameter; each mechanism profile defines how the packet maps to its API. Resolve the list from the selected surface's current capabilities rather than wrapper-wide capability: a launcher that reaches models no other launcher can serve holds its own token, so omitting that token is what makes its models unreachable. Omit the token of any launcher this session will not use, including one whose registry entry is `disabled`—parking a mechanism does not by itself retire the routes that only it can serve. `extras` declares the mechanism-specific fields every packet must carry.
+`launchable_agents` lists all and only the routing catalog's `agent` tokens the selected orchestration surface can start in the current session—the catalog's vocabulary, not the mechanism name. Crew's `brief` and `packet` commands inject this list into model-routing; direct router consumers pass the same list as `--launchable-via`. The selected `agent` is a capability identity for routing and gating, not a generic launch API parameter; each mechanism profile defines how the packet maps to its API. Resolve the list from the selected surface's current capabilities rather than wrapper-wide capability: a launcher that reaches models no other launcher can serve holds its own token, so omitting that token is what makes its models unreachable. Omit the token of any launcher this session will not use, including one whose registry entry is `disabled`—parking a mechanism does not by itself retire the routes that only it can serve. `extras` declares the mechanism-specific fields every packet must carry.
 
 ### harness-native (default)
 
-Always available: the native coordination facilities of whatever harness is running. Resolve the native profile from capabilities visible in the current session, not from the launcher executable's name. Prefer a native orchestration surface that represents dependencies, shared progress, and correlated completion; use individual subagents or background agents when the harness has no such surface. Set `launchable_agents` to the catalog agent tokens that surface can actually start—a stock harness launches only its own vendor's models, which is why routing must see `--launchable-via`.
+Always available: the native coordination facilities of whatever harness is running. Resolve the native profile from capabilities visible in the current session, not from the launcher executable's name. Prefer a native orchestration surface that represents dependencies, shared progress, and correlated completion; use individual subagents or background agents when the harness has no such surface. Set `launchable_agents` to the catalog agent tokens that surface can actually start—a stock harness launches only its own vendor's models, and Crew carries that constraint into routing.
 
 #### Claude Code workflow profile
 
@@ -126,7 +126,7 @@ Custom Workflow profiles apply the Workflow field mapping above. Their `launchab
 
 ## Work-record adapters
 
-The adapter names the tracker; `--work-ref <adapter>:<ref>` points a packet at an existing contract, `--request` plus `--work-record <adapter>` bootstraps the first one.
+The adapter names the tracker; `--work-ref <adapter>:<ref>` points a packet at an existing contract. `--request` bootstraps the first record with the resolved adapter; pass `--work-record <adapter|none>` only for a session override.
 
 | Adapter | Record | Example ref |
 | --- | --- | --- |

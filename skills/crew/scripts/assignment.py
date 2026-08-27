@@ -2,9 +2,9 @@
 """Crew seam resolution and assignment packets.
 
 `seams` resolves which orchestration mechanism and work-record adapter this
-machine and project configured, with provenance. `packet` turns a launchable
-model-routing decision plus a mechanism manifest into the assignment packet a
-spawning owner delivers, refusing combinations the mechanism cannot honor.
+machine and project configured, with provenance. `packet` gate-checks a routing
+pick against its mechanism manifest, or accepts a saved model-routing decision,
+then builds the assignment packet a spawning owner delivers.
 """
 
 from __future__ import annotations
@@ -53,10 +53,25 @@ KNOWN_MANIFESTS = {
     },
 }
 RESERVED_SPEC_KEYS = {
-    "outcome", "role", "reports_to", "mechanism", "isolation", "coordination",
-    "agent", "model", "effort", "route", "candidate", "work_ref",
-    "bootstrap_request", "routing_status", "routing_reason", "routing_warnings",
-    "routing_quota", "routing_quota_acceptance", "route_source",
+    "outcome",
+    "role",
+    "reports_to",
+    "mechanism",
+    "isolation",
+    "coordination",
+    "agent",
+    "model",
+    "effort",
+    "route",
+    "candidate",
+    "work_ref",
+    "bootstrap_request",
+    "routing_status",
+    "routing_reason",
+    "routing_warnings",
+    "routing_quota",
+    "routing_quota_acceptance",
+    "route_source",
     "launch_constraint",
 }
 
@@ -153,7 +168,9 @@ def validate_manifest(manifest, label="manifest"):
         raise Error(f"{label}.extras must be an object")
     for key, pattern in extras.items():
         if not isinstance(key, str) or not EXTRA_KEY.fullmatch(key):
-            raise Error(f"{label}.extras key must be a lowercase identifier, got {key!r}")
+            raise Error(
+                f"{label}.extras key must be a lowercase identifier, got {key!r}"
+            )
         if key in RESERVED_SPEC_KEYS:
             raise Error(f"{label}.extras key {key!r} collides with a packet field")
         if not isinstance(pattern, str):
@@ -195,10 +212,15 @@ def load_seam_layer(path, scope):
     registry = data.get("mechanisms")
     if registry is not None:
         if not isinstance(registry, dict):
-            raise Error(f"{scope} crew config mechanisms must map mechanism id to entry")
+            raise Error(
+                f"{scope} crew config mechanisms must map mechanism id to entry"
+            )
         for mech_id, entry in registry.items():
             token(mech_id, f"{scope} mechanisms id")
-            if not isinstance(entry, dict) or not set(entry) <= {"disabled", "manifest"}:
+            if not isinstance(entry, dict) or not set(entry) <= {
+                "disabled",
+                "manifest",
+            }:
                 raise Error(
                     f"{scope} crew config mechanisms.{mech_id} allows only: "
                     "disabled, manifest"
@@ -229,9 +251,7 @@ def resolve_seams(repo):
     for scope in SCOPES:
         path = paths[scope]
         present = path.exists()
-        result["layers"].append(
-            {"scope": scope, "path": str(path), "present": present}
-        )
+        result["layers"].append({"scope": scope, "path": str(path), "present": present})
         if not present:
             continue
         data = load_seam_layer(path, scope)
@@ -280,8 +300,18 @@ def resolve_manifest_id(mech_id, repo):
     )
 
 
-def load_manifest(value, repo):
-    """--manifest accepts '-', inline JSON, a file path, or a mechanism id."""
+def load_manifest(value, repo, seams=None):
+    """Use the configured manifest, or parse an explicit id/JSON/file/stdin value."""
+    if value is None:
+        resolved = seams or resolve_seams(repo)
+        active = resolved["mechanism"]
+        manifest = active.get("manifest")
+        if manifest is None:
+            raise Error(
+                f"active mechanism {active['id']!r} has no configured manifest; "
+                "pass --manifest with the current harness profile"
+            )
+        return validate_manifest(manifest)
     if value != "-" and not value.lstrip().startswith("{"):
         if not Path(value).expanduser().exists() and TOKEN.fullmatch(value):
             return resolve_manifest_id(value, repo)
@@ -291,8 +321,7 @@ def load_manifest(value, repo):
 # --- packet ----------------------------------------------------------------
 
 
-def read_decision(value):
-    decision = read_json_arg(value, "--decision-json")
+def validate_decision(decision):
     status = decision.get("status")
     exact_route = decision.get("exact_route")
     if isinstance(exact_route, str) and exact_route.strip():
@@ -300,6 +329,24 @@ def read_decision(value):
         if not isinstance(route_basis, str) or not route_basis.strip():
             raise Error("exact route decision requires a recorded route basis")
     if status == "needs-acceptance":
+        quota = decision.get("quota")
+        remedy = quota.get("remedy") if isinstance(quota, dict) else None
+        route = decision.get("exact_route")
+        retry_target = (
+            "exact route" if isinstance(route, str) and route.strip() else "candidate"
+        )
+        if isinstance(remedy, str) and remedy.strip():
+            detail = quota.get("detail")
+            problem = (
+                detail.strip()
+                if isinstance(detail, str) and detail.strip()
+                else f"quota is {quota.get('status', 'unavailable')}"
+            )
+            raise Error(
+                "routing decision needs a runtime refresh before dispatch: "
+                f"{problem}. Run `{remedy.strip()}` with no prompt, wait until "
+                f"the session loads, exit it, and re-check the same {retry_target}."
+            )
         pending = "; ".join(decision.get("pending", [])) or "quota acceptance pending"
         extra = ""
         fallback = decision.get("quota_fallback")
@@ -315,8 +362,7 @@ def read_decision(value):
         raise Error(
             "routing decision needs acceptance before dispatch: "
             f"{pending}. Obtain the principal's acceptance and re-run the "
-            "routing check with --accept-quota-unknown."
-            + extra
+            f"same {retry_target} with --accept-quota-unknown." + extra
         )
     if status == "refused":
         reasons = decision.get("reasons")
@@ -374,6 +420,165 @@ def read_decision(value):
     return decision
 
 
+def read_decision(value):
+    return validate_decision(read_json_arg(value, "--decision-json"))
+
+
+def default_router_path():
+    return (
+        Path(__file__).resolve().parent.parent.parent
+        / "model-routing"
+        / "scripts"
+        / "router.py"
+    )
+
+
+def router_path(value):
+    router = Path(value).expanduser() if value else default_router_path()
+    if not router.is_file():
+        raise Error(
+            f"model-routing is unavailable at {router}; install it beside Crew "
+            "or pass --router <path>"
+        )
+    return router
+
+
+def routing_brief(args):
+    manifest = load_manifest(args.manifest, args.repo)
+    command = [
+        sys.executable,
+        str(router_path(args.router)),
+        "brief",
+        "--repo",
+        args.repo,
+        "--launchable-via",
+        ",".join(manifest["launchable_agents"]),
+        "--quota-axi",
+    ]
+    if args.runtime_file:
+        command += ["--runtime-file", args.runtime_file]
+    if args.format:
+        command += ["--format", args.format]
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        raise Error(
+            "model-routing brief failed: "
+            + (result.stderr.strip() or result.stdout.strip() or "no output")
+        )
+    return result.stdout
+
+
+def route_decision(args, manifest):
+    if args.decision_json is not None:
+        modifiers = (
+            args.reason,
+            args.route_basis,
+            args.max_effort_basis,
+            args.require_feature,
+            args.minimum_context,
+            args.accept_quota_unknown,
+            args.use_quota_fallback,
+            args.runtime_file,
+        )
+        if any(value is not None and value != [] for value in modifiers):
+            raise Error(
+                "saved --decision-json cannot be combined with routing check options"
+            )
+        return read_decision(args.decision_json)
+
+    if args.candidate:
+        if not args.reason or not args.reason.strip():
+            raise Error("--candidate requires --reason with the task judgment")
+        if args.route_basis is not None or args.use_quota_fallback is not None:
+            raise Error(
+                "--route-basis and --use-quota-fallback apply only to --exact-route"
+            )
+    else:
+        if not args.route_basis or not args.route_basis.strip():
+            raise Error(
+                "--exact-route requires --route-basis with the principal's request"
+            )
+        if args.reason is not None or args.max_effort_basis is not None:
+            raise Error("--reason and --max-effort-basis apply only to --candidate")
+
+    command = [
+        sys.executable,
+        str(router_path(args.router)),
+        "check",
+        "--repo",
+        args.repo,
+        "--launchable-via",
+        ",".join(manifest["launchable_agents"]),
+        "--quota-axi",
+    ]
+    if args.candidate:
+        command += ["--candidate", args.candidate, "--reason", args.reason]
+    else:
+        command += [
+            "--exact-route",
+            args.exact_route,
+            "--route-basis",
+            args.route_basis,
+        ]
+    scalar_options = (
+        ("--max-effort-basis", args.max_effort_basis),
+        ("--minimum-context", args.minimum_context),
+        ("--accept-quota-unknown", args.accept_quota_unknown),
+        ("--use-quota-fallback", args.use_quota_fallback),
+        ("--runtime-file", args.runtime_file),
+    )
+    for flag, value in scalar_options:
+        if value is not None:
+            command += [flag, str(value)]
+    for feature in args.require_feature:
+        command += ["--require-feature", feature]
+
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    try:
+        decision = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        detail = result.stderr.strip() or result.stdout.strip() or "no output"
+        raise Error(f"model-routing check failed: {detail}") from exc
+    if not isinstance(decision, dict):
+        raise Error("model-routing check did not return a JSON object")
+    status = decision.get("status")
+    expected_exit = {
+        "selected": 0,
+        "exact": 0,
+        "refused": 1,
+        "needs-acceptance": 2,
+    }.get(status)
+    if expected_exit is None or result.returncode != expected_exit:
+        raise Error(
+            "model-routing check returned an inconsistent result: "
+            f"status {status!r} requires exit {expected_exit}, got {result.returncode}"
+        )
+    if args.candidate:
+        returned_candidate = decision.get("candidate")
+        selected = decision.get("selected")
+        if isinstance(selected, dict):
+            returned_candidate = selected.get("id", returned_candidate)
+        if returned_candidate != args.candidate:
+            raise Error(
+                "model-routing check returned a different candidate than requested"
+            )
+        if (
+            status in {"selected", "needs-acceptance"}
+            and decision.get("reason") != args.reason.strip()
+        ):
+            raise Error(
+                "model-routing check returned a different candidate rationale than requested"
+            )
+    elif (
+        decision.get("exact_route") != args.exact_route
+        or decision.get("route_basis") != args.route_basis.strip()
+    ):
+        raise Error(
+            "model-routing check returned a different exact route or route basis than requested"
+        )
+    return validate_decision(decision)
+
+
 def parse_extras(pairs, manifest):
     extras = {}
     for pair in pairs:
@@ -409,7 +614,7 @@ def parse_launch_constraints(values):
     return constraints
 
 
-def parse_work(args):
+def parse_work(args, configured_adapter=None):
     if bool(args.work_ref) == bool(args.request):
         raise Error("provide exactly one of --work-ref or --request")
     if args.work_ref:
@@ -427,15 +632,15 @@ def parse_work(args):
         return {"type": "ref", "adapter": adapter, "ref": ref}
     if not args.request.strip():
         raise Error("--request must carry the verbatim request")
-    if not args.work_record:
+    work_record = args.work_record or configured_adapter
+    if not work_record:
         raise Error(
-            "--request requires --work-record <adapter|none> from the seams "
-            "resolution"
+            "--request requires --work-record <adapter|none> from the seams resolution"
         )
-    if args.work_record == "none":
+    if work_record == "none":
         return {"type": "direct", "adapter": None, "request": args.request}
-    token(args.work_record, "--work-record")
-    return {"type": "bootstrap", "adapter": args.work_record, "request": args.request}
+    token(work_record, "--work-record")
+    return {"type": "bootstrap", "adapter": work_record, "request": args.request}
 
 
 def routing_summary(decision):
@@ -472,22 +677,30 @@ def build_packet(args):
         raise Error("a Captain cannot assign another Captain")
     if args.manifest == "-" and args.decision_json == "-":
         raise Error("only one of --decision-json and --manifest may read stdin")
-    manifest = load_manifest(args.manifest, args.repo)
-    decision = read_decision(args.decision_json)
+    needs_seams = args.manifest is None or (args.request and not args.work_record)
+    seams = resolve_seams(args.repo) if needs_seams else None
+    manifest = load_manifest(args.manifest, args.repo, seams)
+    decision = route_decision(args, manifest)
+    if args.decision_out:
+        destination = Path(args.decision_out).expanduser()
+        try:
+            destination.write_text(
+                json.dumps(decision, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            raise Error(f"cannot write --decision-out {destination}: {exc}") from exc
     if decision["status"] == "exact":
         route_id = decision["exact_route"]
         if route_id != args.role and not route_id.startswith(f"{args.role}."):
-            raise Error(
-                f"exact route {route_id!r} does not match role {args.role!r}"
-            )
+            raise Error(f"exact route {route_id!r} does not match role {args.role!r}")
     agent = decision["selected"]["agent"]
     if agent not in manifest["launchable_agents"]:
         message = (
             f"mechanism {manifest['mechanism']!r} cannot launch agent {agent!r}; "
             "its launchable agents are: "
             + ", ".join(manifest["launchable_agents"])
-            + ". Re-run the routing check with --launchable-via "
-            + ",".join(manifest["launchable_agents"])
+            + ". The saved decision was checked for a different launch surface"
         )
         if decision["status"] == "exact":
             message += (
@@ -496,11 +709,14 @@ def build_packet(args):
                 "the conflict to the principal."
             )
         else:
-            message += " and re-judge within unchanged principal constraints."
+            message += (
+                "; create a new packet from the same task constraints and re-judge."
+            )
         raise Error(message)
     extras = parse_extras(args.extra, manifest)
     launch_constraints = parse_launch_constraints(args.launch_constraint)
-    work = parse_work(args)
+    configured_adapter = seams["work_record"]["adapter"] if seams else None
+    work = parse_work(args, configured_adapter)
     routing = routing_summary(decision)
     skill = Path(__file__).resolve().parent.parent / "SKILL.md"
     contract = skill.parent / "references" / f"{args.role}.md"
@@ -510,8 +726,7 @@ def build_packet(args):
         f"reports_to: {args.reports_to}",
         f"mechanism: {manifest['mechanism']}",
         "isolation: " + json.dumps(manifest.get("isolation", False)),
-        "coordination: "
-        + json.dumps(manifest["communication"], ensure_ascii=False),
+        "coordination: " + json.dumps(manifest["communication"], ensure_ascii=False),
     ]
     lines += [f"{key}: {extras[key]}" for key in sorted(extras)]
     lines += [
@@ -531,8 +746,7 @@ def build_packet(args):
     if routing["status"] == "exact":
         lines.append(f"route: {routing['route']}")
         lines.append(
-            "route_basis: "
-            + json.dumps(routing["route_basis"], ensure_ascii=False)
+            "route_basis: " + json.dumps(routing["route_basis"], ensure_ascii=False)
         )
         lines.append(
             f"route_source: {routing['source']['scope']} — {routing['source']['path']}"
@@ -598,19 +812,85 @@ def main(argv=None):
     seams.add_argument("--repo", default=".")
     seams.add_argument("--compact", action="store_true")
 
+    brief = commands.add_parser(
+        "brief", help="show routing choices the active mechanism can launch"
+    )
+    brief.add_argument(
+        "--manifest",
+        help=(
+            "mechanism manifest JSON, file, '-', or id; defaults to the configured "
+            "active manifest"
+        ),
+    )
+    brief.add_argument("--repo", default=".")
+    brief.add_argument(
+        "--router",
+        help="model-routing router.py path when it is not installed beside Crew",
+    )
+    brief.add_argument(
+        "--runtime-file", help="additional ephemeral routing runtime JSON"
+    )
+    brief.add_argument("--format", choices=("markdown", "json"), default=None)
+
     packet = commands.add_parser("packet", help="build an assignment packet")
     packet.add_argument("--title", required=True)
     packet.add_argument("--role", required=True, choices=ROLES)
     packet.add_argument(
         "--reports-to", required=True, choices=("user", "commander", "captain")
     )
+    routing = packet.add_mutually_exclusive_group(required=True)
+    routing.add_argument(
+        "--decision-json", help="saved model-routing check output; '-' = stdin"
+    )
+    routing.add_argument(
+        "--candidate", help="candidate ID chosen from the routing brief"
+    )
+    routing.add_argument(
+        "--exact-route", help="configured route requested by the principal"
+    )
     packet.add_argument(
-        "--decision-json", required=True, help="model-routing check output; '-' = stdin"
+        "--reason", help="concise task judgment behind a --candidate pick"
+    )
+    packet.add_argument(
+        "--route-basis",
+        help="verbatim principal request authorizing an --exact-route",
+    )
+    packet.add_argument(
+        "--max-effort-basis",
+        help="why the strongest enabled lower effort is materially insufficient",
+    )
+    packet.add_argument(
+        "--require-feature",
+        action="append",
+        default=[],
+        help="hard model feature requirement, repeatable",
+    )
+    packet.add_argument("--minimum-context", type=int)
+    packet.add_argument(
+        "--accept-quota-unknown",
+        help="who accepted launching without live quota, and why",
+    )
+    packet.add_argument(
+        "--use-quota-fallback",
+        help="basis for using an exact route's configured quota fallback",
+    )
+    packet.add_argument(
+        "--runtime-file", help="additional ephemeral routing runtime JSON"
+    )
+    packet.add_argument(
+        "--router",
+        help="model-routing router.py path when it is not installed beside Crew",
+    )
+    packet.add_argument(
+        "--decision-out",
+        help="write the raw gate-checked decision for later packet rebuilds",
     )
     packet.add_argument(
         "--manifest",
-        required=True,
-        help="mechanism manifest JSON, file, '-', or a resolvable mechanism id",
+        help=(
+            "mechanism manifest JSON, file, '-', or id; defaults to the configured "
+            "active manifest"
+        ),
     )
     packet.add_argument(
         "--repo", default=".", help="repo root for resolving --manifest by id"
@@ -646,6 +926,9 @@ def main(argv=None):
                 indent=None if args.compact else 2,
             )
             sys.stdout.write("\n")
+            return 0
+        if args.command == "brief":
+            sys.stdout.write(routing_brief(args))
             return 0
         result = build_packet(args)
     except Error as exc:

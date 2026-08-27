@@ -7,10 +7,15 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 
 
 SCRIPT = Path(__file__).with_name("assignment.py")
+PACKET_HOME = tempfile.TemporaryDirectory()
+PACKET_ENV = os.environ.copy()
+PACKET_ENV["HOME"] = PACKET_HOME.name
+PACKET_ENV["CODEX_HOME"] = str(Path(PACKET_HOME.name) / "codex")
 
 ORCA_MANIFEST = {
     "mechanism": "orca",
@@ -69,6 +74,7 @@ def run(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str
         input=stdin,
         capture_output=True,
         text=True,
+        env=PACKET_ENV,
         check=False,
     )
 
@@ -77,7 +83,299 @@ def packet_args(decision: dict, base: list[str] | None = None) -> list[str]:
     return [*(base or BASE), "--decision-json", json.dumps(decision)]
 
 
+def fake_router(
+    directory: Path, expected: list[str], decision: dict, exit_code: int = 0
+) -> Path:
+    script = directory / "router.py"
+    script.write_text(
+        textwrap.dedent(
+            f"""\
+            import json
+            import sys
+
+            expected = {expected!r}
+            missing = [item for item in expected if item not in sys.argv[1:]]
+            if missing:
+                print("missing routing arguments: " + ", ".join(missing), file=sys.stderr)
+                raise SystemExit(1)
+            print(json.dumps({decision!r}))
+            raise SystemExit({exit_code})
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script
+
+
 class PacketTest(unittest.TestCase):
+    def test_brief_derives_launchers_from_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            router = fake_router(
+                Path(directory),
+                ["brief", "--launchable-via", "claude", "--quota-axi"],
+                {"brief": "filtered"},
+            )
+            result = run(
+                "brief",
+                "--manifest",
+                json.dumps(HARNESS_MANIFEST),
+                "--router",
+                str(router),
+                "--format",
+                "json",
+            )
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual({"brief": "filtered"}, json.loads(result.stdout))
+
+    def test_packet_routes_candidate_and_derives_manifest_constraints(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = str(Path(directory) / "runtime.json")
+            decision_out = Path(directory) / "decision.json"
+            router = fake_router(
+                Path(directory),
+                [
+                    "check",
+                    "--candidate",
+                    "claude/sonnet/high",
+                    "--reason",
+                    "Small but judgment-heavy review.",
+                    "--launchable-via",
+                    "claude",
+                    "--quota-axi",
+                    "--max-effort-basis",
+                    "xhigh is materially insufficient.",
+                    "--minimum-context",
+                    "200000",
+                    "--accept-quota-unknown",
+                    "Principal accepted unknown quota.",
+                    "--runtime-file",
+                    runtime,
+                    "--require-feature",
+                    "vision",
+                ],
+                {
+                    "status": "selected",
+                    "selected": {
+                        "id": "claude/sonnet/high",
+                        "agent": "claude",
+                        "model": "sonnet",
+                        "effort": "high",
+                    },
+                    "reason": "Small but judgment-heavy review.",
+                    "warnings": [],
+                    "quota": {"status": "available"},
+                },
+            )
+            base = [
+                "packet",
+                "--title",
+                "Review the change",
+                "--role",
+                "worker",
+                "--reports-to",
+                "captain",
+                "--manifest",
+                json.dumps(HARNESS_MANIFEST),
+                "--work-ref",
+                "beads:review-1",
+            ]
+            result = run(
+                *base,
+                "--candidate",
+                "claude/sonnet/high",
+                "--reason",
+                "Small but judgment-heavy review.",
+                "--router",
+                str(router),
+                "--max-effort-basis",
+                "xhigh is materially insufficient.",
+                "--minimum-context",
+                "200000",
+                "--accept-quota-unknown",
+                "Principal accepted unknown quota.",
+                "--runtime-file",
+                runtime,
+                "--require-feature",
+                "vision",
+                "--decision-out",
+                str(decision_out),
+            )
+            saved = json.loads(decision_out.read_text(encoding="utf-8"))
+        self.assertEqual(0, result.returncode, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual("claude/sonnet/high", payload["routing"]["candidate"])
+        self.assertEqual("available", payload["routing"]["quota"]["status"])
+        self.assertEqual("selected", saved["status"])
+        self.assertIn("selected", saved)
+
+    def test_packet_routes_exact_route_without_manual_gate_arguments(self):
+        with tempfile.TemporaryDirectory() as directory:
+            router = fake_router(
+                Path(directory),
+                [
+                    "--exact-route",
+                    "worker",
+                    "--route-basis",
+                    ROUTE_BASIS,
+                    "--launchable-via",
+                    "claude",
+                    "--quota-axi",
+                    "--use-quota-fallback",
+                    "Principal did not answer within 120s.",
+                    "--minimum-context",
+                    "100000",
+                    "--require-feature",
+                    "tools",
+                ],
+                {
+                    "status": "exact",
+                    "selected": {
+                        "id": "claude/sonnet/high",
+                        "agent": "claude",
+                        "model": "sonnet",
+                        "effort": "high",
+                    },
+                    "exact_route": "worker",
+                    "route_basis": ROUTE_BASIS,
+                    "provenance": {
+                        "winner": {"scope": "global", "path": "/tmp/config.json"}
+                    },
+                    "warnings": [],
+                    "quota": {"status": "available"},
+                },
+            )
+            base = [
+                "packet",
+                "--title",
+                "Review the change",
+                "--role",
+                "worker",
+                "--reports-to",
+                "captain",
+                "--manifest",
+                json.dumps(HARNESS_MANIFEST),
+                "--work-ref",
+                "beads:review-1",
+            ]
+            result = run(
+                *base,
+                "--exact-route",
+                "worker",
+                "--route-basis",
+                ROUTE_BASIS,
+                "--router",
+                str(router),
+                "--use-quota-fallback",
+                "Principal did not answer within 120s.",
+                "--minimum-context",
+                "100000",
+                "--require-feature",
+                "tools",
+            )
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("worker", json.loads(result.stdout)["routing"]["route"])
+
+    def test_packet_rejects_failed_router_even_with_launchable_json(self):
+        with tempfile.TemporaryDirectory() as directory:
+            router = fake_router(Path(directory), ["check"], SELECTED, exit_code=9)
+            result = run(
+                *BASE,
+                "--candidate",
+                SELECTED["selected"]["id"],
+                "--reason",
+                SELECTED["reason"],
+                "--router",
+                str(router),
+            )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("inconsistent result", result.stderr)
+
+    def test_packet_rejects_router_response_for_another_candidate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            router = fake_router(Path(directory), ["check"], SELECTED)
+            result = run(
+                *BASE,
+                "--candidate",
+                "codex/gpt-5.6-sol/high",
+                "--reason",
+                SELECTED["reason"],
+                "--router",
+                str(router),
+            )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("different candidate than requested", result.stderr)
+
+    def test_packet_rejects_router_response_with_changed_route_basis(self):
+        decision = {
+            "status": "exact",
+            "selected": {
+                "id": "claude/sonnet/high",
+                "agent": "claude",
+                "model": "sonnet",
+                "effort": "high",
+            },
+            "exact_route": "worker",
+            "route_basis": "A different request.",
+            "provenance": {"winner": {"scope": "global", "path": "/tmp/config.json"}},
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            router = fake_router(Path(directory), ["check"], decision)
+            result = run(
+                *BASE,
+                "--exact-route",
+                "worker",
+                "--route-basis",
+                ROUTE_BASIS,
+                "--router",
+                str(router),
+            )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("different exact route or route basis", result.stderr)
+
+    def test_packet_routing_choice_is_exclusive(self):
+        result = run(
+            *packet_args(SELECTED),
+            "--candidate",
+            "codex/gpt-5.6-sol/high",
+            "--reason",
+            "A reason.",
+        )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("not allowed with argument", result.stderr)
+
+    def test_packet_rejects_mode_specific_routing_options(self):
+        candidate = run(
+            *BASE,
+            "--candidate",
+            "codex/gpt-5.6-sol/high",
+            "--reason",
+            "A reason.",
+            "--route-basis",
+            ROUTE_BASIS,
+        )
+        self.assertNotEqual(0, candidate.returncode)
+        self.assertIn("apply only to --exact-route", candidate.stderr)
+
+        exact = run(
+            *BASE,
+            "--exact-route",
+            "worker",
+            "--route-basis",
+            ROUTE_BASIS,
+            "--max-effort-basis",
+            "xhigh is insufficient.",
+        )
+        self.assertNotEqual(0, exact.returncode)
+        self.assertIn("apply only to --candidate", exact.stderr)
+
+    def test_saved_decision_ignores_router_location(self):
+        result = run(
+            *packet_args(SELECTED),
+            "--router",
+            "/path/that/is/not/used/router.py",
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+
     def test_worker_packet_carries_work_ref_routing_and_mechanism(self):
         result = run(*packet_args(SELECTED))
         self.assertEqual(0, result.returncode, result.stderr)
@@ -125,7 +423,7 @@ class PacketTest(unittest.TestCase):
         )
         self.assertEqual(
             "beads:bead-1",
-            f'{payload["work"]["adapter"]}:{payload["work"]["ref"]}',
+            f"{payload['work']['adapter']}:{payload['work']['ref']}",
         )
 
     def test_rejects_blank_launch_constraint(self):
@@ -149,7 +447,9 @@ class PacketTest(unittest.TestCase):
         result = run(*args)
         self.assertNotEqual(0, result.returncode)
         self.assertIn("cannot launch agent 'codex'", result.stderr)
-        self.assertIn("--launchable-via claude", result.stderr)
+        self.assertIn(
+            "saved decision was checked for a different launch surface", result.stderr
+        )
 
     def test_exact_manifest_mismatch_preserves_route_and_launch_constraints(self):
         decision = {
@@ -162,9 +462,7 @@ class PacketTest(unittest.TestCase):
             },
             "exact_route": "worker",
             "route_basis": ROUTE_BASIS,
-            "provenance": {
-                "winner": {"scope": "global", "path": "/tmp/config.json"}
-            },
+            "provenance": {"winner": {"scope": "global", "path": "/tmp/config.json"}},
         }
         args = packet_args(decision)
         args[args.index(json.dumps(ORCA_MANIFEST))] = json.dumps(HARNESS_MANIFEST)
@@ -224,6 +522,26 @@ class PacketTest(unittest.TestCase):
         self.assertIn("--accept-quota-unknown", result.stderr)
         self.assertIn("120s → codex/gpt-5.6-sol/high", result.stderr)
         self.assertIn("--use-quota-fallback", result.stderr)
+
+    def test_needs_acceptance_runs_runtime_remedy_before_asking(self):
+        decision = {
+            "status": "needs-acceptance",
+            "candidate": SELECTED["selected"]["id"],
+            "selected": SELECTED["selected"],
+            "reason": SELECTED["reason"],
+            "pending": ["Refresh or accept unknown quota."],
+            "quota": {
+                "status": "stale",
+                "detail": "The session expired",
+                "remedy": "grok",
+            },
+        }
+        result = run(*packet_args(decision))
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("Run `grok`", result.stderr)
+        self.assertIn("re-check the same candidate", result.stderr)
+        self.assertNotIn("principal's acceptance", result.stderr)
+        self.assertNotIn("--accept-quota-unknown", result.stderr)
 
     def test_exact_decision_records_route_and_provenance(self):
         decision = {
@@ -380,10 +698,12 @@ class PacketTest(unittest.TestCase):
         self.assertIn("No work-record adapter is configured", payload["spec"])
 
     def test_request_requires_work_record_adapter(self):
-        args = packet_args(SELECTED)
-        ref = args.index("--work-ref")
-        args[ref : ref + 2] = ["--request", "Fix it."]
-        result = run(*args)
+        with tempfile.TemporaryDirectory() as directory:
+            args = packet_args(SELECTED)
+            ref = args.index("--work-ref")
+            args[ref : ref + 2] = ["--request", "Fix it."]
+            args += ["--repo", directory]
+            result = run(*args)
         self.assertNotEqual(0, result.returncode)
         self.assertIn("--work-record", result.stderr)
 
@@ -486,9 +806,7 @@ class SeamsTest(unittest.TestCase):
 
     def test_defaults_without_configuration(self):
         payload = json.loads(self.seams().stdout)
-        self.assertEqual(
-            {"adapter": None, "source": "unset"}, payload["work_record"]
-        )
+        self.assertEqual({"adapter": None, "source": "unset"}, payload["work_record"])
         self.assertEqual(
             {"id": "harness-native", "source": "default"}, payload["mechanism"]
         )
@@ -613,6 +931,46 @@ class SeamsTest(unittest.TestCase):
         result = self.packet_via("orca", extra="front_key=run-1/shell")
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("orca", json.loads(result.stdout)["mechanism"]["id"])
+
+    def test_packet_infers_configured_manifest_and_work_record(self):
+        self.write_layer(
+            "repo",
+            {
+                "version": 1,
+                "mechanism": {"id": "orca"},
+                "work_record": {"adapter": "beads"},
+            },
+        )
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "packet",
+                "--repo",
+                str(self.repo),
+                "--title",
+                "Deliver shell palette",
+                "--role",
+                "worker",
+                "--reports-to",
+                "captain",
+                "--extra",
+                "front_key=run-1/shell",
+                "--request",
+                "Deliver the shell palette.",
+                "--decision-json",
+                json.dumps(SELECTED),
+            ],
+            capture_output=True,
+            text=True,
+            env=self.env,
+            check=False,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual("orca", payload["mechanism"]["id"])
+        self.assertEqual("bootstrap", payload["work"]["type"])
+        self.assertEqual("beads", payload["work"]["adapter"])
 
     def test_packet_resolves_manifest_from_registry_and_refuses_disabled(self):
         manifest = {
