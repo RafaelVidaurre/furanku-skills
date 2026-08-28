@@ -18,6 +18,8 @@ python3 <skill-dir>/scripts/router.py brief --repo <root> --quota-axi \
 
 One brief serves the whole spawning session—reuse it across decisions and regenerate only after a configuration change or when the brief's printed quota capture time is more than 30 minutes old. If quota-axi fails, the brief says so in its notes and quota stays unknown; the acceptance gate in `check` handles that—never estimate quota yourself.
 
+The quota-axi package version and normalized schema contract are pinned together in [runtime-dependencies.json](references/runtime-dependencies.json). When upgrading quota-axi, update that declaration after verifying the adapter against the new schema; the router invokes the declared package version exactly.
+
 **Complete when:** the current session holds a fresh brief and has read its exact-route activation rule.
 
 ## Judge the pick

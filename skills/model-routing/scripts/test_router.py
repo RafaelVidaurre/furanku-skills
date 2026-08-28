@@ -18,6 +18,7 @@ import router
 
 SCRIPT = Path(__file__).with_name("router.py")
 ROUTE_BASIS = "Principal requested the Worker route for this task."
+QUOTA_AXI_SCHEMA_VERSION = router.runtime_dependency("quota-axi")["schema_version"]
 
 
 class RouterTest(unittest.TestCase):
@@ -817,7 +818,7 @@ class RouterTest(unittest.TestCase):
     def test_quota_axi_adapter_uses_effective_pace_and_marks_kimi_unknown(self):
         catalog = router.read_json(router.CATALOG, "routing catalog")
         snapshot = {
-            "schemaVersion": 3,
+            "schemaVersion": QUOTA_AXI_SCHEMA_VERSION,
             "generatedAt": "2026-07-31T11:30:17Z",
             "providers": [
                 {
@@ -857,6 +858,18 @@ class RouterTest(unittest.TestCase):
         self.assertEqual("unknown", proxy["status"])
         self.assertIn("cannot read", runtime["notes"][0])
 
+    def test_quota_axi_adapter_accepts_declared_schema(self):
+        dependency = router.runtime_dependency("quota-axi")
+        snapshot = self.codex_snapshot(52)
+        snapshot["schemaVersion"] = dependency["schema_version"]
+
+        catalog = router.read_json(router.CATALOG, "routing catalog")
+        runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
+
+        quota = runtime["harnesses"]["codex"]["quota"]
+        self.assertEqual("known", quota["status"])
+        self.assertEqual(52, quota["effective_percent_remaining"])
+
     def codex_snapshot(self, remaining, account=None):
         provider = {
             "provider": "codex",
@@ -876,7 +889,7 @@ class RouterTest(unittest.TestCase):
         if account is not None:
             provider["account"] = account
         return {
-            "schemaVersion": 3,
+            "schemaVersion": QUOTA_AXI_SCHEMA_VERSION,
             "generatedAt": "2026-08-16T12:31:05Z",
             "providers": [provider],
         }
@@ -1023,7 +1036,7 @@ class RouterTest(unittest.TestCase):
         provider's configured account, not the launch harness's."""
         catalog = router.read_json(router.CATALOG, "routing catalog")
         snapshot = {
-            "schemaVersion": 3,
+            "schemaVersion": QUOTA_AXI_SCHEMA_VERSION,
             "generatedAt": "2026-08-16T12:31:05Z",
             "providers": [
                 {
@@ -1167,25 +1180,34 @@ class RouterTest(unittest.TestCase):
         )
         self.assertEqual({"email": "launch-account@example.com"}, summary["account"])
 
-    def test_run_quota_axi_requests_account_attribution(self):
+    def test_run_quota_axi_uses_declared_version_and_requests_account_attribution(self):
         captured = {}
+        dependency = router.runtime_dependency("quota-axi")
 
         def fake_run(command, **kwargs):
             captured["command"] = command
             return SimpleNamespace(
                 returncode=0,
-                stdout=json.dumps({"schemaVersion": 3, "providers": []}),
+                stdout=json.dumps(
+                    {
+                        "schemaVersion": dependency["schema_version"],
+                        "providers": [],
+                    }
+                ),
                 stderr="",
             )
 
         with mock.patch.object(router.subprocess, "run", fake_run):
             router.run_quota_axi()
+        package_spec = f"{dependency['package']}@{dependency['version']}"
+        self.assertIn(package_spec, captured["command"])
+        self.assertNotIn(dependency["package"], captured["command"])
         self.assertIn("--full", captured["command"])
 
     def test_quota_axi_projects_grok_quota_to_claudex_candidate(self):
         catalog = router.read_json(router.CATALOG, "routing catalog")
         snapshot = {
-            "schemaVersion": 3,
+            "schemaVersion": QUOTA_AXI_SCHEMA_VERSION,
             "generatedAt": "2026-08-12T09:30:00Z",
             "providers": [
                 {
@@ -1241,7 +1263,7 @@ class RouterTest(unittest.TestCase):
     def test_quota_axi_stale_carries_recovery_fields(self):
         catalog = router.read_json(router.CATALOG, "routing catalog")
         snapshot = {
-            "schemaVersion": 3,
+            "schemaVersion": QUOTA_AXI_SCHEMA_VERSION,
             "generatedAt": "2026-08-13T12:38:00Z",
             "providers": [
                 {
@@ -1559,7 +1581,7 @@ class RouterTest(unittest.TestCase):
             calls.append(tuple(providers) if providers else None)
             if providers == ["grok"]:
                 return {
-                    "schemaVersion": 3,
+                    "schemaVersion": QUOTA_AXI_SCHEMA_VERSION,
                     "generatedAt": "2026-08-13T12:47:18Z",
                     "providers": [
                         {
@@ -1580,7 +1602,7 @@ class RouterTest(unittest.TestCase):
                     ],
                 }
             return {
-                "schemaVersion": 3,
+                "schemaVersion": QUOTA_AXI_SCHEMA_VERSION,
                 "generatedAt": "2026-08-13T12:31:48Z",
                 "providers": [
                     {

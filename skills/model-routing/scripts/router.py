@@ -26,6 +26,11 @@ except ModuleNotFoundError:  # pragma: no cover - package import in tests
 
 
 CATALOG = Path(__file__).resolve().parent.parent / "references" / "routing-catalog.json"
+RUNTIME_DEPENDENCIES = (
+    Path(__file__).resolve().parent.parent
+    / "references"
+    / "runtime-dependencies.json"
+)
 DIMENSIONS = ("reasoning", "implementation", "agentic", "ui", "spatial-3d")
 EFFORT_RANK = {
     "minimal": 0,
@@ -61,6 +66,33 @@ def read_json(path: Path, label: str) -> dict:
     if not isinstance(value, dict):
         raise Error(f"{label} {path} must contain a JSON object")
     return value
+
+
+def runtime_dependency(name):
+    dependencies = read_json(RUNTIME_DEPENDENCIES, "runtime dependencies")
+    dependency = dependencies.get(name)
+    if not isinstance(dependency, dict):
+        raise Error(f"runtime dependency {name!r} must be an object")
+    package = dependency.get("package")
+    version = dependency.get("version")
+    schema_version = dependency.get("schema_version")
+    if not isinstance(package, str) or not package.strip():
+        raise Error(f"runtime dependency {name!r} requires package")
+    if not isinstance(version, str) or not re.fullmatch(
+        r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?", version
+    ):
+        raise Error(f"runtime dependency {name!r} requires an exact version")
+    if (
+        isinstance(schema_version, bool)
+        or not isinstance(schema_version, int)
+        or schema_version < 1
+    ):
+        raise Error(f"runtime dependency {name!r} requires a schema_version")
+    return {
+        "package": package.strip(),
+        "version": version,
+        "schema_version": schema_version,
+    }
 
 
 def merge_patch(target, patch):
@@ -458,10 +490,14 @@ def project_provider_runtime(generated, candidates, provider_id, state, identity
 
 
 def quota_axi_runtime(snapshot, candidates):
-    if snapshot.get("schemaVersion") != 3 or not isinstance(
+    dependency = runtime_dependency("quota-axi")
+    if snapshot.get("schemaVersion") != dependency["schema_version"] or not isinstance(
         snapshot.get("providers"), list
     ):
-        raise Error("quota-axi input must use normalized schemaVersion 3")
+        raise Error(
+            "quota-axi input must use normalized schemaVersion "
+            f"{dependency['schema_version']}"
+        )
     generated = {
         "captured_at": snapshot.get("generatedAt"),
         "harnesses": {},
@@ -564,7 +600,9 @@ def run_quota_axi(providers=None):
     # --full is required: plain --json omits the per-provider account block, and
     # a quota reading that cannot name its account cannot be checked against the
     # account the launch will actually bill.
-    command = ["npx", "-y", "quota-axi", "--json", "--full"]
+    dependency = runtime_dependency("quota-axi")
+    package_spec = f"{dependency['package']}@{dependency['version']}"
+    command = ["npx", "-y", package_spec, "--json", "--full"]
     if providers:
         command.extend(["--provider", ",".join(providers)])
     result = subprocess.run(
@@ -1500,7 +1538,7 @@ def main(argv=None):
     parser.add_argument(
         "--quota-axi",
         action="store_true",
-        help="read live provider quota with npx -y quota-axi --json",
+        help="read live provider quota with the pinned quota-axi dependency",
     )
     parser.add_argument("--format", choices=("markdown", "json"), default=None)
     parser.add_argument("--compact", action="store_true")
