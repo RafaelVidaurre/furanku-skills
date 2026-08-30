@@ -9,7 +9,7 @@ Crew adds roles over two configurable seams: an orchestration mechanism launches
 
 ## Ownership
 
-- Commander is optional. Without one, Captains and direct Workers report to the user.
+- A Crew has at most one Commander. Without one, Captains and direct Workers report to the user; independent Commanders lead separate Crews.
 - The user or Commander may assign Captains and direct Workers.
 - Every assignment names one `reports_to`: `user`, `commander`, or `captain`.
 - Role responsibilities and boundaries live in the role contracts below, nowhere else.
