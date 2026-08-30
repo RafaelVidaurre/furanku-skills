@@ -41,6 +41,7 @@ A manifest is the checkable statement of what a mechanism can honor; `packet` re
 {
   "mechanism": "<id>",
   "launchable_agents": ["<agent>", "..."],
+  "launch_notes": { "<agent>": "<agent-specific launch mapping and evidence>" },
   "isolation": false,
   "communication": "<how the assignment is launched and delivered, and how questions, escalation, status, and completion reach the principal>",
   "retire": "<how to enumerate and clean up the resources an assignment created>",
@@ -48,7 +49,9 @@ A manifest is the checkable statement of what a mechanism can honor; `packet` re
 }
 ```
 
-`launchable_agents` lists all and only the routing catalog's `agent` tokens the selected orchestration surface can start in the current session—the catalog's vocabulary, not the mechanism name. Crew's `brief` and `packet` commands inject this list into model-routing; direct router consumers pass the same list as `--launchable-via`. The selected `agent` is a capability identity for routing and gating, not a generic launch API parameter; each mechanism profile defines how the packet maps to its API. Resolve the list from the selected surface's current capabilities rather than wrapper-wide capability: a launcher that reaches models no other launcher can serve holds its own token, so omitting that token is what makes its models unreachable. Omit the token of any launcher this session will not use, including one whose registry entry is `disabled`—parking a mechanism does not by itself retire the routes that only it can serve. `extras` declares the mechanism-specific fields every packet must carry.
+`launchable_agents` lists all and only the routing catalog's `agent` tokens the selected orchestration surface can start in the current session—the catalog's vocabulary, not the mechanism name. Crew's `brief` and `packet` commands inject this list into model-routing; direct router consumers pass the same list as `--launchable-via`. The selected `agent` is a capability identity for routing and gating, not a generic launch API parameter; each mechanism profile defines how the packet maps to its API. Resolve the list from the selected surface's current capabilities rather than wrapper-wide capability: a launcher that reaches models no other launcher can serve holds its own token, so omitting that token is what makes its models unreachable. Omit the token of any launcher this session will not use, including one whose registry entry is `disabled`—parking a mechanism does not by itself retire the routes that only it can serve.
+
+`launch_notes` optionally maps a launchable agent to non-default field mapping and launch-evidence guidance. `packet` copies only the selected agent's note into both its structured output and `spec`; apply it before dispatch. Keep live CLI discovery in the note when the mechanism's convenience flags vary by version. `extras` declares the mechanism-specific fields every packet must carry.
 
 ### harness-native (default)
 
@@ -97,7 +100,7 @@ For another native harness, define a profile that names its strongest matching c
 
 ### orca
 
-Available when the `orchestration` and `orca-cli` skills are installed. Full capability: cross-vendor CLI launch, dispatch DAGs, dedicated terminals and worktrees. Its manifest ships in `assignment.py`: `seams` attaches it when orca is selected, and `packet --manifest orca` resolves it by id — launchable agents `claude`, `codex`, `opencode`, `grok`; isolation true; required extra `front_key` matching `<run-key>/<front>`.
+Available when the `orchestration` and `orca-cli` skills are installed. Full capability: cross-vendor CLI launch, dispatch DAGs, dedicated terminals and worktrees. Its manifest ships in `assignment.py`: `seams` attaches it when orca is selected, and `packet --manifest orca` resolves it by id — launchable agents `claude`, `codex`, `opencode`, `grok`; isolation true; required extra `front_key` matching `<run-key>/<front>`. The built-in Grok launch note carries its custom-argv mapping and refusal classification in every Grok packet.
 
 Pass `--extra front_key=<run-key>/<front>`. Name each Crew Orca tab `<Role> - <work summary>` (for example `Captain - payments integration`) so the role is visible at a glance.
 

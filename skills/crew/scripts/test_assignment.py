@@ -51,6 +51,19 @@ SELECTED = {
     "quota_acceptance": "Principal accepted stale quota for a low-risk edit.",
 }
 
+GROK_SELECTED = {
+    "status": "selected",
+    "selected": {
+        "id": "grok/grok-4.6/high",
+        "agent": "grok",
+        "model": "grok-4.6",
+        "effort": "high",
+    },
+    "reason": "Bounded independent audit; use the configured Worker default.",
+    "warnings": [],
+    "quota": {"status": "available"},
+}
+
 BASE = [
     "packet",
     "--title",
@@ -405,6 +418,20 @@ class PacketTest(unittest.TestCase):
         self.assertIn('routing_warnings: ["quota stale"]', payload["spec"])
         self.assertIn("routing_quota_acceptance:", payload["spec"])
 
+    def test_builtin_orca_grok_packet_carries_custom_launch_mapping(self):
+        args = packet_args(GROK_SELECTED)
+        args[args.index(json.dumps(ORCA_MANIFEST))] = "orca"
+        result = run(*args)
+        self.assertEqual(0, result.returncode, result.stderr)
+        payload = json.loads(result.stdout)
+        note = payload["launch_note"]
+        self.assertIn(
+            "grok --model <packet model> --reasoning-effort <packet effort>", note
+        )
+        self.assertIn("worker-start --task <task> --terminal <handle>", note)
+        self.assertIn("mis-mapped invocation", note)
+        self.assertIn("launch_note:", payload["spec"])
+
     def test_existing_work_ref_preserves_launch_constraints_for_descendants(self):
         result = run(
             *packet_args(SELECTED),
@@ -743,6 +770,8 @@ class PacketTest(unittest.TestCase):
             ("no launchable agents", {"launchable_agents": []}),
             ("unknown key", {"surprise": True}),
             ("blank retire", {"retire": " "}),
+            ("blank launch note", {"launch_notes": {"grok": " "}}),
+            ("launch note for another agent", {"launch_notes": {"cursor": "x"}}),
             ("reserved extra", {"extras": {"role": ""}}),
             ("bad regex", {"extras": {"front_key": "["}}),
         ):

@@ -29,6 +29,7 @@ ROLES = ("captain", "worker")
 MANIFEST_KEYS = {
     "mechanism",
     "launchable_agents",
+    "launch_notes",
     "isolation",
     "communication",
     "retire",
@@ -39,6 +40,20 @@ KNOWN_MANIFESTS = {
     "orca": {
         "mechanism": "orca",
         "launchable_agents": ["claude", "codex", "opencode", "grok"],
+        "launch_notes": {
+            "grok": (
+                "Load the current Orca orchestration guide before dispatch. If "
+                "worker-start does not list Grok model/effort preferences, create "
+                "a fresh Orca terminal in the selected worktree with `grok --model "
+                "<packet model> --reasoning-effort <packet effort>`, wait until the "
+                "Grok TUI accepts that tuple, then attach it with `orca orchestration "
+                "worker-start --task <task> --terminal <handle> --json`. A rejection "
+                "from `worker-start --agent grok --model ... --effort ...` is a "
+                "mis-mapped invocation, not evidence that Orca cannot launch the "
+                "Grok tuple. Retain the terminal-create command and receipt, tuple "
+                "acceptance, and resulting Dispatch as launch evidence."
+            )
+        },
         "isolation": True,
         "communication": (
             "Orca dispatch carries questions, escalation, status, and "
@@ -73,6 +88,7 @@ RESERVED_SPEC_KEYS = {
     "routing_quota_acceptance",
     "route_source",
     "launch_constraint",
+    "launch_note",
 }
 
 
@@ -158,6 +174,17 @@ def validate_manifest(manifest, label="manifest"):
         raise Error(f"{label}.launchable_agents must be a non-empty array")
     for agent in agents:
         token(agent, f"{label}.launchable_agents entry")
+    launch_notes = manifest.get("launch_notes", {})
+    if not isinstance(launch_notes, dict):
+        raise Error(f"{label}.launch_notes must be an object")
+    for agent, note in launch_notes.items():
+        token(agent, f"{label}.launch_notes agent")
+        if agent not in agents:
+            raise Error(
+                f"{label}.launch_notes agent {agent!r} is not launchable by the manifest"
+            )
+        if not isinstance(note, str) or not note.strip():
+            raise Error(f"{label}.launch_notes.{agent} must be a non-empty string")
     for key in ("communication", "retire"):
         if not isinstance(manifest.get(key), str) or not manifest[key].strip():
             raise Error(f"{label}.{key} must describe the mechanism's procedure")
@@ -718,6 +745,7 @@ def build_packet(args):
     configured_adapter = seams["work_record"]["adapter"] if seams else None
     work = parse_work(args, configured_adapter)
     routing = routing_summary(decision)
+    launch_note = manifest.get("launch_notes", {}).get(agent)
     skill = Path(__file__).resolve().parent.parent / "SKILL.md"
     contract = skill.parent / "references" / f"{args.role}.md"
     lines = [
@@ -728,6 +756,8 @@ def build_packet(args):
         "isolation: " + json.dumps(manifest.get("isolation", False)),
         "coordination: " + json.dumps(manifest["communication"], ensure_ascii=False),
     ]
+    if launch_note:
+        lines.append("launch_note: " + json.dumps(launch_note, ensure_ascii=False))
     lines += [f"{key}: {extras[key]}" for key in sorted(extras)]
     lines += [
         f"launch_constraint: {json.dumps(value, ensure_ascii=False)}"
@@ -791,7 +821,7 @@ def build_packet(args):
             "No work-record adapter is configured: that verbatim request is the "
             "whole contract; return results and remaining work to your principal.",
         ]
-    return {
+    packet = {
         "title": title,
         "role": args.role,
         "reports_to": args.reports_to,
@@ -802,6 +832,9 @@ def build_packet(args):
         "mechanism": {"id": manifest["mechanism"], "extras": extras},
         "spec": "\n".join(lines) + "\n",
     }
+    if launch_note:
+        packet["launch_note"] = launch_note
+    return packet
 
 
 def main(argv=None):
