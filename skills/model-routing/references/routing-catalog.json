@@ -3,7 +3,7 @@
   "routes": {
     "captain": {
       "agent": "claude",
-      "model": "claude-fable-5[1m]",
+      "model": "claude-fable-5-1[1m]",
       "effort": "high"
     },
     "worker": {
@@ -14,7 +14,7 @@
   },
   "methodology": {
     "reasoning": "Artificial Analysis Intelligence Index divided by 100 when exact; otherwise a labeled effort proxy.",
-    "implementation": "DeepSWE resolved-task rate when exact; otherwise a labeled effort proxy.",
+    "implementation": "DeepSWE or CursorBench resolved-task rate when exact; harness transfers are reflected in confidence and the conservative estimate.",
     "task-cost": "DeepSWE average task cost only when the benchmark names the exact model and effort. An equivalent launch tuple may transfer across harnesses; effort-level proxies remain unknown.",
     "agentic": "Ordinal normalization of dated Agent Arena or agentic-work evidence.",
     "ui": "Ordinal normalization of the dated Arena WebDev preference ranking.",
@@ -23,10 +23,10 @@
     "boundary": "Public research only. No local model evaluation contributes capability scores; missing direct evidence remains unknown or is labeled as a proxy on the capability evidence itself."
   },
   "candidates": {
-    "claude/claude-fable-5[1m]/high": {
+    "claude/claude-fable-5-1[1m]/high": {
       "launch": {
         "agent": "claude",
-        "model": "claude-fable-5[1m]",
+        "model": "claude-fable-5-1[1m]",
         "effort": "high"
       },
       "features": [
@@ -35,65 +35,50 @@
         "long-context"
       ],
       "context": 1000000,
-      "context_evidence": "https://code.claude.com/docs/en/model-config",
+      "context_evidence": "https://platform.claude.com/docs/en/models/fable-5-1/overview",
       "capabilities": {
         "reasoning": {
           "status": "known",
-          "score": 0.6,
-          "conservative": 0.56,
-          "confidence": "medium",
-          "assessed_at": "2026-07-31",
+          "score": 0.62,
+          "conservative": 0.6,
+          "confidence": "high",
+          "assessed_at": "2026-09-01",
           "evidence": [
-            "https://artificialanalysis.ai/models/claude-fable-5"
+            "https://artificialanalysis.ai/models/claude-fable-5-1-high"
           ]
         },
         "implementation": {
           "status": "known",
-          "score": 0.7,
-          "conservative": 0.66,
+          "score": 0.694,
+          "conservative": 0.67,
           "confidence": "medium",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-02",
           "evidence": [
-            "https://deepswe.datacurve.ai/"
+            "https://cursor.com/evals"
           ]
         },
         "agentic": {
-          "status": "known",
-          "score": 0.95,
-          "conservative": 0.9,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://arena.ai/leaderboard/agent?stream=top"
-          ]
+          "status": "unknown",
+          "reason": "Agent Arena did not yet list a Fable 5.1 high result; CursorBench supports the implementation assessment but does not isolate general agentic reliability under this catalog's methodology.",
+          "researched_at": "2026-09-02"
         },
         "ui": {
-          "status": "known",
-          "score": 0.88,
-          "conservative": 0.82,
-          "confidence": "medium",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://arena.ai/leaderboard?category=webdev"
-          ]
+          "status": "unknown",
+          "reason": "Arena WebDev did not yet list a Fable 5.1 result.",
+          "researched_at": "2026-09-02"
         },
         "spatial-3d": {
-          "status": "known",
-          "score": 0.88,
-          "conservative": 0.8,
-          "confidence": "medium",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://www.designarena.ai/leaderboard"
-          ]
+          "status": "unknown",
+          "reason": "Design Arena exposed a Fable 5.1 model page but no dated ranked 3D result.",
+          "researched_at": "2026-09-02"
         }
       },
       "economics": {
         "output_tokens_per_second": {
-          "value": 74,
-          "basis": "max/fallback proxy",
-          "assessed_at": "2026-07-31",
-          "source": "https://artificialanalysis.ai/models/claude-fable-5"
+          "value": 49.1,
+          "basis": "Artificial Analysis, high with default fallback",
+          "assessed_at": "2026-09-01",
+          "source": "https://artificialanalysis.ai/models/claude-fable-5-1-high"
         }
       }
     },

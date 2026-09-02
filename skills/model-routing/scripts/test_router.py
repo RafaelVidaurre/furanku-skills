@@ -50,7 +50,7 @@ class RouterTest(unittest.TestCase):
             "preferences": [
                 "Captains default to gpt-5.6-sol at xhigh.",
                 "For the most complex architecture or systems design, use "
-                "claude-fable-5[1m] or gpt-5.6-sol at max.",
+                "claude-fable-5-1[1m] or gpt-5.6-sol at max.",
             ],
         }
         path = self.home / ".furanku-skills" / "model-routing" / "config.json"
@@ -90,7 +90,7 @@ class RouterTest(unittest.TestCase):
         brief = self.run_router("brief").stdout
         self.assertIn("## User preferences", brief)
         self.assertIn("- (global) Captains default to gpt-5.6-sol at xhigh.", brief)
-        self.assertIn("claude-fable-5[1m] or gpt-5.6-sol at max", brief)
+        self.assertIn("claude-fable-5-1[1m] or gpt-5.6-sol at max", brief)
 
     def test_brief_limits_candidates_to_consumer_launchers(self):
         brief = self.run_router("brief", "--launchable-via", "codex").stdout
@@ -153,7 +153,7 @@ class RouterTest(unittest.TestCase):
             "| captain | — | codex | gpt-5.6-sol | xhigh | global | ask |",
             brief,
         )
-        self.assertIn("claude/claude-fable-5[1m]/high", brief)
+        self.assertIn("claude/claude-fable-5-1[1m]/high", brief)
         self.assertIn(router.MAX_EFFORT_POLICY, brief)
         self.assertLess(
             brief.index("| codex/gpt-5.6-sol/high |"),
@@ -168,6 +168,10 @@ class RouterTest(unittest.TestCase):
             for line in brief.splitlines()
             if line.startswith("|") and "/" in line
         }
+        self.assertIn(
+            "| 0.60 (h) | 0.67 (m) | ? | ? | ? | ? | 49 | 1,000,000 |",
+            rows["claude/claude-fable-5-1[1m]/high"],
+        )
         self.assertIn("| ? | 70 |", rows["codex/gpt-5.6-sol/xhigh"])
         self.assertIn("| $8.39 | 70 |", rows["codex/gpt-5.6-sol/max"])
         self.assertIn(
@@ -204,7 +208,7 @@ class RouterTest(unittest.TestCase):
 
     def test_brief_json_carries_candidates_preferences_and_layers(self):
         payload = json.loads(self.run_router("brief", "--format", "json").stdout)
-        self.assertIn("claude/claude-fable-5[1m]/high", payload["candidates"])
+        self.assertIn("claude/claude-fable-5-1[1m]/high", payload["candidates"])
         self.assertEqual("global", payload["preferences"][0]["scope"])
         self.assertEqual(router.EXACT_ROUTE_SEMANTICS, payload["routes"]["semantics"])
         self.assertEqual(
@@ -541,7 +545,7 @@ class RouterTest(unittest.TestCase):
             expect_code=1,
         )
         self.assertIn("unknown candidate", result.stderr)
-        self.assertIn("claude/claude-fable-5[1m]/high", result.stderr)
+        self.assertIn("claude/claude-fable-5-1[1m]/high", result.stderr)
 
     def test_check_exact_route_keeps_provenance(self):
         decision = self.check(
@@ -664,7 +668,7 @@ class RouterTest(unittest.TestCase):
         )
 
     def test_harness_exhaustion_dominates_candidate_quota(self):
-        candidate = "claude/claude-fable-5[1m]/high"
+        candidate = "claude/claude-fable-5-1[1m]/high"
         decision = self.check(
             "--candidate",
             candidate,

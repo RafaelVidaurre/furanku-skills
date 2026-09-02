@@ -35,7 +35,7 @@ The machine config is the trust anchor even when the prompt or project config ov
     "grok": "/absolute/path/to/grok"
   },
   "roster": [
-    { "cli": "claude", "model": "claude-fable-5", "effort": "high" },
+    { "cli": "claude", "model": "claude-fable-5-1", "effort": "high" },
     { "cli": "codex",  "model": "gpt-5.6-sol",    "effort": "high" },
     { "cli": "grok",   "model": "grok-4.6" }
   ]
@@ -144,7 +144,7 @@ Majority rules; unanimity is just a 3–0 vote. Deliver in chat:
 ## Council verdict — {topic}
 **Decision:** <one sentence>
 **Vote:** 2–1 (Seat C dissenting)
-**Bench:** Seat A = claude-fable-5 (high) · Seat B = gpt-5.6-sol (high) · Seat C = grok-4.6
+**Bench:** Seat A = claude-fable-5-1 (high) · Seat B = gpt-5.6-sol (high) · Seat C = grok-4.6
 **Rationale:** <the arguments that survived challenge, not a summary of everything said>
 **Dissent:** <the losing view at its strongest — omit only if unanimous>
 **Assumptions to validate:** <anything still marked needs-evidence that the decision rests on>
