@@ -19,7 +19,7 @@
     "!skills/**/__pycache__/**"
   ],
   "scripts": {
-    "test": "node --test test/*.test.js skills/guidance-composer/test/*.test.js && python3 -m pytest skills/crew/scripts skills/model-routing/scripts -q"
+    "test": "node --test test/*.test.js skills/guidance-composer/test/*.test.js && python3 -m pytest skills/crew/scripts skills/model-routing/scripts skills/agent-readable-logs/scripts -q"
   },
   "repository": {
     "type": "git",

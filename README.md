@@ -141,6 +141,20 @@ Optional deep dive: [interactive testing guide](artifacts/testing-best-practices
 
 ---
 
+### agent-readable-logs
+
+**Useful if:** your agent keeps dumping whole log files into its context, can't find where a dev server or test run wrote its output, or logs drift back into free text a few commits after you cleaned them up.
+
+**What it does:** gives every emitter one stable, bounded read command, fixes a one-event-per-line record shape mapped to the OpenTelemetry log data model, makes project-owned scripts fail with an actionable last line, and publishes a short `## Logs` block in your `AGENTS.md`. Once adopted, it fires on changes that add an emitter or touch a log call site, and ships a validator you can run in CI so drift fails the build.
+
+```text
+> Set up agent-readable logging for this project.
+> Audit our logs against the agent-readable-logs contract.
+> I added a worker; bring its logs in line and update the Logs block.
+```
+
+---
+
 ### decision-trail
 
 **Useful if:** an agent (or you) will make a series of important choices and you want a compact log you can review later without replaying the whole session.
