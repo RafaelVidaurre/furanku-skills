@@ -153,6 +153,33 @@ class CandidateIsolationTest(unittest.TestCase):
         )
         self.assertIn(MALFORMED_ID, report_json["malformed_candidates"])
 
+    def test_malformed_field_types_are_isolated_before_launch(self):
+        for patch in [
+            {"capabilities": {"reasoning": {"status": []}}},
+            {"quota_pool": {"provider": {"unexpected": "object"}}},
+        ]:
+            with self.subTest(patch=patch):
+                self.write_repo_layer({
+                    "version": 4, "routes": {}, "candidates": {
+                        MALFORMED_ID: {
+                            "launch": {"agent": "synthetic", "model": "malformed", "effort": "high"},
+                            **patch,
+                        },
+                    },
+                })
+                decision = self.check(
+                    "--candidate", VALID_CANDIDATE, "--reason", "Valid unrelated selection.",
+                    runtime=self.grok_runtime(),
+                )
+                self.assertEqual("selected", decision["status"])
+                result = self.check(
+                    "--candidate", MALFORMED_ID, "--reason", "Reject malformed field types.",
+                    expect_code=1,
+                )
+                self.assertIn(MALFORMED_ID, result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertFalse(result.stdout.strip())
+
     def test_explicitly_chosen_malformed_candidate_fails_closed(self):
         self.add_unrelated_malformed_candidate()
         result = self.check(

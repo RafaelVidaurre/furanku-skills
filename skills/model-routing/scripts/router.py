@@ -157,7 +157,11 @@ def validate_compiled_candidate(candidate_id, candidate):
         raise Error(f"{label}.enabled must be boolean")
     pool = candidate.get("quota_pool")
     if pool is not None:
-        if not isinstance(pool, dict) or not pool.get("provider"):
+        if (
+            not isinstance(pool, dict)
+            or not isinstance(pool.get("provider"), str)
+            or not pool["provider"].strip()
+        ):
             raise Error(f"{label}.quota_pool requires the billed provider")
         if not isinstance(pool.get("detail", ""), str):
             raise Error(f"{label}.quota_pool detail must be a string")
@@ -196,10 +200,10 @@ def validate_compiled_candidate(candidate_id, candidate):
         raise Error(f"{label}.capabilities must be an object")
     for dimension, assessment in capabilities.items():
         cell = f"{label}.capabilities.{dimension}"
-        if not isinstance(assessment, dict) or assessment.get("status") not in {
+        if not isinstance(assessment, dict) or assessment.get("status") not in (
             "known",
             "unknown",
-        }:
+        ):
             raise Error(f"{cell} must declare status known or unknown")
         if assessment["status"] == "known":
             number(assessment.get("score"), f"{cell}.score")
