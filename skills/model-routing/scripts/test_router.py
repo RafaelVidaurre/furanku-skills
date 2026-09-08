@@ -743,8 +743,30 @@ class RouterTest(unittest.TestCase):
                 "candidates": {"codex/gpt-5.6-sol/max": {"economics": "free"}},
             }
         )
-        result = self.run_router("brief", expect_code=1)
+        brief = self.run_router("brief").stdout
+        self.assertIn("Excluded malformed candidates:", brief)
+        self.assertIn("codex/gpt-5.6-sol/max", brief)
+        self.assertIn("economics must be an object", brief)
+        payload = json.loads(self.run_router("brief", "--format", "json").stdout)
+        self.assertNotIn("codex/gpt-5.6-sol/max", payload["candidates"])
+        self.assertIn("codex/gpt-5.6-sol/max", payload["malformed_candidates"])
+        result = self.run_router(
+            "check",
+            "--candidate",
+            "codex/gpt-5.6-sol/max",
+            "--reason",
+            "Invalid pick.",
+            expect_code=1,
+        )
         self.assertIn("economics must be an object", result.stderr)
+        decision = self.check(
+            "--candidate",
+            "grok/grok-4.6/high",
+            "--reason",
+            "Valid unrelated pick.",
+            runtime={"harnesses": {"grok": {"quota": {"status": "known"}}}},
+        )
+        self.assertEqual("selected", decision["status"])
 
     def test_rendered_field_overrides_are_validated(self):
         cases = {
@@ -780,8 +802,13 @@ class RouterTest(unittest.TestCase):
                         "candidates": {"codex/gpt-5.6-sol/max": patch},
                     }
                 )
-                result = self.run_router("brief", expect_code=1)
-                self.assertIn(message, result.stderr)
+                result = self.run_router("brief")
+                self.assertIn(message, result.stdout)
+                payload = json.loads(
+                    self.run_router("brief", "--format", "json").stdout
+                )
+                self.assertNotIn("codex/gpt-5.6-sol/max", payload["candidates"])
+                self.assertIn("codex/gpt-5.6-sol/max", payload["malformed_candidates"])
 
     def test_malformed_runtime_state_fails_closed(self):
         candidate = "grok/grok-4.6/high"

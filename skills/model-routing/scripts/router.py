@@ -121,123 +121,181 @@ def number(value, label, *, minimum=0.0, maximum=1.0):
     return value
 
 
+def extract_launch(candidate):
+    """Return agent/model/effort when those fields are present.
+
+    Extra or missing launch keys still make the candidate malformed; this
+    extracts a match key so an exact route targeting that entry can fail
+    closed instead of gating the launch with no candidate evidence.
+    """
+    if not isinstance(candidate, dict):
+        return None
+    launch = candidate.get("launch")
+    if not isinstance(launch, dict):
+        return None
+    extracted = {}
+    for key in ("agent", "model", "effort"):
+        value = launch.get(key)
+        if not isinstance(value, str) or not value.strip():
+            return None
+        extracted[key] = value
+    return extracted
+
+
+def validate_compiled_candidate(candidate_id, candidate):
+    label = f"candidate {candidate_id!r}"
+    if not isinstance(candidate, dict):
+        raise Error(f"{label} must be an object")
+    launch = candidate.get("launch")
+    if not isinstance(launch, dict) or set(launch) != {"agent", "model", "effort"}:
+        raise Error(f"{label}.launch requires only agent, model, and effort")
+    if any(
+        not isinstance(value, str) or not value.strip() for value in launch.values()
+    ):
+        raise Error(f"{label}.launch values must be non-empty strings")
+    if "enabled" in candidate and not isinstance(candidate["enabled"], bool):
+        raise Error(f"{label}.enabled must be boolean")
+    pool = candidate.get("quota_pool")
+    if pool is not None:
+        if not isinstance(pool, dict) or not pool.get("provider"):
+            raise Error(f"{label}.quota_pool requires the billed provider")
+        if not isinstance(pool.get("detail", ""), str):
+            raise Error(f"{label}.quota_pool detail must be a string")
+    quota_provider = candidate.get("quota_provider")
+    if quota_provider is not None:
+        if (
+            not isinstance(quota_provider, dict)
+            or not isinstance(quota_provider.get("provider"), str)
+            or not quota_provider["provider"].strip()
+        ):
+            raise Error(f"{label}.quota_provider requires the billed provider")
+        if not isinstance(quota_provider.get("detail", ""), str):
+            raise Error(f"{label}.quota_provider detail must be a string")
+        if pool is not None:
+            raise Error(f"{label} cannot define both quota_pool and quota_provider")
+    quota_account = candidate.get("quota_account")
+    if quota_account is not None and quota_account not in exact_config.PROVIDERS:
+        raise Error(
+            f"{label}.quota_account must name a configured provider: "
+            + ", ".join(sorted(exact_config.PROVIDERS))
+        )
+    if pool is not None and quota_account is not None:
+        raise Error(f"{label} cannot define both quota_pool and quota_account")
+    features = candidate.get("features", [])
+    if not isinstance(features, list) or any(
+        not isinstance(x, str) for x in features
+    ):
+        raise Error(f"{label}.features must be a string array")
+    context = candidate.get("context")
+    if context is not None and (
+        isinstance(context, bool) or not isinstance(context, int) or context <= 0
+    ):
+        raise Error(f"{label}.context must be a positive integer")
+    capabilities = candidate.get("capabilities", {})
+    if not isinstance(capabilities, dict):
+        raise Error(f"{label}.capabilities must be an object")
+    for dimension, assessment in capabilities.items():
+        cell = f"{label}.capabilities.{dimension}"
+        if not isinstance(assessment, dict) or assessment.get("status") not in {
+            "known",
+            "unknown",
+        }:
+            raise Error(f"{cell} must declare status known or unknown")
+        if assessment["status"] == "known":
+            number(assessment.get("score"), f"{cell}.score")
+            number(assessment.get("conservative"), f"{cell}.conservative")
+            assessed_at = assessment.get("assessed_at")
+            evidence = assessment.get("evidence")
+            if (
+                not isinstance(assessed_at, str)
+                or not assessed_at.strip()
+                or not isinstance(evidence, list)
+                or not evidence
+                or any(not isinstance(item, str) for item in evidence)
+            ):
+                raise Error(
+                    f"{cell} requires an assessed_at string and string evidence"
+                )
+            confidence = assessment.get("confidence")
+            if not isinstance(confidence, str) or not confidence.strip():
+                raise Error(f"{cell}.confidence must be a non-empty string")
+        elif not assessment.get("reason") or not assessment.get("researched_at"):
+            raise Error(f"{cell} unknown requires reason and researched_at")
+    economics = candidate.get("economics", {})
+    if not isinstance(economics, dict):
+        raise Error(f"{label}.economics must be an object")
+    for metric, data in economics.items():
+        if not isinstance(data, dict):
+            raise Error(f"{label}.economics.{metric} must be an object")
+        value = data.get("value")
+        if value is None:
+            continue
+        try:
+            finite = (
+                not isinstance(value, bool)
+                and isinstance(value, (int, float))
+                and math.isfinite(float(value))
+            )
+        except OverflowError:
+            finite = False
+        if not finite:
+            raise Error(f"{label}.economics.{metric}.value must be a finite number")
+        if metric == "task_cost_usd":
+            if value < 0:
+                raise Error(
+                    f"{label}.economics.{metric}.value must be non-negative"
+                )
+            basis = data.get("basis", "")
+            if isinstance(basis, str) and re.search(
+                r"\b(?:minimal|low|medium|high|xhigh|max)\s+proxy\b",
+                basis.lower(),
+            ):
+                raise Error(
+                    f"{label}.economics.{metric} requires exact effort evidence; "
+                    "effort-level proxy costs must remain unknown"
+                )
+        if metric == "output_tokens_per_second" and value <= 0:
+            raise Error(f"{label}.economics.{metric}.value must be positive")
+
+
 def validate_compiled_candidates(candidates):
     if not isinstance(candidates, dict) or not candidates:
         raise Error("compiled candidates must be a non-empty object")
     for candidate_id, candidate in candidates.items():
-        label = f"candidate {candidate_id!r}"
-        if not isinstance(candidate, dict):
-            raise Error(f"{label} must be an object")
-        launch = candidate.get("launch")
-        if not isinstance(launch, dict) or set(launch) != {"agent", "model", "effort"}:
-            raise Error(f"{label}.launch requires only agent, model, and effort")
-        if any(
-            not isinstance(value, str) or not value.strip() for value in launch.values()
-        ):
-            raise Error(f"{label}.launch values must be non-empty strings")
-        if "enabled" in candidate and not isinstance(candidate["enabled"], bool):
-            raise Error(f"{label}.enabled must be boolean")
-        pool = candidate.get("quota_pool")
-        if pool is not None:
-            if not isinstance(pool, dict) or not pool.get("provider"):
-                raise Error(f"{label}.quota_pool requires the billed provider")
-            if not isinstance(pool.get("detail", ""), str):
-                raise Error(f"{label}.quota_pool detail must be a string")
-        quota_provider = candidate.get("quota_provider")
-        if quota_provider is not None:
-            if (
-                not isinstance(quota_provider, dict)
-                or not isinstance(quota_provider.get("provider"), str)
-                or not quota_provider["provider"].strip()
-            ):
-                raise Error(f"{label}.quota_provider requires the billed provider")
-            if not isinstance(quota_provider.get("detail", ""), str):
-                raise Error(f"{label}.quota_provider detail must be a string")
-            if pool is not None:
-                raise Error(f"{label} cannot define both quota_pool and quota_provider")
-        quota_account = candidate.get("quota_account")
-        if quota_account is not None and quota_account not in exact_config.PROVIDERS:
-            raise Error(
-                f"{label}.quota_account must name a configured provider: "
-                + ", ".join(sorted(exact_config.PROVIDERS))
-            )
-        if pool is not None and quota_account is not None:
-            raise Error(f"{label} cannot define both quota_pool and quota_account")
-        features = candidate.get("features", [])
-        if not isinstance(features, list) or any(
-            not isinstance(x, str) for x in features
-        ):
-            raise Error(f"{label}.features must be a string array")
-        context = candidate.get("context")
-        if context is not None and (
-            isinstance(context, bool) or not isinstance(context, int) or context <= 0
-        ):
-            raise Error(f"{label}.context must be a positive integer")
-        capabilities = candidate.get("capabilities", {})
-        if not isinstance(capabilities, dict):
-            raise Error(f"{label}.capabilities must be an object")
-        for dimension, assessment in capabilities.items():
-            cell = f"{label}.capabilities.{dimension}"
-            if not isinstance(assessment, dict) or assessment.get("status") not in {
-                "known",
-                "unknown",
-            }:
-                raise Error(f"{cell} must declare status known or unknown")
-            if assessment["status"] == "known":
-                number(assessment.get("score"), f"{cell}.score")
-                number(assessment.get("conservative"), f"{cell}.conservative")
-                assessed_at = assessment.get("assessed_at")
-                evidence = assessment.get("evidence")
-                if (
-                    not isinstance(assessed_at, str)
-                    or not assessed_at.strip()
-                    or not isinstance(evidence, list)
-                    or not evidence
-                    or any(not isinstance(item, str) for item in evidence)
-                ):
-                    raise Error(
-                        f"{cell} requires an assessed_at string and string evidence"
-                    )
-                confidence = assessment.get("confidence")
-                if not isinstance(confidence, str) or not confidence.strip():
-                    raise Error(f"{cell}.confidence must be a non-empty string")
-            elif not assessment.get("reason") or not assessment.get("researched_at"):
-                raise Error(f"{cell} unknown requires reason and researched_at")
-        economics = candidate.get("economics", {})
-        if not isinstance(economics, dict):
-            raise Error(f"{label}.economics must be an object")
-        for metric, data in economics.items():
-            if not isinstance(data, dict):
-                raise Error(f"{label}.economics.{metric} must be an object")
-            value = data.get("value")
-            if value is None:
-                continue
-            try:
-                finite = (
-                    not isinstance(value, bool)
-                    and isinstance(value, (int, float))
-                    and math.isfinite(float(value))
+        validate_compiled_candidate(candidate_id, candidate)
+
+
+def isolate_compiled_candidates(candidates, candidate_sources, accounts):
+    """Split merged candidates into launchable rows and excluded malformations.
+
+    A malformed entry is omitted from play rather than aborting compile. The
+    merged row is not repaired from a lower layer, so a broken overlay cannot
+    restore a builtin or drop a restriction by being ignored.
+    """
+    if not isinstance(candidates, dict) or not candidates:
+        raise Error("compiled candidates must be a non-empty object")
+    valid = {}
+    valid_sources = {}
+    malformed = {}
+    for candidate_id, candidate in candidates.items():
+        try:
+            validate_compiled_candidate(candidate_id, candidate)
+            provider = candidate.get("quota_account")
+            if provider and provider not in accounts:
+                raise Error(
+                    f"candidate {candidate_id!r}.quota_account names {provider!r}, "
+                    f"but configuration has no accounts[{provider!r}]"
                 )
-            except OverflowError:
-                finite = False
-            if not finite:
-                raise Error(f"{label}.economics.{metric}.value must be a finite number")
-            if metric == "task_cost_usd":
-                if value < 0:
-                    raise Error(
-                        f"{label}.economics.{metric}.value must be non-negative"
-                    )
-                basis = data.get("basis", "")
-                if isinstance(basis, str) and re.search(
-                    r"\b(?:minimal|low|medium|high|xhigh|max)\s+proxy\b",
-                    basis.lower(),
-                ):
-                    raise Error(
-                        f"{label}.economics.{metric} requires exact effort evidence; "
-                        "effort-level proxy costs must remain unknown"
-                    )
-            if metric == "output_tokens_per_second" and value <= 0:
-                raise Error(f"{label}.economics.{metric}.value must be positive")
+        except Error as exc:
+            malformed[candidate_id] = {
+                "error": str(exc),
+                "launch": extract_launch(candidate),
+                "sources": list(candidate_sources.get(candidate_id, [])),
+            }
+            continue
+        valid[candidate_id] = candidate
+        valid_sources[candidate_id] = list(candidate_sources.get(candidate_id, []))
+    return valid, valid_sources, malformed
 
 
 def compile_brief(repo="."):
@@ -277,17 +335,13 @@ def compile_brief(repo="."):
                 candidates.get(candidate_id, {}), patch
             )
             candidate_sources.setdefault(candidate_id, []).append(scope)
-    validate_compiled_candidates(candidates)
-    for candidate_id, candidate in candidates.items():
-        provider = candidate.get("quota_account")
-        if provider and provider not in accounts:
-            raise Error(
-                f"candidate {candidate_id!r}.quota_account names {provider!r}, "
-                f"but configuration has no accounts[{provider!r}]"
-            )
+    candidates, candidate_sources, malformed = isolate_compiled_candidates(
+        candidates, candidate_sources, accounts
+    )
     return {
         "candidates": candidates,
         "candidate_sources": candidate_sources,
+        "malformed_candidates": malformed,
         "preferences": preferences,
         "accounts": accounts,
         "methodology": catalog["methodology"],
@@ -847,6 +901,29 @@ def match_candidate(compiled, launch):
     )
 
 
+def match_malformed_launch(compiled, launch):
+    for candidate_id, info in compiled.get("malformed_candidates", {}).items():
+        if info.get("launch") == launch:
+            return candidate_id, info
+    return None, None
+
+
+def refuse_malformed_candidate(compiled, candidate_id):
+    info = (compiled.get("malformed_candidates") or {}).get(candidate_id)
+    if info is not None:
+        raise Error(info["error"])
+
+
+def refuse_malformed_route_target(compiled, route_id, launch):
+    candidate_id, info = match_malformed_launch(compiled, launch)
+    if candidate_id is None:
+        return
+    raise Error(
+        f"route {route_id!r} target candidate {candidate_id!r} is malformed: "
+        f"{info['error']}"
+    )
+
+
 def candidate_sort_key(item):
     candidate_id, candidate = item
     launch = candidate["launch"]
@@ -994,6 +1071,8 @@ def check(compiled, args, runtime):
             raise Error(f"configured route not found: {args.exact_route}")
         launch = exact_config.launch_of(row)
         candidate_id = match_candidate(compiled, launch)
+        if candidate_id is None:
+            refuse_malformed_route_target(compiled, args.exact_route, launch)
         reasons, warnings, quota = gate_launch(
             compiled,
             launch,
@@ -1028,6 +1107,10 @@ def check(compiled, args, runtime):
                 )
             fallback_launch = policy["launch"]
             fallback_id = match_candidate(compiled, fallback_launch)
+            if fallback_id is None:
+                refuse_malformed_route_target(
+                    compiled, args.exact_route, fallback_launch
+                )
             fb_reasons, fb_warnings, fb_quota = gate_launch(
                 compiled,
                 fallback_launch,
@@ -1127,6 +1210,7 @@ def check(compiled, args, runtime):
         return decision
     candidate = compiled["candidates"].get(args.candidate)
     if candidate is None:
+        refuse_malformed_candidate(compiled, args.candidate)
         known = ", ".join(sorted(compiled["candidates"]))
         raise Error(
             f"unknown candidate: {args.candidate}; launchable candidates: {known}"
@@ -1381,6 +1465,11 @@ def brief_markdown(compiled, runtime, repo_root, allowed_launchers=None):
     )
     if disabled:
         lines += ["", "Disabled by configuration: " + ", ".join(disabled)]
+    malformed = compiled.get("malformed_candidates") or {}
+    if malformed:
+        lines += ["", "Excluded malformed candidates:"]
+        for candidate_id, info in sorted(malformed.items()):
+            lines.append(f"- {candidate_id}: {info['error']}")
     if runtime and runtime.get("notes"):
         lines += [""] + [f"Note: {note}" for note in runtime["notes"]]
     lines += [
@@ -1448,6 +1537,7 @@ def brief_json(compiled, runtime, repo_root, allowed_launchers=None):
             candidate_id: compiled["candidate_sources"].get(candidate_id, [])
             for candidate_id in candidates
         },
+        "malformed_candidates": compiled.get("malformed_candidates") or {},
         "candidate_policy": {"maximum_effort": MAX_EFFORT_POLICY},
         "methodology": compiled["methodology"],
         "layers": brief_layers(compiled, candidates),

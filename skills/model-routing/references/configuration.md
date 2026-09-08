@@ -71,6 +71,8 @@ Every layer is a version 4 document. A persisted layer defines only the routes i
   Use `quota_account` only when the candidate's launch surface always bills that one account. Account-scoped launchers such as Orca Codex sessions use the active session's measured account and omit `quota_account`; different sessions may select different accounts. Rotating proxies use `quota_pool`, because no single registered identity describes them.
 - Runtime authentication, health, inventory, and quota remain ephemeral inputs; never persist them as capability evidence.
 
+After layers merge, each compiled candidate is validated independently. A malformed entry is omitted from the launchable table and listed as excluded in `router.py brief` and `config.py report`. `check --candidate` of that id, or `check --exact-route` whose launch matches only that entry, fails closed with that entry's diagnostic. A valid sibling remains checkable; the malformed row is not repaired from a lower layer. Invalid layer JSON, document schema, or route rows remain hard errors for the whole document.
+
 ## View configuration
 
 Run both views because exact dispatch and the routing brief are separate surfaces:
@@ -83,7 +85,7 @@ python3 "$ROUTER" brief --repo <root> [--quota-axi] \
   [--launchable-via <agent,...>]
 ```
 
-The first shows persisted layers, exact rows, and whole-row winners. The second shows what a spawning agent sees: preferences with scope tags, effective routes, and the merged candidate table with evidence. A raw file alone does not establish effective configuration.
+The first shows persisted layers, exact rows, whole-row winners, and any excluded malformed candidates. The second shows what a spawning agent sees: preferences with scope tags, effective routes, the merged candidate table with evidence, and the same excluded malformed candidates. A raw file alone does not establish effective configuration.
 
 ## Modify configuration
 

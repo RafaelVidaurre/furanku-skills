@@ -346,6 +346,12 @@ def markdown_cell(value):
 def routing_report(paths, repo=".", route_ids=None):
     result = resolve(paths, route_ids)
     root, _common = repo_info(repo)
+    try:
+        from . import router as routing_router
+    except ImportError:
+        import router as routing_router
+    compiled = routing_router.compile_brief(repo)
+    result["malformed_candidates"] = compiled.get("malformed_candidates") or {}
     return {"repo": str(root), **result}
 
 
@@ -407,6 +413,13 @@ def report_markdown(report):
                 )
         else:
             lines.append("  - none")
+    malformed = report.get("malformed_candidates") or {}
+    if malformed:
+        lines += ["", "## Excluded malformed candidates", ""]
+        for candidate_id, info in sorted(malformed.items()):
+            lines.append(
+                f"- {markdown_cell(candidate_id)}: {markdown_cell(info['error'])}"
+            )
     return "\n".join(lines) + "\n"
 
 
