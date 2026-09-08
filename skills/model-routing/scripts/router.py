@@ -269,7 +269,7 @@ def validate_compiled_candidates(candidates):
         validate_compiled_candidate(candidate_id, candidate)
 
 
-def isolate_compiled_candidates(candidates, candidate_sources, accounts):
+def isolate_compiled_candidates(candidates, candidate_sources, accounts, known_launches):
     """Split merged candidates into launchable rows and excluded malformations.
 
     A malformed entry is omitted from play rather than aborting compile. The
@@ -294,6 +294,7 @@ def isolate_compiled_candidates(candidates, candidate_sources, accounts):
             malformed[candidate_id] = {
                 "error": str(exc),
                 "launch": extract_launch(candidate),
+                "known_launches": known_launches.get(candidate_id, []),
                 "sources": list(candidate_sources.get(candidate_id, [])),
             }
             continue
@@ -314,6 +315,19 @@ def compile_brief(repo="."):
         )
     candidates = deepcopy(catalog["candidates"])
     candidate_sources = {candidate_id: ["builtin"] for candidate_id in candidates}
+    # Diagnostic identities survive malformed overlays, without restoring any
+    # candidate metadata or making the excluded candidate launchable.
+    known_launches = {}
+
+    def remember_launch(candidate_id):
+        launch = extract_launch(candidates[candidate_id])
+        if launch is not None:
+            identities = known_launches.setdefault(candidate_id, [])
+            if launch not in identities:
+                identities.append(launch)
+
+    for candidate_id in candidates:
+        remember_launch(candidate_id)
     preferences = []
     accounts = {}
     paths = exact_config.locations(repo)
@@ -334,13 +348,15 @@ def compile_brief(repo="."):
             if patch is None:
                 candidates.pop(candidate_id, None)
                 candidate_sources.pop(candidate_id, None)
+                known_launches.pop(candidate_id, None)
                 continue
             candidates[candidate_id] = merge_patch(
                 candidates.get(candidate_id, {}), patch
             )
+            remember_launch(candidate_id)
             candidate_sources.setdefault(candidate_id, []).append(scope)
     candidates, candidate_sources, malformed = isolate_compiled_candidates(
-        candidates, candidate_sources, accounts
+        candidates, candidate_sources, accounts, known_launches
     )
     return {
         "candidates": candidates,
@@ -907,7 +923,7 @@ def match_candidate(compiled, launch):
 
 def match_malformed_launch(compiled, launch):
     for candidate_id, info in compiled.get("malformed_candidates", {}).items():
-        if info.get("launch") == launch:
+        if info.get("launch") == launch or launch in info.get("known_launches", []):
             return candidate_id, info
     return None, None
 
