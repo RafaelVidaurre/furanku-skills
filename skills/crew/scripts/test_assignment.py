@@ -309,7 +309,7 @@ class PacketTest(unittest.TestCase):
             result = run(
                 *BASE,
                 "--candidate",
-                "codex/gpt-5.6-sol/high",
+                "codex/gpt-6-astra/high",
                 "--reason",
                 SELECTED["reason"],
                 "--router",
@@ -349,7 +349,7 @@ class PacketTest(unittest.TestCase):
         result = run(
             *packet_args(SELECTED),
             "--candidate",
-            "codex/gpt-5.6-sol/high",
+            "codex/gpt-6-astra/high",
             "--reason",
             "A reason.",
         )
@@ -360,7 +360,7 @@ class PacketTest(unittest.TestCase):
         candidate = run(
             *BASE,
             "--candidate",
-            "codex/gpt-5.6-sol/high",
+            "codex/gpt-6-astra/high",
             "--reason",
             "A reason.",
             "--route-basis",
@@ -539,7 +539,7 @@ class PacketTest(unittest.TestCase):
                 "ask_seconds": 120,
                 "launch": {
                     "agent": "codex",
-                    "model": "gpt-5.6-sol",
+                    "model": "gpt-6-astra",
                     "effort": "high",
                 },
             },
@@ -547,7 +547,7 @@ class PacketTest(unittest.TestCase):
         result = run(*packet_args(decision))
         self.assertNotEqual(0, result.returncode)
         self.assertIn("--accept-quota-unknown", result.stderr)
-        self.assertIn("120s → codex/gpt-5.6-sol/high", result.stderr)
+        self.assertIn("120s → codex/gpt-6-astra/high", result.stderr)
         self.assertIn("--use-quota-fallback", result.stderr)
 
     def test_needs_acceptance_runs_runtime_remedy_before_asking(self):
@@ -597,9 +597,9 @@ class PacketTest(unittest.TestCase):
         decision = {
             "status": "exact",
             "selected": {
-                "id": "codex/gpt-5.6-sol/high",
+                "id": "codex/gpt-6-astra/high",
                 "agent": "codex",
-                "model": "gpt-5.6-sol",
+                "model": "gpt-6-astra",
                 "effort": "high",
             },
             "exact_route": "worker",
@@ -608,7 +608,7 @@ class PacketTest(unittest.TestCase):
             "quota_fallback": {
                 "used": True,
                 "from": {"agent": "grok", "model": "grok-4.6", "effort": "high"},
-                "to": {"agent": "codex", "model": "gpt-5.6-sol", "effort": "high"},
+                "to": {"agent": "codex", "model": "gpt-6-astra", "effort": "high"},
                 "ask_seconds": 120,
                 "basis": "principal did not respond within 120s",
             },

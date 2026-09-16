@@ -1,5 +1,10 @@
 # Grok 4.6 capability evidence
 
+> Routing update, 2026-09-04: the maintained catalog now uses GPT-6 Astra at
+> high effort. See [current Astra evidence](gpt-6-astra-capability-evidence-2026-09-04.md).
+> This dated snapshot preserves the original models and measurements; it is
+> not the current routing policy.
+
 Research date: 2026-08-13 (Europe/Lisbon)
 
 ## Question and boundary

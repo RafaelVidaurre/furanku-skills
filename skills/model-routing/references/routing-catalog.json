@@ -2,8 +2,8 @@
   "version": 2,
   "routes": {
     "captain": {
-      "agent": "claude",
-      "model": "claude-fable-5-1[1m]",
+      "agent": "codex",
+      "model": "gpt-6-astra",
       "effort": "high"
     },
     "worker": {
@@ -79,215 +79,6 @@
           "basis": "Artificial Analysis, high with default fallback",
           "assessed_at": "2026-09-01",
           "source": "https://artificialanalysis.ai/models/claude-fable-5-1-high"
-        }
-      }
-    },
-    "codex/gpt-5.6-sol/max": {
-      "launch": {
-        "agent": "codex",
-        "model": "gpt-5.6-sol",
-        "effort": "max"
-      },
-      "features": [
-        "tools",
-        "vision"
-      ],
-      "capabilities": {
-        "reasoning": {
-          "status": "known",
-          "score": 0.59,
-          "conservative": 0.57,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://artificialanalysis.ai/articles/gpt-5-6-has-landed"
-          ]
-        },
-        "implementation": {
-          "status": "known",
-          "score": 0.73,
-          "conservative": 0.71,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://deepswe.datacurve.ai/"
-          ]
-        },
-        "agentic": {
-          "status": "known",
-          "score": 0.9,
-          "conservative": 0.84,
-          "confidence": "medium",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://arena.ai/leaderboard/agent?stream=top"
-          ]
-        },
-        "ui": {
-          "status": "known",
-          "score": 0.85,
-          "conservative": 0.8,
-          "confidence": "medium",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://arena.ai/leaderboard?category=webdev"
-          ]
-        },
-        "spatial-3d": {
-          "status": "known",
-          "score": 0.84,
-          "conservative": 0.78,
-          "confidence": "medium",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://www.designarena.ai/leaderboard"
-          ]
-        }
-      },
-      "economics": {
-        "task_cost_usd": {
-          "value": 8.39,
-          "basis": "DeepSWE",
-          "assessed_at": "2026-07-31",
-          "source": "https://deepswe.datacurve.ai/"
-        },
-        "output_tokens_per_second": {
-          "value": 70,
-          "basis": "xhigh proxy",
-          "assessed_at": "2026-07-31",
-          "source": "https://artificialanalysis.ai/models/gpt-5-6-sol-xhigh/"
-        }
-      }
-    },
-    "codex/gpt-5.6-sol/xhigh": {
-      "launch": {
-        "agent": "codex",
-        "model": "gpt-5.6-sol",
-        "effort": "xhigh"
-      },
-      "features": [
-        "tools",
-        "vision"
-      ],
-      "capabilities": {
-        "reasoning": {
-          "status": "known",
-          "score": 0.58,
-          "conservative": 0.56,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://artificialanalysis.ai/models/gpt-5-6-sol-xhigh/"
-          ]
-        },
-        "implementation": {
-          "status": "known",
-          "score": 0.73,
-          "conservative": 0.7,
-          "confidence": "medium",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://deepswe.datacurve.ai/"
-          ]
-        },
-        "agentic": {
-          "status": "known",
-          "score": 0.9,
-          "conservative": 0.86,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://arena.ai/leaderboard/agent?stream=top"
-          ]
-        },
-        "ui": {
-          "status": "known",
-          "score": 0.85,
-          "conservative": 0.82,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://arena.ai/leaderboard?category=webdev"
-          ]
-        },
-        "spatial-3d": {
-          "status": "known",
-          "score": 0.84,
-          "conservative": 0.8,
-          "confidence": "medium",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://www.designarena.ai/leaderboard"
-          ]
-        }
-      },
-      "economics": {
-        "output_tokens_per_second": {
-          "value": 70,
-          "basis": "Artificial Analysis",
-          "assessed_at": "2026-07-31",
-          "source": "https://artificialanalysis.ai/models/gpt-5-6-sol-xhigh/"
-        }
-      }
-    },
-    "codex/gpt-5.6-sol/high": {
-      "launch": {
-        "agent": "codex",
-        "model": "gpt-5.6-sol",
-        "effort": "high"
-      },
-      "features": [
-        "tools",
-        "vision"
-      ],
-      "capabilities": {
-        "reasoning": {
-          "status": "known",
-          "score": 0.56,
-          "conservative": 0.54,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://artificialanalysis.ai/models/gpt-5-6-sol-high"
-          ]
-        },
-        "implementation": {
-          "status": "known",
-          "score": 0.68,
-          "conservative": 0.64,
-          "confidence": "low",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://artificialanalysis.ai/models/gpt-5-6-sol-high"
-          ]
-        },
-        "agentic": {
-          "status": "known",
-          "score": 0.75,
-          "conservative": 0.7,
-          "confidence": "low",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://artificialanalysis.ai/models/gpt-5-6-sol-high"
-          ]
-        },
-        "ui": {
-          "status": "known",
-          "score": 0.78,
-          "conservative": 0.74,
-          "confidence": "low",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://arena.ai/leaderboard?category=webdev"
-          ]
-        }
-      },
-      "economics": {
-        "output_tokens_per_second": {
-          "value": 63,
-          "basis": "Artificial Analysis",
-          "assessed_at": "2026-07-31",
-          "source": "https://artificialanalysis.ai/models/gpt-5-6-sol-high"
         }
       }
     },
@@ -787,226 +578,127 @@
         }
       }
     },
-    "claudex/gpt-5.6-sol/max": {
+    "codex/gpt-6-astra/high": {
       "launch": {
-        "agent": "claudex",
-        "model": "gpt-5.6-sol",
-        "effort": "max"
-      },
-      "features": [
-        "tools",
-        "vision"
-      ],
-      "capabilities": {
-        "reasoning": {
-          "status": "known",
-          "score": 0.59,
-          "conservative": 0.57,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://artificialanalysis.ai/articles/gpt-5-6-has-landed"
-          ]
-        },
-        "implementation": {
-          "status": "known",
-          "score": 0.73,
-          "conservative": 0.71,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://deepswe.datacurve.ai/"
-          ]
-        },
-        "agentic": {
-          "status": "known",
-          "score": 0.9,
-          "conservative": 0.84,
-          "confidence": "medium",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://arena.ai/leaderboard/agent?stream=top"
-          ]
-        },
-        "ui": {
-          "status": "known",
-          "score": 0.85,
-          "conservative": 0.8,
-          "confidence": "medium",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://arena.ai/leaderboard?category=webdev"
-          ]
-        },
-        "spatial-3d": {
-          "status": "known",
-          "score": 0.84,
-          "conservative": 0.78,
-          "confidence": "medium",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://www.designarena.ai/leaderboard"
-          ]
-        }
-      },
-      "economics": {
-        "task_cost_usd": {
-          "value": 8.39,
-          "basis": "DeepSWE",
-          "assessed_at": "2026-07-31",
-          "source": "https://deepswe.datacurve.ai/"
-        },
-        "output_tokens_per_second": {
-          "value": 70,
-          "basis": "xhigh proxy",
-          "assessed_at": "2026-07-31",
-          "source": "https://artificialanalysis.ai/models/gpt-5-6-sol-xhigh/"
-        }
-      },
-      "quota_provider": {
-        "provider": "codex",
-        "detail": "This proxy route bills the Codex provider rather than the claudex launcher. Configure quota_pool in a private layer when the deployment rotates credentials."
-      }
-    },
-    "claudex/gpt-5.6-sol/xhigh": {
-      "launch": {
-        "agent": "claudex",
-        "model": "gpt-5.6-sol",
-        "effort": "xhigh"
-      },
-      "features": [
-        "tools",
-        "vision"
-      ],
-      "capabilities": {
-        "reasoning": {
-          "status": "known",
-          "score": 0.58,
-          "conservative": 0.56,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://artificialanalysis.ai/models/gpt-5-6-sol-xhigh/"
-          ]
-        },
-        "implementation": {
-          "status": "known",
-          "score": 0.73,
-          "conservative": 0.7,
-          "confidence": "medium",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://deepswe.datacurve.ai/"
-          ]
-        },
-        "agentic": {
-          "status": "known",
-          "score": 0.9,
-          "conservative": 0.86,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://arena.ai/leaderboard/agent?stream=top"
-          ]
-        },
-        "ui": {
-          "status": "known",
-          "score": 0.85,
-          "conservative": 0.82,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://arena.ai/leaderboard?category=webdev"
-          ]
-        },
-        "spatial-3d": {
-          "status": "known",
-          "score": 0.84,
-          "conservative": 0.8,
-          "confidence": "medium",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://www.designarena.ai/leaderboard"
-          ]
-        }
-      },
-      "economics": {
-        "output_tokens_per_second": {
-          "value": 70,
-          "basis": "Artificial Analysis",
-          "assessed_at": "2026-07-31",
-          "source": "https://artificialanalysis.ai/models/gpt-5-6-sol-xhigh/"
-        }
-      },
-      "quota_provider": {
-        "provider": "codex",
-        "detail": "This proxy route bills the Codex provider rather than the claudex launcher. Configure quota_pool in a private layer when the deployment rotates credentials."
-      }
-    },
-    "claudex/gpt-5.6-sol/high": {
-      "launch": {
-        "agent": "claudex",
-        "model": "gpt-5.6-sol",
+        "agent": "codex",
+        "model": "gpt-6-astra",
         "effort": "high"
       },
       "features": [
         "tools",
-        "vision"
+        "vision",
+        "long-context"
       ],
       "capabilities": {
         "reasoning": {
           "status": "known",
-          "score": 0.56,
-          "conservative": 0.54,
+          "score": 0.6,
+          "conservative": 0.58,
           "confidence": "high",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-04",
           "evidence": [
-            "https://artificialanalysis.ai/models/gpt-5-6-sol-high"
+            "https://artificialanalysis.ai/models/gpt-6-astra-high"
           ]
         },
         "implementation": {
           "status": "known",
-          "score": 0.68,
-          "conservative": 0.64,
-          "confidence": "low",
-          "assessed_at": "2026-07-31",
+          "score": 0.7323,
+          "conservative": 0.698,
+          "confidence": "medium",
+          "assessed_at": "2026-09-04",
           "evidence": [
-            "https://artificialanalysis.ai/models/gpt-5-6-sol-high"
+            "https://deepswe.datacurve.ai/"
           ]
         },
         "agentic": {
-          "status": "known",
-          "score": 0.75,
-          "conservative": 0.7,
-          "confidence": "low",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://artificialanalysis.ai/models/gpt-5-6-sol-high"
-          ]
+          "status": "unknown",
+          "reason": "No exact high-effort Agent Arena result was found; the Coding Agent Index mixes model and harness and does not establish general agentic reliability.",
+          "researched_at": "2026-09-04"
         },
         "ui": {
-          "status": "known",
-          "score": 0.78,
-          "conservative": 0.74,
-          "confidence": "low",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://arena.ai/leaderboard?category=webdev"
-          ]
+          "status": "unknown",
+          "reason": "No exact high-effort Astra WebDev Arena result was found.",
+          "researched_at": "2026-09-04"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "No exact high-effort Astra Design Arena 3D result was found.",
+          "researched_at": "2026-09-04"
         }
       },
       "economics": {
-        "output_tokens_per_second": {
-          "value": 63,
-          "basis": "Artificial Analysis",
-          "assessed_at": "2026-07-31",
-          "source": "https://artificialanalysis.ai/models/gpt-5-6-sol-high"
+        "task_cost_usd": {
+          "value": 5.7237,
+          "basis": "DeepSWE high, mini-swe-agent; expected launch pricing ($12 input/$15 cache write/$1.20 cache read/$50 output plus $2 compute per million), not current API tariff",
+          "assessed_at": "2026-09-04",
+          "source": "https://deepswe.datacurve.ai/"
+        }
+      },
+      "context": 1050000,
+      "context_evidence": "https://developers.openai.com/api/docs/models/gpt-6-astra"
+    },
+    "claudex/gpt-6-astra/high": {
+      "launch": {
+        "agent": "claudex",
+        "model": "gpt-6-astra",
+        "effort": "high"
+      },
+      "features": [
+        "tools",
+        "vision",
+        "long-context"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.6,
+          "conservative": 0.58,
+          "confidence": "high",
+          "assessed_at": "2026-09-04",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-6-astra-high"
+          ]
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.7323,
+          "conservative": 0.698,
+          "confidence": "medium",
+          "assessed_at": "2026-09-04",
+          "evidence": [
+            "https://deepswe.datacurve.ai/"
+          ]
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "No exact high-effort Agent Arena result was found; the Coding Agent Index mixes model and harness and does not establish general agentic reliability.",
+          "researched_at": "2026-09-04"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "No exact high-effort Astra WebDev Arena result was found.",
+          "researched_at": "2026-09-04"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "No exact high-effort Astra Design Arena 3D result was found.",
+          "researched_at": "2026-09-04"
+        }
+      },
+      "economics": {
+        "task_cost_usd": {
+          "value": 5.7237,
+          "basis": "DeepSWE high, mini-swe-agent; expected launch pricing ($12 input/$15 cache write/$1.20 cache read/$50 output plus $2 compute per million), not current API tariff",
+          "assessed_at": "2026-09-04",
+          "source": "https://deepswe.datacurve.ai/"
         }
       },
       "quota_provider": {
         "provider": "codex",
         "detail": "This proxy route bills the Codex provider rather than the claudex launcher. Configure quota_pool in a private layer when the deployment rotates credentials."
-      }
+      },
+      "context": 1050000,
+      "context_evidence": "https://developers.openai.com/api/docs/models/gpt-6-astra"
     }
   }
 }

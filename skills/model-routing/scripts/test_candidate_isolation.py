@@ -43,8 +43,8 @@ class CandidateIsolationTest(unittest.TestCase):
                 "routes": {
                     "captain": {
                         "agent": "codex",
-                        "model": "gpt-5.6-sol",
-                        "effort": "xhigh",
+                        "model": "gpt-6-astra",
+                        "effort": "high",
                     },
                     "worker": {
                         "agent": "grok",
@@ -224,7 +224,7 @@ class CandidateIsolationTest(unittest.TestCase):
         self.assertFalse(result.stdout.strip())
         decision = self.check(
             "--candidate",
-            "codex/gpt-5.6-sol/high",
+            "codex/gpt-6-astra/high",
             "--reason",
             "Unrelated valid candidate stays checkable.",
             runtime={"harnesses": {"codex": {"quota": {"status": "known"}}}},
@@ -249,12 +249,12 @@ class CandidateIsolationTest(unittest.TestCase):
                 self.assertFalse(result.stdout.strip())
 
     def test_quota_fallback_rejects_erased_candidate_launch(self):
-        fallback_id = "codex/gpt-5.6-sol/high"
+        fallback_id = "codex/gpt-6-astra/high"
         self.write_repo_layer({
             "version": 4, "routes": {"worker": {
                 "agent": "grok", "model": "grok-4.6", "effort": "high",
                 "on_quota_unusable": {"fallback": {
-                    "agent": "codex", "model": "gpt-5.6-sol", "effort": "high",
+                    "agent": "codex", "model": "gpt-6-astra", "effort": "high",
                 }},
             }},
             "candidates": {fallback_id: {"launch": {"effort": None}}},
@@ -357,7 +357,7 @@ class CandidateIsolationTest(unittest.TestCase):
                     "captain..bad": {
                         "work": "Invalid id.",
                         "agent": "codex",
-                        "model": "gpt-5.6-sol",
+                        "model": "gpt-6-astra",
                         "effort": "high",
                     }
                 },

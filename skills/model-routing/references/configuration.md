@@ -23,28 +23,28 @@ Every layer is a version 4 document. A persisted layer defines only the routes i
 {
   "version": 4,
   "routes": {
-    "captain": { "agent": "codex", "model": "gpt-5.6-sol", "effort": "high" },
+    "captain": { "agent": "codex", "model": "gpt-6-astra", "effort": "high" },
     "worker": {
       "agent": "grok",
       "model": "grok-4.6",
       "effort": "high",
       "on_quota_unusable": {
         "ask_seconds": 120,
-        "fallback": { "agent": "codex", "model": "gpt-5.6-sol", "effort": "high" }
+        "fallback": { "agent": "codex", "model": "gpt-6-astra", "effort": "high" }
       }
     }
   },
   "preferences": [
-    "Captains default to gpt-5.6-sol at high.",
-    "Treat grok-4.6 at high as a peer of claude-fable-5-1[1m] and gpt-5.6-sol at high for intelligence, architecture, and most complex problems.",
-    "For the most complex architecture or systems design, use claude-fable-5-1[1m], gpt-5.6-sol at max, or grok-4.6 at high."
+    "Captains default to gpt-6-astra at high.",
+    "Prefer gpt-6-astra at high over claude-fable-5-1[1m] for intelligence, architecture, and complex problems; this is a routing preference, not a benchmark score.",
+    "Use grok-4.6 at high for bounded implementation and agentic execution."
   ],
   "candidates": {
     "opencode/kimi-for-coding/k3/max": { "enabled": false },
-    "codex-fixed/gpt-5.6-sol/high": {
+    "codex-fixed/gpt-6-astra/high": {
       "launch": {
         "agent": "codex-fixed",
-        "model": "gpt-5.6-sol",
+        "model": "gpt-6-astra",
         "effort": "high"
       },
       "quota_provider": {
@@ -63,7 +63,7 @@ Every layer is a version 4 document. A persisted layer defines only the routes i
 - `preferences` are plain-language routing statements addressed to the spawning agent. They may name models, candidates, tiers, budgets, or conditions—anything the user wants weighed. They are not machine-enforced; the brief presents them and the spawn guidance makes them binding on the agent's judgment.
 - `on_quota_unusable` is optional on any route. Omit it or set `"ask"` to keep asking. An object requires a `fallback` launch tuple different from the route and may set `ask_seconds` (default 120): the agent asks once per quota blocker, then `check --use-quota-fallback` may take that fallback if the principal has not answered. Whole-row replacement still applies — a later layer that omits the field removes the fallback.
 - `candidates` add new launchable candidates or patch builtin ones. A candidate carries one exact `agent/model/effort` launch tuple; capability assessments carry a score, conservative value, confidence, date, and public evidence; unavailable evidence remains unknown. `{"enabled": false}` removes a candidate from play; `check` refuses it. A candidate whose launcher always bills one fixed account sets `quota_account` to that account's provider key in `accounts`.
-- The `agent` token names the launcher capability that can serve the model, not a vendor. Two launchers reaching the same model hold different tokens — `codex/gpt-5.6-sol/high` and `claudex/gpt-5.6-sol/high` are the same model through different surfaces. Give a launcher its own token whenever it serves models no other launcher can reach, so that a consumer omitting it from `check --launchable-via` genuinely loses those models. Folding such a launcher under a broader token makes its exclusive models unrefusable: the gate compares tokens, so a model reachable only through a parked launcher stays selectable under the shared token. Keep the launcher out of the model name; the token carries it.
+- The `agent` token names the launcher capability that can serve the model, not a vendor. Two launchers reaching the same model hold different tokens — `codex/gpt-6-astra/high` and `claudex/gpt-6-astra/high` are the same model through different surfaces. Give a launcher its own token whenever it serves models no other launcher can reach, so that a consumer omitting it from `check --launchable-via` genuinely loses those models. Folding such a launcher under a broader token makes its exclusive models unrefusable: the gate compares tokens, so a model reachable only through a parked launcher stays selectable under the shared token. Keep the launcher out of the model name; the token carries it.
 - `quota_pool` marks a candidate that does not bill the account its launch harness uses — the same model reached through a proxy that holds several credentials and picks one per request. It carries the billed `provider` and a `detail` explaining the arrangement. Such a candidate never inherits its harness's quota and never borrows a single credential's number. Its quota reports `pooled`, which passes with a warning: the surface has no one account to measure and rotates off exhausted credentials itself, so this is a settled state rather than a failed reading, and acceptance stays for quota that is normally readable and currently is not. The harness's authentication and health still gate it: the proxy supplies the account, not the ability to run.
 - `quota_provider` marks a candidate billed by a provider other than its launch harness. It carries the billed `provider` and a `detail` explaining the arrangement. The candidate keeps the harness's authentication and health gates but never inherits the harness account's quota. Provider runtime is projected onto the candidate when an adapter supplies it; otherwise quota stays `unknown` and requires explicit acceptance. Use this for a single-provider route; use `quota_pool` only when the serving surface actually rotates credentials.
 - `accounts` is a private registry of provider account identities (`claude`, `codex`, `grok`). It does not apply an account to every candidate from that provider. `check` compares a quota reading with a registered account only when that candidate opts in through `quota_account`; a mismatch is refused in both directions because neither apparent headroom nor exhaustion describes that fixed-account launch.
@@ -99,6 +99,8 @@ The first shows persisted layers, exact rows, whole-row winners, and any exclude
    ```
 
 5. Rerun both views and confirm the change is visible: the route row wins from the intended scope, the preference line appears with the intended scope tag, or the candidate change shows in the table. For a preference change, also confirm the wording answers the routing question it was written for—an agent reading only the brief should reach the pick the user intended.
+
+When retiring a model, inspect all persisted layers and active worktree configurations in the requested scope: a candidate override can reintroduce a removed builtin, and exact routes or quota fallbacks can still name it. Update those references through the helper, synchronize installed skill copies, and regenerate each affected repository's report and brief. Complete when the retired model is absent from effective routes, fallbacks, and candidates in every affected checkout and installed copy. Preserve dated research as historical evidence.
 
 Use `config.py delete <scope> --repo <root> --yes` only after explicit confirmation to remove that entire layer.
 

@@ -138,8 +138,8 @@ class ConfigTest(unittest.TestCase):
             "version": 4,
             "routes": self.base_config()["routes"],
             "preferences": [
-                "Captains default to gpt-5.6-sol at xhigh.",
-                "For the hardest design work, use fable or sol at max.",
+                "Captains default to gpt-6-astra at high.",
+                "For the hardest design work, use gpt-6-astra at high, ahead of fable.",
             ],
             "candidates": {"grok/grok-4.6/high": {"enabled": False}},
         }
@@ -530,7 +530,7 @@ class ConfigTest(unittest.TestCase):
         config = self.base_config()
         config["routes"]["worker"]["on_quota_unusable"] = {
             "ask_seconds": 90,
-            "fallback": row("codex", "gpt-5.6-sol", "high"),
+            "fallback": row("codex", "gpt-6-astra", "high"),
         }
         self.write("global", config)
         result = json.loads(
@@ -539,7 +539,7 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(
             {
                 "ask_seconds": 90,
-                "fallback": row("codex", "gpt-5.6-sol", "high"),
+                "fallback": row("codex", "gpt-6-astra", "high"),
             },
             result["worker"]["on_quota_unusable"],
         )
@@ -554,7 +554,7 @@ class ConfigTest(unittest.TestCase):
         bad_seconds = self.base_config()
         bad_seconds["routes"]["worker"]["on_quota_unusable"] = {
             "ask_seconds": 0,
-            "fallback": row("codex", "gpt-5.6-sol", "high"),
+            "fallback": row("codex", "gpt-6-astra", "high"),
         }
         refused = self.run_config("write", "global", input_value=bad_seconds, ok=False)
         self.assertIn("ask_seconds must be a positive integer", refused.stderr)
