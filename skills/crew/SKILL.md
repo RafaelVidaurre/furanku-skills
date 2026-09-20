@@ -44,14 +44,14 @@ When the user gives the current session a role, adopt it immediately with `repor
 
 Use model-routing's classification of launch constraints and routing instructions. Record each principal or inherited launch constraint verbatim in the assignment packet with repeatable `--launch-constraint`; satisfy it at dispatch and propagate it unchanged into every descendant packet. A combined instruction carries its launch and routing parts through their respective fields.
 
-Load the `model-routing` skill and follow its judgment rules. Use Crew's adapter to show only candidates the mechanism can launch; it derives launchability from the manifest and loads live quota:
+Load the `model-routing` skill and complete its one-time setup and follow its configured selector. Use Crew's adapter to show only candidates the mechanism can launch; it derives launchability from the manifest and loads live quota:
 
 ```sh
 python3 <crew-skill-dir>/scripts/assignment.py brief --repo <root> \
   [--manifest <mechanism-id-or-manifest>]
 ```
 
-Judge the pick from that brief, then build one gate-checked packet per owner:
+When Jev is enabled, use model-routing's `route` command with task facts and the manifest's launchable agents. Save its successful decision privately and supply it to `packet --decision-json <file>` in place of candidate/reason arguments. For agent selection, judge the pick from the brief. Build one gate-checked packet per owner:
 
 ```sh
 python3 <crew-skill-dir>/scripts/assignment.py packet --repo <root> \

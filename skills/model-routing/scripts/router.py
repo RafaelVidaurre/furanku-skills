@@ -3,9 +3,8 @@
 
 The brief hands the spawning agent the information it lacks — candidate
 research evidence, economics, live quota, configured exact routes, and the
-user's routing preferences. The judgment about which candidate fits a task
-belongs to the agent reading the brief; `check` enforces hard gates and the
-explicit justification required for maximum effort.
+user's routing preferences. The configured selector (Jev or the spawning agent) judges task fit; `check`
+enforces hard gates and the explicit justification required for maximum effort.
 """
 
 from __future__ import annotations
@@ -1602,7 +1601,12 @@ def load_runtime(args, candidates):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("brief", "check"))
+    parser.add_argument("command", choices=("brief", "check", "route", "setup", "status"))
+    parser.add_argument("--selector", choices=("agent", "jev"), help="machine-wide choice for setup")
+    parser.add_argument("--task-file", help="Jev task context JSON")
+    parser.add_argument("--allow-model", action="append", default=[], help="principal-required model, repeatable")
+    parser.add_argument("--allow-effort", action="append", default=[], help="principal-required effort, repeatable")
+    parser.add_argument("--require-zdr", action="store_true", help="require Gateway zero data retention")
     parser.add_argument("--repo", default=".")
     parser.add_argument("--candidate", help="candidate ID chosen from the brief")
     parser.add_argument(
@@ -1653,7 +1657,15 @@ def main(argv=None):
     parser.add_argument("--format", choices=("markdown", "json"), default=None)
     parser.add_argument("--compact", action="store_true")
     args = parser.parse_args(argv)
+    # Extensions import router; keep CLI and imported exception types identical.
+    sys.modules.setdefault("router", sys.modules[__name__])
+    import selector
+    import jev
     try:
+        if args.command in ("setup", "status"):
+            result = selector.setup(args.selector) if args.command == "setup" else selector.status()
+            emit(result, args.compact)
+            return 0 if result["status"] == "ready" else 2
         compiled = compile_brief(args.repo)
         repo_root, _common = exact_config.repo_info(args.repo)
         if args.command == "brief":
@@ -1671,14 +1683,14 @@ def main(argv=None):
                 )
             return 0
         runtime = load_runtime(args, compiled["candidates"])
-        decision = check(compiled, args, runtime)
+        decision = selector.route(compiled, args, runtime) if args.command == "route" else check(compiled, args, runtime)
         emit(decision, args.compact)
         if decision["status"] == "refused":
             return 1
         if decision["status"] == "needs-acceptance":
             return 2
         return 0
-    except (Error, exact_config.Error, OSError, json.JSONDecodeError) as exc:
+    except (Error, exact_config.Error, jev.Error, OSError, json.JSONDecodeError) as exc:
         print(f"model-routing: {exc}", file=sys.stderr)
         return 1
 

@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "mechanical-edit",
+      "task": {
+        "outcome": "Correct one misspelling in a public README.",
+        "acceptance_criteria": [
+          "Only the misspelled word changes; inspect the diff."
+        ],
+        "repository_facts": [
+          "The exact line and replacement are supplied."
+        ],
+        "authority": "One reversible documentation edit.",
+        "unknowns": []
+      }
+    },
+    {
+      "id": "bounded-implementation",
+      "task": {
+        "outcome": "Add pagination to a Python CLI list command following the existing pagination helper.",
+        "acceptance_criteria": [
+          "Multiple pages are returned in order.",
+          "Provider failures retain the current error behavior.",
+          "A focused test covers the second page."
+        ],
+        "repository_facts": [
+          "The sibling command already uses the helper.",
+          "Two modules need changes; tests run locally."
+        ],
+        "authority": "Reversible code and test edits, reviewed before merge.",
+        "unknowns": []
+      }
+    },
+    {
+      "id": "cache-known-fix",
+      "task": {
+        "outcome": "Fix the cache.",
+        "acceptance_criteria": [
+          "Change the supplied off-by-one boundary and pass the provided regression test."
+        ],
+        "repository_facts": [
+          "A deterministic test identifies one inclusive/exclusive comparison in a local in-memory cache.",
+          "The caller supplied the exact fix; there is no concurrency or distributed state."
+        ],
+        "authority": "One reversible implementation edit.",
+        "unknowns": []
+      }
+    },
+    {
+      "id": "cache-race",
+      "task": {
+        "outcome": "Fix the cache.",
+        "acceptance_criteria": [
+          "Explain the cross-process invalidation race with a reproducer.",
+          "Propose a consistency protocol and explain failure/recovery tradeoffs."
+        ],
+        "repository_facts": [
+          "Three services update the same records.",
+          "Stale reads occur only after process failures.",
+          "No reliable reproduction or agreed consistency model exists."
+        ],
+        "authority": "Own the diagnosis and architectural proposal; no deployment.",
+        "failure_impact": "An incorrect protocol could lose updates.",
+        "unknowns": [
+          "Ordering of cross-process messages",
+          "Behavior during partial failure"
+        ]
+      }
+    },
+    {
+      "id": "visual-design",
+      "task": {
+        "outcome": "Redesign a settings panel using supplied screenshots and assess spacing, hierarchy, and contrast.",
+        "acceptance_criteria": [
+          "Provide a coherent visual design and compare screenshots at two sizes."
+        ],
+        "repository_facts": [
+          "The worker will receive screenshots and can render the UI.",
+          "This request requires aesthetic judgment, not just a CSS property change."
+        ],
+        "authority": "Reversible UI edits.",
+        "unknowns": []
+      },
+      "require_features": [
+        "vision"
+      ],
+      "forbidden_models": [
+        "grok-4.6"
+      ]
+    },
+    {
+      "id": "insufficient-task",
+      "task": {
+        "outcome": "Do the thing we discussed.",
+        "acceptance_criteria": [],
+        "repository_facts": [
+          "No earlier discussion or task artifacts were provided."
+        ],
+        "authority": "Unknown.",
+        "unknowns": [
+          "Desired outcome",
+          "Deliverable",
+          "Required capabilities",
+          "Scope"
+        ]
+      }
+    }
+  ]
+}
