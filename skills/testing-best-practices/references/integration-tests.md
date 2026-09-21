@@ -98,7 +98,7 @@ Inject each failure at the narrowest boundary that preserves the behavior claime
 
 ## Make distributed failures local
 
-Failure output should include:
+Failure output, printed only for the failing test and scoped to its correlation identifiers, should include:
 
 - seam, scenario, expected outcome, and actual outcome;
 - participant versions and relevant configuration;

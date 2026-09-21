@@ -14,6 +14,15 @@ Read this reference when adapting the guidance to a high-risk domain, resolving 
 - Goran Petrović et al., [Long Term Effects of Mutation Testing](https://research.google/pubs/long-term-effects-of-mutation-testing/) and [Industrial Application](https://research.google/pubs/an-industrial-application-of-mutation-testing-lessons-challenges-and-research-directions/): mutation usefulness and practical limits.
 - Celal Ziftci and Diego Cavalcanti, [De-Flake Your Tests](https://research.google/pubs/de-flake-your-tests-automatically-locating-root-causes-of-flaky-tests-in-code-at-google/): nondeterminism and repair workflow.
 
+- Google, [Change-Detector Tests Considered Harmful](https://testing.googleblog.com/2015/01/testing-on-toilet-change-detector-tests.html): tests that restate the implementation or setup add cost without evidence.
+
+## Test selection and runs
+
+- Paul Hammant, [The Rise of Test Impact Analysis](https://martinfowler.com/articles/rise-test-impact-analysis.html): running only the tests a change can affect, via dependency or coverage maps.
+- Rachel Tannenbaum, [Continuous Integration — *Software Engineering at Google*](https://abseil.io/resources/swe-book/html/ch23.html): change-scoped presubmit selection versus broader later-stage and release verification.
+
+The full-suite-as-release-gate rule and the lean-output rules are this skill's policy for agent-driven work, where each run spends time and context; they extend these sources rather than quote them.
+
 ## Integration testing
 
 - Adam Bender, [Testing Overview — *Software Engineering at Google*](https://abseil.io/resources/swe-book/html/ch11.html): size versus scope, hermeticity, risk, and suite composition.

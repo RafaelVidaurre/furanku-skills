@@ -102,10 +102,11 @@ You can use the **CLI yourself** or ask an agent to help you choose. Details: [g
 
 **Useful if:** you want better automated tests — clearer failures, less brittleness, less noise — without being forced into one testing religion.
 
-**What it does:** steers the agent to treat each test as *evidence* for behavior that matters, and to match your project’s language and tools.
+**What it does:** steers the agent to treat each test as *evidence* for behavior that matters, to skip and prune low-signal tests, to run only the tests a change can affect (the full suite stays a release gate), and to match your project’s language and tools.
 
 ```text
 > Add tests for this change using the project's conventions.
+> Which tests do I need to run for this change?
 > Review this test suite for flaky or low-value tests.
 > What's the smallest useful test for this database path?
 ```

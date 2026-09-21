@@ -39,7 +39,7 @@ Start with the behavior's input and state space:
 - **Regression:** the smallest example of an escaped defect.
 - **Property:** an invariant spanning a large input space.
 
-Prefer the smallest values that make the distinction clear. Parameterize cases that share one behavior and assertion shape; keep named standalone examples when the scenario deserves independent documentation or diagnosis.
+Each case is a representative of a class that its name states; values the rule ignores stay minimal or generated so the test survives changes to them. Prefer the smallest values that make the distinction clear. Parameterize cases that share one behavior and assertion shape; keep named standalone examples when the scenario deserves independent documentation or diagnosis.
 
 Derive expected values from a specification, independent calculation, trusted model, or explicit literal. Expected-value code that repeats the production algorithm can repeat its defect. Keep test logic straight-line and inspectable; express data tables as data rather than loops with evolving expectations.
 
@@ -47,7 +47,7 @@ Derive expected values from a specification, independent calculation, trusted mo
 
 Make time, randomness, scheduling, locale, time zone, environment, configuration, filesystem paths, network endpoints, and generated identifiers explicit when they influence the result. Record seeds for generated cases. Give mutable fixtures a fresh instance or isolated namespace and restore process-wide state reliably.
 
-Run order randomization and repetition when hidden shared state or nondeterminism is plausible. A repeatable test produces the same result for the same code, inputs, and declared environment; it does not require production behavior itself to be deterministic.
+Run order randomization and repetition, scoped to the suspect tests, when hidden shared state or nondeterminism is plausible. A repeatable test produces the same result for the same code, inputs, and declared environment; it does not require production behavior itself to be deterministic.
 
 ## Use test doubles by role and fidelity
 
@@ -90,6 +90,8 @@ Use helpers as a test vocabulary: a helper should reveal domain intent or hide i
 |---|---|
 | Refactors break many tests | Assert supported behavior at a more stable boundary |
 | Test passes after behavior is removed | Strengthen the oracle or exercise the missing path |
+| Suspected tautological, edit-pinning, trivial, or obsolete test | Apply the deletion check in [Suite health](suite-health.md#prune-low-signal-tests) |
+| Scenario breaks when incidental fixtures, copy, or structure change | Reframe it around the behavior and assert only contract-relevant outcome |
 | Test result depends on order | Give it isolated state and explicit lifecycle |
 | Failure says only true/false | Show expected, actual, and scenario context |
 | Cases differ without changing risk | Remove duplication or use a data table |
