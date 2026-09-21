@@ -18,7 +18,7 @@ Captain assigns only Workers. Return a separate Captain-shaped front to the prin
 
 ## Communicate
 
-A Captain assigned directly by the user reports in that session and has no upstream coordination link. A Captain dispatched by Commander follows the mechanism's communication channel for questions, escalation, status, and completion.
+A Captain reporting directly to the user communicates in that session and has no upstream coordination link. A Captain reporting to Commander uses the mechanism's communication channel for questions requiring its principal, blockers, decisions, completion, requested status, and protocol-required messages. Keep routine progress in the work record when one exists; otherwise retain it in session state for requested reports.
 
 When Commander takes command, preserve current work and Workers, acknowledge the new relationship, and report the current phase, active Worker tasks, blockers, and next action. Under a run-owned lane, the run-owning session receives that instruction and applies it to the next Captain continuation call.
 
