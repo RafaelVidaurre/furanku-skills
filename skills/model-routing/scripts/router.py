@@ -327,7 +327,10 @@ def compile_brief(repo="."):
 
     for candidate_id in candidates:
         remember_launch(candidate_id)
-    preferences = []
+    preferences = [
+        {"scope": "builtin", "text": text.strip()}
+        for text in catalog.get("preferences", [])
+    ]
     accounts = {}
     paths = exact_config.locations(repo)
     exact = exact_config.resolve(paths)
@@ -1410,7 +1413,7 @@ def brief_markdown(compiled, runtime, repo_root, allowed_launchers=None):
     ]
     if allowed_launchers is not None:
         lines.append("**Launchable agents:** " + ", ".join(sorted(allowed_launchers)))
-    lines += ["", "## User preferences", ""]
+    lines += ["", "## Routing preferences", ""]
     if compiled["preferences"]:
         lines.append(
             "Listed low scope to high. On conflict: the principal's current "

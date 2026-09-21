@@ -8,7 +8,7 @@ INSTRUCTIONS = (
     "Choose the eligible offer best suited to the task's outcome and acceptance criteria. "
     "Use the supplied exact model/effort evidence, limitations, applicable preferences, "
     "and provider-local quota semantics. Preferences: current task constraints win, then "
-    "machine-repo over repo over global, then narrower applicable condition, then later entry. "
+    "machine-repo over repo over global over builtin, then narrower applicable condition, then later entry. "
     "Spend premium capability only for a material task-relevant advantage. "
     "Unknown evidence is unknown. Subscription quota is not cash, raw remaining "
     "percentages are not comparable across providers, and pooled access is not free. "
@@ -97,4 +97,3 @@ def prepare_case(compiled, runtime, case, launchers):
     payload = jev.validate_request({"model": jev.MODEL, "state": state,
         "questions": {"route": {"type": "choice", "instructions": INSTRUCTIONS, "criteria": criteria}}})
     return payload, mapping, excluded
-

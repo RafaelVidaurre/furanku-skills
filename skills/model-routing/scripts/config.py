@@ -236,6 +236,7 @@ def builtin():
             "and candidates"
         )
     validate_rows(catalog["routes"], True, str(CATALOG))
+    validate_preferences(catalog.get("preferences", []), str(CATALOG))
     validate_candidate_overrides(catalog["candidates"], str(CATALOG))
     if not isinstance(catalog["methodology"], dict):
         raise Error(f"{CATALOG} methodology must be an object")
@@ -277,7 +278,7 @@ def resolve(paths, route_ids=None):
             "exists": True,
             "version": catalog["version"],
             "routes_defined": list(ordered(catalog["routes"])),
-            "preferences": 0,
+            "preferences": len(catalog.get("preferences", [])),
             "candidates_defined": sorted(catalog["candidates"]),
         }
     )

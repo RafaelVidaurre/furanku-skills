@@ -12,6 +12,9 @@
       "effort": "max"
     }
   },
+  "preferences": [
+    "Prefer GPT-6 Astra (gpt-6-astra) for 3D modelling, including mesh and geometry creation, CAD, and 3D scene composition. This is a routing preference, not a benchmark claim; choose an eligible Astra candidate subject to task constraints and launch gates."
+  ],
   "methodology": {
     "reasoning": "Artificial Analysis Intelligence Index divided by 100 when exact; otherwise a labeled effort proxy.",
     "implementation": "DeepSWE or CursorBench resolved-task rate when exact; harness transfers are reflected in confidence and the conservative estimate.",

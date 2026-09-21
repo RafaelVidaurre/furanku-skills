@@ -117,9 +117,33 @@ class RouterTest(unittest.TestCase):
 
     def test_brief_shows_preferences_with_scope_tags(self):
         brief = self.run_router("brief").stdout
-        self.assertIn("## User preferences", brief)
+        self.assertIn("## Routing preferences", brief)
         self.assertIn("- (global) Captains default to gpt-6-astra at high.", brief)
         self.assertIn("claude-fable-5-1[1m] or gpt-6-astra at high", brief)
+
+    def test_builtin_preferences_reach_agent_and_jev_in_scope_order(self):
+        import jev_context
+
+        self.write_repo_layer({"version": 4, "routes": {},
+                               "preferences": ["Prefer a different model for this repo."]})
+        with mock.patch.dict(os.environ, {"HOME": str(self.home),
+                                          "CODEX_HOME": str(self.home / "codex")}):
+            compiled = router.compile_brief(self.repo)
+        expected = [
+            {"scope": "builtin", "text": text}
+            for text in router.exact_config.builtin()["preferences"]
+        ]
+        self.assertTrue(expected)
+        self.assertEqual(expected, compiled["preferences"][:len(expected)])
+        self.assertEqual("global", compiled["preferences"][len(expected)]["scope"])
+        self.assertEqual("repo", compiled["preferences"][-1]["scope"])
+        brief = self.run_router("brief").stdout
+        for entry in expected:
+            self.assertIn(f"- (builtin) {entry['text']}", brief)
+        payload, _, _ = jev_context.prepare_case(
+            compiled, {}, {"task": {"outcome": "Model a 3D object."}}, {"codex"}
+        )
+        self.assertEqual(compiled["preferences"], payload["state"]["preferences"])
 
     def test_brief_limits_candidates_to_consumer_launchers(self):
         brief = self.run_router("brief", "--launchable-via", "codex").stdout
@@ -232,7 +256,7 @@ class RouterTest(unittest.TestCase):
     def test_brief_json_carries_candidates_preferences_and_layers(self):
         payload = json.loads(self.run_router("brief", "--format", "json").stdout)
         self.assertIn("claude/claude-fable-5-1[1m]/high", payload["candidates"])
-        self.assertEqual("global", payload["preferences"][0]["scope"])
+        self.assertEqual("builtin", payload["preferences"][0]["scope"])
         self.assertEqual(router.EXACT_ROUTE_SEMANTICS, payload["routes"]["semantics"])
         self.assertEqual(
             router.MAX_EFFORT_POLICY,

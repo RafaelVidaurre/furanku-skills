@@ -6,7 +6,7 @@ Read only for configuration views, changes, or brief diagnosis.
 
 | Order | Scope | Location | Responsibility |
 | --- | --- | --- | --- |
-| 0 | `builtin` | `references/routing-catalog.json` | Research-backed candidates, evidence methodology, and default exact routes |
+| 0 | `builtin` | `references/routing-catalog.json` | Research-backed candidates, evidence methodology, default routing preferences, and default exact routes |
 | 1 | `global` | `~/.furanku-skills/model-routing/config.json` | Machine-wide exact routes, preferences, and candidate overrides |
 | 2 | `repo` | `<repo>/.furanku-skills/model-routing/config.json` | Shared, version-tracked project configuration |
 | 3 | `machine-repo` | `~/.furanku-skills/model-routing/repos/<repo-key>.json` | Private configuration for one repository |
