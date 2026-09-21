@@ -72,6 +72,14 @@ Translate the packet through the selected mechanism's field mapping in Seams, ap
 
 **Complete when:** the owner is launched with the intended role, principal, work pointer, and packet built from a gate-checked decision carrying its task judgment or principal route basis; launch evidence identifies the mechanism-created owner and coordination pointer, satisfies any principal-named mechanism, harness, or executable, and shows the selected agent capability, model, and effort were honored; any malformed dispatch is followed by a corrected retry on the same mechanism before a capability refusal or mechanism change; communication to the principal is live per the manifest; and the resources the assignment created are tracked by exact pointer.
 
+## Wait for owners
+
+Model-visible polling spends inference and grows the session's history, so the session that owns the mechanism's result collection waits in as few model turns as possible. Use the mechanism's blocking wait at the timeout its own guide prescribes, and observe it through the longest wait the active harness's tool descriptions allow. A harness default that keeps waits short so a watching user stays informed yields to this rule when the principal is reached through the mechanism rather than the terminal: a matching delivery ends the mechanism's wait, and a user interruption is honored before resuming.
+
+When the harness yields while the mechanism's wait is still running, keep observing that same operation; start another mechanism wait only after the previous one has ended. Count an empty wait only when the mechanism's operation completed without a delivery, and apply the mechanism's inspection, acknowledgement, and recovery rules to completed operations. Under a profile whose owning script collects results, such as the Claude Code workflow profile in [Seams](references/seams.md), return at the profile's boundary instead of blocking.
+
+**Complete when:** the delivery was handled, the mechanism's prescribed inspection was performed, or a cancellation or error was handled through the mechanism's recovery procedure.
+
 ## Retire an owner
 
 The session that creates an assignment owns the lifecycle of the resources the mechanism created for it.
