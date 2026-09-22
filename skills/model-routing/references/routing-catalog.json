@@ -16,14 +16,15 @@
     "Prefer GPT-6 Astra (gpt-6-astra) for 3D modelling, including mesh and geometry creation, CAD, and 3D scene composition. This is a routing preference, not a benchmark claim; choose an eligible Astra candidate subject to task constraints and launch gates."
   ],
   "methodology": {
-    "reasoning": "Artificial Analysis Intelligence Index divided by 100 when exact; otherwise a labeled effort proxy. Compare two reasoning cells only when their evidence names the same index version.",
-    "implementation": "DeepSWE or CursorBench resolved-task rate when exact; harness transfers are reflected in confidence and the conservative estimate.",
+    "reasoning": "Artificial Analysis Intelligence Index v4.3.2 divided by 100 at the exact effort.",
+    "implementation": "CursorBench 4.0 resolved-task rate at the exact effort; candidates without a CursorBench row keep their DeepSWE v1.1 rate, a separate scale that runs about 30 points higher for the same model.",
     "task-cost": "DeepSWE average task cost only when the benchmark names the exact model and effort. An equivalent launch tuple may transfer across harnesses; effort-level proxies remain unknown.",
-    "agentic": "Ordinal normalization of dated Agent Arena or agentic-work evidence.",
-    "ui": "Ordinal normalization of the dated Arena WebDev preference ranking.",
-    "spatial-3d": "Ordinal normalization of the dated Design Arena browser-3D ranking.",
+    "agentic": "AA-Briefcase v1.1 Elo at the exact effort, mapped as (Elo - 500) / 2000.",
+    "ui": "Percentile of the dated Arena WebDev rank at the exact effort.",
+    "spatial-3d": "Percentile of the dated Design Arena 3D rank at the exact effort.",
     "conservative": "A documented lower estimate reflecting effort or harness transfer and evidence confidence; it is the value used for routing.",
-    "boundary": "Public research only. No local model evaluation contributes capability scores; missing direct evidence remains unknown or is labeled as a proxy on the capability evidence itself."
+    "boundary": "Public research only. No local model evaluation contributes capability scores; missing direct evidence remains unknown or is labeled as a proxy on the capability evidence itself.",
+    "scale": "Every known cell names its benchmark and version in scale. Scores on different scales are not comparable; the brief letters each scale where a column mixes them."
   },
   "candidates": {
     "claude/claude-fable-5-1[1m]/high": {
@@ -42,45 +43,66 @@
       "capabilities": {
         "reasoning": {
           "status": "known",
-          "score": 0.62,
-          "conservative": 0.6,
+          "score": 0.51,
+          "conservative": 0.49,
           "confidence": "high",
-          "assessed_at": "2026-09-01",
+          "assessed_at": "2026-09-22",
           "evidence": [
             "https://artificialanalysis.ai/models/claude-fable-5-1-high"
-          ]
+          ],
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Claude Fable 5.1 (high with fallback) 51.15 on v4.3.2; score = index/100, conservative = score - 0.02."
         },
         "implementation": {
           "status": "known",
-          "score": 0.694,
-          "conservative": 0.67,
+          "score": 0.492,
+          "conservative": 0.462,
           "confidence": "medium",
-          "assessed_at": "2026-09-02",
+          "assessed_at": "2026-09-22",
           "evidence": [
             "https://cursor.com/evals"
-          ]
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact row 49.2% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
         },
         "agentic": {
-          "status": "unknown",
-          "reason": "Agent Arena did not yet list a Fable 5.1 high result; CursorBench supports the implementation assessment but does not isolate general agentic reliability under this catalog's methodology.",
-          "researched_at": "2026-09-02"
+          "status": "known",
+          "score": 0.546,
+          "conservative": 0.522,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-fable-5-1-high",
+            "https://artificialanalysis.ai/evaluations/aa-briefcase",
+            "https://artificialanalysis.ai/methodology/intelligence-benchmarking"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact AA-Briefcase v1.1 Elo 1592.21 (95% CI lower 1583.15); mapped with AA's own clamp((Elo - 500) / 2000); conservative = mapped lower bound - 0.02 harness transfer (Stirrup to launcher)."
         },
         "ui": {
           "status": "unknown",
-          "reason": "Arena WebDev did not yet list a Fable 5.1 result.",
-          "researched_at": "2026-09-02"
+          "reason": "Arena WebDev (vote cutoff 2026-09-11) lists only claude-fable-5.1-max (rank 2), not high. The max rank is not carried to high.",
+          "researched_at": "2026-09-22"
         },
         "spatial-3d": {
-          "status": "unknown",
-          "reason": "Design Arena exposed a Fable 5.1 model page but no dated ranked 3D result.",
-          "researched_at": "2026-09-02"
+          "status": "known",
+          "score": 0.993,
+          "conservative": 0.943,
+          "confidence": "low",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://www.designarena.ai/leaderboard/3d-design",
+            "https://platform.claude.com/docs/en/models/fable-5-1/overview"
+          ],
+          "scale": "Design Arena 3D rank, percentile",
+          "note": "claude-fable-5-1 rank 2 of 153, Elo 1423, data stamp 2026-09-22T16:06Z. Design Arena does not label effort; Anthropic's default for Fable 5.1 is high, so high is inferred, not stated. score = 1 - (rank - 1)/(N - 1); conservative = score - 0.05."
         }
       },
       "economics": {
         "output_tokens_per_second": {
-          "value": 49.1,
+          "value": 55.4,
           "basis": "Artificial Analysis, high with default fallback",
-          "assessed_at": "2026-09-01",
+          "assessed_at": "2026-09-22",
           "source": "https://artificialanalysis.ai/models/claude-fable-5-1-high"
         }
       }
@@ -98,33 +120,51 @@
       "capabilities": {
         "reasoning": {
           "status": "known",
-          "score": 0.55,
-          "conservative": 0.53,
+          "score": 0.42,
+          "conservative": 0.4,
           "confidence": "high",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-22",
           "evidence": [
             "https://artificialanalysis.ai/models/gpt-5-6-terra"
-          ]
+          ],
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "GPT-5.6 Terra (max) 42.08 on v4.3.2; score = index/100, conservative = score - 0.02."
         },
         "implementation": {
           "status": "known",
-          "score": 0.7,
-          "conservative": 0.68,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
+          "score": 0.413,
+          "conservative": 0.383,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
           "evidence": [
-            "https://deepswe.datacurve.ai/"
-          ]
+            "https://cursor.com/evals"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact row 41.3% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval). DeepSWE v1.1 exact row 69.62% is recorded in the research file, not used."
         },
         "agentic": {
           "status": "known",
-          "score": 0.64,
-          "conservative": 0.6,
-          "confidence": "low",
-          "assessed_at": "2026-07-31",
+          "score": 0.418,
+          "conservative": 0.394,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
           "evidence": [
-            "https://artificialanalysis.ai/models/gpt-5-6-terra"
-          ]
+            "https://artificialanalysis.ai/models/gpt-5-6-terra",
+            "https://artificialanalysis.ai/evaluations/aa-briefcase",
+            "https://artificialanalysis.ai/methodology/intelligence-benchmarking"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact AA-Briefcase v1.1 Elo 1335.93 (95% CI lower 1327.50); mapped with AA's own clamp((Elo - 500) / 2000); conservative = mapped lower bound - 0.02 harness transfer (Stirrup to launcher)."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Arena WebDev (vote cutoff 2026-09-11) lists only gpt-5.6-terra-xhigh (codex harness), not max.",
+          "researched_at": "2026-09-22"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Design Arena's 3D board lists gpt-5.6-terra (rank 77 of 153, Elo 1162) without an effort label; OpenAI's API default is medium, not max, so the rank is not a max result.",
+          "researched_at": "2026-09-22"
         }
       },
       "economics": {
@@ -135,9 +175,9 @@
           "source": "https://deepswe.datacurve.ai/"
         },
         "output_tokens_per_second": {
-          "value": 136,
+          "value": 95.2,
           "basis": "Artificial Analysis",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-22",
           "source": "https://artificialanalysis.ai/models/gpt-5-6-terra"
         }
       }
@@ -155,33 +195,51 @@
       "capabilities": {
         "reasoning": {
           "status": "known",
-          "score": 0.51,
-          "conservative": 0.49,
+          "score": 0.37,
+          "conservative": 0.35,
           "confidence": "high",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-22",
           "evidence": [
             "https://artificialanalysis.ai/models/gpt-5-6-luna"
-          ]
+          ],
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "GPT-5.6 Luna (max) 37.32 on v4.3.2; score = index/100, conservative = score - 0.02."
         },
         "implementation": {
           "status": "known",
-          "score": 0.67,
-          "conservative": 0.65,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
+          "score": 0.359,
+          "conservative": 0.329,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
           "evidence": [
-            "https://deepswe.datacurve.ai/"
-          ]
+            "https://cursor.com/evals"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact row 35.9% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval). DeepSWE v1.1 exact row 67.19% is recorded in the research file, not used."
         },
         "agentic": {
           "status": "known",
-          "score": 0.59,
-          "conservative": 0.55,
-          "confidence": "low",
-          "assessed_at": "2026-07-31",
+          "score": 0.423,
+          "conservative": 0.398,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
           "evidence": [
-            "https://artificialanalysis.ai/models/gpt-5-6-luna"
-          ]
+            "https://artificialanalysis.ai/models/gpt-5-6-luna",
+            "https://artificialanalysis.ai/evaluations/aa-briefcase",
+            "https://artificialanalysis.ai/methodology/intelligence-benchmarking"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact AA-Briefcase v1.1 Elo 1345.38 (95% CI lower 1336.57); mapped with AA's own clamp((Elo - 500) / 2000); conservative = mapped lower bound - 0.02 harness transfer (Stirrup to launcher)."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Arena WebDev (vote cutoff 2026-09-11) lists only gpt-5.6-luna-xhigh (codex harness), not max.",
+          "researched_at": "2026-09-22"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Design Arena's 3D board lists gpt-5.6-luna (rank 84 of 153, Elo 1151) without an effort label; OpenAI's API default is medium, not max, so the rank is not a max result.",
+          "researched_at": "2026-09-22"
         }
       },
       "economics": {
@@ -192,9 +250,9 @@
           "source": "https://deepswe.datacurve.ai/"
         },
         "output_tokens_per_second": {
-          "value": 188,
+          "value": 147.5,
           "basis": "Artificial Analysis",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-22",
           "source": "https://artificialanalysis.ai/models/gpt-5-6-luna"
         }
       }
@@ -216,53 +274,66 @@
       "capabilities": {
         "reasoning": {
           "status": "known",
-          "score": 0.57,
-          "conservative": 0.55,
+          "score": 0.44,
+          "conservative": 0.42,
           "confidence": "high",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-22",
           "evidence": [
             "https://artificialanalysis.ai/models/kimi-k3"
-          ]
+          ],
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Kimi K3 (max) 43.59 on v4.3.2; score = index/100, conservative = score - 0.02."
         },
         "implementation": {
           "status": "known",
-          "score": 0.69,
-          "conservative": 0.67,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
+          "score": 0.685,
+          "conservative": 0.64,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
           "evidence": [
             "https://deepswe.datacurve.ai/"
-          ]
+          ],
+          "scale": "DeepSWE v1.1 (mini-swe-agent)",
+          "note": "Not on the CursorBench 4.0 scale: Cursor publishes no row for this model at any effort. DeepSWE exact row; conservative = lower 95% run-to-run bound. Do not compare numerically with CursorBench 4.0 cells."
         },
         "agentic": {
           "status": "known",
-          "score": 0.82,
-          "conservative": 0.75,
+          "score": 0.505,
+          "conservative": 0.481,
           "confidence": "medium",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-22",
           "evidence": [
-            "https://arena.ai/leaderboard/agent?stream=top"
-          ]
+            "https://artificialanalysis.ai/models/kimi-k3",
+            "https://artificialanalysis.ai/evaluations/aa-briefcase",
+            "https://artificialanalysis.ai/methodology/intelligence-benchmarking"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact AA-Briefcase v1.1 Elo 1510.23 (95% CI lower 1502.28); mapped with AA's own clamp((Elo - 500) / 2000); conservative = mapped lower bound - 0.02 harness transfer (Stirrup to launcher)."
         },
         "ui": {
           "status": "known",
-          "score": 0.94,
-          "conservative": 0.9,
+          "score": 0.969,
+          "conservative": 0.945,
           "confidence": "high",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-22",
           "evidence": [
-            "https://arena.ai/leaderboard?category=webdev"
-          ]
+            "https://arena.ai/leaderboard/code/webdev"
+          ],
+          "scale": "Arena WebDev rank, percentile",
+          "note": "kimi-k3-max rank 5 of 129 (rank spread 3-8), score 1674 +/-11, vote cutoff 2026-09-11. score = 1 - (rank - 1)/(N - 1); conservative uses the worst rank in the published spread."
         },
         "spatial-3d": {
           "status": "known",
-          "score": 0.95,
-          "conservative": 0.92,
+          "score": 0.98,
+          "conservative": 0.93,
           "confidence": "medium",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-22",
           "evidence": [
-            "https://www.designarena.ai/leaderboard"
-          ]
+            "https://www.designarena.ai/leaderboard/3d-design",
+            "https://platform.kimi.ai/docs/guide/kimi-k3-quickstart"
+          ],
+          "scale": "Design Arena 3D rank, percentile",
+          "note": "kimi-k3 rank 4 of 153, Elo 1422 (1 below rank 2), data stamp 2026-09-22T16:06Z. Design Arena does not label effort; Kimi's API default is max. score = 1 - (rank - 1)/(N - 1); conservative = score - 0.05 (no published interval, effort inferred)."
         }
       },
       "economics": {
@@ -273,9 +344,9 @@
           "source": "https://deepswe.datacurve.ai/"
         },
         "output_tokens_per_second": {
-          "value": 32,
+          "value": 38.2,
           "basis": "Artificial Analysis",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-22",
           "source": "https://artificialanalysis.ai/models/kimi-k3"
         }
       }
@@ -296,53 +367,66 @@
       "capabilities": {
         "reasoning": {
           "status": "known",
-          "score": 0.57,
-          "conservative": 0.55,
+          "score": 0.44,
+          "conservative": 0.42,
           "confidence": "high",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-22",
           "evidence": [
             "https://artificialanalysis.ai/models/kimi-k3"
-          ]
+          ],
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Kimi K3 (max) 43.59 on v4.3.2; score = index/100, conservative = score - 0.02."
         },
         "implementation": {
           "status": "known",
-          "score": 0.69,
-          "conservative": 0.67,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
+          "score": 0.685,
+          "conservative": 0.64,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
           "evidence": [
             "https://deepswe.datacurve.ai/"
-          ]
+          ],
+          "scale": "DeepSWE v1.1 (mini-swe-agent)",
+          "note": "Not on the CursorBench 4.0 scale: Cursor publishes no row for this model at any effort. DeepSWE exact row; conservative = lower 95% run-to-run bound. Do not compare numerically with CursorBench 4.0 cells."
         },
         "agentic": {
           "status": "known",
-          "score": 0.82,
-          "conservative": 0.75,
+          "score": 0.505,
+          "conservative": 0.481,
           "confidence": "medium",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-22",
           "evidence": [
-            "https://arena.ai/leaderboard/agent?stream=top"
-          ]
+            "https://artificialanalysis.ai/models/kimi-k3",
+            "https://artificialanalysis.ai/evaluations/aa-briefcase",
+            "https://artificialanalysis.ai/methodology/intelligence-benchmarking"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact AA-Briefcase v1.1 Elo 1510.23 (95% CI lower 1502.28); mapped with AA's own clamp((Elo - 500) / 2000); conservative = mapped lower bound - 0.02 harness transfer (Stirrup to launcher)."
         },
         "ui": {
           "status": "known",
-          "score": 0.94,
-          "conservative": 0.9,
+          "score": 0.969,
+          "conservative": 0.945,
           "confidence": "high",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-22",
           "evidence": [
-            "https://arena.ai/leaderboard?category=webdev"
-          ]
+            "https://arena.ai/leaderboard/code/webdev"
+          ],
+          "scale": "Arena WebDev rank, percentile",
+          "note": "kimi-k3-max rank 5 of 129 (rank spread 3-8), score 1674 +/-11, vote cutoff 2026-09-11. score = 1 - (rank - 1)/(N - 1); conservative uses the worst rank in the published spread."
         },
         "spatial-3d": {
           "status": "known",
-          "score": 0.95,
-          "conservative": 0.92,
+          "score": 0.98,
+          "conservative": 0.93,
           "confidence": "medium",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-22",
           "evidence": [
-            "https://www.designarena.ai/leaderboard"
-          ]
+            "https://www.designarena.ai/leaderboard/3d-design",
+            "https://platform.kimi.ai/docs/guide/kimi-k3-quickstart"
+          ],
+          "scale": "Design Arena 3D rank, percentile",
+          "note": "kimi-k3 rank 4 of 153, Elo 1422 (1 below rank 2), data stamp 2026-09-22T16:06Z. Design Arena does not label effort; Kimi's API default is max. score = 1 - (rank - 1)/(N - 1); conservative = score - 0.05 (no published interval, effort inferred)."
         }
       },
       "economics": {
@@ -353,9 +437,9 @@
           "source": "https://deepswe.datacurve.ai/"
         },
         "output_tokens_per_second": {
-          "value": 32,
+          "value": 38.2,
           "basis": "Artificial Analysis",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-22",
           "source": "https://artificialanalysis.ai/models/kimi-k3"
         }
       },
@@ -384,11 +468,11 @@
           "conservative": 0.52,
           "confidence": "high",
           "assessed_at": "2026-09-22",
-          "note": "Artificial Analysis Intelligence Index v4.3.2 (53.58, displayed 54) at high. Not comparable to v4.1.1 cells; on v4.3.2 Opus 5 high is 48, Fable 5.1 high 51, GPT-6 Astra high 51, Grok 4.7 high 46.",
           "evidence": [
-            "https://artificialanalysis.ai/models/claude-opus-5-5-high",
-            "https://artificialanalysis.ai/models/releases/claude-opus-5-5"
-          ]
+            "https://artificialanalysis.ai/models/claude-opus-5-5-high"
+          ],
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Claude Opus 5.5 (high with fallback) 53.58 on v4.3.2; score = index/100, conservative = score - 0.02."
         },
         "implementation": {
           "status": "known",
@@ -396,33 +480,34 @@
           "conservative": 0.53,
           "confidence": "medium",
           "assessed_at": "2026-09-22",
-          "note": "CursorBench 4.0 exact High 56.0% ($3.97/task) in Cursor's harness. CursorBench 4.0 is harder than 3.2 and is not DeepSWE; on 4.0 Fable 5.1 High is 49.2%, Opus 5 High 44.7%, Grok 4.7 High 43.9%. DeepSWE has no Opus 5.5 row yet.",
           "evidence": [
             "https://cursor.com/evals"
-          ]
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact row 56.0% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
         },
         "agentic": {
           "status": "known",
-          "score": 0.9,
-          "conservative": 0.84,
+          "score": 0.602,
+          "conservative": 0.577,
           "confidence": "medium",
           "assessed_at": "2026-09-22",
-          "note": "Exact high AA-Briefcase v1.1 1704.5 and GDPval-AA v2.1 1691.7; Agent Arena has no Opus 5.5 row yet.",
           "evidence": [
             "https://artificialanalysis.ai/models/claude-opus-5-5-high",
             "https://artificialanalysis.ai/evaluations/aa-briefcase",
-            "https://artificialanalysis.ai/evaluations/gdpval-aa",
-            "https://arena.ai/leaderboard/agent"
-          ]
+            "https://artificialanalysis.ai/methodology/intelligence-benchmarking"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact AA-Briefcase v1.1 Elo 1704.50 (95% CI lower 1694.54); mapped with AA's own clamp((Elo - 500) / 2000); conservative = mapped lower bound - 0.02 harness transfer (Stirrup to launcher)."
         },
         "ui": {
           "status": "unknown",
-          "reason": "Arena WebDev (vote cutoff 2026-09-11) has no claude-opus-5-5 row; Opus 5 high's rank is not carried forward.",
+          "reason": "Arena WebDev (vote cutoff 2026-09-11, 129 models) has no claude-opus-5-5 row.",
           "researched_at": "2026-09-22"
         },
         "spatial-3d": {
           "status": "unknown",
-          "reason": "Design Arena has no claude-opus-5-5 rank as of 2026-09-22; Opus 5 high's rank is not carried forward.",
+          "reason": "Design Arena's 3D board (data stamp 2026-09-22T16:06Z, 153 models) and changelog through 2026-09-20 have no claude-opus-5-5 entry.",
           "researched_at": "2026-09-22"
         }
       }
@@ -446,43 +531,52 @@
           "conservative": 0.44,
           "confidence": "high",
           "assessed_at": "2026-09-22",
-          "note": "Artificial Analysis Intelligence Index v4.3.2. Compare this cell only with peers measured on that same index version.",
           "evidence": [
-            "https://artificialanalysis.ai/models/grok-4-7-high",
-            "https://artificialanalysis.ai/models/releases/grok-4-7"
-          ]
+            "https://artificialanalysis.ai/models/grok-4-7-high"
+          ],
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Grok 4.7 (high) 46.33 on v4.3.2; score = index/100, conservative = score - 0.02."
         },
         "implementation": {
-          "status": "unknown",
-          "reason": "DeepSWE's 2026-09-22 mini-swe-agent leaderboard has no grok-4.7 row at any effort. The vendor 71.0% high cell has no harness, interval, or cost. Artificial Analysis's 73% DeepSWE component is xhigh inside Grok Build, not an exact high resolved-task rate.",
-          "researched_at": "2026-09-22"
+          "status": "known",
+          "score": 0.439,
+          "conservative": 0.409,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://cursor.com/evals"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact row 43.9% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
         },
         "agentic": {
           "status": "known",
-          "score": 0.8,
-          "conservative": 0.74,
+          "score": 0.572,
+          "conservative": 0.547,
           "confidence": "medium",
           "assessed_at": "2026-09-22",
-          "note": "xhigh Briefcase and GDPval proxy, not an Agent Arena rank, and not a win over a candidate whose agentic cell is unknown.",
           "evidence": [
-            "https://artificialanalysis.ai/articles/benchmarking-grok-4-7",
-            "https://arena.ai/leaderboard/agent"
-          ]
+            "https://artificialanalysis.ai/models/grok-4-7-high",
+            "https://artificialanalysis.ai/evaluations/aa-briefcase",
+            "https://artificialanalysis.ai/methodology/intelligence-benchmarking"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact AA-Briefcase v1.1 Elo 1643.88 (95% CI lower 1634.61); mapped with AA's own clamp((Elo - 500) / 2000); conservative = mapped lower bound - 0.02 harness transfer (Stirrup to launcher)."
         },
         "ui": {
           "status": "unknown",
-          "reason": "Arena WebDev, checked 2026-09-22 (board stamp 11 September 2026), has no grok-4.7 row.",
+          "reason": "Arena WebDev (vote cutoff 2026-09-11, 129 models) has no grok-4.7 row.",
           "researched_at": "2026-09-22"
         },
         "spatial-3d": {
           "status": "unknown",
-          "reason": "Design Arena's changelog through 20 September 2026 has no grok-4.7 addition, and the 3D leaderboard did not render a dated rank on 2026-09-22.",
+          "reason": "Design Arena's 3D board (data stamp 2026-09-22T16:06Z, 153 models) and changelog through 2026-09-20 have no grok-4.7 entry.",
           "researched_at": "2026-09-22"
         }
       },
       "economics": {
         "output_tokens_per_second": {
-          "value": 54.2,
+          "value": 49.8,
           "basis": "Artificial Analysis, Grok 4.7 high",
           "assessed_at": "2026-09-22",
           "source": "https://artificialanalysis.ai/models/grok-4-7-high"
@@ -512,43 +606,52 @@
           "conservative": 0.44,
           "confidence": "high",
           "assessed_at": "2026-09-22",
-          "note": "Artificial Analysis Intelligence Index v4.3.2. Compare this cell only with peers measured on that same index version.",
           "evidence": [
-            "https://artificialanalysis.ai/models/grok-4-7-high",
-            "https://artificialanalysis.ai/models/releases/grok-4-7"
-          ]
+            "https://artificialanalysis.ai/models/grok-4-7-high"
+          ],
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Grok 4.7 (high) 46.33 on v4.3.2; score = index/100, conservative = score - 0.02."
         },
         "implementation": {
-          "status": "unknown",
-          "reason": "DeepSWE's 2026-09-22 mini-swe-agent leaderboard has no grok-4.7 row at any effort. The vendor 71.0% high cell has no harness, interval, or cost. Artificial Analysis's 73% DeepSWE component is xhigh inside Grok Build, not an exact high resolved-task rate.",
-          "researched_at": "2026-09-22"
+          "status": "known",
+          "score": 0.439,
+          "conservative": 0.409,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://cursor.com/evals"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact row 43.9% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
         },
         "agentic": {
           "status": "known",
-          "score": 0.8,
-          "conservative": 0.74,
+          "score": 0.572,
+          "conservative": 0.547,
           "confidence": "medium",
           "assessed_at": "2026-09-22",
-          "note": "xhigh Briefcase and GDPval proxy, not an Agent Arena rank, and not a win over a candidate whose agentic cell is unknown.",
           "evidence": [
-            "https://artificialanalysis.ai/articles/benchmarking-grok-4-7",
-            "https://arena.ai/leaderboard/agent"
-          ]
+            "https://artificialanalysis.ai/models/grok-4-7-high",
+            "https://artificialanalysis.ai/evaluations/aa-briefcase",
+            "https://artificialanalysis.ai/methodology/intelligence-benchmarking"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact AA-Briefcase v1.1 Elo 1643.88 (95% CI lower 1634.61); mapped with AA's own clamp((Elo - 500) / 2000); conservative = mapped lower bound - 0.02 harness transfer (Stirrup to launcher)."
         },
         "ui": {
           "status": "unknown",
-          "reason": "Arena WebDev, checked 2026-09-22 (board stamp 11 September 2026), has no grok-4.7 row.",
+          "reason": "Arena WebDev (vote cutoff 2026-09-11, 129 models) has no grok-4.7 row.",
           "researched_at": "2026-09-22"
         },
         "spatial-3d": {
           "status": "unknown",
-          "reason": "Design Arena's changelog through 20 September 2026 has no grok-4.7 addition, and the 3D leaderboard did not render a dated rank on 2026-09-22.",
+          "reason": "Design Arena's 3D board (data stamp 2026-09-22T16:06Z, 153 models) and changelog through 2026-09-20 have no grok-4.7 entry.",
           "researched_at": "2026-09-22"
         }
       },
       "economics": {
         "output_tokens_per_second": {
-          "value": 54.2,
+          "value": 49.8,
           "basis": "Artificial Analysis, Grok 4.7 high",
           "assessed_at": "2026-09-22",
           "source": "https://artificialanalysis.ai/models/grok-4-7-high"
@@ -569,46 +672,65 @@
       "capabilities": {
         "reasoning": {
           "status": "known",
-          "score": 0.6,
-          "conservative": 0.58,
+          "score": 0.51,
+          "conservative": 0.49,
           "confidence": "high",
-          "assessed_at": "2026-09-04",
+          "assessed_at": "2026-09-22",
           "evidence": [
             "https://artificialanalysis.ai/models/gpt-6-astra-high"
-          ]
+          ],
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "GPT-6 Astra (high) 50.92 on v4.3.2; score = index/100, conservative = score - 0.02."
         },
         "implementation": {
           "status": "known",
           "score": 0.7323,
           "conservative": 0.698,
           "confidence": "medium",
-          "assessed_at": "2026-09-04",
+          "assessed_at": "2026-09-22",
           "evidence": [
             "https://deepswe.datacurve.ai/"
-          ]
+          ],
+          "scale": "DeepSWE v1.1 (mini-swe-agent)",
+          "note": "Not on the CursorBench 4.0 scale: Cursor publishes no row for this model at any effort. DeepSWE exact row; conservative = lower 95% run-to-run bound. Do not compare numerically with CursorBench 4.0 cells."
         },
         "agentic": {
-          "status": "unknown",
-          "reason": "No exact high-effort Agent Arena result was found; the Coding Agent Index mixes model and harness and does not establish general agentic reliability.",
-          "researched_at": "2026-09-04"
+          "status": "known",
+          "score": 0.503,
+          "conservative": 0.479,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-6-astra-high",
+            "https://artificialanalysis.ai/evaluations/aa-briefcase",
+            "https://artificialanalysis.ai/methodology/intelligence-benchmarking"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact AA-Briefcase v1.1 Elo 1506.86 (95% CI lower 1497.09); mapped with AA's own clamp((Elo - 500) / 2000); conservative = mapped lower bound - 0.02 harness transfer (Stirrup to launcher)."
         },
         "ui": {
           "status": "unknown",
-          "reason": "No exact high-effort Astra WebDev Arena result was found.",
-          "researched_at": "2026-09-04"
+          "reason": "Arena WebDev (vote cutoff 2026-09-11) lists gpt-6-astra-max (rank 1) only; no high row. The max rank is not carried to high.",
+          "researched_at": "2026-09-22"
         },
         "spatial-3d": {
           "status": "unknown",
-          "reason": "No exact high-effort Astra Design Arena 3D result was found.",
-          "researched_at": "2026-09-04"
+          "reason": "Design Arena's 3D board ranks gpt-6-astra #1 (Elo 1476), but its registry labels that model 'GPT-6 Astra (xhigh)'. An xhigh rank is not a high rank.",
+          "researched_at": "2026-09-22"
         }
       },
       "economics": {
         "task_cost_usd": {
-          "value": 5.7237,
-          "basis": "DeepSWE high, mini-swe-agent; expected launch pricing ($12 input/$15 cache write/$1.20 cache read/$50 output plus $2 compute per million), not current API tariff",
-          "assessed_at": "2026-09-04",
+          "value": 3.9237,
+          "basis": "DeepSWE high, mini-swe-agent; current OpenAI pricing",
+          "assessed_at": "2026-09-22",
           "source": "https://deepswe.datacurve.ai/"
+        },
+        "output_tokens_per_second": {
+          "value": 52.2,
+          "basis": "Artificial Analysis, GPT-6 Astra high",
+          "assessed_at": "2026-09-22",
+          "source": "https://artificialanalysis.ai/models/gpt-6-astra-high"
         }
       },
       "context": 1050000,
@@ -628,46 +750,65 @@
       "capabilities": {
         "reasoning": {
           "status": "known",
-          "score": 0.6,
-          "conservative": 0.58,
+          "score": 0.51,
+          "conservative": 0.49,
           "confidence": "high",
-          "assessed_at": "2026-09-04",
+          "assessed_at": "2026-09-22",
           "evidence": [
             "https://artificialanalysis.ai/models/gpt-6-astra-high"
-          ]
+          ],
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "GPT-6 Astra (high) 50.92 on v4.3.2; score = index/100, conservative = score - 0.02."
         },
         "implementation": {
           "status": "known",
           "score": 0.7323,
           "conservative": 0.698,
           "confidence": "medium",
-          "assessed_at": "2026-09-04",
+          "assessed_at": "2026-09-22",
           "evidence": [
             "https://deepswe.datacurve.ai/"
-          ]
+          ],
+          "scale": "DeepSWE v1.1 (mini-swe-agent)",
+          "note": "Not on the CursorBench 4.0 scale: Cursor publishes no row for this model at any effort. DeepSWE exact row; conservative = lower 95% run-to-run bound. Do not compare numerically with CursorBench 4.0 cells."
         },
         "agentic": {
-          "status": "unknown",
-          "reason": "No exact high-effort Agent Arena result was found; the Coding Agent Index mixes model and harness and does not establish general agentic reliability.",
-          "researched_at": "2026-09-04"
+          "status": "known",
+          "score": 0.503,
+          "conservative": 0.479,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-6-astra-high",
+            "https://artificialanalysis.ai/evaluations/aa-briefcase",
+            "https://artificialanalysis.ai/methodology/intelligence-benchmarking"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact AA-Briefcase v1.1 Elo 1506.86 (95% CI lower 1497.09); mapped with AA's own clamp((Elo - 500) / 2000); conservative = mapped lower bound - 0.02 harness transfer (Stirrup to launcher)."
         },
         "ui": {
           "status": "unknown",
-          "reason": "No exact high-effort Astra WebDev Arena result was found.",
-          "researched_at": "2026-09-04"
+          "reason": "Arena WebDev (vote cutoff 2026-09-11) lists gpt-6-astra-max (rank 1) only; no high row. The max rank is not carried to high.",
+          "researched_at": "2026-09-22"
         },
         "spatial-3d": {
           "status": "unknown",
-          "reason": "No exact high-effort Astra Design Arena 3D result was found.",
-          "researched_at": "2026-09-04"
+          "reason": "Design Arena's 3D board ranks gpt-6-astra #1 (Elo 1476), but its registry labels that model 'GPT-6 Astra (xhigh)'. An xhigh rank is not a high rank.",
+          "researched_at": "2026-09-22"
         }
       },
       "economics": {
         "task_cost_usd": {
-          "value": 5.7237,
-          "basis": "DeepSWE high, mini-swe-agent; expected launch pricing ($12 input/$15 cache write/$1.20 cache read/$50 output plus $2 compute per million), not current API tariff",
-          "assessed_at": "2026-09-04",
+          "value": 3.9237,
+          "basis": "DeepSWE high, mini-swe-agent; current OpenAI pricing",
+          "assessed_at": "2026-09-22",
           "source": "https://deepswe.datacurve.ai/"
+        },
+        "output_tokens_per_second": {
+          "value": 52.2,
+          "basis": "Artificial Analysis, GPT-6 Astra high",
+          "assessed_at": "2026-09-22",
+          "source": "https://artificialanalysis.ai/models/gpt-6-astra-high"
         }
       },
       "quota_provider": {

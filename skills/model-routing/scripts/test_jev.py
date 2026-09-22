@@ -14,6 +14,7 @@ import urllib.error
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import jev
+import jev_context
 import jev_trial
 
 
@@ -202,6 +203,17 @@ class JevTest(unittest.TestCase):
         profile = json.loads(payload["questions"]["route"]["criteria"]["c001"])
         self.assertEqual(profile["quota"]["anonymous_group"], "q1")
         self.assertEqual(profile["quota"]["status"], "known")
+
+    def test_candidate_profile_carries_each_capability_scale(self):
+        candidate = {"launch": {"agent": "codex", "model": "example", "effort": "high"},
+                     "capabilities": {"reasoning": {
+                         "status": "known", "score": 0.5, "conservative": 0.48, "confidence": "high",
+                         "assessed_at": "2026-09-22", "evidence": ["https://example.com"],
+                         "scale": "Index v2", "note": "Not comparable to Index v1."}}}
+        reasoning = jev_context.candidate_profile(candidate, {})["capabilities"]["reasoning"]
+        self.assertEqual(reasoning["scale"], "Index v2")
+        self.assertEqual(reasoning["note"], "Not comparable to Index v1.")
+        self.assertNotIn("evidence", reasoning)
 
     def test_trial_feature_and_launcher_constraints_leave_no_eligible_offer(self):
         compiled = {"candidates": {"worker": {"launch": {"agent": "codex", "model": "example", "effort": "high"},

@@ -1,5 +1,8 @@
 # Claude Fable 5.1 capability evidence
 
+> Score update, 2026-09-22: catalog scores now sit on one scale per
+> dimension. See [score normalization](model-routing-score-normalization-2026-09-22.md).
+
 Research date: 2026-09-02 (Europe/Lisbon)
 
 ## Question and boundary

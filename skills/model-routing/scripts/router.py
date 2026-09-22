@@ -222,6 +222,9 @@ def validate_compiled_candidate(candidate_id, candidate):
             confidence = assessment.get("confidence")
             if not isinstance(confidence, str) or not confidence.strip():
                 raise Error(f"{cell}.confidence must be a non-empty string")
+            scale = assessment.get("scale")
+            if scale is not None and (not isinstance(scale, str) or not scale.strip()):
+                raise Error(f"{cell}.scale must be a non-empty string")
         elif not assessment.get("reason") or not assessment.get("researched_at"):
             raise Error(f"{cell} unknown requires reason and researched_at")
     economics = candidate.get("economics", {})
@@ -1311,12 +1314,37 @@ def check(compiled, args, runtime):
 markdown_cell = exact_config.markdown_cell
 
 
-def capability_cell(candidate, dimension):
+def capability_cell(candidate, dimension, scale_keys=None):
     cell = candidate.get("capabilities", {}).get(dimension)
     if not cell or cell.get("status") != "known":
         return "?"
     confidence = (cell.get("confidence") or "?")[:1]
-    return f"{cell['conservative']:.2f} ({confidence})"
+    key = (scale_keys or {}).get(cell_scale(cell))
+    marker = f", {key}" if key else ""
+    return f"{cell['conservative']:.2f} ({confidence}{marker})"
+
+
+def cell_scale(cell):
+    scale = cell.get("scale")
+    return scale.strip() if isinstance(scale, str) and scale.strip() else "unlabelled"
+
+
+def mixed_scales(candidates):
+    """Letter each scale in a dimension whose known cells use more than one."""
+    mixed = {}
+    for dimension in DIMENSIONS:
+        scales = sorted({
+            cell_scale(cell)
+            for candidate in candidates
+            if candidate.get("enabled", True)
+            for cell in [candidate.get("capabilities", {}).get(dimension)]
+            if cell and cell.get("status") == "known"
+        })
+        if len(scales) > 1:
+            mixed[dimension] = {
+                scale: chr(ord("A") + index) for index, scale in enumerate(scales)
+            }
+    return mixed
 
 
 def economics_cells(candidate):
@@ -1459,10 +1487,26 @@ def brief_markdown(compiled, runtime, repo_root, allowed_launchers=None):
         "",
         MAX_EFFORT_POLICY,
         "",
+    ]
+    candidates = brief_candidates(compiled, allowed_launchers)
+    mixed = mixed_scales(candidates.values())
+    if mixed:
+        lines += [
+            "Scores in one column are comparable only on the same scale. "
+            "Where a column mixes scales, each cell names its scale by letter; "
+            "never rank cells with different letters against each other.",
+            "",
+        ]
+        for dimension, keys in mixed.items():
+            lines.append(
+                f"- {dimension}: "
+                + "; ".join(f"{key} = {scale}" for scale, key in keys.items())
+            )
+        lines.append("")
+    lines += [
         "| Candidate | Reasoning | Impl | Agentic | UI | 3D | $/task | tok/s | Context | Quota |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
-    candidates = brief_candidates(compiled, allowed_launchers)
     for candidate_id, candidate in sorted(candidates.items(), key=candidate_sort_key):
         if not candidate.get("enabled", True):
             continue
@@ -1471,11 +1515,11 @@ def brief_markdown(compiled, runtime, repo_root, allowed_launchers=None):
         state = runtime_for(runtime, candidate_id, candidate)
         lines.append(
             f"| {markdown_cell(candidate_id)} "
-            f"| {capability_cell(candidate, 'reasoning')} "
-            f"| {capability_cell(candidate, 'implementation')} "
-            f"| {capability_cell(candidate, 'agentic')} "
-            f"| {capability_cell(candidate, 'ui')} "
-            f"| {capability_cell(candidate, 'spatial-3d')} "
+            f"| {capability_cell(candidate, 'reasoning', mixed.get('reasoning'))} "
+            f"| {capability_cell(candidate, 'implementation', mixed.get('implementation'))} "
+            f"| {capability_cell(candidate, 'agentic', mixed.get('agentic'))} "
+            f"| {capability_cell(candidate, 'ui', mixed.get('ui'))} "
+            f"| {capability_cell(candidate, 'spatial-3d', mixed.get('spatial-3d'))} "
             f"| {cost} | {speed} "
             f"| {f'{context:,}' if context else '?'} "
             f"| {markdown_cell(quota_cell(state) if runtime else 'not loaded')} |"
@@ -1522,7 +1566,7 @@ def brief_markdown(compiled, runtime, repo_root, allowed_launchers=None):
                 lines.append(
                     f"- {dimension}: score {cell['score']}, conservative "
                     f"{cell['conservative']}, {cell.get('confidence', '?')} confidence, "
-                    f"assessed {cell['assessed_at']} — "
+                    f"assessed {cell['assessed_at']}, scale {cell_scale(cell)} — "
                     + ", ".join(cell.get("evidence", []))
                     + suffix
                 )

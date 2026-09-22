@@ -1,5 +1,8 @@
 # GPT-6 Astra capability evidence
 
+> Score update, 2026-09-22: catalog scores now sit on one scale per
+> dimension. See [score normalization](model-routing-score-normalization-2026-09-22.md).
+
 Research date: 2026-09-04 (Europe/Lisbon)
 
 ## Question and boundary
