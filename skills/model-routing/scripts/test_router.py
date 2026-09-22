@@ -214,15 +214,15 @@ class RouterTest(unittest.TestCase):
             if line.startswith("|") and "/" in line
         }
         self.assertIn(
-            "| 0.60 (h) | 0.67 (m) | ? | ? | ? | ? | 49 | 1,000,000 |",
+            "| 0.49 (h) | 0.46 (m, A) | 0.52 (m) | ? | 0.94 (l) | ? | 55 | 1,000,000 |",
             rows["claude/claude-fable-5-1[1m]/high"],
         )
         self.assertIn(
-            "| 0.58 (h) | 0.70 (m) | ? | ? | ? | $5.72 | ? | 1,050,000 |",
+            "| 0.49 (h) | 0.70 (m, B) | 0.48 (m) | ? | ? | $3.92 | 52 | 1,050,000 |",
             rows["codex/gpt-6-astra/high"],
         )
         self.assertIn(
-            "| 0.44 (h) | ? | 0.74 (m) | ? | ? | ? | 54 | 500,000 |",
+            "| 0.44 (h) | 0.41 (m, A) | 0.55 (m) | ? | ? | ? | 50 | 500,000 |",
             rows["grok/grok-4.7/high"],
         )
         self.assertIn(
@@ -716,7 +716,7 @@ class RouterTest(unittest.TestCase):
         payload = json.loads(self.run_router("brief", "--format", "json").stdout)
         merged = payload["candidates"]["codex/gpt-6-astra/high"]
         self.assertEqual(0.6, merged["capabilities"]["reasoning"]["conservative"])
-        self.assertEqual(0.60, merged["capabilities"]["reasoning"]["score"])
+        self.assertEqual(0.51, merged["capabilities"]["reasoning"]["score"])
         self.assertEqual(
             ["builtin", "repo"],
             payload["candidate_sources"]["codex/gpt-6-astra/high"],
@@ -1253,6 +1253,68 @@ class RouterTest(unittest.TestCase):
                 }
             )
         self.assertIn("quota_pool requires the billed provider", str(caught.exception))
+
+    def test_brief_letters_scales_only_where_a_column_mixes_them(self):
+        def known(conservative, scale):
+            return {
+                "status": "known", "score": conservative, "conservative": conservative,
+                "confidence": "high", "assessed_at": "2026-09-22",
+                "evidence": ["https://example.com"], "scale": scale,
+            }
+
+        def candidate(model, reasoning_scale, implementation_scale):
+            return {
+                "launch": {"agent": "codex", "model": model, "effort": "high"},
+                "capabilities": {
+                    "reasoning": known(0.5, reasoning_scale),
+                    "implementation": known(0.6, implementation_scale),
+                },
+            }
+
+        compiled = {
+            "preferences": [],
+            "exact": {"config": {"routes": {}}, "route_sources": {}},
+            "candidate_sources": {},
+            "methodology": {},
+            "candidates": {
+                "codex/a/high": candidate("a", "Index v2", "Bench"),
+                "codex/b/high": candidate("b", "Index v1", "Bench"),
+            },
+        }
+        brief = router.brief_markdown(compiled, None, "/repo")
+        self.assertIn("- reasoning: A = Index v1; B = Index v2", brief)
+        self.assertNotIn("- implementation: A =", brief)
+        self.assertIn("| codex/a/high | 0.50 (h, B) | 0.60 (h) |", brief)
+        self.assertIn("scale Index v1", brief)
+
+    def test_capability_scale_must_be_a_non_empty_string(self):
+        with self.assertRaises(router.Error) as caught:
+            router.validate_compiled_candidate(
+                "codex/x/high",
+                {
+                    "launch": {"agent": "codex", "model": "x", "effort": "high"},
+                    "capabilities": {"reasoning": {
+                        "status": "known", "score": 0.5, "conservative": 0.5,
+                        "confidence": "high", "assessed_at": "2026-09-22",
+                        "evidence": ["https://example.com"], "scale": " ",
+                    }},
+                },
+            )
+        self.assertIn("scale must be a non-empty string", str(caught.exception))
+
+    def test_builtin_known_capabilities_name_their_scale(self):
+        catalog = json.loads(
+            (SCRIPT.parent.parent / "references" / "routing-catalog.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        unlabelled = [
+            f"{candidate_id}.{dimension}"
+            for candidate_id, candidate in catalog["candidates"].items()
+            for dimension, cell in candidate.get("capabilities", {}).items()
+            if cell.get("status") == "known" and not cell.get("scale")
+        ]
+        self.assertEqual([], unlabelled)
 
     def test_quota_summary_reports_the_measured_account(self):
         summary = router.quota_summary(
