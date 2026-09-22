@@ -1,0 +1,1 @@
+{ "name": "web", "private": true, "scripts": { "dev": "vite" }, "dependencies": { "@acme/core": "workspace:*", "electron": "30.0.0" }, "devDependencies": { "vite": "5.0.0", "vitest": "1.0.0" } }

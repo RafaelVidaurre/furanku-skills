@@ -1,0 +1,852 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "codemap.map/1",
+  "description": "Structure of map.json. build.py checks it with a built-in validator limited to type, required, enum, items, properties, and additionalProperties, then applies the semantic rules from the design spec: every component carries an area, runtime, nature, and (for product code) role; 3-7 explicit areas plus the implicit build-verify area (and unsorted when needed), each explicit area with at least one runnable; flows join runnables, actors, and externals; health lists one entry per check result.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "meta",
+    "system",
+    "areas",
+    "flows",
+    "components",
+    "modules",
+    "edges",
+    "health",
+    "unresolved"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "enum": [
+        "codemap.map/1"
+      ]
+    },
+    "meta": {
+      "type": "object",
+      "required": [
+        "repo",
+        "built_at",
+        "skill_version",
+        "jev_model",
+        "instructions_version"
+      ],
+      "properties": {
+        "repo": {
+          "type": "object"
+        },
+        "built_at": {
+          "type": "string"
+        },
+        "scanned_at": {
+          "type": "string"
+        },
+        "skill_version": {
+          "type": "string"
+        },
+        "jev_model": {
+          "type": "string"
+        },
+        "instructions_version": {
+          "type": "integer"
+        }
+      }
+    },
+    "system": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "purpose",
+        "actors",
+        "externals",
+        "runtime_counts"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": [
+            "system"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "actors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name",
+              "role",
+              "uses"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "uses": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Up to two runnable component ids or area ids this person touches."
+              }
+            }
+          }
+        },
+        "externals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name",
+              "role",
+              "kind",
+              "used_by"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "datastore",
+                  "service",
+                  "runtime",
+                  "devtool"
+                ],
+                "description": "datastore: cylinder; service: cloud; runtime: device; devtool: chip inside Build & verify."
+              },
+              "used_by": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "runtime_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "client",
+            "shared",
+            "server",
+            "cli",
+            "build",
+            "none"
+          ],
+          "properties": {
+            "client": {
+              "type": "integer"
+            },
+            "shared": {
+              "type": "integer"
+            },
+            "server": {
+              "type": "integer"
+            },
+            "cli": {
+              "type": "integer"
+            },
+            "build": {
+              "type": "integer"
+            },
+            "none": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "areas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "definition",
+          "hue",
+          "components",
+          "runnables",
+          "counts"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "definition": {
+            "type": "string"
+          },
+          "hue": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Evenly spaced from 210 in draft order; null for the implicit build-verify and unsorted areas."
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "counts": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "product",
+              "supporting",
+              "runtimes"
+            ],
+            "properties": {
+              "product": {
+                "type": "integer"
+              },
+              "supporting": {
+                "type": "integer"
+              },
+              "runtimes": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "client",
+                  "shared",
+                  "server",
+                  "cli",
+                  "build",
+                  "none"
+                ],
+                "properties": {
+                  "client": {
+                    "type": "integer"
+                  },
+                  "shared": {
+                    "type": "integer"
+                  },
+                  "server": {
+                    "type": "integer"
+                  },
+                  "cli": {
+                    "type": "integer"
+                  },
+                  "build": {
+                    "type": "integer"
+                  },
+                  "none": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "runnables": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The area's runnable components, drawn on the system picture."
+          }
+        }
+      }
+    },
+    "flows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "from",
+          "to",
+          "label",
+          "kind"
+        ],
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "network",
+              "file",
+              "process"
+            ]
+          }
+        },
+        "description": "Endpoints are runnable component ids, actor ids, or external ids; label names the mechanism."
+      }
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "path",
+          "kind",
+          "area",
+          "runnable",
+          "runtime",
+          "nature",
+          "role",
+          "responsibility",
+          "why",
+          "entry_points",
+          "evidence",
+          "modules",
+          "metrics",
+          "decision"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "readme": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "area": {
+            "type": "string"
+          },
+          "runnable": {
+            "type": "boolean",
+            "description": "Product code with an executable hint, or a surface role in a client, server, or cli runtime."
+          },
+          "runtime": {
+            "type": "string",
+            "enum": [
+              "client",
+              "shared",
+              "server",
+              "cli",
+              "build",
+              "none"
+            ]
+          },
+          "nature": {
+            "type": "string",
+            "enum": [
+              "product",
+              "tooling",
+              "test",
+              "content",
+              "docs",
+              "experiment"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "surface",
+              "adapter",
+              "core",
+              "kernel",
+              "none"
+            ]
+          },
+          "responsibility": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          },
+          "entry_points": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "externals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "count"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "hints": {
+            "type": "object",
+            "description": "Manifest evidence from the scan: executable, wasm, server_libs, client_libs, desktop, test_libs, directory_kind, test_file_share."
+          },
+          "metrics": {
+            "$ref": "#/definitions/metrics"
+          },
+          "decision": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "area",
+              "runtime",
+              "nature",
+              "role"
+            ],
+            "properties": {
+              "area": {
+                "$ref": "#/definitions/provenance"
+              },
+              "runtime": {
+                "$ref": "#/definitions/provenance"
+              },
+              "nature": {
+                "$ref": "#/definitions/provenance"
+              },
+              "role": {
+                "$ref": "#/definitions/provenance"
+              }
+            }
+          }
+        }
+      }
+    },
+    "modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "component",
+          "name",
+          "path",
+          "responsibility",
+          "files",
+          "metrics"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "component": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "responsibility": {
+            "type": "string"
+          },
+          "responsibility_source": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "generated"
+            ]
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "loc",
+                "exports"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "loc": {
+                  "type": "integer"
+                },
+                "exports": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "metrics": {
+            "$ref": "#/definitions/metrics"
+          }
+        }
+      }
+    },
+    "edges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "areas",
+        "components",
+        "modules"
+      ],
+      "properties": {
+        "areas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "from",
+              "to",
+              "reason",
+              "count"
+            ],
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "reason_source": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "generated"
+                ]
+              },
+              "count": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "from",
+              "to",
+              "reason",
+              "count",
+              "examples",
+              "finding",
+              "accepted"
+            ],
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "reason_source": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "generated"
+                ]
+              },
+              "count": {
+                "type": "integer"
+              },
+              "examples": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "accepted": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "test_count": {
+                "type": "integer"
+              },
+              "test_only": {
+                "type": "boolean"
+              },
+              "finding": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "core-uses-adapter",
+                  "crosses-the-wire",
+                  "product-uses-support",
+                  null
+                ],
+                "description": "The first check this edge fails, or null when it passes every check that applies (accepted true) or none applies (accepted null)."
+              }
+            }
+          }
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "from",
+              "to",
+              "count",
+              "examples"
+            ],
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "count": {
+                "type": "integer"
+              },
+              "examples": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "test_count": {
+                "type": "integer"
+              },
+              "test_only": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "health": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "check",
+          "level",
+          "nodes",
+          "meaning",
+          "evidence",
+          "accepted",
+          "confidence"
+        ],
+        "properties": {
+          "check": {
+            "type": "string",
+            "enum": [
+              "cycle",
+              "core-uses-adapter",
+              "crosses-the-wire",
+              "product-uses-support"
+            ]
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "components",
+              "modules"
+            ]
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "meaning": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Up to three example imports."
+          },
+          "accepted": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Jev's verdict where judgment applies; false for scanner-decided checks."
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "component",
+          "question",
+          "reason"
+        ],
+        "properties": {
+          "component": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string",
+            "enum": [
+              "area",
+              "runtime",
+              "nature",
+              "role"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "files",
+        "loc",
+        "fan_in",
+        "fan_out",
+        "instability",
+        "in_cycle"
+      ],
+      "properties": {
+        "files": {
+          "type": "integer"
+        },
+        "loc": {
+          "type": "integer"
+        },
+        "fan_in": {
+          "type": "integer"
+        },
+        "fan_out": {
+          "type": "integer"
+        },
+        "instability": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "in_cycle": {
+          "type": "boolean"
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confidence",
+        "flag"
+      ],
+      "properties": {
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "flag": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "uncertain",
+            "unresolved",
+            "contradicts-evidence",
+            null
+          ],
+          "description": "uncertain: confidence 0.4-0.6; unresolved: fallback value in use; contradicts-evidence: resolved answer the scan evidence argues against (sharpen the card and re-run decide)."
+        }
+      }
+    }
+  }
+}

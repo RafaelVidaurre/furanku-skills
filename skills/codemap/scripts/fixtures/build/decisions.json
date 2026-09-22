@@ -1,0 +1,1437 @@
+{
+ "decided_at": "2026-09-22T10:05:00Z",
+ "edges": {
+  "orchestrator->store": {
+   "accepted": true,
+   "check": "core-uses-adapter",
+   "flag": null,
+   "from": "orchestrator",
+   "probability": 0.8,
+   "to": "store"
+  },
+  "rules->store": {
+   "accepted": false,
+   "check": "core-uses-adapter",
+   "flag": null,
+   "from": "rules",
+   "probability": 0.2,
+   "to": "store"
+  },
+  "web->orchestrator": {
+   "accepted": true,
+   "check": "crosses-the-wire",
+   "flag": null,
+   "from": "web",
+   "probability": 0.75,
+   "to": "orchestrator"
+  }
+ },
+ "instructions_version": 6,
+ "model": "typesafe-ai/jev",
+ "records": [
+  {
+   "answer": "processing",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "ec4ecd75b000724e6c1c226912070f32e0006a11550dc64f9b85f12f729c26db",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "api",
+   "probabilities": {
+    "abstain": 0.02,
+    "build_verify": 0.02,
+    "new_area": 0.02,
+    "operating": 0.02,
+    "processing": 0.9,
+    "reviewing": 0.02
+   },
+   "question": "area"
+  },
+  {
+   "answer": "server",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "e0ac8736bf5c7b21c3717549fafdf0234baf1b62b2d6208e5e0df274b2caa982",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "api",
+   "probabilities": {
+    "abstain": 0.0167,
+    "build": 0.0167,
+    "cli": 0.0167,
+    "client": 0.0167,
+    "none": 0.0167,
+    "server": 0.9,
+    "shared": 0.0167
+   },
+   "question": "runtime"
+  },
+  {
+   "answer": "product",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "13376cd275ef1cf40e2539c61e813e8f04b65c6596180a28396e663e0541a693",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "api",
+   "probabilities": {
+    "abstain": 0.0167,
+    "content": 0.0167,
+    "docs": 0.0167,
+    "experiment": 0.0167,
+    "product": 0.9,
+    "test": 0.0167,
+    "tooling": 0.0167
+   },
+   "question": "nature"
+  },
+  {
+   "answer": "surface",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "023b577123071ed62d3fba75265127208a53a4a92c9419d6769856597f3e6a50",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "api",
+   "probabilities": {
+    "abstain": 0.025,
+    "adapter": 0.025,
+    "core": 0.025,
+    "kernel": 0.025,
+    "surface": 0.9
+   },
+   "question": "role"
+  },
+  {
+   "answer": "operating",
+   "confidence": 0.93,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "0469f88babb52a1f52672c4fc11a3170a2cb0874b1afdcbe281347a0c92b621f",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "cli",
+   "probabilities": {
+    "abstain": 0.014,
+    "build_verify": 0.014,
+    "new_area": 0.014,
+    "operating": 0.93,
+    "processing": 0.014,
+    "reviewing": 0.014
+   },
+   "question": "area"
+  },
+  {
+   "answer": "cli",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "4cf41801114051a902a781c45ac6323446a841e11406e50c636d3fadd920df42",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "cli",
+   "probabilities": {
+    "abstain": 0.0167,
+    "build": 0.0167,
+    "cli": 0.9,
+    "client": 0.0167,
+    "none": 0.0167,
+    "server": 0.0167,
+    "shared": 0.0167
+   },
+   "question": "runtime"
+  },
+  {
+   "answer": "product",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "0aa2fa22b34f2d26e9ff2e103ffd28054a4314d0183fdf8db4d345fb8c812a78",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "cli",
+   "probabilities": {
+    "abstain": 0.0167,
+    "content": 0.0167,
+    "docs": 0.0167,
+    "experiment": 0.0167,
+    "product": 0.9,
+    "test": 0.0167,
+    "tooling": 0.0167
+   },
+   "question": "nature"
+  },
+  {
+   "answer": "surface",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "c97ccdeba203a3267896c63ae1e551b67d7be59aeb169a08d3a6212277cca73c",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "cli",
+   "probabilities": {
+    "abstain": 0.025,
+    "adapter": 0.025,
+    "core": 0.025,
+    "kernel": 0.025,
+    "surface": 0.9
+   },
+   "question": "role"
+  },
+  {
+   "answer": "processing",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "b8bd6277ad8397d8e0c2510c9736443a9bdc2532c749582869b6cc4b6f6bee8b",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "content",
+   "probabilities": {
+    "abstain": 0.02,
+    "build_verify": 0.02,
+    "new_area": 0.02,
+    "operating": 0.02,
+    "processing": 0.9,
+    "reviewing": 0.02
+   },
+   "question": "area"
+  },
+  {
+   "answer": "none",
+   "confidence": 0.77,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "33b7fd9eb9bda9787251ecc59e8ece1daa5f0622c7ee30dce624d652091a1688",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "content",
+   "probabilities": {
+    "abstain": 0.0383,
+    "build": 0.0383,
+    "cli": 0.0383,
+    "client": 0.0383,
+    "none": 0.77,
+    "server": 0.0383,
+    "shared": 0.0383
+   },
+   "question": "runtime"
+  },
+  {
+   "answer": "content",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "e36ee825d5a5d8845735a3c4dfc86e60f45085110cbc852b0dd0f6c0e3fb5a51",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "content",
+   "probabilities": {
+    "abstain": 0.0167,
+    "content": 0.9,
+    "docs": 0.0167,
+    "experiment": 0.0167,
+    "product": 0.0167,
+    "test": 0.0167,
+    "tooling": 0.0167
+   },
+   "question": "nature"
+  },
+  {
+   "answer": "kernel",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "86746561cc4cf41a8508e135509bc84e2998b7c34921de967a01b9ecdb59777a",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "content",
+   "probabilities": {
+    "abstain": 0.025,
+    "adapter": 0.025,
+    "core": 0.025,
+    "kernel": 0.9,
+    "surface": 0.025
+   },
+   "question": "role"
+  },
+  {
+   "answer": "build_verify",
+   "confidence": 0.7,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "90efcd2fcbbec75968fb1546f693173606f68ef79ab5e897fbdb1cbed9f99540",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "devtools",
+   "probabilities": {
+    "abstain": 0.06,
+    "build_verify": 0.7,
+    "new_area": 0.06,
+    "operating": 0.06,
+    "processing": 0.06,
+    "reviewing": 0.06
+   },
+   "question": "area"
+  },
+  {
+   "answer": "build",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "4b99ad4ebb33e067333a532eb0ad9f4ed1d1659a2135f612f80eed7f78c8c638",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "devtools",
+   "probabilities": {
+    "abstain": 0.0167,
+    "build": 0.9,
+    "cli": 0.0167,
+    "client": 0.0167,
+    "none": 0.0167,
+    "server": 0.0167,
+    "shared": 0.0167
+   },
+   "question": "runtime"
+  },
+  {
+   "answer": "tooling",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "66fa8e0ada00615b364cad8a9f2453e36a8683e075124d987af38023c8d08b14",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "devtools",
+   "probabilities": {
+    "abstain": 0.0167,
+    "content": 0.0167,
+    "docs": 0.0167,
+    "experiment": 0.0167,
+    "product": 0.0167,
+    "test": 0.0167,
+    "tooling": 0.9
+   },
+   "question": "nature"
+  },
+  {
+   "answer": "kernel",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "ac8d185ffc6b040972790ce8894d4c968c2d69b90acd4532de0795a85e7c8bc7",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "devtools",
+   "probabilities": {
+    "abstain": 0.025,
+    "adapter": 0.025,
+    "core": 0.025,
+    "kernel": 0.9,
+    "surface": 0.025
+   },
+   "question": "role"
+  },
+  {
+   "answer": "build_verify",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "a846c8d1e75e27f41c1f0ad7947b1f2c7bab7aa84d26cfa8ce08056865b1fa4c",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "docs",
+   "probabilities": {
+    "abstain": 0.02,
+    "build_verify": 0.9,
+    "new_area": 0.02,
+    "operating": 0.02,
+    "processing": 0.02,
+    "reviewing": 0.02
+   },
+   "question": "area"
+  },
+  {
+   "answer": "none",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "94cb82b8db287c2ca0c6c2402a2d2e820d3fab7ca36da4b3ea845ac597a7f3e3",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "docs",
+   "probabilities": {
+    "abstain": 0.0167,
+    "build": 0.0167,
+    "cli": 0.0167,
+    "client": 0.0167,
+    "none": 0.9,
+    "server": 0.0167,
+    "shared": 0.0167
+   },
+   "question": "runtime"
+  },
+  {
+   "answer": "docs",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "175e44027484e0ea770696a30a7a23b553dc901c7939e7dec5caabe6b2d62d1a",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "docs",
+   "probabilities": {
+    "abstain": 0.0167,
+    "content": 0.0167,
+    "docs": 0.9,
+    "experiment": 0.0167,
+    "product": 0.0167,
+    "test": 0.0167,
+    "tooling": 0.0167
+   },
+   "question": "nature"
+  },
+  {
+   "answer": "kernel",
+   "confidence": 0.5,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "7766b586e083332b88aa6e66996c28693708fb46a34fc3807388744bff570225",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "docs",
+   "probabilities": {
+    "abstain": 0.125,
+    "adapter": 0.125,
+    "core": 0.125,
+    "kernel": 0.5,
+    "surface": 0.125
+   },
+   "question": "role"
+  },
+  {
+   "answer": "build_verify",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "ae6930127b7bc32b3d995598c162ec82146d4ee6dac4dc2af394a67ac1946de6",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "harness",
+   "probabilities": {
+    "abstain": 0.02,
+    "build_verify": 0.9,
+    "new_area": 0.02,
+    "operating": 0.02,
+    "processing": 0.02,
+    "reviewing": 0.02
+   },
+   "question": "area"
+  },
+  {
+   "answer": "build",
+   "confidence": 0.5,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "835f35faa229a1c2d26b921f1215bd985e5fa5349072f77105c861961886732e",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "harness",
+   "probabilities": {
+    "abstain": 0.0833,
+    "build": 0.5,
+    "cli": 0.0833,
+    "client": 0.0833,
+    "none": 0.0833,
+    "server": 0.0833,
+    "shared": 0.0833
+   },
+   "question": "runtime"
+  },
+  {
+   "answer": "test",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "65506e3e4615663c1840714dd2070559ffb807a6d4d397d4a89cc580fe0f8c18",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "harness",
+   "probabilities": {
+    "abstain": 0.0167,
+    "content": 0.0167,
+    "docs": 0.0167,
+    "experiment": 0.0167,
+    "product": 0.0167,
+    "test": 0.9,
+    "tooling": 0.0167
+   },
+   "question": "nature"
+  },
+  {
+   "answer": "surface",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "589ce98c9f6c362b7bc9e8bd51c39d90f7a6a6ad58bb20dbde7d934a8a495536",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "harness",
+   "probabilities": {
+    "abstain": 0.025,
+    "adapter": 0.025,
+    "core": 0.025,
+    "kernel": 0.025,
+    "surface": 0.9
+   },
+   "question": "role"
+  },
+  {
+   "answer": "processing",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "b7f5aa3744d4c1377c624bcb22437780087b681a6a91580c4064c075c987783d",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "lab",
+   "probabilities": {
+    "abstain": 0.02,
+    "build_verify": 0.02,
+    "new_area": 0.02,
+    "operating": 0.02,
+    "processing": 0.9,
+    "reviewing": 0.02
+   },
+   "question": "area"
+  },
+  {
+   "answer": "client",
+   "confidence": 0.66,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "e6d26b3478a1019bda0677e42255e696ee0d24b0dc9a38b45dba19f9012df1dc",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "lab",
+   "probabilities": {
+    "abstain": 0.0567,
+    "build": 0.0567,
+    "cli": 0.0567,
+    "client": 0.66,
+    "none": 0.0567,
+    "server": 0.0567,
+    "shared": 0.0567
+   },
+   "question": "runtime"
+  },
+  {
+   "answer": "experiment",
+   "confidence": 0.82,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "c573cfbbeefff8a52a843aeef2e9767977212d398deced388bcb8f2b7ad6dbb7",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "lab",
+   "probabilities": {
+    "abstain": 0.03,
+    "content": 0.03,
+    "docs": 0.03,
+    "experiment": 0.82,
+    "product": 0.03,
+    "test": 0.03,
+    "tooling": 0.03
+   },
+   "question": "nature"
+  },
+  {
+   "answer": "core",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "d530e11c1ab52f9d6a2206e20510c72bad8a89e40857d230d180c20ce110c1e9",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "lab",
+   "probabilities": {
+    "abstain": 0.025,
+    "adapter": 0.025,
+    "core": 0.9,
+    "kernel": 0.025,
+    "surface": 0.025
+   },
+   "question": "role"
+  },
+  {
+   "answer": "processing",
+   "confidence": 0.85,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "d08c9edd41f3f7395b0309fb98c10acb19c90e124836d8ac5729b1f8cd8913b0",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "orchestrator",
+   "probabilities": {
+    "abstain": 0.03,
+    "build_verify": 0.03,
+    "new_area": 0.03,
+    "operating": 0.03,
+    "processing": 0.85,
+    "reviewing": 0.03
+   },
+   "question": "area"
+  },
+  {
+   "answer": "server",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "be826c6582f30a0790908b0a0c93f4e9c72dbb025416b9b8d67c351bda6dec0c",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "orchestrator",
+   "probabilities": {
+    "abstain": 0.0167,
+    "build": 0.0167,
+    "cli": 0.0167,
+    "client": 0.0167,
+    "none": 0.0167,
+    "server": 0.9,
+    "shared": 0.0167
+   },
+   "question": "runtime"
+  },
+  {
+   "answer": "product",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "79c1f197b02b7b9cff16f37e0ebbc1a23c8b50909d101bac577508ca46b0ec4f",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "orchestrator",
+   "probabilities": {
+    "abstain": 0.0167,
+    "content": 0.0167,
+    "docs": 0.0167,
+    "experiment": 0.0167,
+    "product": 0.9,
+    "test": 0.0167,
+    "tooling": 0.0167
+   },
+   "question": "nature"
+  },
+  {
+   "answer": "core",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "40c7c12177f1323e18febe5a32f216ed47a9bbcff0238c66cd3c064805881e63",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "orchestrator",
+   "probabilities": {
+    "abstain": 0.025,
+    "adapter": 0.025,
+    "core": 0.9,
+    "kernel": 0.025,
+    "surface": 0.025
+   },
+   "question": "role"
+  },
+  {
+   "answer": "processing",
+   "confidence": 0.95,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "4984280e003ff2294adbe5319421d0d4528f00b862a34af55c7bbab99b08fe2a",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "rules",
+   "probabilities": {
+    "abstain": 0.01,
+    "build_verify": 0.01,
+    "new_area": 0.01,
+    "operating": 0.01,
+    "processing": 0.95,
+    "reviewing": 0.01
+   },
+   "question": "area"
+  },
+  {
+   "answer": "shared",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "3484c89addbe37d0f51ec0cea85c3791c9c84e2906ea2e5d692546648021aa85",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "rules",
+   "probabilities": {
+    "abstain": 0.0167,
+    "build": 0.0167,
+    "cli": 0.0167,
+    "client": 0.0167,
+    "none": 0.0167,
+    "server": 0.0167,
+    "shared": 0.9
+   },
+   "question": "runtime"
+  },
+  {
+   "answer": "product",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "81e0985e0d8fd3ccd46efaddde05fdb5e748210f866357dab942083477f0768a",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "rules",
+   "probabilities": {
+    "abstain": 0.0167,
+    "content": 0.0167,
+    "docs": 0.0167,
+    "experiment": 0.0167,
+    "product": 0.9,
+    "test": 0.0167,
+    "tooling": 0.0167
+   },
+   "question": "nature"
+  },
+  {
+   "answer": "core",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "bd6017ba405309ed2d4e9faf92f0ff309d8c10726149bef5772669bc3128fa59",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "rules",
+   "probabilities": {
+    "abstain": 0.025,
+    "adapter": 0.025,
+    "core": 0.9,
+    "kernel": 0.025,
+    "surface": 0.025
+   },
+   "question": "role"
+  },
+  {
+   "answer": "processing",
+   "confidence": 0.8,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "8f9e2392db0c5bc099d639d267ea9fc3765dc7278b7402cf99619e7d2799d824",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "schema",
+   "probabilities": {
+    "abstain": 0.04,
+    "build_verify": 0.04,
+    "new_area": 0.04,
+    "operating": 0.04,
+    "processing": 0.8,
+    "reviewing": 0.04
+   },
+   "question": "area"
+  },
+  {
+   "answer": "shared",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "fc472612483e547862d4a8b7256296e92ce757cb5d42353d9a77902886303629",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "schema",
+   "probabilities": {
+    "abstain": 0.0167,
+    "build": 0.0167,
+    "cli": 0.0167,
+    "client": 0.0167,
+    "none": 0.0167,
+    "server": 0.0167,
+    "shared": 0.9
+   },
+   "question": "runtime"
+  },
+  {
+   "answer": "product",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "9b9331380bb69f503bba8e2b2258de21dc2ed5b36a9bda160fb978e5f16a1e31",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "schema",
+   "probabilities": {
+    "abstain": 0.0167,
+    "content": 0.0167,
+    "docs": 0.0167,
+    "experiment": 0.0167,
+    "product": 0.9,
+    "test": 0.0167,
+    "tooling": 0.0167
+   },
+   "question": "nature"
+  },
+  {
+   "answer": "kernel",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "dd415e8a30dd7aafab57e49702899234380f301d1e72f35db8c8be363aec97a9",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "schema",
+   "probabilities": {
+    "abstain": 0.025,
+    "adapter": 0.025,
+    "core": 0.025,
+    "kernel": 0.9,
+    "surface": 0.025
+   },
+   "question": "role"
+  },
+  {
+   "answer": "processing",
+   "confidence": 0.55,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "7005dfaf9c023578e2eb529b5bf52f426df4c67133c60b0e192530f01918a54e",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "store",
+   "probabilities": {
+    "abstain": 0.09,
+    "build_verify": 0.09,
+    "new_area": 0.09,
+    "operating": 0.09,
+    "processing": 0.55,
+    "reviewing": 0.09
+   },
+   "question": "area"
+  },
+  {
+   "answer": "server",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "13127e184b086c6b3ed80b5998762a08ba80a29332942b4be6b0ce0b5d099a83",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "store",
+   "probabilities": {
+    "abstain": 0.0167,
+    "build": 0.0167,
+    "cli": 0.0167,
+    "client": 0.0167,
+    "none": 0.0167,
+    "server": 0.9,
+    "shared": 0.0167
+   },
+   "question": "runtime"
+  },
+  {
+   "answer": "product",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "cf42959ea687cb74a1a291e25f97094c4ac12df8dd612ca6b451d97e66ed3412",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "store",
+   "probabilities": {
+    "abstain": 0.0167,
+    "content": 0.0167,
+    "docs": 0.0167,
+    "experiment": 0.0167,
+    "product": 0.9,
+    "test": 0.0167,
+    "tooling": 0.0167
+   },
+   "question": "nature"
+  },
+  {
+   "answer": "adapter",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "1de0cc4ed46ef5f7598975ee81ca045c11f16bac83e95386c359282d676b1d99",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "store",
+   "probabilities": {
+    "abstain": 0.025,
+    "adapter": 0.9,
+    "core": 0.025,
+    "kernel": 0.025,
+    "surface": 0.025
+   },
+   "question": "role"
+  },
+  {
+   "answer": "reviewing",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "128faaa59ce45670fcefb8db06e60a2b67066e1c865908b79d9b5dcdcf5c9493",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "web",
+   "probabilities": {
+    "abstain": 0.02,
+    "build_verify": 0.02,
+    "new_area": 0.02,
+    "operating": 0.02,
+    "processing": 0.02,
+    "reviewing": 0.9
+   },
+   "question": "area"
+  },
+  {
+   "answer": "client",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "2f7cf47f8ee513ddb5105776e5e81f30c2a7c73b3ea825ca2eb81558bc2f1f0c",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "web",
+   "probabilities": {
+    "abstain": 0.0167,
+    "build": 0.0167,
+    "cli": 0.0167,
+    "client": 0.9,
+    "none": 0.0167,
+    "server": 0.0167,
+    "shared": 0.0167
+   },
+   "question": "runtime"
+  },
+  {
+   "answer": "product",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "f32ab236045179ed9c2a5a41fef60b239c50fbe81c90580760c56ee4c71e0b36",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "web",
+   "probabilities": {
+    "abstain": 0.0167,
+    "content": 0.0167,
+    "docs": 0.0167,
+    "experiment": 0.0167,
+    "product": 0.9,
+    "test": 0.0167,
+    "tooling": 0.0167
+   },
+   "question": "nature"
+  },
+  {
+   "answer": "surface",
+   "confidence": 0.9,
+   "cost_usd": 0.0001,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "9a8246d974752fdc7a844974805d59109df862bcae9e5704245b7d2a0ddd6ecc",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "web",
+   "probabilities": {
+    "abstain": 0.025,
+    "adapter": 0.025,
+    "core": 0.025,
+    "kernel": 0.025,
+    "surface": 0.9
+   },
+   "question": "role"
+  },
+  {
+   "answer": "build",
+   "confidence": 0.9,
+   "cost_usd": 0.0004,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "5edf24d9ddb15f1f7360a5f25f695e4c0188f9a826c5990dd8b50d582e831cae",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "harness",
+   "pass": 2,
+   "probabilities": {
+    "abstain": 0.0167,
+    "build": 0.9,
+    "cli": 0.0167,
+    "client": 0.0167,
+    "none": 0.0167,
+    "server": 0.0167,
+    "shared": 0.0167
+   },
+   "question": "runtime"
+  },
+  {
+   "answer": 0.8,
+   "confidence": 0.9,
+   "cost_usd": 0.0004,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "0d28b7c5b55ba22ba26975bcaed8dce8b9227bbc978f37821dfcf023d79a9506",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "orchestrator->store",
+   "probabilities": null,
+   "question": "core_uses_adapter"
+  },
+  {
+   "answer": 0.2,
+   "confidence": 0.9,
+   "cost_usd": 0.0004,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "f854c0fda50e79c590fa1ec47eec36963321a1fb6a402301319ebcb6d6d56037",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "rules->store",
+   "probabilities": null,
+   "question": "core_uses_adapter"
+  },
+  {
+   "answer": 0.75,
+   "confidence": 0.9,
+   "cost_usd": 0.0004,
+   "decided_at": "2026-09-22T10:05:00Z",
+   "elapsed_seconds": 0.4,
+   "fingerprint": "e3ded5f6fdbb2b44d4c5911a7a6269bfe70abbab3f4fe3f0865fee5caa533cf9",
+   "instructions_version": 6,
+   "model": "typesafe-ai/jev",
+   "node": "web->orchestrator",
+   "probabilities": null,
+   "question": "crosses_the_wire"
+  }
+ ],
+ "resolution": {
+  "api": {
+   "area": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "processing"
+   },
+   "nature": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "product"
+   },
+   "role": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "surface"
+   },
+   "role_applies": true,
+   "runtime": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "server"
+   }
+  },
+  "cli": {
+   "area": {
+    "confidence": 0.93,
+    "reason": null,
+    "status": "accepted",
+    "value": "operating"
+   },
+   "nature": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "product"
+   },
+   "role": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "surface"
+   },
+   "role_applies": true,
+   "runtime": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "cli"
+   }
+  },
+  "content": {
+   "area": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "processing"
+   },
+   "nature": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "content"
+   },
+   "role": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "kernel"
+   },
+   "role_applies": false,
+   "runtime": {
+    "confidence": 0.77,
+    "reason": null,
+    "status": "accepted",
+    "value": "none"
+   }
+  },
+  "devtools": {
+   "area": {
+    "confidence": 0.7,
+    "reason": null,
+    "status": "accepted",
+    "value": "build_verify"
+   },
+   "nature": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "tooling"
+   },
+   "role": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "kernel"
+   },
+   "role_applies": false,
+   "runtime": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "build"
+   }
+  },
+  "docs": {
+   "area": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "build_verify"
+   },
+   "nature": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "docs"
+   },
+   "role": {
+    "confidence": 0.5,
+    "reason": null,
+    "status": "uncertain",
+    "value": "kernel"
+   },
+   "role_applies": false,
+   "runtime": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "none"
+   }
+  },
+  "harness": {
+   "area": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "build_verify"
+   },
+   "nature": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "test"
+   },
+   "role": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "surface"
+   },
+   "role_applies": false,
+   "runtime": {
+    "confidence": 0.9,
+    "pass": 2,
+    "reason": null,
+    "status": "accepted",
+    "value": "build"
+   }
+  },
+  "lab": {
+   "area": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "processing"
+   },
+   "nature": {
+    "confidence": 0.82,
+    "reason": null,
+    "status": "accepted",
+    "value": "experiment"
+   },
+   "role": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "core"
+   },
+   "role_applies": false,
+   "runtime": {
+    "confidence": 0.66,
+    "reason": null,
+    "status": "accepted",
+    "value": "client"
+   }
+  },
+  "orchestrator": {
+   "area": {
+    "confidence": 0.85,
+    "reason": null,
+    "status": "accepted",
+    "value": "processing"
+   },
+   "nature": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "product"
+   },
+   "role": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "core"
+   },
+   "role_applies": true,
+   "runtime": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "server"
+   }
+  },
+  "rules": {
+   "area": {
+    "confidence": 0.95,
+    "reason": null,
+    "status": "accepted",
+    "value": "processing"
+   },
+   "nature": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "product"
+   },
+   "role": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "core"
+   },
+   "role_applies": true,
+   "runtime": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "shared"
+   }
+  },
+  "schema": {
+   "area": {
+    "confidence": 0.8,
+    "reason": null,
+    "status": "accepted",
+    "value": "processing"
+   },
+   "nature": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "product"
+   },
+   "role": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "kernel"
+   },
+   "role_applies": true,
+   "runtime": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "shared"
+   }
+  },
+  "store": {
+   "area": {
+    "confidence": 0.55,
+    "reason": null,
+    "status": "uncertain",
+    "value": "processing"
+   },
+   "nature": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "product"
+   },
+   "role": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "adapter"
+   },
+   "role_applies": true,
+   "runtime": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "server"
+   }
+  },
+  "web": {
+   "area": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "reviewing"
+   },
+   "nature": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "product"
+   },
+   "role": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "surface"
+   },
+   "role_applies": true,
+   "runtime": {
+    "confidence": 0.9,
+    "reason": null,
+    "status": "accepted",
+    "value": "client"
+   }
+  }
+ },
+ "schema": "codemap.decisions/1",
+ "summary": {
+  "accepted": 42,
+  "areas": 3,
+  "areas_assigned": {
+   "build_verify": 3,
+   "operating": 1,
+   "processing": 7,
+   "reviewing": 1
+  },
+  "calls_cached": 0,
+  "calls_made": 16,
+  "checked_edges": 3,
+  "components": 12,
+  "findings": {
+   "core-uses-adapter": 1,
+   "crosses-the-wire": 0
+  },
+  "natures": {
+   "content": 1,
+   "docs": 1,
+   "experiment": 1,
+   "product": 7,
+   "test": 1,
+   "tooling": 1
+  },
+  "questions": 52,
+  "runtimes": {
+   "build": 2,
+   "cli": 1,
+   "client": 2,
+   "none": 2,
+   "server": 3,
+   "shared": 2
+  },
+  "second_pass": [
+   "harness"
+  ],
+  "total_cost_usd": 0.0064,
+  "total_elapsed_seconds": 6.4,
+  "uncertain": 1,
+  "unresolved": 0,
+  "unresolved_nodes": []
+ }
+}

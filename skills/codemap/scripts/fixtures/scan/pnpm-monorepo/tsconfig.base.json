@@ -1,0 +1,9 @@
+{
+  // shared compiler options (comments and trailing commas are tolerated)
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["packages/ui/src/*"],
+    },
+  },
+}
