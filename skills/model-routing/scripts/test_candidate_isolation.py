@@ -17,7 +17,7 @@ import unittest
 
 SCRIPT = Path(__file__).with_name("router.py")
 CONFIG = Path(__file__).with_name("config.py")
-VALID_CANDIDATE = "grok/grok-4.6/high"
+VALID_CANDIDATE = "grok/grok-4.7/high"
 MALFORMED_ID = "synthetic/malformed/high"
 ROUTE_BASIS = "Principal requested the Worker route for this task."
 
@@ -48,7 +48,7 @@ class CandidateIsolationTest(unittest.TestCase):
                     },
                     "worker": {
                         "agent": "grok",
-                        "model": "grok-4.6",
+                        "model": "grok-4.7",
                         "effort": "high",
                     },
                 },
@@ -202,7 +202,7 @@ class CandidateIsolationTest(unittest.TestCase):
                     VALID_CANDIDATE: {
                         "launch": {
                             "agent": "grok",
-                            "model": "grok-4.6",
+                            "model": "grok-4.7",
                             "effort": "high",
                             "extra": "nope",
                         }
@@ -252,7 +252,7 @@ class CandidateIsolationTest(unittest.TestCase):
         fallback_id = "codex/gpt-6-astra/high"
         self.write_repo_layer({
             "version": 4, "routes": {"worker": {
-                "agent": "grok", "model": "grok-4.6", "effort": "high",
+                "agent": "grok", "model": "grok-4.7", "effort": "high",
                 "on_quota_unusable": {"fallback": {
                     "agent": "codex", "model": "gpt-6-astra", "effort": "high",
                 }},
@@ -276,7 +276,7 @@ class CandidateIsolationTest(unittest.TestCase):
             "version": 4, "routes": {}, "candidates": {
                 VALID_CANDIDATE: {"launch": {"effort": None}},
                 "synthetic/valid-alias": {
-                    "launch": {"agent": "grok", "model": "grok-4.6", "effort": "high"},
+                    "launch": {"agent": "grok", "model": "grok-4.7", "effort": "high"},
                 },
             },
         })

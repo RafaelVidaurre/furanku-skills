@@ -26,7 +26,7 @@ Every layer is a version 4 document. A persisted layer defines only the routes i
     "captain": { "agent": "codex", "model": "gpt-6-astra", "effort": "high" },
     "worker": {
       "agent": "grok",
-      "model": "grok-4.6",
+      "model": "grok-4.7",
       "effort": "high",
       "on_quota_unusable": {
         "ask_seconds": 120,
@@ -37,7 +37,7 @@ Every layer is a version 4 document. A persisted layer defines only the routes i
   "preferences": [
     "Captains default to gpt-6-astra at high.",
     "Prefer gpt-6-astra at high over claude-fable-5-1[1m] for intelligence, architecture, and complex problems; this is a routing preference, not a benchmark score.",
-    "Use grok-4.6 at high for bounded implementation and agentic execution."
+    "Use grok-4.7 at high for bounded implementation and agentic execution."
   ],
   "candidates": {
     "opencode/kimi-for-coding/k3/max": { "enabled": false },
