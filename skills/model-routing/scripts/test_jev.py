@@ -235,14 +235,14 @@ class JevTest(unittest.TestCase):
     def test_public_context_drops_private_profiles_and_preferences_without_reenabling(self):
         compiled = {"candidates": {
             "codex/gpt-6-astra/high": {"enabled": True, "private": "PRIVATE_PROFILE"},
-            "codex/gpt-5.6-luna/max": {"enabled": False},
+            "codex/gpt-6-luna/max": {"enabled": False},
             "custom/private/high": {"private": "PRIVATE_CUSTOM"},
         }, "preferences": [{"scope": "global", "text": "PRIVATE_PREFERENCE"}]}
         jev_trial.use_public_context(compiled)
         self.assertNotIn("PRIVATE_", json.dumps(compiled))
         self.assertEqual(set(compiled["candidates"]), {
-            "codex/gpt-6-astra/high", "codex/gpt-5.6-luna/max"})
-        self.assertFalse(compiled["candidates"]["codex/gpt-5.6-luna/max"]["enabled"])
+            "codex/gpt-6-astra/high", "codex/gpt-6-luna/max"})
+        self.assertFalse(compiled["candidates"]["codex/gpt-6-luna/max"]["enabled"])
         self.assertEqual(compiled["preferences"], jev_trial.PUBLIC_PREFERENCES)
 
 

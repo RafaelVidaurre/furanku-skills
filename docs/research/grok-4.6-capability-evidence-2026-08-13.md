@@ -8,6 +8,11 @@
 > Routing update, 2026-09-22: the maintained Grok candidates are
 > `grok/grok-4.7/high` and `claudex/grok-4.7/high`. See
 > [Grok 4.7 evidence](grok-4.7-capability-evidence-2026-09-22.md).
+>
+> Routing update, 2026-09-22: the maintained Luna candidate is
+> `codex/gpt-6-luna/max`, replacing `codex/gpt-5.6-luna/max`; GPT-6 Sol
+> supersedes GPT-5.6 Sol. See
+> [GPT-6 Sol and Luna evidence](gpt-6-sol-luna-capability-evidence-2026-09-22.md).
 
 Research date: 2026-08-13 (Europe/Lisbon)
 
