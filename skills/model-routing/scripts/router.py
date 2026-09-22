@@ -1513,11 +1513,18 @@ def brief_markdown(compiled, runtime, repo_root, allowed_launchers=None):
             if not cell:
                 continue
             if cell.get("status") == "known":
+                note = cell.get("note")
+                suffix = (
+                    f". {note.strip()}"
+                    if isinstance(note, str) and note.strip()
+                    else ""
+                )
                 lines.append(
                     f"- {dimension}: score {cell['score']}, conservative "
                     f"{cell['conservative']}, {cell.get('confidence', '?')} confidence, "
                     f"assessed {cell['assessed_at']} — "
                     + ", ".join(cell.get("evidence", []))
+                    + suffix
                 )
             else:
                 lines.append(

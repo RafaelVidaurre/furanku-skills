@@ -43,7 +43,7 @@ class RouterTest(unittest.TestCase):
                 },
                 "worker": {
                     "agent": "grok",
-                    "model": "grok-4.6",
+                    "model": "grok-4.7",
                     "effort": "high",
                 },
             },
@@ -149,9 +149,9 @@ class RouterTest(unittest.TestCase):
         brief = self.run_router("brief", "--launchable-via", "codex").stdout
         self.assertIn("**Launchable agents:** codex", brief)
         self.assertIn("| codex/gpt-6-astra/high |", brief)
-        self.assertNotIn("| grok/grok-4.6/high |", brief)
-        self.assertNotIn("### grok/grok-4.6/high", brief)
-        self.assertIn("| worker | — | grok | grok-4.6 | high |", brief)
+        self.assertNotIn("| grok/grok-4.7/high |", brief)
+        self.assertNotIn("### grok/grok-4.7/high", brief)
+        self.assertIn("| worker | — | grok | grok-4.7 | high |", brief)
 
         payload = json.loads(
             self.run_router(
@@ -176,7 +176,7 @@ class RouterTest(unittest.TestCase):
         )
 
         codex_candidate = "codex/gpt-6-astra/high"
-        grok_candidate = "grok/grok-4.6/high"
+        grok_candidate = "grok/grok-4.7/high"
         payload = json.loads(
             self.run_router(
                 "brief",
@@ -220,6 +220,14 @@ class RouterTest(unittest.TestCase):
         self.assertIn(
             "| 0.58 (h) | 0.70 (m) | ? | ? | ? | $5.72 | ? | 1,050,000 |",
             rows["codex/gpt-6-astra/high"],
+        )
+        self.assertIn(
+            "| 0.44 (h) | ? | 0.74 (m) | ? | ? | ? | 54 | 500,000 |",
+            rows["grok/grok-4.7/high"],
+        )
+        self.assertIn(
+            "Artificial Analysis Intelligence Index v4.3.2",
+            brief,
         )
         self.assertIn(
             "exact model and effort; effort proxies stay `?`",
@@ -401,7 +409,7 @@ class RouterTest(unittest.TestCase):
         self.assertIn("disabled by configuration", decision["reasons"])
 
     def test_check_refuses_exhausted_quota(self):
-        candidate = "grok/grok-4.6/high"
+        candidate = "grok/grok-4.7/high"
         decision = self.check(
             "--candidate",
             candidate,
@@ -414,7 +422,7 @@ class RouterTest(unittest.TestCase):
         self.assertIn("quota exhausted (account unattributed)", decision["reasons"])
 
     def test_check_stale_quota_needs_acceptance_then_records_it(self):
-        candidate = "grok/grok-4.6/high"
+        candidate = "grok/grok-4.7/high"
         runtime = {"candidates": {candidate: {"quota": {"status": "stale"}}}}
         decision = self.check(
             "--candidate",
@@ -505,7 +513,7 @@ class RouterTest(unittest.TestCase):
     def test_check_refuses_launcher_outside_launchable_via(self):
         decision = self.check(
             "--candidate",
-            "grok/grok-4.6/high",
+            "grok/grok-4.7/high",
             "--reason",
             "Low-risk mechanical change.",
             "--launchable-via",
@@ -519,7 +527,7 @@ class RouterTest(unittest.TestCase):
         )
         decision = self.check(
             "--candidate",
-            "grok/grok-4.6/high",
+            "grok/grok-4.7/high",
             "--reason",
             "Low-risk mechanical change.",
             "--launchable-via",
@@ -604,7 +612,7 @@ class RouterTest(unittest.TestCase):
         )
         self.assertEqual("exact", decision["status"])
         self.assertEqual("grok", decision["selected"]["agent"])
-        self.assertEqual("grok/grok-4.6/high", decision["selected"]["id"])
+        self.assertEqual("grok/grok-4.7/high", decision["selected"]["id"])
         self.assertEqual(ROUTE_BASIS, decision["route_basis"])
         self.assertEqual("global", decision["provenance"]["winner"]["scope"])
 
@@ -625,7 +633,7 @@ class RouterTest(unittest.TestCase):
             {
                 "version": 4,
                 "routes": {},
-                "candidates": {"grok/grok-4.6/high": {"enabled": False}},
+                "candidates": {"grok/grok-4.7/high": {"enabled": False}},
             }
         )
         decision = self.check(
@@ -638,7 +646,7 @@ class RouterTest(unittest.TestCase):
         self.assertEqual("refused", decision["status"])
         self.assertIn("disabled by configuration", decision["reasons"])
         self.assertEqual("global", decision["route_provenance"]["winner"]["scope"])
-        self.assertEqual("grok/grok-4.6/high", decision["candidate"])
+        self.assertEqual("grok/grok-4.7/high", decision["candidate"])
         self.assertEqual(["builtin", "repo"], decision["candidate_sources"])
 
     def test_check_exact_route_gates_unmatched_routes_by_harness(self):
@@ -767,15 +775,15 @@ class RouterTest(unittest.TestCase):
             {
                 "version": 4,
                 "routes": {},
-                "candidates": {"grok/grok-4.6/high": None},
+                "candidates": {"grok/grok-4.7/high": None},
             }
         )
         payload = json.loads(self.run_router("brief", "--format", "json").stdout)
-        self.assertNotIn("grok/grok-4.6/high", payload["candidates"])
+        self.assertNotIn("grok/grok-4.7/high", payload["candidates"])
         result = self.run_router(
             "check",
             "--candidate",
-            "grok/grok-4.6/high",
+            "grok/grok-4.7/high",
             "--reason",
             "Cheap pick.",
             expect_code=1,
@@ -808,7 +816,7 @@ class RouterTest(unittest.TestCase):
         self.assertIn("economics must be an object", result.stderr)
         decision = self.check(
             "--candidate",
-            "grok/grok-4.6/high",
+            "grok/grok-4.7/high",
             "--reason",
             "Valid unrelated pick.",
             runtime={"harnesses": {"grok": {"quota": {"status": "known"}}}},
@@ -858,7 +866,7 @@ class RouterTest(unittest.TestCase):
                 self.assertIn("codex/gpt-5.6-terra/max", payload["malformed_candidates"])
 
     def test_malformed_runtime_state_fails_closed(self):
-        candidate = "grok/grok-4.6/high"
+        candidate = "grok/grok-4.7/high"
         result = self.run_router(
             "check",
             "--candidate",
@@ -1136,7 +1144,7 @@ class RouterTest(unittest.TestCase):
             ],
         }
         runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
-        candidate_id = "claudex/grok-4.6/high"
+        candidate_id = "claudex/grok-4.7/high"
         candidate = deepcopy(catalog["candidates"][candidate_id])
         candidate["quota_account"] = "grok"
         quota = runtime["candidates"][candidate_id]["quota"]
@@ -1305,7 +1313,7 @@ class RouterTest(unittest.TestCase):
             ],
         }
         runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
-        candidate = runtime["candidates"]["claudex/grok-4.6/high"]["quota"]
+        candidate = runtime["candidates"]["claudex/grok-4.7/high"]["quota"]
         self.assertEqual("known", candidate["status"])
         self.assertEqual(57, candidate["effective_percent_remaining"])
         self.assertEqual(candidate, runtime["harnesses"]["grok"]["quota"])
@@ -1371,7 +1379,7 @@ class RouterTest(unittest.TestCase):
         self.assertEqual("2026-08-13T09:12:47.507Z", quota["refreshed_at"])
 
     def test_check_stale_quota_pending_names_remedy(self):
-        candidate = "grok/grok-4.6/high"
+        candidate = "grok/grok-4.7/high"
         decision = self.check(
             "--candidate",
             candidate,
@@ -1409,7 +1417,7 @@ class RouterTest(unittest.TestCase):
                 "routes": {
                     "worker": {
                         "agent": "grok",
-                        "model": "grok-4.6",
+                        "model": "grok-4.7",
                         "effort": "high",
                         "on_quota_unusable": {
                             "ask_seconds": 90,
@@ -1425,7 +1433,7 @@ class RouterTest(unittest.TestCase):
         )
         brief = self.run_router("brief").stdout
         self.assertIn(
-            "| worker | — | grok | grok-4.6 | high | repo | "
+            "| worker | — | grok | grok-4.7 | high | repo | "
             "ask 90s → codex/gpt-6-astra/high |",
             brief,
         )
@@ -1457,7 +1465,7 @@ class RouterTest(unittest.TestCase):
                 "routes": {
                     "worker": {
                         "agent": "grok",
-                        "model": "grok-4.6",
+                        "model": "grok-4.7",
                         "effort": "high",
                         "on_quota_unusable": {
                             "fallback": {
@@ -1507,7 +1515,7 @@ class RouterTest(unittest.TestCase):
                 "routes": {
                     "worker": {
                         "agent": "grok",
-                        "model": "grok-4.6",
+                        "model": "grok-4.7",
                         "effort": "high",
                         "on_quota_unusable": {
                             "fallback": {
@@ -1540,7 +1548,7 @@ class RouterTest(unittest.TestCase):
                 "routes": {
                     "worker": {
                         "agent": "grok",
-                        "model": "grok-4.6",
+                        "model": "grok-4.7",
                         "effort": "high",
                         "on_quota_unusable": {
                             "fallback": {
@@ -1570,7 +1578,7 @@ class RouterTest(unittest.TestCase):
         )
         self.assertEqual("refused", decision["status"])
         self.assertIn("quota exhausted (account unattributed)", decision["reasons"])
-        self.assertEqual("grok/grok-4.6/high", decision["candidate"])
+        self.assertEqual("grok/grok-4.7/high", decision["candidate"])
 
     def test_use_quota_fallback_stays_pending_when_fallback_also_stale(self):
         self.write_repo_layer(
@@ -1579,7 +1587,7 @@ class RouterTest(unittest.TestCase):
                 "routes": {
                     "worker": {
                         "agent": "grok",
-                        "model": "grok-4.6",
+                        "model": "grok-4.7",
                         "effort": "high",
                         "on_quota_unusable": {
                             "fallback": {
@@ -1618,7 +1626,7 @@ class RouterTest(unittest.TestCase):
         result = self.run_router(
             "check",
             "--candidate",
-            "grok/grok-4.6/high",
+            "grok/grok-4.7/high",
             "--reason",
             "Cheap pick.",
             "--use-quota-fallback",

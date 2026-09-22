@@ -4,6 +4,10 @@
 > high effort. See [current Astra evidence](gpt-6-astra-capability-evidence-2026-09-04.md).
 > This dated snapshot preserves the original models and measurements; it is
 > not the current routing policy.
+>
+> Routing update, 2026-09-22: the maintained Grok candidates are
+> `grok/grok-4.7/high` and `claudex/grok-4.7/high`. See
+> [Grok 4.7 evidence](grok-4.7-capability-evidence-2026-09-22.md).
 
 Research date: 2026-08-13 (Europe/Lisbon)
 

@@ -16,7 +16,7 @@
     "Prefer GPT-6 Astra (gpt-6-astra) for 3D modelling, including mesh and geometry creation, CAD, and 3D scene composition. This is a routing preference, not a benchmark claim; choose an eligible Astra candidate subject to task constraints and launch gates."
   ],
   "methodology": {
-    "reasoning": "Artificial Analysis Intelligence Index divided by 100 when exact; otherwise a labeled effort proxy.",
+    "reasoning": "Artificial Analysis Intelligence Index divided by 100 when exact; otherwise a labeled effort proxy. Compare two reasoning cells only when their evidence names the same index version.",
     "implementation": "DeepSWE or CursorBench resolved-task rate when exact; harness transfers are reflected in confidence and the conservative estimate.",
     "task-cost": "DeepSWE average task cost only when the benchmark names the exact model and effort. An equivalent launch tuple may transfer across harnesses; effort-level proxies remain unknown.",
     "agentic": "Ordinal normalization of dated Agent Arena or agentic-work evidence.",
@@ -435,10 +435,10 @@
         }
       }
     },
-    "claudex/grok-4.6/high": {
+    "claudex/grok-4.7/high": {
       "launch": {
         "agent": "claudex",
-        "model": "grok-4.6",
+        "model": "grok-4.7",
         "effort": "high"
       },
       "features": [
@@ -446,63 +446,54 @@
         "vision"
       ],
       "context": 500000,
-      "context_evidence": "https://docs.x.ai/developers/grok-4-6",
+      "context_evidence": "https://docs.x.ai/developers/grok-4-7",
       "capabilities": {
         "reasoning": {
           "status": "known",
-          "score": 0.61,
-          "conservative": 0.59,
+          "score": 0.46,
+          "conservative": 0.44,
           "confidence": "high",
-          "assessed_at": "2026-08-13",
+          "assessed_at": "2026-09-22",
+          "note": "Artificial Analysis Intelligence Index v4.3.2. Compare this cell only with peers measured on that same index version.",
           "evidence": [
-            "https://artificialanalysis.ai/models/grok-4-6",
-            "https://artificialanalysis.ai/articles/grok-4-6-benchmarks-and-analysis"
+            "https://artificialanalysis.ai/models/grok-4-7-high",
+            "https://artificialanalysis.ai/models/releases/grok-4-7"
           ]
         },
         "implementation": {
-          "status": "known",
-          "score": 0.67,
-          "conservative": 0.63,
-          "confidence": "medium",
-          "assessed_at": "2026-08-13",
-          "evidence": [
-            "https://deepswe.datacurve.ai/",
-            "https://x.ai/news/grok-4-6"
-          ]
+          "status": "unknown",
+          "reason": "DeepSWE's 2026-09-22 mini-swe-agent leaderboard has no grok-4.7 row at any effort. The vendor 71.0% high cell has no harness, interval, or cost. Artificial Analysis's 73% DeepSWE component is xhigh inside Grok Build, not an exact high resolved-task rate.",
+          "researched_at": "2026-09-22"
         },
         "agentic": {
           "status": "known",
-          "score": 0.88,
-          "conservative": 0.82,
+          "score": 0.8,
+          "conservative": 0.74,
           "confidence": "medium",
-          "assessed_at": "2026-08-13",
+          "assessed_at": "2026-09-22",
+          "note": "xhigh Briefcase and GDPval proxy, not an Agent Arena rank, and not a win over a candidate whose agentic cell is unknown.",
           "evidence": [
-            "https://artificialanalysis.ai/articles/grok-4-6-benchmarks-and-analysis",
-            "https://x.ai/news/grok-4-6"
+            "https://artificialanalysis.ai/articles/benchmarking-grok-4-7",
+            "https://arena.ai/leaderboard/agent"
           ]
         },
         "ui": {
-          "status": "known",
-          "score": 0.89,
-          "conservative": 0.84,
-          "confidence": "medium",
-          "assessed_at": "2026-08-13",
-          "evidence": [
-            "https://arena.ai/leaderboard?category=webdev"
-          ]
+          "status": "unknown",
+          "reason": "Arena WebDev, checked 2026-09-22 (board stamp 11 September 2026), has no grok-4.7 row.",
+          "researched_at": "2026-09-22"
         },
         "spatial-3d": {
           "status": "unknown",
-          "reason": "Design Arena did not expose a dated Grok 4.6 3D ranking on 2026-08-13.",
-          "researched_at": "2026-08-13"
+          "reason": "Design Arena's changelog through 20 September 2026 has no grok-4.7 addition, and the 3D leaderboard did not render a dated rank on 2026-09-22.",
+          "researched_at": "2026-09-22"
         }
       },
       "economics": {
         "output_tokens_per_second": {
-          "value": 65.5,
-          "basis": "Artificial Analysis",
-          "assessed_at": "2026-08-13",
-          "source": "https://artificialanalysis.ai/models/grok-4-6"
+          "value": 54.2,
+          "basis": "Artificial Analysis, Grok 4.7 high",
+          "assessed_at": "2026-09-22",
+          "source": "https://artificialanalysis.ai/models/grok-4-7-high"
         }
       },
       "quota_provider": {
@@ -510,10 +501,10 @@
         "detail": "This proxy route bills the Grok provider rather than the claudex launcher."
       }
     },
-    "grok/grok-4.6/high": {
+    "grok/grok-4.7/high": {
       "launch": {
         "agent": "grok",
-        "model": "grok-4.6",
+        "model": "grok-4.7",
         "effort": "high"
       },
       "features": [
@@ -521,63 +512,54 @@
         "vision"
       ],
       "context": 500000,
-      "context_evidence": "https://docs.x.ai/developers/grok-4-6",
+      "context_evidence": "https://docs.x.ai/developers/grok-4-7",
       "capabilities": {
         "reasoning": {
           "status": "known",
-          "score": 0.61,
-          "conservative": 0.59,
+          "score": 0.46,
+          "conservative": 0.44,
           "confidence": "high",
-          "assessed_at": "2026-08-13",
+          "assessed_at": "2026-09-22",
+          "note": "Artificial Analysis Intelligence Index v4.3.2. Compare this cell only with peers measured on that same index version.",
           "evidence": [
-            "https://artificialanalysis.ai/models/grok-4-6",
-            "https://artificialanalysis.ai/articles/grok-4-6-benchmarks-and-analysis"
+            "https://artificialanalysis.ai/models/grok-4-7-high",
+            "https://artificialanalysis.ai/models/releases/grok-4-7"
           ]
         },
         "implementation": {
-          "status": "known",
-          "score": 0.67,
-          "conservative": 0.63,
-          "confidence": "medium",
-          "assessed_at": "2026-08-13",
-          "evidence": [
-            "https://deepswe.datacurve.ai/",
-            "https://x.ai/news/grok-4-6"
-          ]
+          "status": "unknown",
+          "reason": "DeepSWE's 2026-09-22 mini-swe-agent leaderboard has no grok-4.7 row at any effort. The vendor 71.0% high cell has no harness, interval, or cost. Artificial Analysis's 73% DeepSWE component is xhigh inside Grok Build, not an exact high resolved-task rate.",
+          "researched_at": "2026-09-22"
         },
         "agentic": {
           "status": "known",
-          "score": 0.88,
-          "conservative": 0.82,
+          "score": 0.8,
+          "conservative": 0.74,
           "confidence": "medium",
-          "assessed_at": "2026-08-13",
+          "assessed_at": "2026-09-22",
+          "note": "xhigh Briefcase and GDPval proxy, not an Agent Arena rank, and not a win over a candidate whose agentic cell is unknown.",
           "evidence": [
-            "https://artificialanalysis.ai/articles/grok-4-6-benchmarks-and-analysis",
-            "https://x.ai/news/grok-4-6"
+            "https://artificialanalysis.ai/articles/benchmarking-grok-4-7",
+            "https://arena.ai/leaderboard/agent"
           ]
         },
         "ui": {
-          "status": "known",
-          "score": 0.89,
-          "conservative": 0.84,
-          "confidence": "medium",
-          "assessed_at": "2026-08-13",
-          "evidence": [
-            "https://arena.ai/leaderboard?category=webdev"
-          ]
+          "status": "unknown",
+          "reason": "Arena WebDev, checked 2026-09-22 (board stamp 11 September 2026), has no grok-4.7 row.",
+          "researched_at": "2026-09-22"
         },
         "spatial-3d": {
           "status": "unknown",
-          "reason": "Design Arena did not expose a dated Grok 4.6 3D ranking on 2026-08-13.",
-          "researched_at": "2026-08-13"
+          "reason": "Design Arena's changelog through 20 September 2026 has no grok-4.7 addition, and the 3D leaderboard did not render a dated rank on 2026-09-22.",
+          "researched_at": "2026-09-22"
         }
       },
       "economics": {
         "output_tokens_per_second": {
-          "value": 65.5,
-          "basis": "Artificial Analysis",
-          "assessed_at": "2026-08-13",
-          "source": "https://artificialanalysis.ai/models/grok-4-6"
+          "value": 54.2,
+          "basis": "Artificial Analysis, Grok 4.7 high",
+          "assessed_at": "2026-09-22",
+          "source": "https://artificialanalysis.ai/models/grok-4-7-high"
         }
       }
     },

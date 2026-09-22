@@ -54,9 +54,9 @@ SELECTED = {
 GROK_SELECTED = {
     "status": "selected",
     "selected": {
-        "id": "grok/grok-4.6/high",
+        "id": "grok/grok-4.7/high",
         "agent": "grok",
-        "model": "grok-4.6",
+        "model": "grok-4.7",
         "effort": "high",
     },
     "reason": "Bounded independent audit; use the configured Worker default.",
@@ -484,7 +484,7 @@ class PacketTest(unittest.TestCase):
             "selected": {
                 "id": None,
                 "agent": "grok",
-                "model": "grok-4.6",
+                "model": "grok-4.7",
                 "effort": "high",
             },
             "exact_route": "worker",
@@ -576,7 +576,7 @@ class PacketTest(unittest.TestCase):
             "selected": {
                 "id": None,
                 "agent": "grok",
-                "model": "grok-4.6",
+                "model": "grok-4.7",
                 "effort": "high",
             },
             "exact_route": "worker",
@@ -607,7 +607,7 @@ class PacketTest(unittest.TestCase):
             "provenance": {"winner": {"scope": "global", "path": "/tmp/config.json"}},
             "quota_fallback": {
                 "used": True,
-                "from": {"agent": "grok", "model": "grok-4.6", "effort": "high"},
+                "from": {"agent": "grok", "model": "grok-4.7", "effort": "high"},
                 "to": {"agent": "codex", "model": "gpt-6-astra", "effort": "high"},
                 "ask_seconds": 120,
                 "basis": "principal did not respond within 120s",

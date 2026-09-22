@@ -141,7 +141,7 @@ class ConfigTest(unittest.TestCase):
                 "Captains default to gpt-6-astra at high.",
                 "For the hardest design work, use gpt-6-astra at high, ahead of fable.",
             ],
-            "candidates": {"grok/grok-4.6/high": {"enabled": False}},
+            "candidates": {"grok/grok-4.7/high": {"enabled": False}},
         }
         self.write("global", config)
 
@@ -156,7 +156,7 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(4, global_layer["version"])
         self.assertEqual(2, global_layer["preferences"])
         self.assertEqual(
-            ["grok/grok-4.6/high"], global_layer["candidates_defined"]
+            ["grok/grok-4.7/high"], global_layer["candidates_defined"]
         )
 
         config["surprise"] = {}
@@ -215,11 +215,11 @@ class ConfigTest(unittest.TestCase):
         config = {
             "version": 4,
             "routes": {},
-            "candidates": {"grok/grok-4.6/high": None},
+            "candidates": {"grok/grok-4.7/high": None},
         }
         record = self.write("global", config)
         self.assertEqual(
-            {"grok/grok-4.6/high": None}, record["config"]["candidates"]
+            {"grok/grok-4.7/high": None}, record["config"]["candidates"]
         )
 
     def test_specialist_validation(self):
