@@ -364,74 +364,66 @@
         "detail": "This proxy route bills Kimi Code rather than the Claude launcher; quota-axi does not expose live Kimi Code quota."
       }
     },
-    "claude/claude-opus-5/high": {
+    "claude/claude-opus-5-5/high": {
       "launch": {
         "agent": "claude",
-        "model": "claude-opus-5",
+        "model": "claude-opus-5-5",
         "effort": "high"
       },
       "features": [
         "tools",
-        "vision"
+        "vision",
+        "long-context"
       ],
+      "context": 1000000,
+      "context_evidence": "https://platform.claude.com/docs/en/models/opus-5-5/overview",
       "capabilities": {
         "reasoning": {
           "status": "known",
-          "score": 0.59,
-          "conservative": 0.57,
+          "score": 0.54,
+          "conservative": 0.52,
           "confidence": "high",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-22",
+          "note": "Artificial Analysis Intelligence Index v4.3.2 (53.58, displayed 54) at high. Not comparable to v4.1.1 cells; on v4.3.2 Opus 5 high is 48, Fable 5.1 high 51, GPT-6 Astra high 51, Grok 4.7 high 46.",
           "evidence": [
-            "https://artificialanalysis.ai/models/claude-opus-5-high"
+            "https://artificialanalysis.ai/models/claude-opus-5-5-high",
+            "https://artificialanalysis.ai/models/releases/claude-opus-5-5"
           ]
         },
         "implementation": {
           "status": "known",
-          "score": 0.74,
-          "conservative": 0.68,
+          "score": 0.56,
+          "conservative": 0.53,
           "confidence": "medium",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-22",
+          "note": "CursorBench 4.0 exact High 56.0% ($3.97/task) in Cursor's harness. CursorBench 4.0 is harder than 3.2 and is not DeepSWE; on 4.0 Fable 5.1 High is 49.2%, Opus 5 High 44.7%, Grok 4.7 High 43.9%. DeepSWE has no Opus 5.5 row yet.",
           "evidence": [
-            "https://deepswe.datacurve.ai/"
+            "https://cursor.com/evals"
           ]
         },
         "agentic": {
           "status": "known",
-          "score": 0.88,
-          "conservative": 0.82,
+          "score": 0.9,
+          "conservative": 0.84,
           "confidence": "medium",
-          "assessed_at": "2026-07-31",
+          "assessed_at": "2026-09-22",
+          "note": "Exact high AA-Briefcase v1.1 1704.5 and GDPval-AA v2.1 1691.7; Agent Arena has no Opus 5.5 row yet.",
           "evidence": [
-            "https://artificialanalysis.ai/evaluations/aa-briefcase"
+            "https://artificialanalysis.ai/models/claude-opus-5-5-high",
+            "https://artificialanalysis.ai/evaluations/aa-briefcase",
+            "https://artificialanalysis.ai/evaluations/gdpval-aa",
+            "https://arena.ai/leaderboard/agent"
           ]
         },
         "ui": {
-          "status": "known",
-          "score": 0.96,
-          "conservative": 0.92,
-          "confidence": "high",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://arena.ai/leaderboard?category=webdev"
-          ]
+          "status": "unknown",
+          "reason": "Arena WebDev (vote cutoff 2026-09-11) has no claude-opus-5-5 row; Opus 5 high's rank is not carried forward.",
+          "researched_at": "2026-09-22"
         },
         "spatial-3d": {
-          "status": "known",
-          "score": 0.78,
-          "conservative": 0.72,
-          "confidence": "medium",
-          "assessed_at": "2026-07-31",
-          "evidence": [
-            "https://www.designarena.ai/leaderboard"
-          ]
-        }
-      },
-      "economics": {
-        "output_tokens_per_second": {
-          "value": 56,
-          "basis": "Artificial Analysis",
-          "assessed_at": "2026-07-31",
-          "source": "https://artificialanalysis.ai/models/claude-opus-5-high"
+          "status": "unknown",
+          "reason": "Design Arena has no claude-opus-5-5 rank as of 2026-09-22; Opus 5 high's rank is not carried forward.",
+          "researched_at": "2026-09-22"
         }
       }
     },
