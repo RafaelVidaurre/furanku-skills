@@ -4,6 +4,10 @@
 > high effort. See [current Astra evidence](gpt-6-astra-capability-evidence-2026-09-04.md).
 > This dated snapshot preserves the original models and measurements; it is
 > not the current routing policy.
+>
+> Routing update, 2026-09-22: the maintained Opus candidate is
+> `claude/claude-opus-5-5/high`, replacing `claude/claude-opus-5/high`. See
+> [Claude Opus 5.5 evidence](claude-opus-5-5-capability-evidence-2026-09-22.md).
 
 Research date: 2026-07-31 (Europe/Lisbon)
 
