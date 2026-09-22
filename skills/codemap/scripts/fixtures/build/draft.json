@@ -1,0 +1,260 @@
+{
+ "areas": [
+  {
+   "components": [
+    "cli"
+   ],
+   "definition": "What operators use to run ingest and publish flows and inspect their state from a terminal.",
+   "id": "operating",
+   "name": "Operating"
+  },
+  {
+   "components": [
+    "web"
+   ],
+   "definition": "What analysts use to review evaluated results in the browser.",
+   "id": "reviewing",
+   "name": "Reviewing"
+  },
+  {
+   "components": [
+    "api",
+    "orchestrator",
+    "rules",
+    "store",
+    "schema"
+   ],
+   "definition": "The service that ingests records, evaluates them against rules, persists them, and publishes results.",
+   "id": "processing",
+   "name": "Processing"
+  }
+ ],
+ "components": {
+  "api": {
+   "entry_points": [
+    "apps/api/src/server.ts"
+   ],
+   "evidence": [
+    "apps/api/README.md"
+   ],
+   "responsibility": "Owns the HTTP API that the CLI and web UI call to start flows and read their state.",
+   "why": "Without it the flows have no process to run in."
+  },
+  "cli": {
+   "entry_points": [
+    "apps/cli/src/index.ts"
+   ],
+   "evidence": [
+    "apps/cli/README.md"
+   ],
+   "responsibility": "Owns the operator command line that runs and inspects flows.",
+   "why": "Without it operators cannot trigger ingest or publish."
+  },
+  "content": {
+   "entry_points": [
+    "content/scripts/seed.js"
+   ],
+   "evidence": [
+    "content/scripts/seed.js"
+   ],
+   "responsibility": "Owns the seed and spawn scripts the demo loads at start.",
+   "why": "Without it the demo starts empty."
+  },
+  "devtools": {
+   "entry_points": [
+    "tools/devtools/bench/run.ts"
+   ],
+   "evidence": [
+    "tools/devtools/bench/run.ts"
+   ],
+   "responsibility": "Owns benchmarks and lint rules for the workspace.",
+   "why": "Without it regressions in rule evaluation go unnoticed."
+  },
+  "docs": {
+   "entry_points": [
+    "docs/examples/usage.ts"
+   ],
+   "evidence": [
+    "docs/README.md"
+   ],
+   "responsibility": "Owns the worked examples the documentation compiles.",
+   "why": "Without it the docs drift from the API."
+  },
+  "harness": {
+   "entry_points": [
+    "tests/harness/src/flows.test.ts"
+   ],
+   "evidence": [
+    "tests/harness/package.json"
+   ],
+   "responsibility": "Owns the acceptance lane that drives the CLI and web flows end to end.",
+   "why": "Without it a broken flow ships unnoticed."
+  },
+  "lab": {
+   "entry_points": [
+    "prototypes/lab/quick-ingest.ts"
+   ],
+   "evidence": [
+    "prototypes/lab/README.md"
+   ],
+   "responsibility": "Owns the quick-ingest spike that tries a streaming variant of ingest.",
+   "why": "Without it the streaming idea has no place to be tried."
+  },
+  "orchestrator": {
+   "entry_points": [
+    "packages/orchestrator/src/index.ts"
+   ],
+   "evidence": [
+    "packages/orchestrator/README.md"
+   ],
+   "responsibility": "Owns the ingest and publish workflows and their queue.",
+   "why": "Without it nothing coordinates rules and storage."
+  },
+  "rules": {
+   "entry_points": [
+    "packages/rules/src/index.ts"
+   ],
+   "evidence": [
+    "packages/rules/README.md"
+   ],
+   "responsibility": "Owns the record model and the rule engine that evaluates it.",
+   "why": "Without it records cannot be judged."
+  },
+  "schema": {
+   "entry_points": [
+    "packages/schema/src/index.ts"
+   ],
+   "evidence": [
+    "packages/schema/README.md"
+   ],
+   "responsibility": "Owns the shared entity and event types and their validators.",
+   "why": "Without it packages disagree on record shapes."
+  },
+  "store": {
+   "entry_points": [
+    "packages/store/src/index.ts"
+   ],
+   "evidence": [
+    "packages/store/README.md"
+   ],
+   "responsibility": "Owns persistence of records in SQLite and in memory.",
+   "why": "Without it nothing survives a restart."
+  },
+  "web": {
+   "entry_points": [
+    "apps/web/src/main.ts"
+   ],
+   "evidence": [
+    "apps/web/README.md"
+   ],
+   "responsibility": "Owns the browser UI analysts use to review results.",
+   "why": "Without it results are only visible through the CLI."
+  }
+ },
+ "edge_reasons": {
+  "api->orchestrator": "Handlers start flows and read their state.",
+  "api->schema": "Handlers validate request bodies against shared types.",
+  "cli->orchestrator": "Commands start ingest and publish flows.",
+  "cli->store": "The status command reads persisted records.",
+  "devtools->rules": "Benchmarks exercise the rule engine.",
+  "devtools->schema": "Lint validates fixtures against shared schemas.",
+  "harness->orchestrator": "The lane runs flows directly to check results.",
+  "harness->web": "The lane boots the web UI.",
+  "orchestrator->lab": "The ingest flow calls into the streaming spike.",
+  "orchestrator->rules": "Flows evaluate records with the rule engine.",
+  "orchestrator->schema": "The queue worker consumes typed events.",
+  "orchestrator->store": "Flows persist records between steps.",
+  "rules->schema": "The model reuses shared entity types and validators.",
+  "rules->store": "rules reach into the store adapter to read persisted records directly",
+  "store->orchestrator": "The memory snapshot reaches into the scheduler.",
+  "store->rules": "Queries hydrate rule-model entities.",
+  "store->schema": "Queries map rows to shared entity types.",
+  "web->orchestrator": "Views trigger flows and show their state.",
+  "web->schema": "Detail view renders typed entities."
+ },
+ "module_names": {
+  "orchestrator/flows": "Flows",
+  "rules/engine": "Rule engine"
+ },
+ "module_responsibilities": {
+  "rules/engine": "Compiles and evaluates rules against entities."
+ },
+ "schema": "codemap.draft/1",
+ "system": {
+  "actors": [
+   {
+    "id": "operator",
+    "name": "Operator",
+    "role": "Runs ingest and publish flows from the CLI.",
+    "uses": [
+     "cli"
+    ]
+   },
+   {
+    "id": "analyst",
+    "name": "Analyst",
+    "role": "Reviews results in the web UI.",
+    "uses": [
+     "web"
+    ]
+   }
+  ],
+  "externals": [
+   {
+    "id": "sqlite",
+    "kind": "datastore",
+    "name": "SQLite",
+    "role": "Embedded database for persisted records.",
+    "used_by": [
+     "store"
+    ]
+   },
+   {
+    "id": "browser",
+    "kind": "runtime",
+    "name": "Browser",
+    "role": "Runs the web UI.",
+    "used_by": [
+     "web"
+    ]
+   },
+   {
+    "id": "playwright",
+    "kind": "devtool",
+    "name": "Playwright",
+    "role": "Drives the acceptance lane.",
+    "used_by": [
+     "harness"
+    ]
+   }
+  ],
+  "flows": [
+   {
+    "from": "cli",
+    "kind": "network",
+    "label": "HTTP: starts ingest and publish flows",
+    "to": "api"
+   },
+   {
+    "from": "web",
+    "kind": "network",
+    "label": "HTTP: flow state and results",
+    "to": "api"
+   },
+   {
+    "from": "api",
+    "kind": "file",
+    "label": "reads and writes records",
+    "to": "sqlite"
+   },
+   {
+    "from": "cli",
+    "kind": "file",
+    "label": "status reads persisted records",
+    "to": "sqlite"
+   }
+  ],
+  "name": "Demo",
+  "purpose": "Demo ingests records, evaluates them against rules, and publishes results to operators through a CLI and a web UI."
+ }
+}

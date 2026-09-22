@@ -1,0 +1,7 @@
+{
+  "name": "@acme/core",
+  "description": "Core domain logic",
+  "private": true,
+  "exports": { ".": "./src/index.ts", "./util": "./src/util.ts" },
+  "scripts": { "dev": "tsc --watch" }
+}

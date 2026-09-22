@@ -1,0 +1,797 @@
+{
+ "edges": [
+  {
+   "from": "apps/api/src/server.ts",
+   "line": 2,
+   "specifier": "@demo/orchestrator",
+   "to": "packages/orchestrator/src/index.ts"
+  },
+  {
+   "from": "apps/api/src/server.ts",
+   "line": 3,
+   "specifier": "@demo/schema",
+   "to": "packages/schema/src/index.ts"
+  },
+  {
+   "from": "apps/cli/src/commands/run.ts",
+   "line": 2,
+   "specifier": "@demo/orchestrator",
+   "to": "packages/orchestrator/src/index.ts"
+  },
+  {
+   "from": "apps/cli/src/commands/status.ts",
+   "line": 2,
+   "specifier": "@demo/orchestrator",
+   "to": "packages/orchestrator/src/index.ts"
+  },
+  {
+   "from": "apps/cli/src/commands/status.ts",
+   "line": 3,
+   "specifier": "@demo/store",
+   "to": "packages/store/src/index.ts"
+  },
+  {
+   "from": "apps/cli/src/index.ts",
+   "line": 1,
+   "specifier": "./commands/run",
+   "to": "apps/cli/src/commands/run.ts"
+  },
+  {
+   "from": "apps/cli/src/index.ts",
+   "line": 2,
+   "specifier": "./commands/status",
+   "to": "apps/cli/src/commands/status.ts"
+  },
+  {
+   "from": "apps/web/src/state/actions.ts",
+   "line": 4,
+   "specifier": "@demo/orchestrator/flows/ingest",
+   "to": "packages/orchestrator/src/flows/ingest.ts"
+  },
+  {
+   "from": "apps/web/src/state/store.ts",
+   "line": 3,
+   "specifier": "../views/home",
+   "to": "apps/web/src/views/home.ts"
+  },
+  {
+   "from": "apps/web/src/views/detail.ts",
+   "line": 1,
+   "specifier": "@demo/schema",
+   "to": "packages/schema/src/index.ts"
+  },
+  {
+   "from": "apps/web/src/views/home.ts",
+   "line": 1,
+   "specifier": "@demo/orchestrator",
+   "to": "packages/orchestrator/src/index.ts"
+  },
+  {
+   "from": "apps/web/src/views/home.ts",
+   "line": 2,
+   "specifier": "../state/store",
+   "to": "apps/web/src/state/store.ts"
+  },
+  {
+   "from": "packages/orchestrator/src/flows/ingest.ts",
+   "line": 1,
+   "specifier": "@demo/rules/engine",
+   "to": "packages/rules/src/engine/evaluate.ts"
+  },
+  {
+   "from": "packages/orchestrator/src/flows/ingest.ts",
+   "line": 2,
+   "specifier": "@demo/store",
+   "to": "packages/store/src/index.ts"
+  },
+  {
+   "from": "packages/orchestrator/src/flows/ingest.ts",
+   "line": 3,
+   "specifier": "../../../../prototypes/lab/quick-ingest",
+   "to": "prototypes/lab/quick-ingest.ts"
+  },
+  {
+   "from": "packages/orchestrator/src/flows/publish.ts",
+   "line": 1,
+   "specifier": "@demo/store",
+   "to": "packages/store/src/index.ts"
+  },
+  {
+   "from": "packages/orchestrator/src/flows/publish.ts",
+   "line": 2,
+   "specifier": "@demo/rules",
+   "to": "packages/rules/src/index.ts"
+  },
+  {
+   "from": "packages/orchestrator/src/queue/worker.ts",
+   "line": 1,
+   "specifier": "@demo/schema/types/events",
+   "to": "packages/schema/src/types/events.ts"
+  },
+  {
+   "from": "packages/orchestrator/src/queue/worker.ts",
+   "line": 3,
+   "specifier": "../flows/ingest",
+   "to": "packages/orchestrator/src/flows/ingest.ts"
+  },
+  {
+   "from": "packages/rules/src/engine/compile.ts",
+   "line": 1,
+   "specifier": "../model/value",
+   "to": "packages/rules/src/model/value.ts"
+  },
+  {
+   "from": "packages/rules/src/engine/compile.ts",
+   "line": 9,
+   "specifier": "@fixture/store",
+   "to": "packages/store/src/index.ts"
+  },
+  {
+   "from": "packages/rules/src/engine/evaluate.ts",
+   "line": 1,
+   "specifier": "../model/entity",
+   "to": "packages/rules/src/model/entity.ts"
+  },
+  {
+   "from": "packages/rules/src/engine/evaluate.ts",
+   "line": 2,
+   "specifier": "@demo/schema/validate",
+   "to": "packages/schema/src/validate/check.ts"
+  },
+  {
+   "from": "packages/rules/src/model/entity.ts",
+   "line": 1,
+   "specifier": "@demo/schema/types/entity",
+   "to": "packages/schema/src/types/entity.ts"
+  },
+  {
+   "from": "packages/store/src/memory/snapshot.ts",
+   "line": 1,
+   "specifier": "@demo/orchestrator/queue/scheduler",
+   "to": "packages/orchestrator/src/queue/scheduler.ts"
+  },
+  {
+   "from": "packages/store/src/sqlite/queries.ts",
+   "line": 1,
+   "specifier": "@demo/schema/types/entity",
+   "to": "packages/schema/src/types/entity.ts"
+  },
+  {
+   "from": "packages/store/src/sqlite/queries.ts",
+   "line": 2,
+   "specifier": "@demo/rules/model",
+   "to": "packages/rules/src/model/entity.ts"
+  },
+  {
+   "from": "tests/harness/src/flows.test.ts",
+   "line": 1,
+   "specifier": "@demo/web",
+   "to": "apps/web/src/main.ts"
+  },
+  {
+   "from": "tests/harness/src/flows.test.ts",
+   "line": 2,
+   "specifier": "@demo/orchestrator",
+   "to": "packages/orchestrator/src/index.ts"
+  },
+  {
+   "from": "tests/harness/src/flows.test.ts",
+   "line": 3,
+   "specifier": "./support",
+   "to": "tests/harness/src/support.ts"
+  },
+  {
+   "from": "tools/devtools/bench/run.ts",
+   "line": 1,
+   "specifier": "@demo/rules/engine",
+   "to": "packages/rules/src/engine/evaluate.ts"
+  },
+  {
+   "from": "tools/devtools/lint/check.ts",
+   "line": 1,
+   "specifier": "@demo/schema",
+   "to": "packages/schema/src/index.ts"
+  }
+ ],
+ "externals": [
+  {
+   "count": 3,
+   "files": [
+    "packages/store/src/sqlite/connection.ts",
+    "packages/store/src/sqlite/queries.ts"
+   ],
+   "name": "better-sqlite3"
+  },
+  {
+   "count": 6,
+   "files": [
+    "packages/schema/src/validate/check.ts",
+    "packages/schema/src/types/entity.ts",
+    "packages/rules/src/model/entity.ts"
+   ],
+   "name": "zod"
+  },
+  {
+   "count": 1,
+   "files": [
+    "apps/cli/src/index.ts"
+   ],
+   "name": "commander"
+  },
+  {
+   "count": 1,
+   "files": [
+    "prototypes/lab/quick-ingest.ts"
+   ],
+   "name": "three"
+  }
+ ],
+ "files": [
+  {
+   "lang": "ts",
+   "loc": 40,
+   "path": "apps/api/src/server.ts",
+   "role": "source",
+   "unit": "api"
+  },
+  {
+   "lang": "ts",
+   "loc": 80,
+   "path": "apps/cli/src/commands/run.ts",
+   "role": "source",
+   "unit": "cli"
+  },
+  {
+   "lang": "ts",
+   "loc": 55,
+   "path": "apps/cli/src/commands/status.ts",
+   "role": "source",
+   "unit": "cli"
+  },
+  {
+   "lang": "ts",
+   "loc": 40,
+   "path": "apps/cli/src/index.ts",
+   "role": "source",
+   "unit": "cli"
+  },
+  {
+   "lang": "ts",
+   "loc": 30,
+   "path": "apps/web/src/main.ts",
+   "role": "source",
+   "unit": "web"
+  },
+  {
+   "lang": "ts",
+   "loc": 45,
+   "path": "apps/web/src/state/actions.ts",
+   "role": "source",
+   "unit": "web"
+  },
+  {
+   "lang": "ts",
+   "loc": 60,
+   "path": "apps/web/src/state/store.ts",
+   "role": "source",
+   "unit": "web"
+  },
+  {
+   "lang": "ts",
+   "loc": 90,
+   "path": "apps/web/src/views/detail.ts",
+   "role": "source",
+   "unit": "web"
+  },
+  {
+   "lang": "ts",
+   "loc": 120,
+   "path": "apps/web/src/views/home.ts",
+   "role": "source",
+   "unit": "web"
+  },
+  {
+   "lang": "js",
+   "loc": 20,
+   "path": "content/scripts/seed.js",
+   "role": "source",
+   "unit": "content"
+  },
+  {
+   "lang": "js",
+   "loc": 25,
+   "path": "content/scripts/spawn.js",
+   "role": "source",
+   "unit": "content"
+  },
+  {
+   "lang": "ts",
+   "loc": 12,
+   "path": "docs/examples/query.ts",
+   "role": "source",
+   "unit": "docs"
+  },
+  {
+   "lang": "ts",
+   "loc": 15,
+   "path": "docs/examples/usage.ts",
+   "role": "source",
+   "unit": "docs"
+  },
+  {
+   "lang": "ts",
+   "loc": 150,
+   "path": "packages/orchestrator/src/flows/ingest.ts",
+   "role": "source",
+   "unit": "orchestrator"
+  },
+  {
+   "lang": "ts",
+   "loc": 110,
+   "path": "packages/orchestrator/src/flows/publish.ts",
+   "role": "source",
+   "unit": "orchestrator"
+  },
+  {
+   "lang": "ts",
+   "loc": 20,
+   "path": "packages/orchestrator/src/index.ts",
+   "role": "source",
+   "unit": "orchestrator"
+  },
+  {
+   "lang": "ts",
+   "loc": 65,
+   "path": "packages/orchestrator/src/queue/scheduler.ts",
+   "role": "source",
+   "unit": "orchestrator"
+  },
+  {
+   "lang": "ts",
+   "loc": 70,
+   "path": "packages/orchestrator/src/queue/worker.ts",
+   "role": "source",
+   "unit": "orchestrator"
+  },
+  {
+   "lang": "ts",
+   "loc": 130,
+   "path": "packages/rules/src/engine/compile.ts",
+   "role": "source",
+   "unit": "rules"
+  },
+  {
+   "lang": "ts",
+   "loc": 240,
+   "path": "packages/rules/src/engine/evaluate.ts",
+   "role": "source",
+   "unit": "rules"
+  },
+  {
+   "lang": "ts",
+   "loc": 15,
+   "path": "packages/rules/src/index.ts",
+   "role": "source",
+   "unit": "rules"
+  },
+  {
+   "lang": "ts",
+   "loc": 200,
+   "path": "packages/rules/src/model/entity.ts",
+   "role": "source",
+   "unit": "rules"
+  },
+  {
+   "lang": "ts",
+   "loc": 80,
+   "path": "packages/rules/src/model/value.ts",
+   "role": "source",
+   "unit": "rules"
+  },
+  {
+   "lang": "ts",
+   "loc": 20,
+   "path": "packages/rules/src/util/ids.ts",
+   "role": "source",
+   "unit": "rules"
+  },
+  {
+   "lang": "ts",
+   "loc": 10,
+   "path": "packages/schema/src/index.ts",
+   "role": "source",
+   "unit": "schema"
+  },
+  {
+   "lang": "ts",
+   "loc": 70,
+   "path": "packages/schema/src/types/entity.ts",
+   "role": "source",
+   "unit": "schema"
+  },
+  {
+   "lang": "ts",
+   "loc": 60,
+   "path": "packages/schema/src/types/events.ts",
+   "role": "source",
+   "unit": "schema"
+  },
+  {
+   "lang": "ts",
+   "loc": 45,
+   "path": "packages/schema/src/validate/check.ts",
+   "role": "source",
+   "unit": "schema"
+  },
+  {
+   "lang": "ts",
+   "loc": 25,
+   "path": "packages/schema/src/validate/errors.ts",
+   "role": "source",
+   "unit": "schema"
+  },
+  {
+   "lang": "ts",
+   "loc": 25,
+   "path": "packages/store/src/index.ts",
+   "role": "source",
+   "unit": "store"
+  },
+  {
+   "lang": "ts",
+   "loc": 50,
+   "path": "packages/store/src/memory/map.ts",
+   "role": "source",
+   "unit": "store"
+  },
+  {
+   "lang": "ts",
+   "loc": 35,
+   "path": "packages/store/src/memory/snapshot.ts",
+   "role": "source",
+   "unit": "store"
+  },
+  {
+   "lang": "ts",
+   "loc": 90,
+   "path": "packages/store/src/sqlite/connection.ts",
+   "role": "source",
+   "unit": "store"
+  },
+  {
+   "lang": "ts",
+   "loc": 140,
+   "path": "packages/store/src/sqlite/queries.ts",
+   "role": "source",
+   "unit": "store"
+  },
+  {
+   "lang": "ts",
+   "loc": 18,
+   "path": "prototypes/lab/notes.ts",
+   "role": "source",
+   "unit": "lab"
+  },
+  {
+   "lang": "ts",
+   "loc": 40,
+   "path": "prototypes/lab/quick-ingest.ts",
+   "role": "source",
+   "unit": "lab"
+  },
+  {
+   "lang": "ts",
+   "loc": 60,
+   "path": "tests/harness/src/flows.test.ts",
+   "role": "test",
+   "unit": "harness"
+  },
+  {
+   "lang": "ts",
+   "loc": 30,
+   "path": "tests/harness/src/support.ts",
+   "role": "test",
+   "unit": "harness"
+  },
+  {
+   "lang": "ts",
+   "loc": 40,
+   "path": "tools/devtools/bench/report.ts",
+   "role": "source",
+   "unit": "devtools"
+  },
+  {
+   "lang": "ts",
+   "loc": 60,
+   "path": "tools/devtools/bench/run.ts",
+   "role": "source",
+   "unit": "devtools"
+  },
+  {
+   "lang": "ts",
+   "loc": 30,
+   "path": "tools/devtools/lint/check.ts",
+   "role": "source",
+   "unit": "devtools"
+  },
+  {
+   "lang": "ts",
+   "loc": 35,
+   "path": "tools/devtools/lint/rules.ts",
+   "role": "source",
+   "unit": "devtools"
+  }
+ ],
+ "repo": {
+  "branch": "main",
+  "ref": "HEAD",
+  "remote": "git@example.com:demo/demo.git",
+  "root": "/tmp/demo",
+  "sha": "0123456789abcdef0123456789abcdef01234567"
+ },
+ "scanned_at": "2026-09-22T10:00:00Z",
+ "schema": "codemap.scan/1",
+ "units": [
+  {
+   "description": "Command line for operators",
+   "hints": {
+    "client_libs": [],
+    "desktop": false,
+    "directory_kind": null,
+    "executable": true,
+    "server_libs": [],
+    "test_file_share": 0.0,
+    "test_libs": [
+     "vitest"
+    ],
+    "wasm": false
+   },
+   "id": "cli",
+   "kind": "app",
+   "manifest": "apps/cli/package.json",
+   "name": "@demo/cli",
+   "path": "apps/cli",
+   "readme": "apps/cli/README.md"
+  },
+  {
+   "description": "Browser UI",
+   "hints": {
+    "client_libs": [
+     "vite"
+    ],
+    "desktop": false,
+    "directory_kind": null,
+    "executable": true,
+    "server_libs": [],
+    "test_file_share": 0.0,
+    "test_libs": [
+     "vitest"
+    ],
+    "wasm": false
+   },
+   "id": "web",
+   "kind": "app",
+   "manifest": "apps/web/package.json",
+   "name": "@demo/web",
+   "path": "apps/web",
+   "readme": "apps/web/README.md"
+  },
+  {
+   "description": "HTTP API in front of the flows",
+   "hints": {
+    "client_libs": [],
+    "desktop": false,
+    "directory_kind": null,
+    "executable": true,
+    "server_libs": [
+     "fastify"
+    ],
+    "test_file_share": 0.0,
+    "test_libs": [
+     "vitest"
+    ],
+    "wasm": false
+   },
+   "id": "api",
+   "kind": "app",
+   "manifest": "apps/api/package.json",
+   "name": "@demo/api",
+   "path": "apps/api",
+   "readme": "apps/api/README.md"
+  },
+  {
+   "description": "Workflow orchestration",
+   "hints": {
+    "client_libs": [],
+    "desktop": false,
+    "directory_kind": null,
+    "executable": false,
+    "server_libs": [
+     "fastify"
+    ],
+    "test_file_share": 0.0,
+    "test_libs": [
+     "vitest"
+    ],
+    "wasm": false
+   },
+   "id": "orchestrator",
+   "kind": "package",
+   "manifest": "packages/orchestrator/package.json",
+   "name": "@demo/orchestrator",
+   "path": "packages/orchestrator",
+   "readme": "packages/orchestrator/README.md"
+  },
+  {
+   "description": "Core rules and models",
+   "hints": {
+    "client_libs": [],
+    "desktop": false,
+    "directory_kind": null,
+    "executable": false,
+    "server_libs": [],
+    "test_file_share": 0.0,
+    "test_libs": [
+     "vitest"
+    ],
+    "wasm": false
+   },
+   "id": "rules",
+   "kind": "package",
+   "manifest": "packages/rules/package.json",
+   "name": "@demo/rules",
+   "path": "packages/rules",
+   "readme": "packages/rules/README.md"
+  },
+  {
+   "description": "Persistence adapters",
+   "hints": {
+    "client_libs": [],
+    "desktop": false,
+    "directory_kind": null,
+    "executable": false,
+    "server_libs": [],
+    "test_file_share": 0.0,
+    "test_libs": [
+     "vitest"
+    ],
+    "wasm": false
+   },
+   "id": "store",
+   "kind": "package",
+   "manifest": "packages/store/package.json",
+   "name": "@demo/store",
+   "path": "packages/store",
+   "readme": "packages/store/README.md"
+  },
+  {
+   "description": "Shared schemas and types",
+   "hints": {
+    "client_libs": [],
+    "desktop": false,
+    "directory_kind": null,
+    "executable": false,
+    "server_libs": [],
+    "test_file_share": 0.0,
+    "test_libs": [
+     "vitest"
+    ],
+    "wasm": false
+   },
+   "id": "schema",
+   "kind": "package",
+   "manifest": "packages/schema/package.json",
+   "name": "@demo/schema",
+   "path": "packages/schema",
+   "readme": "packages/schema/README.md"
+  },
+  {
+   "description": "",
+   "hints": {
+    "client_libs": [],
+    "desktop": false,
+    "directory_kind": "tools",
+    "executable": false,
+    "server_libs": [],
+    "test_file_share": 0.0,
+    "test_libs": [
+     "vitest"
+    ],
+    "wasm": false
+   },
+   "id": "devtools",
+   "kind": "directory",
+   "manifest": null,
+   "name": "devtools",
+   "path": "tools/devtools",
+   "readme": null
+  },
+  {
+   "description": "Acceptance lane over the CLI and web flows",
+   "hints": {
+    "client_libs": [],
+    "desktop": false,
+    "directory_kind": "tests",
+    "executable": false,
+    "server_libs": [],
+    "test_file_share": 1.0,
+    "test_libs": [
+     "playwright"
+    ],
+    "wasm": false
+   },
+   "id": "harness",
+   "kind": "package",
+   "manifest": "tests/harness/package.json",
+   "name": "@demo/harness",
+   "path": "tests/harness",
+   "readme": null
+  },
+  {
+   "description": "",
+   "hints": {
+    "client_libs": [
+     "three"
+    ],
+    "desktop": false,
+    "directory_kind": "prototypes",
+    "executable": false,
+    "server_libs": [],
+    "test_file_share": 0.0,
+    "test_libs": [],
+    "wasm": false
+   },
+   "id": "lab",
+   "kind": "directory",
+   "manifest": null,
+   "name": "lab",
+   "path": "prototypes/lab",
+   "readme": "prototypes/lab/README.md"
+  },
+  {
+   "description": "",
+   "hints": {
+    "client_libs": [],
+    "desktop": false,
+    "directory_kind": "content",
+    "executable": false,
+    "server_libs": [],
+    "test_file_share": 0.0,
+    "test_libs": [],
+    "wasm": false
+   },
+   "id": "content",
+   "kind": "directory",
+   "manifest": null,
+   "name": "content",
+   "path": "content",
+   "readme": null
+  },
+  {
+   "description": "",
+   "hints": {
+    "client_libs": [],
+    "desktop": false,
+    "directory_kind": "docs",
+    "executable": false,
+    "server_libs": [],
+    "test_file_share": 0.0,
+    "test_libs": [],
+    "wasm": false
+   },
+   "id": "docs",
+   "kind": "directory",
+   "manifest": null,
+   "name": "docs",
+   "path": "docs",
+   "readme": "docs/README.md"
+  }
+ ],
+ "unresolved": [
+  {
+   "from": "apps/web/src/main.ts",
+   "line": 1,
+   "specifier": "#virtual/app"
+  }
+ ]
+}

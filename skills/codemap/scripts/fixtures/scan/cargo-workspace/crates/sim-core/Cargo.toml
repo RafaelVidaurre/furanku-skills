@@ -1,0 +1,10 @@
+[package]
+name = "sim-core"
+version = "0.1.0"
+description = "Simulation core"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = "1"
