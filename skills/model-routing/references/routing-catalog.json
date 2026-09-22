@@ -182,6 +182,71 @@
         }
       }
     },
+    "codex/gpt-6-sol/max": {
+      "launch": {
+        "agent": "codex",
+        "model": "gpt-6-sol",
+        "effort": "max"
+      },
+      "features": [
+        "tools",
+        "vision",
+        "long-context"
+      ],
+      "context": 1050000,
+      "context_evidence": "https://developers.openai.com/api/docs/models/gpt-6-sol",
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.48,
+          "conservative": 0.46,
+          "confidence": "high",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-6-sol"
+          ],
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "GPT-6 Sol (max) 47.53 on v4.3.2; score = index/100, conservative = score - 0.02."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.69,
+          "conservative": 0.662,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://artificialanalysis.ai/agents/coding-agents",
+            "https://artificialanalysis.ai/articles/gpt-6-sol-and-luna-push-the-cost-efficiency-frontier"
+          ],
+          "scale": "DeepSWE v1.1 (Codex harness, Artificial Analysis)",
+          "note": "Exact max row 69.03% (337 attempts) in Codex v0.154.0; no published interval, so conservative = score - 0.028, GPT-5.6 Sol max's published DeepSWE run-to-run half-width. DeepSWE's own board and CursorBench 4.0 have no GPT-6 Sol row. Not comparable with CursorBench 4.0 cells."
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.491,
+          "conservative": 0.466,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-6-sol",
+            "https://artificialanalysis.ai/evaluations/aa-briefcase",
+            "https://artificialanalysis.ai/methodology/intelligence-benchmarking"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact AA-Briefcase v1.1 Elo 1482.78 (95% CI lower 1472.91); mapped with AA's own clamp((Elo - 500) / 2000); conservative = mapped lower bound - 0.02 harness transfer (Stirrup to launcher)."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Arena WebDev (stamp 2026-09-22, 130 models) has no gpt-6-sol row at any effort.",
+          "researched_at": "2026-09-22"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Design Arena's 3D board (data stamp 2026-09-22T18:06Z, 153 models), registry, and changelog through 2026-09-20 have no gpt-6-sol entry.",
+          "researched_at": "2026-09-22"
+        }
+      }
+    },
     "codex/gpt-6-luna/max": {
       "launch": {
         "agent": "codex",
