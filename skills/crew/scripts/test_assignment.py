@@ -40,9 +40,9 @@ ROUTE_BASIS = "Principal requested the Worker route for this task."
 SELECTED = {
     "status": "selected",
     "selected": {
-        "id": "codex/gpt-5.6-luna/max",
+        "id": "codex/gpt-6-luna/max",
         "agent": "codex",
-        "model": "gpt-5.6-luna",
+        "model": "gpt-6-luna",
         "effort": "max",
     },
     "reason": "Bounded low-risk edit; cheapest capable candidate.",
@@ -401,7 +401,7 @@ class PacketTest(unittest.TestCase):
             {"id": "orca", "extras": {"front_key": "run-1/shell"}},
             payload["mechanism"],
         )
-        self.assertEqual("codex/gpt-5.6-luna/max", payload["routing"]["candidate"])
+        self.assertEqual("codex/gpt-6-luna/max", payload["routing"]["candidate"])
         self.assertIn('outcome: "Deliver shell palette"', payload["spec"])
         self.assertIn("role: worker", payload["spec"])
         self.assertIn("reports_to: captain", payload["spec"])

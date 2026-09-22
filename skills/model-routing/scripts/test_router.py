@@ -218,7 +218,7 @@ class RouterTest(unittest.TestCase):
             rows["claude/claude-fable-5-1[1m]/high"],
         )
         self.assertIn(
-            "| 0.49 (h) | 0.70 (m, B) | 0.48 (m) | ? | ? | $3.92 | 52 | 1,050,000 |",
+            "| 0.49 (h) | 0.70 (m, C) | 0.48 (m) | ? | ? | $3.92 | 52 | 1,050,000 |",
             rows["codex/gpt-6-astra/high"],
         )
         self.assertIn(
@@ -254,12 +254,12 @@ class RouterTest(unittest.TestCase):
             {
                 "version": 4,
                 "routes": {},
-                "candidates": {"codex/gpt-5.6-luna/max": {"enabled": False}},
+                "candidates": {"codex/gpt-6-luna/max": {"enabled": False}},
             }
         )
         brief = self.run_router("brief").stdout
-        self.assertIn("Disabled by configuration: codex/gpt-5.6-luna/max", brief)
-        self.assertNotIn("| codex/gpt-5.6-luna/max |", brief)
+        self.assertIn("Disabled by configuration: codex/gpt-6-luna/max", brief)
+        self.assertNotIn("| codex/gpt-6-luna/max |", brief)
 
     def test_brief_json_carries_candidates_preferences_and_layers(self):
         payload = json.loads(self.run_router("brief", "--format", "json").stdout)
@@ -395,12 +395,12 @@ class RouterTest(unittest.TestCase):
             {
                 "version": 4,
                 "routes": {},
-                "candidates": {"codex/gpt-5.6-luna/max": {"enabled": False}},
+                "candidates": {"codex/gpt-6-luna/max": {"enabled": False}},
             }
         )
         decision = self.check(
             "--candidate",
-            "codex/gpt-5.6-luna/max",
+            "codex/gpt-6-luna/max",
             "--reason",
             "Cheap bulk edit.",
             expect_code=1,
@@ -571,7 +571,7 @@ class RouterTest(unittest.TestCase):
     def test_check_enforces_feature_and_context_gates(self):
         decision = self.check(
             "--candidate",
-            "codex/gpt-5.6-luna/max",
+            "codex/gpt-5.6-terra/max",
             "--reason",
             "Needs the full monorepo in context.",
             "--minimum-context",
@@ -581,7 +581,7 @@ class RouterTest(unittest.TestCase):
         self.assertIn("context capacity unknown", decision["reasons"])
         decision = self.check(
             "--candidate",
-            "codex/gpt-5.6-luna/max",
+            "codex/gpt-5.6-terra/max",
             "--reason",
             "Needs long-context support.",
             "--require-feature",
@@ -698,7 +698,7 @@ class RouterTest(unittest.TestCase):
         )
         self.assertEqual("exact", decision["status"])
         self.assertEqual("codex", decision["selected"]["agent"])
-        self.assertEqual("gpt-5.6-luna", decision["selected"]["model"])
+        self.assertEqual("gpt-6-luna", decision["selected"]["model"])
         self.assertEqual("builtin", decision["provenance"]["winner"]["scope"])
 
     def test_layer_candidate_patch_merges_over_builtin(self):
@@ -767,7 +767,7 @@ class RouterTest(unittest.TestCase):
             "| captain | — | codex | gpt-6-astra | high | global | ask |", brief
         )
         self.assertIn(
-            "| worker | — | codex | gpt-5.6-luna | max | builtin | ask |", brief
+            "| worker | — | codex | gpt-6-luna | max | builtin | ask |", brief
         )
 
     def test_candidate_tombstone_removes_candidate(self):
