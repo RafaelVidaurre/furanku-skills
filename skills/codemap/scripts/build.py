@@ -23,8 +23,9 @@ Thresholds follow the spec: confidence >= 0.6 accepted, 0.4-0.6 accepted and
 flagged ``uncertain``, below 0.4 / ``abstain`` / ``new_area`` / missing leaves
 the node unresolved. An area answer of ``build_verify`` lands the component in
 the implicit ``build-verify`` area; an unresolved area lands it in ``unsorted``.
-A component is ``runnable`` when it is product code with an executable hint or
-a ``surface`` role in a ``client``, ``server``, or ``cli`` runtime. A resolved answer the scan evidence argues against (support
+A component is ``runnable`` when it is product code with a ``surface`` role,
+start evidence (the ``executable`` hint), no library declaration, and a
+``client``, ``server``, ``fullstack``, ``cli``, or ``shared`` runtime. A resolved answer the scan evidence argues against (support
 code imported by product code; a client/server runtime backed only by the other
 family's libraries) keeps its value and is flagged ``contradicts-evidence``.
 An unresolved runtime renders as ``none``, an unresolved
@@ -393,6 +394,24 @@ def _flows(system: dict) -> list[dict]:
     return flows
 
 
+LANGUAGE_BY_EXT = {"ts": "TypeScript", "tsx": "TypeScript", "mts": "TypeScript", "cts": "TypeScript", "js": "JavaScript",
+                   "jsx": "JavaScript", "mjs": "JavaScript", "cjs": "JavaScript", "rs": "Rust", "py": "Python",
+                   "gd": "GDScript", "sol": "Solidity"}
+
+
+def language_of(skeleton: dict, cid: str):
+    """The language most of a component's own (not generated, not test) lines are written in."""
+    lines = {}
+    for mod in skeleton.get("modules", []):
+        if mod.get("component") != cid:
+            continue
+        for f in mod.get("files", []):
+            lang = LANGUAGE_BY_EXT.get(f["path"].rsplit(".", 1)[-1].lower()) if "." in f["path"] else None
+            if lang and not f.get("test") and not f.get("provenance"):
+                lines[lang] = lines.get(lang, 0) + int(f.get("loc", 0))
+    return max(sorted(lines), key=lambda k: lines[k]) if lines else None
+
+
 def is_runnable(component: dict) -> bool:
     """Product code that starts as its own process or page."""
     if component["nature"] != "product":
@@ -441,6 +460,11 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
     attribute_of = {kind: {} for kind in ("runtime", "nature", "role")}  # resolved values only; checks skip the rest
     known_ids = {c["id"] for c in skeleton.get("components", [])}
     external_ids = {str(x.get("id")) for x in ((draft.get("system") or {}).get("externals") or []) if isinstance(x, dict)}
+    unknown_hosts = [f"components[{cid}].loaded_by: {x!r} is neither a component nor an external"
+                     for cid, card in sorted(draft_components.items()) if isinstance(card, dict)
+                     for x in card.get("loaded_by") or [] if str(x) not in known_ids | external_ids]
+    if unknown_hosts:
+        raise BuildError("; ".join(unknown_hosts))
     for comp in skeleton.get("components", []):
         cid = comp["id"]
         card = draft_components.get(cid) or {}
@@ -483,6 +507,7 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
             "name": str(card.get("name") or comp.get("name") or cid),
             "path": comp.get("path", ""),
             "kind": comp.get("kind", "directory"),
+            "language": language_of(skeleton, cid),
             "description": comp.get("description", ""),
             "readme": comp.get("readme"),
             "area": area,

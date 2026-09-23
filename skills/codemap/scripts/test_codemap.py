@@ -222,6 +222,18 @@ def test_all_stops_on_missing_or_incomplete_draft_then_runs_pipeline(repo, capsy
     assert code == 1 and "require-zdr" in payload["error"]
 
 
+def test_decide_dry_run_writes_the_requests_and_names_the_largest(repo, capsys, monkeypatch):
+    paths = store.paths(repo)
+    store.write_json(paths["skeleton"], {"schema": "codemap.skeleton/1"})
+    store.write_json(paths["draft"], {"components": {}})
+    requests = [{"node": "a", "request": {"state": "x"}}, {"node": "b", "request": {"state": "x" * 500}}]
+    monkeypatch.setitem(sys.modules, "decide", types.SimpleNamespace(
+        decide=lambda *a, dry_run=False, **k: {"requests": requests, "summary": {"calls_cached": 3}} if dry_run else pytest.fail("networked")))
+    code, payload = run(capsys, "decide", "--repo", str(repo), "--dry-run")
+    assert code == 0 and payload["requests"] == 2 and payload["largest"]["node"] == "b"
+    assert [json.loads(l)["node"] for l in Path(payload["path"]).read_text().splitlines()] == ["a", "b"]
+
+
 def test_decide_summary_counts_new_quality_findings(repo, capsys, monkeypatch):
     paths = store.paths(repo)
     store.write_json(paths["skeleton"], {"schema": "codemap.skeleton/1"})

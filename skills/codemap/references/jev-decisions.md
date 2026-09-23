@@ -7,7 +7,7 @@
 | Question | Node | Type | State Jev sees | Options |
 | --- | --- | --- | --- | --- |
 | `area` | each component | Choice | the component card (below) | one per proposed area (name, definition, expected members), `build_verify`, `new_area`, `abstain` |
-| `runtime` | each component | Choice | the same card | `server`, `client`, `shared`, `cli`, `build`, `none`, `abstain` |
+| `runtime` | each component | Choice | the same card | `server`, `client`, `fullstack`, `shared`, `cli`, `build`, `none`, `abstain` |
 | `nature` | each component | Choice | the same card | `product`, `tooling`, `test`, `content`, `docs`, `experiment`, `abstain` |
 | `role` | each component | Choice | the same card | `surface`, `adapter`, `core`, `kernel`, `abstain` |
 | `core_uses_adapter` | a production edge from a product `core` to a product `adapter` | Boolean | both cards (id, name, responsibility, why, kind, role), the edge reason, count, up to 3 example imports | `true` acceptable by design, `false` finding |
@@ -107,7 +107,7 @@ Each record: `node`, `question`, `fingerprint`, `answer`, `probabilities`, `conf
 
 ## Cost and latency
 
-Measured today: about 0.5–1 s per request and well under a cent per call (a component card with the four Choices batched runs about 1,800 input tokens). A first run costs one call per component, one more per component the second pass re-asks, and one per checked edge; re-runs cost only what changed. Rate limits (HTTP 429), overloads (529), bad gateways and unavailable providers (502, 503), and timeouts retry with exponential backoff (2, 4, 8, 16, 32 s) before the run stops. While it runs, `decide` prints one JSON progress line on stderr per phase boundary and every 10 components (`{"progress", "done", "total", "elapsed_seconds", "calls", "cached"}`, plus `retry` lines with the wait); stdout still carries only the final summary. `--dry-run` prints every request that would be sent, one JSON per line, without networking. `summary` reports `calls_made`, `calls_cached`, `areas` (proposed) and `areas_assigned` (components per answer, `build_verify` included), `runtimes`, `natures`, `findings` per check, and `total_cost_usd`.
+Measured today: about 0.5–1 s per request and well under a cent per call (a component card with the four Choices batched runs about 1,800 input tokens). A first run costs one call per component, one more per component the second pass re-asks, and one per checked edge; re-runs cost only what changed. Rate limits (HTTP 429), overloads (529), bad gateways and unavailable providers (502, 503), and timeouts retry with exponential backoff (2, 4, 8, 16, 32 s) before the run stops. While it runs, `decide` prints one JSON progress line on stderr per phase boundary and every 10 components (`{"progress", "done", "total", "elapsed_seconds", "calls", "cached"}`, plus `retry` lines with the wait); stdout still carries only the final summary. `decide --dry-run` writes every request that would be sent to `dry-run.jsonl` in the map store, one JSON per line, without networking, and names the largest. `summary` reports `calls_made`, `calls_cached`, `areas` (proposed) and `areas_assigned` (components per answer, `build_verify` included), `runtimes`, `natures`, `findings` per check, and `total_cost_usd`.
 
 ## Errors and actions
 

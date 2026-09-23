@@ -649,8 +649,11 @@ class Session:
                 pending[kind] = (criteria, print_)
         if not pending:
             return answers
-        if any(kind in project_types.INSTRUCTIONS for kind in pending) and len(canonical(state).encode("utf-8")) > 250_000:
-            raise Error(f"{node}: repository state exceeds 250 KB; narrow proposal cards before deciding")
+        size = len(canonical(state).encode("utf-8"))
+        if size > 250_000:
+            what = "narrow proposal cards before deciding" if any(kind in project_types.INSTRUCTIONS for kind in pending) \
+                else "this is a codemap defect: component states are clipped to a few KB; report it"
+            raise Error(f"{node}: the question state is {size // 1000} KB, over the 250 KB request limit; {what}")
         payload = {"model": jev_client.MODEL, "state": state,
                    "questions": {kind: question(kind, criteria) for kind, (criteria, _) in pending.items()}}
         if self.zdr:
@@ -934,9 +937,25 @@ def _decide(session, skeleton, draft, dry_run):
 
 def holds_state(card, cid, session):
     previous = {k: session.previous[(cid, k, 1)].get("answer") for k in COMPONENT_QUESTIONS if (cid, k, 1) in session.previous}
-    change = session.changes.get(cid)
-    state = {"component": card, "previous": previous, "changes": change if isinstance(change, (str, dict, list)) else str(change)}
+    state = {"component": card, "previous": previous, "changes": summarize_change(session.changes.get(cid))}
     return clip_state(state)
+
+
+CHANGE_EXAMPLES = 8
+
+
+def summarize_change(change):
+    """A change record small enough to ask about: long path lists become a count and a few examples.
+
+    A component that gains thousands of files (a newly parsed language) would otherwise send the whole list; the
+    Gateway rejects such a request, and the answer only needs the size and flavour of the change.
+    """
+    shorten = lambda v: {"count": len(v), "examples": v[:CHANGE_EXAMPLES]} if isinstance(v, list) and len(v) > CHANGE_EXAMPLES else v
+    if isinstance(change, dict):
+        return {k: shorten(v) for k, v in change.items()}
+    if isinstance(change, list):
+        return shorten(change)
+    return change if isinstance(change, str) else str(change)
 
 
 # --- CLI ----------------------------------------------------------------------
