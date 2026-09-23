@@ -36,12 +36,23 @@ def test_template_is_self_contained():
     assert "@import" not in html
 
 
-def test_template_routes_and_lens():
+def test_template_routes_and_lenses():
     html = TEMPLATE.read_text()
-    for route in ("#/runtime", "'#/area/'", "'#/component/'"):
+    for route in ("'#/area/'", "'#/component/'", "h === 'layers' || h === 'runtime'", "h === 'ships' || h === 'size'"):
         assert route in html
+    for lens in ("id: 'purpose'", "id: 'layers'", "id: 'ships'", "id: 'size'"):
+        assert lens in html
     assert "#/domain" not in html.replace("(?:area|domain)", "")
-    assert "layoutSystem" in html and "layoutDomains" not in html
+    assert "layoutSystem" in html and "layoutShips" in html and "layoutSize" in html and "layoutDomains" not in html
+
+
+def test_fixture_tells_its_story_in_short_labels():
+    data = load()
+    assert data["system"]["summary"] and len(data["system"]["summary"].split()) <= 30
+    for f in data["flows"]:
+        assert len(f["label"]) <= 32 and f["detail"], f
+    assert data["meta"]["activity"]["window_days"] == 90
+    assert all("changes" in c["metrics"] for c in data["components"])
 
 
 def test_rendered_example_is_small_and_valid():
@@ -176,3 +187,13 @@ def test_fixture_health_covers_every_check():
             continue
         pairs = [(a, b) for a in f["nodes"] for b in f["nodes"] if a != b] if f["check"] == "cycle" else [tuple(f["nodes"])]
         assert any(p in flagged_edges and flagged_edges[p]["finding"] == f["check"] for p in pairs), f
+
+
+def test_screens_describe_state_and_never_hand_the_reader_pipeline_steps():
+    """What the map shows is written for people; the agent does the pipeline work instead of asking the reader to."""
+    import build
+    agent_steps = re.compile(r"re-?run(ning)? decide|add evidence|draft\.json|\bthe draft\b|codemap\.py|scan\.json", re.I)
+    code = re.sub(r"^\s*//.*$", "", TEMPLATE.read_text(), flags=re.M)
+    assert not agent_steps.search(code), agent_steps.search(code)
+    for text in (build.UNSORTED_DEFINITION, build.BUILD_VERIFY_DEFINITION, *build.MEANINGS.values()):
+        assert not agent_steps.search(text), text

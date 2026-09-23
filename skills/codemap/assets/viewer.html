@@ -83,7 +83,8 @@ a { color: var(--sel); }
 .band text, .grid text.head, .grid text.rowlabel, .tray text.head, .col text.head { fill: var(--faint); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .08em; }
 .grid text.head { fill: var(--muted); }
 .grid .head .ico { stroke: var(--muted); }
-.grid text.count { fill: var(--faint); font-size: 11px; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.grid .count { fill: var(--faint); font-size: 11px; font-weight: 500; letter-spacing: 0; }
+.grid text.rowgloss { fill: var(--faint); font-size: 10px; }
 .tray rect.tray { fill: none; stroke: var(--band-line); stroke-dasharray: 4 4; }
 .tray rect.group { fill: var(--band); stroke: none; }
 .tray text.group, .bv text.group { fill: var(--faint); font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
@@ -118,6 +119,26 @@ a { color: var(--sel); }
 .node.out.in .box { stroke: var(--warm); }
 .node .badge { fill: var(--warm); stroke: var(--surface); stroke-width: 1.5; }
 .node text.badge { fill: #fff; font-size: 10px; font-weight: 700; stroke: none; }
+.node.shiprow .box, .node.shipcol .box { fill: transparent; stroke: none; filter: none; }
+.node.shiprow:hover .box, .node.shipcol:hover .box, .node.shiprow.self .box, .node.shipcol.self .box, .node.shiprow.selected .box, .node.shipcol.selected .box { fill: var(--chrome); stroke: none; }
+.node.shiprow.out .box, .node.shipcol.out .box { fill: color-mix(in srgb, var(--out) 14%, transparent); stroke: none; }
+.node.shiprow.in .box, .node.shipcol.in .box { fill: color-mix(in srgb, var(--in) 14%, transparent); stroke: none; }
+.node.shiprow text.name, .node.shipcol text.name { font-weight: 550; font-size: 12px; }
+.ships rect.band { fill: hsl(var(--h, 220) 55% 55% / .07); stroke: none; }
+.ships line { stroke: var(--band-line); }
+.ships text.group { fill: var(--faint); font-size: 10.5px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; }
+.ships .ico { stroke: var(--faint); }
+.dot { transition: opacity .15s; pointer-events: visiblePainted; }
+.dot.direct { fill: hsl(var(--h, 220) 55% 52%); }
+.dot.via { fill: var(--surface); stroke: hsl(var(--h, 220) 50% 55%); stroke-width: 1.6; }
+.dot.off { opacity: .15; } .dot.on { stroke: var(--text); stroke-width: 1.4; }
+.node.tile .box { stroke: hsl(var(--h, 220) 35% 60% / .7); stroke-width: 1; filter: none; }
+.node.tile.nohue .box { stroke: var(--line); }
+.node.tile.selected .box, .node.tile.self .box { stroke: var(--sel); stroke-width: 2.5; }
+.node.tile text.name { font-size: 11.5px; } .node.tile text.sub { font-size: 10px; }
+.node.area.tiles .box { fill: hsl(var(--h, 220) 45% 55% / .10); stroke: hsl(var(--h, 220) 40% 55% / .45); }
+.node.area.tiles.nohue .box { fill: var(--band); stroke: var(--faint); stroke-dasharray: 5 4; }
+.node.area.tiles text.name { font-size: 12px; }
 /* system-picture kinds */
 .node.actor .box { fill: var(--surface); stroke: var(--edge-strong); stroke-width: 1.4; }
 .node.actor .ico { stroke: var(--edge-strong); opacity: 1; }
@@ -220,6 +241,9 @@ svg.hl .edge.quiet:not(.hl) { opacity: 0; }
 #panel h2 { margin: 2px 0 2px; font-size: 16px; line-height: 1.3; word-break: break-word; }
 #panel h3 { margin: 18px 0 6px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); font-weight: 650; }
 #panel p { margin: 0 0 6px; }
+#panel p.runs { background: var(--bg); border-radius: 6px; padding: 6px 9px; }
+#panel p.runs .lbl { display: block; color: var(--faint); text-transform: uppercase; font-size: 9.5px; letter-spacing: .05em; font-weight: 650; }
+#panel p.lead { font-size: 14px; line-height: 1.45; margin: 6px 0 8px; }
 #panel .kind { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 650; }
 #panel .kind .sw { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
 #panel .facts { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 6px; }
@@ -266,14 +290,14 @@ svg.hl .edge.quiet:not(.hl) { opacity: 0; }
 #panel .health { margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
 #panel .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 8px 0 10px; }
 #panel .check { background: var(--bg); border-radius: 6px; padding: 5px 8px; font-size: 11.5px; display: flex; justify-content: space-between; gap: 6px; }
-#panel .check b { font-family: var(--mono); font-weight: 600; }
+#panel .check b { font-weight: 600; }
 #panel .check .n { color: var(--faint); }
 #panel .check .n.bad { color: var(--bad); font-weight: 650; }
 #panel .finding { padding: 8px 9px; border-radius: 6px; border: 1px solid var(--line); margin-bottom: 6px; cursor: pointer; transition: border-color .15s; }
 #panel .finding:hover, #panel .finding.active { border-color: var(--warm); }
 #panel .finding.active { background: color-mix(in srgb, var(--warm) 7%, var(--surface)); }
 #panel .finding .head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-#panel .finding .head b { font-family: var(--mono); font-size: 11.5px; }
+#panel .finding .head b { font-size: 12px; }
 #panel .finding .verdict { margin-left: auto; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; color: #fff; background: var(--bad); text-transform: uppercase; letter-spacing: .03em; }
 #panel .finding .verdict.ok { background: var(--ok); }
 #panel .finding .nodes { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; align-items: center; }
@@ -307,10 +331,7 @@ svg.hl .edge.quiet:not(.hl) { opacity: 0; }
     <button class="btn icon" id="fwd" title="Forward (browser history)" aria-label="Forward">→</button>
   </div>
   <nav id="crumbs" aria-label="Breadcrumb"></nav>
-  <div id="lens" hidden role="tablist" aria-label="Lens">
-    <button data-lens="system" title="System picture: people, areas with their runnables, externals, flows (1)">System picture <span class="kbd">1</span></button>
-    <button data-lens="runtime" title="Matrix: what runs where (2)">Where it runs <span class="kbd">2</span></button>
-  </div>
+  <div id="lens" role="tablist" aria-label="Lens"></div>
   <div id="search">
     <input id="q" type="search" placeholder="Search the map" autocomplete="off" spellcheck="false" aria-label="Search">
     <span class="kbd">/</span>
@@ -353,25 +374,27 @@ svg.hl .edge.quiet:not(.hl) { opacity: 0; }
   <div class="card">
     <h2>How to read this map</h2>
     <div>
-      <h4>The system picture and its grammar</h4>
+      <h4>How to read it</h4>
       <ul id="grammar"></ul>
     </div>
     <div>
       <h4>Keys</h4>
       <table>
         <tr><td><span class="kbd">/</span></td><td>search areas, components, modules, files, people, externals</td></tr>
-        <tr><td><span class="kbd">1</span> <span class="kbd">2</span></td><td>system picture · matrix of where things run</td></tr>
+        <tr><td><span class="kbd">1</span>–<span class="kbd">5</span></td><td>Purpose · Layers · Ships in · Size &amp; activity · Contracts</td></tr>
         <tr><td><span class="kbd">Enter</span></td><td>open the selected node (or click it again)</td></tr>
         <tr><td><span class="kbd">Esc</span></td><td>close, clear the highlight or selection, then go up a level</td></tr>
         <tr><td><span class="kbd">← → ↑ ↓</span></td><td>move the selection among siblings</td></tr>
         <tr><td><span class="kbd">h</span></td><td>health checks</td></tr>
         <tr><td><span class="kbd">t</span></td><td>light / dark theme</td></tr>
         <tr><td><span class="kbd">0</span> <span class="kbd">+</span> <span class="kbd">−</span></td><td>fit to screen · zoom</td></tr>
+        <tr><td>scroll · drag</td><td>pan (Shift + scroll pans sideways)</td></tr>
+        <tr><td>pinch · <span class="kbd">⌘</span> scroll</td><td>zoom at the pointer</td></tr>
         <tr><td><span class="kbd">l</span></td><td>show or hide the legend</td></tr>
         <tr><td><span class="kbd">?</span></td><td>this help</td></tr>
       </table>
     </div>
-    <p class="foot">Three levels: the system picture (L0) → one area's matrix (L1) → the modules of one component (L2), plus the "Where it runs" lens over the whole system. Hover a node to see what it depends on (blue) and what depends on it (magenta). Click an edge for its reason. The ← → buttons walk your browsing history.</p>
+    <p class="foot">Hover a part to see what it uses (blue) and what uses it (magenta). Click an arrow for why it exists. Every screen is a link you can share; ← → walk your history.</p>
   </div>
 </div>
 <script id="codemap-data" type="application/json">/*__CODEMAP_JSON__*/</script>
@@ -391,7 +414,18 @@ const ROLE_DESC = { surface: 'what a person or another system touches: UI, API h
 const NATURE_DESC = { product: 'runs as part of what users use, including the authoring tools designers operate', tooling: 'build, dev stack, quality gates, asset pipelines', test: 'harnesses, acceptance lanes, test support', content: 'data and scripts the product loads', docs: 'documentation and review evidence', experiment: 'prototypes and spikes' };
 const EXT_DESC = { datastore: 'a database or store the product keeps state in', service: 'a running service the product talks to over the network', runtime: 'a device or engine the product runs inside: browser, desktop wrapper, embedded VM', devtool: 'used only while building, testing, or authoring: never at run time' };
 const FLOW_DESC = { network: 'talks over the network: sockets, HTTP, a message bus', file: 'hands over files: one side writes what the other reads', process: 'starts or hosts the other as a process' };
-const CHECK_LABEL = { cycle: 'cycle', 'core-uses-adapter': 'core uses adapter', 'crosses-the-wire': 'crosses the wire', 'product-uses-support': 'product uses support' };
+// the headline a person reads for each check; the check id stays in tooltips so it can be looked up
+const CHECK_LABEL = { cycle: 'Import each other', 'core-uses-adapter': 'Rules tied to an engine', 'crosses-the-wire': 'Client and server share code', 'product-uses-support': 'Shipped code uses tooling' };
+const ROLE_GLOSS = { surface: 'what people touch', adapter: 'I/O and engines', core: 'the rules', kernel: 'shared types', none: '' };
+// each lens answers one question over the same components, colours, and selection
+const LENSES = [
+  { id: 'purpose', key: '1', name: 'Purpose', q: 'Who uses what, and how the running parts talk' },
+  { id: 'layers', key: '2', name: 'Layers', q: 'Where each part runs, and which way its dependencies point' },
+  { id: 'ships', key: '3', name: 'Ships in', q: 'Which libraries end up inside each app, service, and command' },
+  { id: 'size', key: '4', name: 'Size & activity', q: 'Where the code is, and where work is happening' },
+  { id: 'contracts', key: '5', name: 'Contracts', q: 'Which shared schemas and contracts exist, and what uses each' },
+];
+const LENS = Object.fromEntries(LENSES.map((l) => [l.id, l]));
 // monochrome 12×12 icons: one per runtime, plus a person and a document
 const ICON = {
   client: ['M1.5,2.5h9v7h-9z', 'M1.5,4.8h9', 'M3.2,3.65h.01'],
@@ -427,7 +461,7 @@ function buildModel(map) {
     health: Array.isArray(map.health) ? map.health : [], unresolved: new Map(), cycle: new Set(), cycleMod: new Set(),
     system: map.system || { id: 'system', name: 'System', purpose: '', actors: [], externals: [] }, flows: Array.isArray(map.flows) ? map.flows : [] };
   M.actors = M.system.actors || []; M.externals = M.system.externals || [];
-  const SPECIAL = { 'build-verify': { name: 'Build & verify', definition: 'Tooling, tests, content packages, docs, and experiments that support the product without shipping in it.' }, unsorted: { name: 'Unsorted', definition: 'Components whose area could not be decided with enough confidence. Add evidence to the draft and re-run decide.' } };
+  const SPECIAL = { 'build-verify': { name: 'Build & verify', definition: 'Tooling, tests, content packages, docs, and experiments that support the product without shipping in it.' }, unsorted: { name: 'Not placed yet', definition: 'Parts the map could not place in an area yet; each card says what was left open.' } };
   const addArea = (a) => { if (SPECIAL[a.id]) a.special = a.id; M.areas.push(a); M.byArea.set(a.id, a); M.compsOf.set(a.id, []); return a; };
   const synth = (id, comps) => addArea({ id, name: SPECIAL[id].name, definition: SPECIAL[id].definition, hue: null, synthetic: true, components: comps.map((c) => c.id), runnables: [] });
   for (const a of map.areas) addArea(a);
@@ -435,6 +469,8 @@ function buildModel(map) {
   M.natureOf = (c) => (NATURES.includes(c.nature) ? c.nature : 'product');
   M.isProduct = (c) => M.natureOf(c) === 'product';
   const stray = { 'build-verify': [], unsorted: [] };
+  const seenNames = new Map(); for (const c of map.components) { const n = c.name || c.id; seenNames.set(n, (seenNames.get(n) || 0) + 1); }
+  for (const c of map.components) if (seenNames.get(c.name || c.id) > 1) c.name = `${c.name || c.id} (${c.kind === 'crate' ? 'Rust' : c.kind === 'package' ? 'TS' : c.kind || c.id})`;
   for (const c of map.components) {
     M.byComp.set(c.id, c); M.modsOf.set(c.id, []);
     if (c.area && M.byArea.has(c.area)) M.compsOf.get(c.area).push(c);
@@ -464,8 +500,10 @@ function buildModel(map) {
   M.runsAs = (c) => {
     const hints = c.hints || {}, kind = c.kind || '', rt = M.rtOf(c), desktop = (hints.desktop || [])[0], cl = hints.client_libs || [];
     const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-    const lang = hints.language ? cap(hints.language) : kind === 'crate' ? 'Rust' : desktop ? cap(desktop) : cl.includes('vite') ? 'Vite' : /\.py$|^python/.test(kind) || kind === 'pyproject' ? 'Python' : ['package', 'app', 'tool', 'workspace'].includes(kind) ? 'Node' : '';
-    const noun = rt === 'server' ? 'service' : rt === 'client' ? (desktop ? 'desktop app' : 'web app') : rt === 'cli' ? 'CLI' : rt === 'shared' ? 'library' : rt === 'build' ? 'build tool' : M.natureOf(c);
+    const lib = M.isProduct(c) && !M.isRunnable(c), js = ['package', 'app', 'tool', 'workspace'].includes(kind);
+    const lang = hints.language ? cap(hints.language) : kind === 'crate' ? 'Rust' : lib && js ? 'TypeScript' : desktop ? cap(desktop) : cl.includes('vite') ? 'Vite' : /\.py$|^python/.test(kind) || kind === 'pyproject' ? 'Python' : js ? 'Node' : '';
+    // a library is a library wherever it runs; only runnables are apps, services, and commands
+    const noun = lib ? (rt === 'client' ? 'browser library' : rt === 'server' ? 'server library' : 'library') : rt === 'server' ? 'service' : rt === 'client' ? (desktop ? 'desktop app' : 'web app') : rt === 'cli' ? 'CLI' : rt === 'shared' ? 'library' : rt === 'build' ? 'build tool' : M.natureOf(c);
     return [lang, noun].filter(Boolean).join(' ');
   };
   M.extKind = (x) => (EXT_KINDS.includes(x.kind) ? x.kind : 'service');
@@ -486,6 +524,28 @@ function buildModel(map) {
     if (M.system.runtime_counts) return M.system.runtime_counts;
     const out = {}; for (const c of map.components) { const r = M.rtOf(c); if (r !== 'none') out[r] = (out[r] || 0) + 1; } return out;
   };
+  // what a thing is, in the plain words a newcomer needs first; the detailed responsibility is for the card
+  // a contract: shared vocabulary (the kernel layer) or a holder of interface files (protobuf, OpenAPI, JSON Schema…)
+  M.isContract = (c) => M.isProduct(c) && (M.roleOf(c) === 'kernel' || (c.contracts || []).length > 0);
+  M.contractKinds = (c) => [...new Set((c.contracts || []).map((x) => x.kind))];
+  M.whatItIs = (c) => c.summary || c.responsibility || '';
+  M.changesOf = (c) => (c.metrics && c.metrics.changes) || 0;
+  M.activity = (map.meta && map.meta.activity) || null;
+  M.hasActivity = !!(M.activity && M.activity.commits) || map.components.some((c) => M.changesOf(c) > 0);
+  // production imports only: what a runnable compiles in, directly or through its libraries
+  M.prodOut = new Map(); for (const e of M.edgesOf.component) if (e.count > 0 && !e.test_only) { if (!M.prodOut.has(e.from)) M.prodOut.set(e.from, []); M.prodOut.get(e.from).push(e.to); }
+  M.shipsOf = (runnableId) => {
+    const out = new Map(), queue = [];
+    for (const id of M.prodOut.get(runnableId) || []) { const c = M.byComp.get(id); if (c && M.isProduct(c) && !out.has(id)) { out.set(id, 'direct'); queue.push(id); } }
+    while (queue.length) { const u = queue.shift(); for (const id of M.prodOut.get(u) || []) { const c = M.byComp.get(id); if (c && M.isProduct(c) && id !== runnableId && !out.has(id)) { out.set(id, 'via'); queue.push(id); } } }
+    return out;
+  };
+  // flows in reading order: people first, then along the direction the flows run
+  M.flowsInOrder = () => {
+    const ids = [...new Set(M.flows.flatMap((f) => [f.from, f.to]))], rank = rankByLongestPath(ids, M.flows), isActor = (id) => M.actors.some((a) => a.id === id);
+    return M.flows.map((f, i) => ({ f, i })).sort((p, q) => (isActor(q.f.from) - isActor(p.f.from)) || (rank.get(p.f.from) - rank.get(q.f.from)) || (rank.get(p.f.to) - rank.get(q.f.to)) || (p.i - q.i)).map((x) => x.f);
+  };
+  M.nameOf = (id) => (M.byComp.get(id) || {}).name || (M.actors.find((z) => z.id === id) || {}).name || (M.externals.find((z) => z.id === id) || {}).name || id;
   M.flagOf = (c) => {
     const dec = c.decision || {};
     if (M.unresolved.has(c.id)) { const u = M.unresolved.get(c.id); return { kind: 'unresolved', question: u.question, confidence: dec[u.question] ? dec[u.question].confidence : null }; }
@@ -617,8 +677,8 @@ function orderBands(bands, edges, gap) {
 /* ================================================================== layouts */
 function compNode(M, c, opts) {
   const ghost = !!(opts && opts.ghost), support = !M.isProduct(c), runnable = M.isRunnable(c), w = opts.w, h = opts.h;
-  const sub = runnable ? M.runsAs(c) : `${support ? M.natureOf(c) : (c.kind || 'unit')} · ${fmtLoc(M.locOf(c))} loc`;
-  return { id: c.id, kind: 'component', label: c.name || c.id, sub, hue: M.hueOf(c), rt: M.rtOf(c), nature: M.natureOf(c), role: M.roleOf(c), support, runnable, ghost, x: 0, y: 0, w, h, data: c, flag: M.flagOf(c), title: c.responsibility || '' };
+  const sub = runnable ? M.runsAs(c) : `${support ? M.natureOf(c) : (c.kind || 'unit')} · ${fmtLoc(M.locOf(c))} lines`;
+  return { id: c.id, kind: 'component', label: c.name || c.id, sub, hue: M.hueOf(c), rt: M.rtOf(c), nature: M.natureOf(c), role: M.roleOf(c), support, runnable, ghost, x: 0, y: 0, w, h, data: c, flag: M.flagOf(c), title: M.whatItIs(c) };
 }
 
 // order a stack so flows join neighbours where possible: the permutation with the least total span, first in rank order on ties (n ≤ 7)
@@ -632,7 +692,7 @@ function stackOrder(rs, intra) {
 
 // L0, the system picture: people | areas with their runnables, columns by flow direction | externals; Build & verify beneath
 function layoutSystem(M) {
-  const PW = 172, PH = 38, RH = 50, XW = 156, XH = 52, GX = 12, GY = 10, HEAD = 34, PAD = 12, CHIPH = 22, AGAP = 24, PGAP = 60, XGAP = 150, BVGAP = 30, TARGET_W = 1290;
+  const PW = 172, PH = 38, RH = 50, XW = 156, XH = 52, GX = 12, GY = 10, HEAD = 34, PAD = 12, CHIPH = 22, AGAP = 48, PGAP = 60, XGAP = 150, BVGAP = 30, TARGET_W = 1290;
   let RW = 190, COLGAP = 100;
   const regions = [], nodes = [], edges = [], nodeMap = new Map(), colOf = new Map();
   const runnableArea = (id) => { const c = M.byComp.get(id); return c && M.isRunnable(c) ? M.areaOf(c) : null; };
@@ -668,11 +728,11 @@ function layoutSystem(M) {
   cols.forEach((col, i) => {
     let y = (H - colH[i]) / 2;
     for (const a of col) {
-      const I = info.get(a.id), rx = colX[i] + (colW[i] - I.w) / 2, id = 'area:' + a.id, cnt = M.areaCounts(a);
+      const I = info.get(a.id), id = 'area:' + a.id, cnt = M.areaCounts(a); I.w = colW[i]; const rx = colX[i];
       const region = { id, kind: 'area', label: a.name, sub: `${I.rs.length} runnable${I.rs.length === 1 ? '' : 's'} · ${cnt.product} product`, hue: a.hue, x: rx + I.w / 2, y: y + I.h / 2, w: I.w, h: I.h, data: a, col: i, title: a.definition || '' };
       regions.push(region); nodeMap.set(id, region); colOf.set(id, i);
-      I.rs.forEach((c, k) => { const n = compNode(M, c, { w: RW, h: RH }); n.x = rx + PAD + (k % I.nc) * (RW + GX) + RW / 2; n.y = y + HEAD + Math.floor(k / I.nc) * (RH + I.gy) + RH / 2; n.area = a.id; n.col = i; nodes.push(n); nodeMap.set(n.id, n); colOf.set(n.id, i); });
-      if (I.chip) { const cw = I.chip.length * 6.2 + 20, n = { id: 'libs:' + a.id, kind: 'libs', label: I.chip, x: rx + PAD + cw / 2, y: y + I.h - PAD - CHIPH / 2, w: cw, h: CHIPH, area: a.id, data: a, title: `Open ${a.name}: its libraries in the runtime × role matrix` }; nodes.push(n); nodeMap.set(n.id, n); }
+      I.rs.forEach((c, k) => { const n = compNode(M, c, { w: RW, h: RH }); n.x = rx + (I.w - (I.nc * RW + (I.nc - 1) * GX)) / 2 + (k % I.nc) * (RW + GX) + RW / 2; n.y = y + HEAD + Math.floor(k / I.nc) * (RH + I.gy) + RH / 2; n.area = a.id; n.col = i; nodes.push(n); nodeMap.set(n.id, n); colOf.set(n.id, i); });
+      if (I.chip) { const cw = I.chip.length * 6.2 + 20, n = { id: 'libs:' + a.id, kind: 'libs', label: I.chip, x: rx + PAD + cw / 2, y: y + I.h - PAD - CHIPH / 2, w: cw, h: CHIPH, area: a.id, data: a, title: `List the ${I.chip.replace('+', '')} of ${a.name}` }; nodes.push(n); nodeMap.set(n.id, n); }
       y += I.h + AGAP;
     }
   });
@@ -680,7 +740,7 @@ function layoutSystem(M) {
   const unsorted = M.byArea.get('unsorted'); let unsortedH = 0;
   if (unsorted && (M.compsOf.get('unsorted') || []).length) {
     const cs = M.compsOf.get('unsorted'), rs = cs.filter(M.isRunnable), libs = cs.length - rs.length;
-    const label = ['Unsorted', rs.length ? `${rs.length} runnable${rs.length === 1 ? '' : 's'}` : null, libs ? `${libs} librar${libs === 1 ? 'y' : 'ies'}` : null].filter(Boolean).join(' · ');
+    const label = `Not placed yet · ${cs.length} part${cs.length === 1 ? '' : 's'}`;
     const w = label.length * 6.6 + 40, n = { id: 'area:unsorted', kind: 'area', chip: true, label, hue: null, x: X0 + w / 2, y: H + 16 + 12, w, h: 24, data: unsorted, col: 0, title: unsorted.definition || '', flag: { kind: 'unresolved', question: 'area' } };
     regions.push(n); nodeMap.set(n.id, n); unsortedH = 40;
   }
@@ -785,7 +845,7 @@ function layoutSystem(M) {
   for (const e of edges) if (!e.d) e.d = pathBetween(nodeMap.get(e.from), nodeMap.get(e.to), e.mode);
   for (const e of edges) if (e.kind === 'flow' && nodeMap.get(e.to).kind === 'external' && nodeMap.get(e.from).kind === 'component') e.labelX = areasRight + XGAP / 2;
   nodes.push(...badges);
-  const all = [...regions, ...nodes], L = { level: 0, lens: 'system', nodes: all, edges, bv: bvLayout, labelMax, bounds: bounds(all, [{ x: 0, y: -24 - lanes * 10, w: 1, h: 1 }]), title: M.system.name || 'System', frame: { kind: 'system', id: 'system' } };
+  const all = [...regions, ...nodes], L = { level: 0, lens: 'purpose', nodes: all, edges, bv: bvLayout, labelMax, bounds: bounds(all, [{ x: 0, y: -24 - lanes * 10, w: 1, h: 1 }]), title: M.system.name || 'System', frame: { kind: 'system', id: 'system' } };
   L.related = (id, rel, mark) => {
     const self = new Set([id]), n = nodeMap.get(id);
     if (n && n.kind === 'area') for (const z of nodes) if (z.kind === 'component' && z.area === n.data.id) self.add(z.id);
@@ -803,7 +863,7 @@ function layoutSystem(M) {
 // areaId null = every product component (the lens); an area = its components plus ghosts of the components they touch (L1)
 function layoutMatrix(M, areaId) {
   const a = areaId ? M.byArea.get(areaId) : null; if (areaId && !a) return null;
-  const own = areaId ? M.compsOf.get(areaId) : M.map.components, ownIds = new Set(own.map((c) => c.id));
+  const own = areaId ? M.compsOf.get(areaId) : M.map.components.filter(M.isProduct), ownIds = new Set(own.map((c) => c.id));
   const E = M.edgesOf.component.filter((e) => ownIds.has(e.from) || ownIds.has(e.to));
   const whole = !areaId, NW = whole ? 152 : 164, NH = whole ? 46 : 50, GW = 136, GH = 38;
   const nodes = own.map((c) => compNode(M, c, { w: NW, h: NH }));
@@ -815,14 +875,14 @@ function layoutMatrix(M, areaId) {
   const present = new Set(nodes.map((n) => n.id)), byIdMap = new Map(nodes.map((n) => [n.id, n]));
   const Ein = E.filter((e) => present.has(e.from) && present.has(e.to));
   const nb = new Map(); for (const e of Ein) { if (!nb.has(e.from)) nb.set(e.from, []); if (!nb.has(e.to)) nb.set(e.to, []); nb.get(e.from).push(e.to); nb.get(e.to).push(e.from); }
-  const perRow = (n) => (n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4), gx = 14, gy = 12, pad = 18;
+  const perRow = whole ? (n) => (n <= 1 ? 1 : n <= 8 ? 2 : 3) : (n) => (n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4), gx = 14, gy = 12, pad = 18;
   const prod = nodes.filter((n) => !n.support), sup = nodes.filter((n) => n.support);
   const cols = [...RUNTIMES, 'none'].filter((r) => prod.some((n) => n.rt === r)), rows = [...ROLES, 'none'].filter((r) => prod.some((n) => n.role === r));
   const cell = new Map(); for (const n of prod) { const k = n.rt + '|' + n.role; if (!cell.has(k)) cell.set(k, []); cell.get(k).push(n); }
   const dims = (list) => { const c = perRow(list.length), r = Math.ceil(list.length / c), w = Math.max(...list.map((n) => n.w)), h = Math.max(...list.map((n) => n.h)); return { c, r, w: c * w + (c - 1) * gx, h: r * h + (r - 1) * gy, nw: w, nh: h }; };
   const colW = new Map(cols.map((c) => [c, 170])), rowH = new Map(rows.map((r) => [r, 70]));
   for (const [k, list] of cell) { const [c, r] = k.split('|'), dm = dims(list); colW.set(c, Math.max(colW.get(c), dm.w + pad * 2)); rowH.set(r, Math.max(rowH.get(r), dm.h + pad * 2)); }
-  const labelW = 86, headH = 36, x0 = labelW, y0 = headH;
+  const labelW = 112, headH = 36, x0 = labelW, y0 = headH;
   const grid = { cols: [], rows: [], x0, y0, w: 0, h: 0 };
   let x = x0; for (const c of cols) { grid.cols.push({ id: c, label: c, x, w: colW.get(c), count: prod.filter((n) => n.rt === c && !n.ghost).length }); x += colW.get(c); } grid.w = x - x0;
   let y = y0; for (const r of rows) { grid.rows.push({ id: r, label: r, y, h: rowH.get(r), count: prod.filter((n) => n.role === r && !n.ghost).length }); y += rowH.get(r); } grid.h = y - y0;
@@ -851,19 +911,19 @@ function layoutMatrix(M, areaId) {
   const edges = Ein.map((e) => {
     const p = byIdMap.get(e.from), q = byIdMap.get(e.to), t = M.testOf(e), f = M.edgeFinding('components', e);
     const sameCol = colOf(p) === colOf(q) && !p.support, m = sameCol && rowIdx(p) !== rowIdx(q) ? (rowIdx(p) < rowIdx(q) ? 'down' : 'up') : 'generic';
-    const finding = f && !f.accepted ? f.check : null, quiet = whole && !finding && (sameCol || p.support || q.support);
+    const finding = f && !f.accepted ? f.check : null, quiet = !finding && ((whole && sameCol) || p.support || q.support);
     return { id: e.from + '>' + e.to, from: e.from, to: e.to, count: e.count, ...t, finding, health: f, quiet, mode: m, data: e };
   });
   routeVertical(edges, byIdMap);
   const rects = [{ x: 0, y: 0, w: x0 + grid.w, h: y0 + grid.h }]; if (tray) rects.push(tray);
-  return { level: 1, lens: whole ? 'runtime' : null, nodes, edges, grid, tray, bounds: bounds(nodes, rects), title: a ? a.name : 'Where it runs', frame: a ? { kind: 'area', id: a.id } : { kind: 'system', id: 'system' } };
+  return { level: 1, lens: whole ? 'layers' : null, nodes, edges, grid, tray, bounds: bounds(nodes, rects), title: a ? a.name : 'Layers', frame: a ? { kind: 'area', id: a.id } : { kind: 'system', id: 'system' } };
 }
 
 function layoutModules(M, compId) {
   const c = M.byComp.get(compId); if (!c) return null;
   const mods = M.modsOf.get(compId), ids = new Set(mods.map((m) => m.id)), hue = M.hueOf(c), rt = M.rtOf(c), nature = M.natureOf(c);
   const E = M.edgesOf.module.filter((e) => ids.has(e.from) || ids.has(e.to));
-  const nodes = mods.map((m) => { const s = sizeFor((m.metrics && m.metrics.loc) || 0, { w: 150, h: 50 }); const label = m.name || m.id.split('/').pop(); s.w = Math.max(s.w, Math.min(320, label.length * 7.6 + 44)); const nf = (m.files || []).length; return { id: m.id, kind: 'module', label, sub: `${nf} file${nf === 1 ? '' : 's'} · ${fmtLoc((m.metrics && m.metrics.loc) || 0)} loc`, hue, rt, nature, x: 0, y: 0, w: s.w, h: s.h, data: m, title: m.responsibility || '' }; });
+  const nodes = mods.map((m) => { const s = sizeFor((m.metrics && m.metrics.loc) || 0, { w: 150, h: 50 }); const label = m.name || m.id.split('/').pop(); s.w = Math.max(s.w, Math.min(320, label.length * 7.6 + 44)); const nf = (m.files || []).length; return { id: m.id, kind: 'module', label, sub: `${nf} file${nf === 1 ? '' : 's'} · ${fmtLoc((m.metrics && m.metrics.loc) || 0)} lines`, hue, rt, nature: m.test ? 'test' : nature, test: !!m.test, x: 0, y: 0, w: s.w, h: s.h, data: m, title: m.responsibility_source !== 'generated' ? m.responsibility || '' : '' }; });
   const gOut = new Map(), gIn = new Map(), Ein = [];
   for (const e of E) {
     const t = M.testOf(e);
@@ -873,11 +933,14 @@ function layoutModules(M, compId) {
     g.count += e.count; g.testCount += t.testCount; g.examples.push(...(e.examples || []).slice(0, 2)); bag.set(key, g);
     Ein.push({ from: ids.has(e.from) ? e.from : key, to: ids.has(e.from) ? key : e.to, count: e.count, ...t, data: e, ghost: true });
   }
-  const intra = Ein.filter((e) => !e.ghost), r = rankByLongestPath([...ids], intra), depth = Math.max(0, ...r.values()) + 1;
+  const intra = Ein.filter((e) => !e.ghost), testIds = new Set(nodes.filter((n) => n.test).map((n) => n.id)), codeIds = [...ids].filter((id) => !testIds.has(id));
+  const r = rankByLongestPath(codeIds.length ? codeIds : [...ids], intra.filter((e) => !testIds.has(e.from) && !testIds.has(e.to))), codeDepth = Math.max(0, ...r.values()) + 1;
+  if (codeIds.length) for (const id of testIds) r.set(id, codeDepth);
+  const depth = Math.max(0, ...r.values()) + 1;
   const rows = Array.from({ length: depth }, () => []); nodes.forEach((n) => rows[r.get(n.id)].push(n));
   const gap = 32; orderBands(rows, intra, gap);
   rows.forEach((row, i) => row.forEach((n) => { n.y = i * 132; n.band = i; }));
-  const mkGhost = (g, side) => ({ id: 'ghost:' + g.comp.id, kind: 'component', ghost: true, label: g.comp.name || g.comp.id, sub: g.count === 0 && g.testCount ? `test-only · ${g.testCount}` : `${g.count} import${g.count === 1 ? '' : 's'}${g.testCount ? ` · ${g.testCount} tests` : ''}`, hue: M.hueOf(g.comp), rt: M.rtOf(g.comp), nature: M.natureOf(g.comp), support: !M.isProduct(g.comp), w: 150, h: 40, x: 0, y: 0, data: g.comp, side, title: g.comp.responsibility || '' });
+  const mkGhost = (g, side) => ({ id: 'ghost:' + g.comp.id, kind: 'component', ghost: true, label: g.comp.name || g.comp.id, sub: g.count === 0 && g.testCount ? `test-only · ${g.testCount}` : `${g.count} import${g.count === 1 ? '' : 's'}${g.testCount ? ` · ${g.testCount} tests` : ''}`, hue: M.hueOf(g.comp), rt: M.rtOf(g.comp), nature: M.natureOf(g.comp), support: !M.isProduct(g.comp), w: 150, h: 40, x: 0, y: 0, data: g.comp, side, title: M.whatItIs(g.comp) });
   const width = Math.max(...rows.map((row) => row.reduce((s, n) => s + n.w + gap, -gap)), 200), height = (depth - 1) * 132;
   const place = (list, x) => { const step = 58, y0 = height / 2 - ((list.length - 1) * step) / 2; list.forEach((n, i) => { n.x = x; n.y = y0 + i * step; }); };
   const outs = [...gOut.values()].sort((p, q) => byId(p.comp, q.comp)).map((g) => mkGhost(g, 'out')), ins = [...gIn.values()].sort((p, q) => byId(p.comp, q.comp)).map((g) => mkGhost(g, 'in'));
@@ -886,33 +949,95 @@ function layoutModules(M, compId) {
   const merged = new Map();
   for (const e of Ein) { const k = e.from + '>' + e.to, m = merged.get(k); if (m) { m.count += e.count; m.testCount += e.testCount; m.testOnly = m.testOnly && e.testOnly; m.data = { from: e.data.from, to: e.data.to, count: m.count, test_count: m.testCount, test_only: m.testOnly, examples: [...(m.data.examples || []), ...(e.data.examples || [])].slice(0, 4) }; } else merged.set(k, { ...e }); }
   const edges = [...merged.values()].map((e) => { const p = byIdMap.get(e.from), q = byIdMap.get(e.to); const m = e.ghost ? 'generic' : p.band === q.band ? 'side' : p.band < q.band ? 'down' : 'up'; const f = !e.ghost && !e.testOnly ? M.healthOf('modules', e.from, e.to, 'cycle') : null; return { id: e.from + '>' + e.to, from: e.from, to: e.to, count: e.count, testCount: e.testCount, testOnly: e.testOnly, finding: f && !f.accepted ? 'cycle' : null, health: f, mode: m, data: e.data }; });
+  const dense = edges.length > 2.5 * nodes.length;
+  if (dense) for (const e of edges) if (!e.finding) e.quiet = true;
   routeVertical(edges, byIdMap);
-  return { level: 2, nodes: all, edges, bounds: bounds(all), title: c.name || c.id, frame: { kind: 'component', id: c.id } };
+  return { level: 2, dense, nodes: all, edges, bounds: bounds(all), title: c.name || c.id, frame: { kind: 'component', id: c.id } };
+}
+
+// "Ships in": rows are product libraries grouped by area, columns are runnables grouped by where they run; a filled dot means the
+// runnable imports the library itself, a ring that it arrives through another library. Read a row for a library's blast radius.
+function layoutShips(M, contractsOnly) {
+  const RT = ['client', 'server', 'cli', 'shared', 'build', 'none'], areaIdx = new Map(M.areas.map((a, i) => [a.id, i]));
+  const cols = M.map.components.filter(M.isRunnable).sort((p, q) => (RT.indexOf(M.rtOf(p)) - RT.indexOf(M.rtOf(q))) || (areaIdx.get(M.areaOf(p)) - areaIdx.get(M.areaOf(q))) || byId(p, q));
+  const ships = new Map(cols.map((c) => [c.id, M.shipsOf(c.id)]));
+  const inCount = (id) => cols.filter((c) => ships.get(c.id).has(id)).length;
+  const rows = M.map.components.filter((c) => M.isProduct(c) && !M.isRunnable(c) && (!contractsOnly || M.isContract(c))).sort((p, q) => (areaIdx.get(M.areaOf(p)) - areaIdx.get(M.areaOf(q))) || (inCount(q.id) - inCount(p.id)) || byId(p, q));
+  const RH = 26, CW = 30, LW = 250, HEAD = 150, GAP = 14, x0 = LW, nodes = [], cells = [], groups = [], colGroups = [];
+  let x = x0, prevRt = null;
+  cols.forEach((c) => { const rt = M.rtOf(c); if (prevRt !== null && rt !== prevRt) x += GAP; if (rt !== prevRt) colGroups.push({ rt, x, w: 0 }); colGroups[colGroups.length - 1].w = x + CW - colGroups[colGroups.length - 1].x; prevRt = rt;
+    nodes.push({ id: c.id, kind: 'component', shipCol: true, label: c.name || c.id, hue: M.hueOf(c), rt, nature: 'product', runnable: true, x: x + CW / 2, y: HEAD / 2, w: CW, h: HEAD, data: c, title: `${c.name || c.id}: ${M.runsAs(c)}. Holds ${ships.get(c.id).size} librar${ships.get(c.id).size === 1 ? 'y' : 'ies'}.` }); x += CW; });
+  const right = x;
+  let y = HEAD + 10, prevArea = null;
+  for (const c of rows) {
+    const a = M.areaOf(c); if (a !== prevArea) { y += prevArea === null ? 0 : GAP; groups.push({ area: M.byArea.get(a), y, h: 0 }); prevArea = a; }
+    const where = [...new Set(cols.filter((r) => ships.get(r.id).has(c.id)).map((r) => M.rtOf(r)))], n = inCount(c.id);
+    nodes.push({ id: c.id, kind: 'component', shipRow: true, label: c.name || c.id, hue: M.hueOf(c), rt: M.rtOf(c), nature: 'product', where, count: n, x: LW / 2 - 6, y: y + RH / 2, w: LW - 12, h: RH - 2, data: c, flag: M.flagOf(c), title: n ? `${c.name || c.id} ships in ${n} runnable${n === 1 ? '' : 's'}` : `${c.name || c.id} ships in no runnable: only tests, tools, or nothing import it` });
+    cols.forEach((r, i) => { const how = ships.get(r.id).get(c.id); if (how) { const col = nodes.find((z) => z.id === r.id); cells.push({ row: c.id, col: r.id, how, x: col.x, y: y + RH / 2, hue: M.hueOf(c) }); } });
+    groups[groups.length - 1].h = y + RH - groups[groups.length - 1].y; y += RH;
+  }
+  if (contractsOnly) for (const n of nodes) if (n.shipRow && M.contractKinds(n.data).length) n.title += ` · files: ${M.contractKinds(n.data).join(', ')}`;
+  const L = { level: 1, lens: contractsOnly ? 'contracts' : 'ships', nodes, edges: [], ships: { cells, groups, colGroups, x0, right, head: HEAD }, bounds: bounds(nodes, [{ x: 0, y: 0, w: right, h: y }]), title: contractsOnly ? 'Contracts' : 'Ships in', frame: { kind: 'system', id: 'system' } };
+  L.related = (id, rel, mark) => { for (const c of cells) { if (c.row === id) mark(rel.nodes, c.col, 'in'); if (c.col === id) mark(rel.nodes, c.row, 'out'); } return new Set([id]); };
+  return L;
+}
+
+// squarified treemap (Bruls et al.): lays items with a numeric .v into the rectangle r, deterministic for a given order
+function squarify(items, r) {
+  const out = [], total = items.reduce((s, i) => s + i.v, 0); if (!total) return out;
+  let rect = { ...r }, rest = items.slice(), scale = (r.w * r.h) / total;
+  const worst = (row, side) => { const sum = row.reduce((s, i) => s + i.v * scale, 0), mx = Math.max(...row.map((i) => i.v * scale)), mn = Math.min(...row.map((i) => i.v * scale)); return Math.max((side * side * mx) / (sum * sum), (sum * sum) / (side * side * mn)); };
+  while (rest.length) {
+    const side = Math.min(rect.w, rect.h), row = [rest.shift()];
+    while (rest.length && worst([...row, rest[0]], side) <= worst(row, side)) row.push(rest.shift());
+    const sum = row.reduce((s, i) => s + i.v * scale, 0), horiz = rect.w >= rect.h, thick = sum / side; let off = 0;
+    for (const i of row) { const len = (i.v * scale) / thick; out.push(horiz ? { item: i, x: rect.x, y: rect.y + off, w: thick, h: len } : { item: i, x: rect.x + off, y: rect.y, w: len, h: thick }); off += len; }
+    rect = horiz ? { x: rect.x + thick, y: rect.y, w: rect.w - thick, h: rect.h } : { x: rect.x, y: rect.y + thick, w: rect.w, h: rect.h - thick };
+  }
+  return out;
+}
+// "Size & activity": every component as a tile sized by its lines of code, grouped by area; colour is how often it changed recently
+function layoutSize(M) {
+  const W = 1400, H = 840, HEAD = 24, PAD = 4, nodes = [], regions = [];
+  const areas = M.areas.map((a) => ({ a, comps: (M.compsOf.get(a.id) || []).filter((c) => M.locOf(c) > 0) })).filter((x) => x.comps.length).map((x) => ({ ...x, v: x.comps.reduce((s, c) => s + M.locOf(c), 0), id: x.a.id })).sort((p, q) => (q.v - p.v) || byId(p, q));
+  const changed = [...new Set(M.map.components.map(M.changesOf).filter((v) => v > 0))].sort((a, b) => a - b);
+  const heatOf = (v) => (v > 0 ? (changed.length > 1 ? changed.indexOf(v) / (changed.length - 1) : 1) : 0);
+  for (const box of squarify(areas, { x: 0, y: 0, w: W, h: H })) {
+    const a = box.item.a, inner = { x: box.x + PAD, y: box.y + HEAD, w: Math.max(1, box.w - PAD * 2), h: Math.max(1, box.h - HEAD - PAD) };
+    regions.push({ id: 'area:' + a.id, kind: 'area', tiles: true, label: a.name, sub: `${fmtLoc(box.item.v)} lines`, hue: a.hue, x: box.x + box.w / 2, y: box.y + box.h / 2, w: box.w - 2, h: box.h - 2, data: a, title: a.definition || '' });
+    const items = box.item.comps.map((c) => ({ c, v: M.locOf(c), id: c.id })).sort((p, q) => (q.v - p.v) || byId(p, q));
+    for (const t of squarify(items, inner)) {
+      const c = t.item.c, ch = M.changesOf(c);
+      nodes.push({ id: c.id, kind: 'component', tile: true, label: c.name || c.id, sub: `${fmtLoc(M.locOf(c))} lines${M.hasActivity ? ` · ${ch} change${ch === 1 ? '' : 's'}` : ''}`, hue: M.hueOf(c), rt: M.rtOf(c), nature: M.natureOf(c), support: !M.isProduct(c), heat: M.hasActivity ? heatOf(ch) : null, x: t.x + t.w / 2, y: t.y + t.h / 2, w: Math.max(1, t.w - 2), h: Math.max(1, t.h - 2), data: c, flag: M.flagOf(c), title: `${c.name || c.id} · ${fmtLoc(M.locOf(c))} lines${M.hasActivity ? ` · ${ch} file change${ch === 1 ? '' : 's'} in ${(M.activity && M.activity.window_days) || 90} days` : ''}` });
+    }
+  }
+  return { level: 1, lens: 'size', nodes: [...regions, ...nodes], edges: [], bounds: { x: 0, y: 0, w: W, h: H }, title: 'Size & activity', frame: { kind: 'system', id: 'system' } };
 }
 
 /* ================================================================== state */
-const M = (() => { try { return buildModel(loadMap()); } catch (e) { console.error(e); banner(String(e.message || e)); throw e; } })();
+const M = (() => { try { return buildModel(loadMap()); } catch (e) { console.error(e); banner(`This map file is incomplete, so it can't be shown. Ask your agent to rebuild the map. (${e.message || e})`); throw e; } })();
 const state = { route: null, layout: null, sel: null, hover: null, hl: null, health: false, view: { x: 0, y: 0, k: 1 }, pending: null, file: null };
 const tip = $('#tip'), svg = $('#canvas'), scene = $('#scene'), gBands = $('#bands'), gRegions = $('#regions'), gEdges = $('#edges'), gNodes = $('#nodes'), gLabels = $('#labels'), stage = $('#stage'), panel = $('#panel');
 const cache = new Map();
 function parseHash() {
   const h = (location.hash || '').replace(/^#\/?/, '');
-  if (!h || h === 'domains') return { level: 0 };
-  if (h === 'runtime') return { level: 1, lens: 'runtime' };
+  if (!h || h === 'domains') return { level: 0, lens: 'purpose' };
+  if (h === 'layers' || h === 'runtime') return { level: 1, lens: 'layers' };
+  if (h === 'ships' || h === 'size' || h === 'contracts') return { level: 1, lens: h };
   let m = h.match(/^(?:area|domain)\/(.+)$/); if (m && M.byArea.has(decodeURIComponent(m[1]))) return { level: 1, id: decodeURIComponent(m[1]) };
   m = h.match(/^component\/(.+)$/); if (m && M.byComp.has(decodeURIComponent(m[1]))) return { level: 2, id: decodeURIComponent(m[1]) };
-  console.warn('codemap: unknown route', h); return { level: 0 };
+  console.warn('codemap: unknown route', h); return { level: 0, lens: 'purpose' };
 }
-function hashFor(route) { return route.level === 0 ? '#/' : route.level === 1 ? (route.id ? '#/area/' + encodeURIComponent(route.id) : '#/runtime') : '#/component/' + encodeURIComponent(route.id); }
+function hashFor(route) { return route.level === 0 ? '#/' : route.level === 1 ? (route.id ? '#/area/' + encodeURIComponent(route.id) : '#/' + (route.lens || 'layers')) : '#/component/' + encodeURIComponent(route.id); }
 function layoutFor(route) {
   const key = route.level + ':' + (route.lens || '') + ':' + (route.id || ''); if (cache.has(key)) return cache.get(key);
-  const l = route.level === 0 ? layoutSystem(M) : route.level === 1 ? layoutMatrix(M, route.id || null) : layoutModules(M, route.id);
+  const l = route.level === 0 ? layoutSystem(M) : route.lens === 'ships' ? layoutShips(M) : route.lens === 'contracts' ? layoutShips(M, true) : route.lens === 'size' ? layoutSize(M) : route.level === 1 ? layoutMatrix(M, route.id || null) : layoutModules(M, route.id);
   cache.set(key, l); return l;
 }
-function parentRoute(route) { if (route.level === 2) { const c = M.byComp.get(route.id); return { level: 1, id: M.areaOf(c) }; } return { level: 0 }; }
+function parentRoute(route) { if (route.level === 2) { const c = M.byComp.get(route.id); return { level: 1, id: M.areaOf(c) }; } return { level: 0, lens: 'purpose' }; }
 function routeInto(node) {
   if (node.kind === 'area' || node.kind === 'libs') return { level: 1, id: node.data.id };
-  if (node.kind === 'component') return node.ghost ? { level: 1, id: M.areaOf(node.data) } : { level: 2, id: node.id };
+  if (node.kind === 'component') return { level: 2, id: node.data.id };
   return null;
 }
 
@@ -939,20 +1064,33 @@ function shapeFor(n) {
     if (n.ext === 'runtime') return [sv('rect', { class: 'box', width: w, height: hh - 8, rx: 5 }), sv('path', { class: 'glyph', d: `M${w / 2 - 16},${hh} H${w / 2 + 16} M${w / 2},${hh - 8} V${hh}` })];
     return [sv('rect', { class: 'box', width: w, height: hh, rx: 4 })];
   }
-  if (n.kind === 'area') return [sv('rect', { class: 'box', width: w, height: hh, rx: n.chip ? hh / 2 : n.bv ? 10 : 12 })];
+  if (n.shipRow || n.shipCol || n.tile) return [sv('rect', { class: 'box', width: w, height: hh, rx: n.tile ? 3 : 5 })];
+  if (n.kind === 'area') return [sv('rect', { class: 'box', width: w, height: hh, rx: n.tiles ? 6 : n.chip ? hh / 2 : n.bv ? 10 : 12 })];
   if (n.kind === 'libs') return [sv('rect', { class: 'box', width: w, height: hh, rx: hh / 2 })];
   if (n.nature === 'content' || n.nature === 'docs') { const f = n.chip ? 8 : 11; return [sv('path', { class: 'box', d: `M0,0 H${w - f} L${w},${f} V${hh} H0 Z` }), sv('path', { class: 'fold', d: `M${w - f},0 V${f} H${w}` })]; }
   return [sv('rect', { class: 'box', width: w, height: hh, rx: n.runnable ? 6 : n.chip ? 4 : 8 })];
 }
 function drawNode(n) {
   const nature = n.nature || 'product';
-  const cls = ['node', n.kind, n.ext || '', n.hue == null ? 'nohue' : 'hued', 'n-' + nature, n.ghost ? 'ghost' : '', n.support ? 'support' : '', n.runnable ? 'runnable' : '', n.chip ? 'chip' : '', n.badge ? 'badge' : '', n.bv ? 'bv' : '', n.flag ? 'flag' : ''].filter(Boolean).join(' ');
+  const cls = ['node', n.kind, n.shipRow ? 'shiprow' : '', n.shipCol ? 'shipcol' : '', n.tile ? 'tile' : '', n.tiles ? 'tiles' : '', n.ext || '', n.hue == null ? 'nohue' : 'hued', 'n-' + nature, n.ghost ? 'ghost' : '', n.support ? 'support' : '', n.runnable ? 'runnable' : '', n.chip ? 'chip' : '', n.badge ? 'badge' : '', n.bv ? 'bv' : '', n.flag ? 'flag' : ''].filter(Boolean).join(' ');
   const g = sv('g', { class: cls, 'data-id': n.id, transform: `translate(${n.x - n.w / 2},${n.y - n.h / 2})`, tabindex: -1 });
   if (n.hue != null) g.style.setProperty('--h', n.hue);
   g.append(...shapeFor(n));
+  if (n.tile && n.heat != null) g.firstChild.style.fill = `color-mix(in srgb, var(--warm) ${Math.round(4 + n.heat * n.heat * 80)}%, var(--surface))`;
   if (n.title) g.append(sv('title', {}, n.title));
   const cw = 7.2;
-  if (n.kind === 'area' && n.chip) {
+  if (n.shipRow) {
+    g.append(sv('text', { class: 'name', x: 10, y: n.h / 2 + 4.5 }, trunc(n.label, n.w - 90, 7)));
+    (n.where || []).forEach((rt, i) => g.append(iconG(rt, n.w - 56 + i * 14, n.h / 2 - 6, 12)));
+    g.append(sv('text', { class: 'sub', x: n.w - 6, y: n.h / 2 + 4, 'text-anchor': 'end' }, n.count ? `in ${n.count}` : 'none'));
+  } else if (n.shipCol) {
+    g.append(iconG(n.rt, n.w / 2 - 6, n.h - 18, 12), sv('text', { class: 'name', transform: `translate(${n.w / 2 + 4},${n.h - 24}) rotate(-58)` }, trunc(n.label, 150, 7)));
+  } else if (n.kind === 'area' && n.tiles) {
+    g.append(sv('text', { class: 'name', x: 8, y: 16 }, trunc(`${n.label} · ${n.sub}`, n.w - 16, 7.6)));
+  } else if (n.tile) {
+    if (n.w > 54 && n.h > 20) g.append(sv('text', { class: 'name', x: 6, y: 15 }, trunc(n.label, n.w - 10, 7)));
+    if (n.w > 70 && n.h > 36) g.append(sv('text', { class: 'sub', x: 6, y: 29 }, trunc(n.sub, n.w - 10, 6)));
+  } else if (n.kind === 'area' && n.chip) {
     g.append(sv('text', { class: 'name', x: 12, y: n.h / 2 + 4.5, style: 'font-size: 11px' }, n.label));
   } else if (n.badge) {
     g.append(iconG('client', 5, 2, 12)); if (n.label) g.append(sv('text', { class: 'name', x: 20, y: 12 }, n.label));
@@ -979,7 +1117,7 @@ function drawNode(n) {
     const unres = n.flag.kind === 'unresolved' || n.flag.kind === 'unsorted';
     if (unres) g.append(sv('circle', { class: 'badge', cx: n.w - 2, cy: 2, r: 8 }), sv('text', { class: 'badge', x: n.w - 2, y: 5.5, 'text-anchor': 'middle' }, '?'));
     else g.append(sv('circle', { class: 'badge', cx: n.w - 2, cy: 2, r: 5 }));
-    g.append(sv('title', {}, unres ? `unresolved: Jev could not decide ${n.flag.question || 'the area'}` : `uncertain ${n.flag.question || ''} (${pct(n.flag.confidence) || '?'})`));
+    g.append(sv('title', {}, flagText(n.flag)));
   }
   return g;
 }
@@ -988,8 +1126,11 @@ function draw(L) {
   if (L.grid) {
     const G = L.grid, gg = sv('g', { class: 'grid' });
     for (const c of G.cols) for (const r of G.rows) gg.append(sv('rect', { class: 'cell', x: c.x, y: r.y, width: c.w, height: r.h }));
-    for (const c of G.cols) { const hd = sv('g', { class: 'head' }); const label = c.label.toUpperCase(), tw = label.length * 7.6 + 18 + (c.count ? String(c.count).length * 7 + 8 : 0), sx = c.x + c.w / 2 - tw / 2; hd.append(iconG(c.id, sx, G.y0 - 24, 13)); hd.append(sv('text', { class: 'head', x: sx + 18, y: G.y0 - 13 }, label)); if (c.count) hd.append(sv('text', { class: 'count', x: sx + 18 + label.length * 7.6 + 6, y: G.y0 - 13 }, String(c.count))); hd.append(sv('title', {}, `${c.label}: ${RT_DESC[c.id] || ''}`)); gg.append(hd); }
-    for (const r of G.rows) { const t = sv('text', { class: 'rowlabel', x: G.x0 - 12, y: r.y + r.h / 2 + 4, 'text-anchor': 'end' }, r.label); t.append(sv('title', {}, `${r.label}: ${ROLE_DESC[r.id] || ''}`)); gg.append(t); }
+    for (const c of G.cols) {
+      const hd = sv('g', { class: 'head' }), label = c.label.toUpperCase(), tw = label.length * 8.4 + 18 + (c.count ? String(c.count).length * 7 + 8 : 0), sx = c.x + c.w / 2 - tw / 2;
+      hd.append(iconG(c.id, sx, G.y0 - 24, 13), sv('text', { class: 'head', x: sx + 18, y: G.y0 - 13 }, label, c.count ? sv('tspan', { class: 'count', dx: 7 }, String(c.count)) : ''), sv('title', {}, `${c.label}: ${RT_DESC[c.id] || ''}`)); gg.append(hd);
+    }
+    for (const r of G.rows) { const t = sv('text', { class: 'rowlabel', x: G.x0 - 12, y: r.y + r.h / 2 - 1, 'text-anchor': 'end' }, r.label); t.append(sv('title', {}, `${r.label}: ${ROLE_DESC[r.id] || ''}`)); gg.append(t); if (ROLE_GLOSS[r.id]) gg.append(sv('text', { class: 'rowgloss', x: G.x0 - 12, y: r.y + r.h / 2 + 12, 'text-anchor': 'end' }, ROLE_GLOSS[r.id])); }
     gBands.append(gg);
   }
   if (L.tray) {
@@ -998,6 +1139,14 @@ function draw(L) {
     tg.append(sv('text', { class: 'head', x: T.x + 12, y: T.y - 8 }, 'SUPPORTING · not product code'));
     for (const g of T.groups) { tg.append(sv('rect', { class: 'group', x: g.x, y: g.y, width: g.w, height: g.h, rx: 8 })); const t = sv('text', { class: 'group', x: g.x + 12, y: g.y + 18 }, `${g.label}${g.count ? ' · ' + g.count : ''}`); t.append(sv('title', {}, NATURE_DESC[g.id] || '')); tg.append(t); }
     gBands.append(tg);
+  }
+  if (L.ships) {
+    const S = L.ships, sg = sv('g', { class: 'ships' }), bottom = L.bounds.y + L.bounds.h;
+    for (const gr of S.groups) { sg.append(sv('rect', { class: 'band', x: 0, y: gr.y - 3, width: S.right, height: gr.h + 6, rx: 6, style: gr.area.hue == null ? null : `--h: ${gr.area.hue}` })); const t = sv('text', { class: 'group', x: -10, y: gr.y + 12, 'text-anchor': 'end' }, gr.area.name); sg.append(t); }
+    for (const n of L.nodes) if (n.shipCol) sg.append(sv('line', { x1: n.x, x2: n.x, y1: S.head + 4, y2: bottom }));
+    for (const cg of S.colGroups) sg.append(iconG(cg.rt, cg.x + cg.w / 2 - 22, bottom + 8, 12), sv('text', { class: 'group', x: cg.x + cg.w / 2 - 6, y: bottom + 18 }, cg.rt));
+    for (const c of S.cells) { const d = sv('circle', { class: 'dot ' + c.how, cx: c.x, cy: c.y, r: c.how === 'direct' ? 6 : 5, 'data-row': c.row, 'data-col': c.col, style: c.hue == null ? null : `--h: ${c.hue}` }); d.append(sv('title', {}, `${M.nameOf(c.col)} ${c.how === 'direct' ? 'imports' : 'pulls in, through another library,'} ${M.nameOf(c.row)}`)); sg.append(d); }
+    gBands.append(sg);
   }
   if (L.level === 0) {
     const cg = sv('g', { class: 'col' }), heads = [['People', 'actor'], ['Areas and what runs in them', 'area'], ['External systems', 'external']];
@@ -1028,7 +1177,7 @@ function drawPills(L, lines) {
     const { line, cls } = lines.get(e.id), len = line.getTotalLength(), doc = e.fkind === 'file';
     const peers = plain(e) ? L.edges.filter((x) => plain(x) && x.to === e.to).map((x) => x.id).sort() : [e.id], k = peers.indexOf(e.id), base = e.labelX != null ? 0.5 : [0.5, 0.64, 0.36, 0.76, 0.24][k % 5];
     const ts = [base, ...[0.1, -0.1, 0.2, -0.2, 0.3, -0.3].map((d) => clamp(base + d, 0.12, 0.88))];
-    const first = e.label.split(/[:;,(]/)[0].trim(), variants = [trunc(e.label, L.labelMax || 180, 5.6)];
+    const first = e.label.split(/[:;,(]/)[0].trim(), variants = [e.label.length <= 32 ? e.label : trunc(e.label, L.labelMax || 180, 5.6)];
     for (const v of [trunc(e.label, 110, 5.6), first.length >= 10 ? first : null]) if (v && v.length < variants[variants.length - 1].length - 3) variants.push(v);
     let best = null;
     for (const text of variants) {
@@ -1044,7 +1193,7 @@ function drawPills(L, lines) {
     placed.push(best.r);
     const lg = sv('g', { class: 'flabel edge ' + cls.replace(/^edge\s*/, ''), 'data-edge': e.id, transform: `translate(${best.r.x},${best.r.y})` }, sv('rect', { width: best.r.w, height: 18, rx: 9 }));
     if (doc) lg.append(iconG('doc', 7, 3, 12));
-    lg.append(sv('text', { x: 7 + (doc ? 14 : 0), y: 12.5 }, best.text)); if (best.text !== e.label) lg.append(sv('title', {}, e.label)); gLabels.append(lg);
+    lg.append(sv('text', { x: 7 + (doc ? 14 : 0), y: 12.5 }, best.text)); const full = e.data && e.data.detail ? `${e.label}: ${e.data.detail}` : e.label; if (best.text !== full) lg.append(sv('title', {}, full)); gLabels.append(lg);
   }
 }
 function nodeEl(id) { return scene.querySelector(`.node[data-id="${CSS.escape(id)}"]`); }
@@ -1075,6 +1224,7 @@ function applyFocus() {
   if (state.hl) { for (const id of state.hl.nodes) { const el = nodeEl(id); if (el) el.classList.add('hl'); } for (const id of state.hl.edges) { const el = edgeEl(id); if (el) el.classList.add('hl'); } }
   if (state.sel && state.sel.kind === 'edge') { const el = edgeEl(state.sel.id); if (el) el.classList.add('selected'); const e = L.edges.find((x) => x.id === state.sel.id); if (e && !focusId) { svg.classList.add('focus'); const a = nodeEl(e.from), b = nodeEl(e.to); if (a) a.classList.add('self'); if (b) b.classList.add('out'); } }
   else if (state.sel) { const el = nodeEl(state.sel.id); if (el) el.classList.add('selected'); }
+  if (L.ships) for (const d of gBands.querySelectorAll('.dot')) { const on = focusId && (d.dataset.row === focusId || d.dataset.col === focusId); d.classList.toggle('on', !!on); d.classList.toggle('off', !!focusId && !on); }
   if (!focusId) { syncLabels(); return; }
   const rel = relatedTo(L, focusId), put = (el, v) => { if (!el) return; if (v === 'both') el.classList.add('out', 'in'); else el.classList.add(v); };
   for (const id of rel.self) { const el = nodeEl(id); if (el) el.classList.add('self'); }
@@ -1101,7 +1251,20 @@ function tweenView(to, ms) {
 function fitView(pad, maxK) { const b = state.layout.bounds, W = svg.clientWidth, foot = $('#legend').classList.contains('closed') ? 0 : $('#legend').offsetHeight, H = svg.clientHeight - foot; $('#zoom').style.bottom = (foot + 12) + 'px'; const k = clamp(Math.min((W - pad * 2) / b.w, (H - pad * 2) / b.h), 0.15, maxK || 1.25); return { k, x: W / 2 - (b.x + b.w / 2) * k, y: H / 2 - (b.y + b.h / 2) * k }; }
 function fit(ms) { tweenView(fitView(state.layout.level === 0 ? 28 : 48), ms == null ? 260 : ms); }
 function zoomBy(f, cx, cy) { const v = state.view, k = clamp(v.k * f, 0.15, 4), px = cx == null ? svg.clientWidth / 2 : cx, py = cy == null ? svg.clientHeight / 2 : cy; tweenView({ k, x: px - (px - v.x) * (k / v.k), y: py - (py - v.y) * (k / v.k) }, cx == null ? 160 : 0); }
-svg.addEventListener('wheel', (e) => { e.preventDefault(); const r = svg.getBoundingClientRect(); zoomBy(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0022)), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+// standard canvas gestures: two-finger scroll (or a mouse wheel) pans; pinch, or ⌘/Ctrl + scroll, zooms at the pointer
+svg.addEventListener('wheel', (e) => {
+  e.preventDefault(); const r = svg.getBoundingClientRect(), unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? svg.clientHeight : 1;
+  // pinch sends small deltas; a mouse-wheel notch sends ~100, so each step is capped to keep zoom smooth
+  if (e.ctrlKey || e.metaKey) { zoomBy(Math.exp(-clamp(e.deltaY * unit, -30, 30) * 0.01), e.clientX - r.left, e.clientY - r.top); return; }
+  if (anim) { cancelAnimationFrame(anim); anim = null; }
+  const dx = e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX, dy = e.shiftKey && !e.deltaX ? 0 : e.deltaY;
+  state.view.x -= dx * unit; state.view.y -= dy * unit; applyView();
+}, { passive: false });
+// Safari reports trackpad pinch as gesture events rather than ctrl+wheel
+let gesture = null;
+svg.addEventListener('gesturestart', (e) => { e.preventDefault(); gesture = state.view.k; });
+svg.addEventListener('gesturechange', (e) => { e.preventDefault(); if (gesture == null) return; const r = svg.getBoundingClientRect(); zoomBy((gesture * e.scale) / state.view.k, e.clientX - r.left, e.clientY - r.top); });
+svg.addEventListener('gestureend', (e) => { e.preventDefault(); gesture = null; });
 let drag = null;
 svg.addEventListener('pointerdown', (e) => { if (e.button !== 0) return; drag = { x: e.clientX, y: e.clientY, vx: state.view.x, vy: state.view.y, moved: false, id: e.pointerId }; });
 svg.addEventListener('pointermove', (e) => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (!drag.moved && Math.hypot(dx, dy) < 4) return; drag.moved = true; svg.classList.add('dragging'); try { svg.setPointerCapture(drag.id); } catch (x) { /* released */ } if (anim) { cancelAnimationFrame(anim); anim = null; } state.view.x = drag.vx + dx; state.view.y = drag.vy + dy; applyView(); });
@@ -1127,10 +1290,17 @@ function fly(from, to, hue) {
   d.animate([{ left: from.x + 'px', top: from.y + 'px', width: from.w + 'px', height: from.h + 'px', opacity: .9 }, { left: to.x + 'px', top: to.y + 'px', width: to.w + 'px', height: to.h + 'px', opacity: 0 }], { duration: 280, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'forwards' }).onfinish = () => d.remove();
 }
 function go(route, opts) { state.pending = opts || null; const hsh = hashFor(route); if (location.hash === hsh || (!location.hash && hsh === '#/')) render(); else location.hash = hsh; }
-function openNode(node) { const r = routeInto(node); if (!r) return; const from = nodeScreenRect(node.id); go(r, { from, hue: node.hue, select: node.ghost ? node.id : null, dir: 'in' }); }
+function openNode(node) { const r = routeInto(node); if (!r) return; const from = nodeScreenRect(node.id); go(r, { from, hue: node.hue, dir: 'in' }); }
 function backToId(r) { return r.level === 2 ? r.id : r.level === 1 && r.id ? 'area:' + r.id : null; }
 function up() { const r = state.route; if (r.level === 0) return; const parent = parentRoute(r), backTo = backToId(r); go(parent, { dir: 'out', backTo, hue: state.layout.nodes[0] && state.layout.nodes[0].hue, select: backTo }); }
-function setLens(lens) { if (lens === 'system') go({ level: 0 }); else go({ level: 1, lens: 'runtime' }, { select: state.sel && state.sel.kind === 'node' ? state.sel.id : null }); }
+function setLens(lens) {
+  const r = state.route, selId = state.sel && state.sel.kind === 'node' ? state.sel.id : null;
+  const comp = selId && M.byComp.has(selId) ? selId : r.level === 2 ? r.id : null, area = !comp && r.level === 1 && r.id ? r.id : selId && selId.startsWith('area:') ? selId.slice(5) : null;
+  let select = comp;
+  if (lens === 'purpose') { const c = comp && M.byComp.get(comp); select = c ? (M.isRunnable(c) && M.areaOf(c) !== 'build-verify' ? comp : 'area:' + M.areaOf(c)) : area ? 'area:' + area : null; go({ level: 0, lens: 'purpose' }, { select }); return; }
+  if (lens === 'size' && !comp && area) select = 'area:' + area;
+  go({ level: 1, lens }, { select });
+}
 function navigateTo(kind, id, extra) {
   if (kind === 'area') go({ level: 1, id }, { dir: 'in' });
   else if (kind === 'component') { const c = M.byComp.get(id); if (c) go({ level: 1, id: M.areaOf(c) }, { select: id }); }
@@ -1141,7 +1311,7 @@ function navigateTo(kind, id, extra) {
 function routeForFinding(f) {
   if ((f.level || 'components') === 'modules') { const m = M.byMod.get((f.nodes || [])[0]); return m ? { level: 2, id: m.component } : null; }
   const areas = new Set((f.nodes || []).map((id) => M.byComp.get(id)).filter(Boolean).map((c) => M.areaOf(c)));
-  return areas.size === 1 ? { level: 1, id: [...areas][0] } : { level: 1, lens: 'runtime' };
+  return areas.size === 1 ? { level: 1, id: [...areas][0] } : { level: 1, lens: 'layers' };
 }
 function showFinding(f) { const r = routeForFinding(f); if (!r) return; state.health = true; go(r, { hl: f }); }
 
@@ -1169,8 +1339,8 @@ function render() {
 }
 function renderCrumbs() {
   const r = state.route, c = $('#crumbs'); c.replaceChildren();
-  const crumbs = [{ label: M.system.name || 'System', route: { level: 0 } }];
-  if (r.level === 1 && !r.id) crumbs.push({ label: 'Where it runs', route: { level: 1, lens: 'runtime' } });
+  const crumbs = [{ label: M.system.name || 'System', route: { level: 0, lens: 'purpose' } }];
+  if (r.level === 1 && !r.id) crumbs.push({ label: LENS[r.lens].name, route: { level: 1, lens: r.lens } });
   if (r.level === 1 && r.id || r.level === 2) { const a = M.byArea.get(r.level === 1 ? r.id : M.areaOf(M.byComp.get(r.id))); crumbs.push({ label: a.name, route: { level: 1, id: a.id }, hue: a.hue }); }
   if (r.level === 2) { const comp = M.byComp.get(r.id); crumbs.push({ label: comp.name || comp.id, route: { level: 2, id: comp.id }, hue: M.hueOf(comp), rt: M.rtOf(comp) }); }
   crumbs.forEach((cr, i) => {
@@ -1178,10 +1348,13 @@ function renderCrumbs() {
     const last = i === crumbs.length - 1;
     c.append(h('button', { class: 'crumb' + (last ? ' current' : ''), onclick: () => { if (!last) go(cr.route, { dir: 'out', backTo: backToId(r), select: null }); } }, cr.hue != null ? swatch(cr.hue) : null, cr.rt ? icon(cr.rt) : null, cr.label));
   });
-  const lensEl = $('#lens'); lensEl.hidden = !(r.level === 0 || (r.level === 1 && !r.id)); for (const b of lensEl.querySelectorAll('button')) b.classList.toggle('on', b.dataset.lens === (r.level === 0 ? 'system' : 'runtime'));
-  const L = state.layout, real = L.nodes.filter((n) => !n.ghost), ghosts = L.nodes.length - real.length, prod = real.filter((n) => n.kind === 'component' && !n.support).length, sup = real.filter((n) => n.support).length;
-  const what = r.level === 0 ? `System picture · ${real.filter((n) => n.kind === 'actor').length} people · ${real.filter((n) => n.kind === 'area' && !n.bv).length} areas · ${real.filter((n) => n.kind === 'component' && n.runnable && !n.chip).length} runnables · ${real.filter((n) => n.kind === 'external' && !n.chip).length} externals` : r.level === 1 && !r.id ? `${prod} product · ${sup} supporting · only cross-runtime edges drawn; hover a node for all` : r.level === 1 ? `${prod} product · ${sup} supporting${ghosts ? ` · ${ghosts} from other areas` : ''}` : `${real.length} modules${ghosts ? ` · ${ghosts} other components` : ''}`;
-  c.append(h('span', { class: 'hint' }, `${r.level === 1 && !r.id ? 'lens' : 'L' + r.level} · ${what}`));
+  const on = r.level === 0 ? 'purpose' : r.level === 1 && !r.id ? r.lens : null;
+  for (const b of $('#lens').querySelectorAll('button')) { b.classList.toggle('on', b.dataset.lens === on); b.setAttribute('aria-selected', String(b.dataset.lens === on)); }
+  const L = state.layout, real = L.nodes.filter((n) => !n.ghost), ghosts = L.nodes.length - real.length, sup = real.filter((n) => n.support).length, prod = real.filter((n) => n.kind === 'component' && !n.support).length;
+  const what = on ? LENS[on].q
+    : r.level === 1 ? `${prod} product part${prod === 1 ? '' : 's'} by where they run and their layer${sup ? ` · ${sup} supporting beneath` : ''}${ghosts ? ` · ${ghosts} faded from other areas` : ''}`
+    : `${real.length} module${real.length === 1 ? '' : 's'}, ordered so imports point down${L.dense ? ' · too many imports to draw at once: hover a module to see its own' : ghosts ? ' · other components at the sides' : ''}`;
+  c.append(h('span', { class: 'hint' }, what));
 }
 function shapeGlyph(kind) {
   const s = sv('svg', { class: 'shape' + (kind === 'product' || kind === 'runnable' ? ' solid' : kind === 'area' ? ' tint' : ''), viewBox: '0 0 24 15' });
@@ -1196,36 +1369,50 @@ function shapeGlyph(kind) {
   return s;
 }
 function edgeGlyph(color, dash, noHead) { const s = sv('svg', { class: 'glyph', viewBox: '0 0 30 12' }); s.append(sv('path', { d: 'M1,6 H24', stroke: color, 'stroke-width': 2, fill: 'none', 'stroke-dasharray': dash || null })); if (!noHead) s.append(sv('path', { d: 'M22,2 L29,6 L22,10 Z', fill: color })); return s; }
+// the legend explains only what the current screen draws
 function renderLegend() {
   const l1 = $('#legend-1'), l2 = $('#legend-2'); l1.replaceChildren(); l2.replaceChildren();
-  const L = state.layout;
-  l1.append(h('span', { class: 'lbl', title: 'Every component keeps the hue of its area at every level' }, 'hue · area'));
-  for (const a of M.areas) if (a.hue != null || L.level !== 0) l1.append(h('span', { class: 'row link', title: a.definition || '', onclick: () => go({ level: 1, id: a.id }, { dir: 'in' }) }, swatch(a.hue), a.name));
-  l1.append(h('span', { class: 'gap' }), h('span', { class: 'lbl', title: 'Columns in the "Where it runs" lens; the corner icon of every node elsewhere. Rows there are roles: surface, adapter, core, kernel.' }, L.level === 0 ? 'icon = runs on' : 'column · icon = runs on'));
-  for (const r of RUNTIMES) l1.append(h('span', { class: 'row', title: RT_DESC[r] }, icon(r), r));
-  if (L.level === 0) {
-    l2.append(h('span', { class: 'lbl' }, 'shape · kind of thing'));
-    for (const [k, label, title] of [['person', 'person', 'someone who uses the system; the arrow points at what they use'], ['runnable', 'runnable', 'a product component that starts as its own process or page'], ['library', '+N libraries', 'the area\'s other product components; open the area to see them'], ['datastore', 'datastore', EXT_DESC.datastore], ['service', 'service', EXT_DESC.service], ['runtime', 'runtime', EXT_DESC.runtime + '. Drawn as a small device badge on each runnable that runs inside it; in the right column only when a flow names it'], ['area', 'area', 'a group of parts one kind of person uses for one purpose; Build & verify is the outlined region beneath; Unsorted is a dashed chip']]) l2.append(h('span', { class: 'row', title }, shapeGlyph(k), label));
-    l2.append(h('span', { class: 'gap' }), h('span', { class: 'lbl' }, 'arrow · flow'));
-    l2.append(h('span', { class: 'row', title: FLOW_DESC.network }, edgeGlyph('var(--flow)'), 'network'), h('span', { class: 'row', title: FLOW_DESC.file }, edgeGlyph('var(--flow)', '5 3'), 'file'), h('span', { class: 'row', title: FLOW_DESC.process }, edgeGlyph('var(--flow)', '1.5 3.5'), 'process'));
-    l2.append(h('span', { class: 'row', title: 'an external system a runnable relies on (from used_by)' }, edgeGlyph('var(--faint)', '3 3', true), 'uses external'), h('span', { class: 'row', title: 'imports into another area; shown only while hovering a runnable' }, edgeGlyph('var(--edge)', '2 3'), 'imports (hover)'));
-  } else {
-    l2.append(h('span', { class: 'lbl' }, 'shape · kind'));
-    for (const [n, label] of [['runnable', 'runnable'], ['product', 'library'], ['tooling', 'tooling'], ['test', 'test'], ['content', 'content · docs'], ['experiment', 'experiment']]) l2.append(h('span', { class: 'row', title: n === 'runnable' ? 'a product component that starts as its own process or page' : NATURE_DESC[n] }, shapeGlyph(n), label));
-    l2.append(h('span', { class: 'gap' }), h('span', { class: 'lbl' }, 'edge'));
-    l2.append(h('span', { class: 'row', title: 'a production import; thicker = more imports. On hover: blue = depends on, magenta = depended by' }, edgeGlyph('var(--edge)'), 'import'), h('span', { class: 'row', title: 'imports made only from tests' }, edgeGlyph('var(--edge)', '1.5 3.5'), 'test-only'), h('span', { class: 'row', title: 'a health finding; open Health for the reason' }, edgeGlyph('var(--bad)', '5 3'), 'finding'));
+  const L = state.layout, ns = L.nodes, es = L.edges, lbl = (t, title) => h('span', { class: 'lbl', title: title || null }, t), row = (title, ...kids) => h('span', { class: 'row', title }, ...kids), gap = () => h('span', { class: 'gap' });
+  const hues = new Set(ns.map((n) => n.hue).filter((x) => x != null)), areas = M.areas.filter((a) => a.hue != null && hues.has(a.hue));
+  if (areas.length) { l1.append(lbl('colour · area', 'Every component keeps its area\'s colour on every screen')); for (const a of areas) l1.append(h('span', { class: 'row link', title: a.definition || '', onclick: () => go({ level: 1, id: a.id }, { dir: 'in' }) }, swatch(a.hue), a.name)); }
+  const rts = RUNTIMES.filter((r) => ns.some((n) => n.rt === r && n.kind !== 'area'));
+  if (rts.length && L.lens !== 'size') { l1.append(gap(), lbl('icon · runs on')); for (const r of rts) l1.append(row(RT_DESC[r], icon(r), r)); }
+  const flagged = ns.some((n) => n.flag), badge = () => { if (!flagged) return; l2.append(gap(), lbl('badge'), row('the classifier was 40–60% sure', h('span', { class: 'dot' }), 'unsure'), row('the classifier could not decide; see the card', h('span', { class: 'q' }, '?'), 'undecided')); };
+  if (L.lens === 'ships' || L.lens === 'contracts') {
+    const dot = (cls) => { const s2 = sv('svg', { class: 'shape', viewBox: '0 0 24 15' }); s2.append(sv('circle', { class: 'dot ' + cls, cx: 12, cy: 7.5, r: 5, style: '--h: 220' })); return s2; };
+    l2.append(lbl('dot'), row('the runnable imports this library itself', dot('direct'), 'imports it'), row('it arrives through another library', dot('via'), 'through another library'));
+    badge(); return;
   }
-  l2.append(h('span', { class: 'gap' }), h('span', { class: 'lbl' }, 'badge'), h('span', { class: 'row', title: 'Jev decided this with 40–60% confidence' }, h('span', { class: 'dot' }), 'uncertain'), h('span', { class: 'row', title: 'Jev could not decide; the component sits in Unsorted' }, h('span', { class: 'q' }, '?'), 'unresolved'));
+  if (L.lens === 'size') {
+    if (M.hasActivity) { l2.append(lbl('shade · recent changes')); for (const t of [0, 0.35, 0.7, 1]) l2.append(h('span', { class: 'sw', style: `background: color-mix(in srgb, var(--warm) ${Math.round(4 + t * t * 80)}%, var(--surface))` })); l2.append(h('span', {}, 'quiet → busy')); }
+    l2.append(gap(), lbl('size'), h('span', {}, 'lines of code'));
+    badge(); return;
+  }
+  if (L.level === 0) {
+    const kinds = [['person', 'person', 'someone who uses the system', ns.some((n) => n.kind === 'actor')], ['runnable', 'runs on its own', 'a part that starts as its own process, page, or command', ns.some((n) => n.runnable)], ['library', '+N libraries', 'the area\'s other product code; open the area to see it', ns.some((n) => n.kind === 'libs')], ['datastore', 'datastore', EXT_DESC.datastore, ns.some((n) => n.ext === 'datastore' && !n.chip)], ['service', 'service', EXT_DESC.service, ns.some((n) => n.ext === 'service' && !n.chip)], ['runtime', 'runs inside', EXT_DESC.runtime, ns.some((n) => n.ext === 'runtime')]].filter((k) => k[3]);
+    l2.append(lbl('shape'), ...kinds.map(([k, label, title]) => row(title, shapeGlyph(k), label)));
+    const fk = FLOW_KINDS.filter((k) => es.some((e) => e.kind === 'flow' && e.fkind === k));
+    if (fk.length) l2.append(gap(), lbl('arrow · talks to', 'Flows come from the repository\'s docs: running things talking, not code importing code'), ...fk.map((k) => row(FLOW_DESC[k], edgeGlyph('var(--flow)', k === 'file' ? '5 3' : k === 'process' ? '1.5 3.5' : null), k === 'network' ? 'over the network' : k === 'file' ? 'through files' : 'starts or hosts')));
+    if (es.some((e) => e.kind === 'imp')) l2.append(row('imports into another area; shown while you hover a runnable', edgeGlyph('var(--edge)', '2 3'), 'imports (on hover)'));
+    badge(); return;
+  }
+  const kinds = [['runnable', 'runs on its own', (n) => n.runnable], ['product', 'library', (n) => !n.runnable && !n.support && n.nature === 'product' && n.kind === 'component'], ['product', 'module', (n) => n.kind === 'module' && !n.test], ['test', 'tests', (n) => n.nature === 'test'], ['tooling', 'tooling', (n) => n.nature === 'tooling'], ['content', 'content · docs', (n) => n.nature === 'content' || n.nature === 'docs'], ['experiment', 'experiment', (n) => n.nature === 'experiment']].filter((k) => ns.some(k[2]));
+  l2.append(lbl('shape'), ...kinds.map(([k, label]) => row(k === 'runnable' ? 'starts as its own process, page, or command' : NATURE_DESC[k] || '', shapeGlyph(k), label)));
+  l2.append(gap(), lbl('arrow · imports'), row('production imports; thicker means more. Hover a node: blue is what it uses, magenta what uses it', edgeGlyph('var(--edge)'), 'imports'));
+  if (es.some((e) => e.testOnly)) l2.append(row('imports made only from tests', edgeGlyph('var(--edge)', '1.5 3.5'), 'only from tests'));
+  if (es.some((e) => e.finding)) l2.append(row('Health asks you to look at this; open Health for why', edgeGlyph('var(--bad)', '5 3'), 'worth a look'));
+  if (ns.some((n) => n.ghost)) l2.append(row('parts of other areas or components this one touches', h('span', { class: 'sw', style: 'background: var(--ghost-fill); border: 1px solid var(--line)' }), 'faded: elsewhere'));
+  badge();
 }
 function renderGrammar() {
   const ul = $('#grammar'); ul.replaceChildren();
   const li = (title, ...body) => ul.append(h('li', {}, h('b', {}, title + ' '), ...body));
-  li('Three columns.', 'People on the left, with an arrow to what each of them uses. Areas in the middle: tinted regions, one per kind of person and purpose, holding the parts that run as their own process or page; their libraries fold into a "+N libraries" chip. External systems on the right, gray and dashed, beside the runnables that use them; a runtime such as a browser or an embedded VM is instead a small device badge on the runnable that runs inside it. Columns of areas follow the direction of the flows, so what people touch sits left and what stores state sits right. Build & verify spans the bottom: tooling, tests, content, docs, experiments, and the development tools, as chips.');
-  li('A flow arrow is not an import edge.', 'A flow (dark arrow with a label pill) says two running things talk: over the network (solid), through files one writes and the other reads (dashed, page glyph), or by one starting the other (dotted). It comes from the repository\'s own documentation. An import edge says one piece of code compiles against another; those are drawn in the area and component views, and appear on the system picture only as faint dotted lines while you hover a runnable.');
-  li('Colour is the area.', 'Every component keeps the hue of its area at every level, so an amber box inside the matrix is something the authoring area owns.');
-  li('Shape is the kind of thing.', ...[['person', 'person'], ['runnable', 'runnable'], ['library', 'library'], ['datastore', 'datastore'], ['service', 'service'], ['runtime', 'runtime']].map(([k, l]) => h('span', { class: 'row' }, shapeGlyph(k), l)), h('span', {}, ' Inside areas and the matrix, the nature of code shows the same way: solid product, outlined tooling, dashed tests, a page with a folded corner for content and docs, dotted experiments.'));
-  li('Columns and the corner icon say where it runs.', ...RUNTIMES.map((r) => h('span', { class: 'row', title: RT_DESC[r] }, icon(r), r)), h('span', {}, ' The "Where it runs" lens and each area view lay the columns out in that order; rows are roles, surface on top, then adapter, core, kernel. Healthy imports point down.'));
-  li('Badges mark doubt.', 'An amber dot means Jev decided with 40–60% confidence; a ? means it could not decide and the component sits in Unsorted until more evidence is added.');
+  li('Five lenses, one map.', 'Each lens answers one question about the same parts, and keeps your selection when you switch:');
+  for (const l of LENSES) li(`${l.key} · ${l.name}.`, l.q + '.');
+  li('Colour is the area', 'on every screen, so a part keeps its colour wherever it appears. The legend at the bottom explains only what the current screen draws.');
+  li('Arrows mean two different things.', 'On Purpose, dark arrows are running things talking (from the repository\'s docs). Everywhere else, gray arrows are code importing code.');
+  li('Go deeper', 'by clicking a part to read its card, then clicking it again (or Enter) to open what is inside: an area opens its parts, a part opens its modules, a module lists its files.');
+  li('Badges mark doubt.', 'An amber dot means the classifier was unsure; a ? means it could not decide. Health lists what is worth a look, each with the imports behind it.');
 }
 
 /* ================================================================== selection & panel */
@@ -1241,13 +1428,14 @@ function moveSelection(dx, dy) {
   if (next) select({ kind: 'node', id: next.id });
 }
 function metrics(m) {
-  if (!m) return null; const keys = [['files', 'files'], ['loc', 'loc'], ['fan_in', 'fan in'], ['fan_out', 'fan out'], ['instability', 'instab.']].filter(([k]) => m[k] != null);
-  return h('div', { class: 'metrics' }, keys.map(([k, l]) => h('div', { class: 'metric' }, h('b', {}, k === 'loc' ? fmtLoc(m[k]) : String(m[k])), h('span', {}, l))), m.in_cycle ? h('div', { class: 'metric' }, h('b', { style: 'color: var(--bad)' }, '↻'), h('span', {}, 'in cycle')) : null);
+  if (!m) return null;
+  const days = (M.activity && M.activity.window_days) || 90, keys = [['files', 'files', 'source files'], ['loc', 'lines', 'lines of code'], ['fan_in', 'used by', 'how many others import it'], ['fan_out', 'uses', 'how many others it imports'], ['changes', 'changes', `file changes in the ${days} days before this commit`]].filter(([k]) => m[k] != null && (k !== 'changes' || M.hasActivity));
+  return h('div', { class: 'metrics' }, keys.map(([k, l, t]) => h('div', { class: 'metric', title: t }, h('b', {}, k === 'loc' ? fmtLoc(m[k]) : String(m[k])), h('span', {}, l))), m.in_cycle ? h('div', { class: 'metric', title: 'part of a group that imports itself in a loop' }, h('b', { style: 'color: var(--bad)' }, '↻'), h('span', {}, 'in a loop')) : null);
 }
-function compItem(id, e, onEdge) {
+function compItem(id, e, onEdge, countText) {
   const c = M.byComp.get(id); if (!c) return null;
   const t = e ? M.testOf(e) : null, label = e ? M.importsLabel(e.count, t.testCount, t.testOnly) : '', f = e ? M.edgeFinding('components', e) : null, bad = f && !f.accepted;
-  return h('li', { class: 'item', onclick: () => navigateOrSelect('component', id) }, swatch(M.hueOf(c)), h('span', { class: 'name' }, icon(M.rtOf(c)), c.name || c.id), e ? h('span', { class: 'count', title: label + ' · show this edge', onclick: (ev) => { ev.stopPropagation(); onEdge && onEdge(); } }, t.testOnly ? 'tests' : String(e.count)) : h('span', { class: 'count', title: M.isRunnable(c) ? 'runs as its own process or page' : M.isProduct(c) ? 'a library' : NATURE_DESC[M.natureOf(c)] }, M.isRunnable(c) ? M.runsAs(c) : M.isProduct(c) ? 'library' : M.natureOf(c)), e && e.reason ? h('span', { class: 'reason' + (bad ? ' bad' : ''), title: bad ? CHECK_LABEL[f.check] : null }, e.reason, t.testCount ? h('span', { class: 'conf' }, t.testOnly ? ` · test-only (${t.testCount})` : ` · ${t.testCount} from tests`) : null) : null);
+  return h('li', { class: 'item', onclick: () => navigateOrSelect('component', id) }, swatch(M.hueOf(c)), h('span', { class: 'name' }, icon(M.rtOf(c)), c.name || c.id), e ? h('span', { class: 'count', title: label + ' · show this edge', onclick: (ev) => { ev.stopPropagation(); onEdge && onEdge(); } }, t.testOnly ? 'tests' : String(e.count)) : h('span', { class: 'count', title: M.isRunnable(c) ? 'runs as its own process or page' : M.isProduct(c) ? 'a library' : NATURE_DESC[M.natureOf(c)] }, countText || (M.isRunnable(c) ? M.runsAs(c) : M.isProduct(c) ? 'library' : M.natureOf(c))), e && e.reason ? h('span', { class: 'reason' + (bad ? ' bad' : ''), title: bad ? CHECK_LABEL[f.check] : null }, e.reason, t.testCount ? h('span', { class: 'conf' }, t.testOnly ? ` · test-only (${t.testCount})` : ` · ${t.testCount} from tests`) : null) : null);
 }
 function areaItem(id, extra) { const a = M.byArea.get(id); if (!a) return null; return h('li', { class: 'item', onclick: () => navigateOrSelect('area', id) }, swatch(a.hue), h('span', { class: 'name' }, a.name), h('span', { class: 'count' }, extra && extra.count != null ? String(extra.count) : String(M.runnablesOf(id).length)), h('span', { class: 'reason' }, (extra && extra.reason) || a.definition || '')); }
 function navigateOrSelect(kind, id) { const nid = kind === 'area' ? 'area:' + id : kind === 'actor' || kind === 'external' ? kind + ':' + id : id; const inView = state.layout.nodes.find((n) => n.id === nid); if (inView && !inView.ghost) select({ kind: 'node', id: nid }); else navigateTo(kind, id); }
@@ -1257,15 +1445,17 @@ function selectEdgeOrGo(from, to) {
   const c = M.byComp.get(from); if (c) go({ level: 1, id: M.areaOf(c) }, { selectEdge: id });
 }
 function pathRow(p) { return h('div', { class: 'path', title: 'Click to copy', onclick: () => copyText(p) }, p); }
-function flagBadge(flag) { if (!flag) return null; return h('span', { class: 'badge', title: flag.question ? `question: ${flag.question}` : null }, flag.kind, flag.confidence != null ? ` · ${pct(flag.confidence)}` : ''); }
+const FLAG_WORD = { uncertain: 'unsure', unresolved: 'undecided', unsorted: 'undecided' };
+function flagText(flag) { const q = flag.question === 'role' ? 'layer' : flag.question === 'nature' ? 'kind' : flag.question || 'area'; return flag.kind === 'uncertain' ? `Unsure of its ${q}${flag.confidence != null ? ` (${pct(flag.confidence)} confident)` : ''}` : `Could not decide its ${q}${flag.confidence != null ? ` (only ${pct(flag.confidence)} confident)` : ''}`; }
+function flagBadge(flag) { if (!flag) return null; return h('span', { class: 'badge', title: flagText(flag) }, FLAG_WORD[flag.kind] || flag.kind); }
 function openBtn(label, node) { return h('button', { class: 'btn open', onclick: () => openNode(node) }, label, ' ', h('span', { class: 'kbd' }, 'Enter')); }
 function facts(c) {
-  const dec = c.decision || {}, conf = (q) => (dec[q] && dec[q].confidence != null ? ` · Jev ${pct(dec[q].confidence)}${dec[q].flag ? ' (' + dec[q].flag + ')' : ''}` : '');
+  const dec = c.decision || {}, conf = (q) => (dec[q] && dec[q].confidence != null ? ` · decided with ${pct(dec[q].confidence)} confidence` : '');
   const rt = M.rtOf(c), na = M.natureOf(c), ro = M.roleOf(c);
   return h('div', { class: 'facts' },
     h('span', { class: 'fact', title: `Runs on: ${rt} — ${RT_DESC[rt]}${conf('runtime')}` }, h('span', { class: 'lbl' }, 'runs on'), icon(rt), rt),
     h('span', { class: 'fact', title: `Kind: ${na} — ${NATURE_DESC[na]}${conf('nature')}` }, h('span', { class: 'lbl' }, 'kind'), na),
-    h('span', { class: 'fact' + (ro === 'none' ? ' none' : ''), title: `Role: ${ro} — ${ROLE_DESC[ro]}${conf('role')}` }, h('span', { class: 'lbl' }, 'role'), ro === 'none' ? '—' : ro));
+    h('span', { class: 'fact' + (ro === 'none' ? ' none' : ''), title: `Layer: ${ro} — ${ROLE_DESC[ro]}${conf('role')}` }, h('span', { class: 'lbl' }, 'layer'), ro === 'none' ? '—' : ro));
 }
 function stripRow(counts) { const runtimes = counts.runtimes || {}; return h('div', { class: 'strip' }, RUNTIMES.filter((r) => runtimes[r]).map((r) => h('span', { class: 'row', title: `${runtimes[r]} product component${runtimes[r] === 1 ? '' : 's'} run${runtimes[r] === 1 ? 's' : ''} as ${r}: ${RT_DESC[r]}` }, icon(r), h('b', {}, String(runtimes[r])), r)), counts.supporting ? h('span', { class: 'row', title: 'tooling, tests, content, docs, experiments' }, `+${counts.supporting} supporting`) : null); }
 function usesOf(x) { return (x.uses || []).map((id) => (M.byComp.has(id) ? compItem(id) : areaItem(id))); }
@@ -1281,33 +1471,86 @@ function renderPanel() {
 }
 function frameCard() {
   const r = state.route;
-  if (r.level === 0 || !r.id) return systemCard();
+  if (r.level === 0) return systemCard();
+  if (r.level === 1 && !r.id) return lensCard(r.lens);
   if (r.level === 1) return areaCard(M.byArea.get(r.id));
   return componentCard(M.byComp.get(r.id), null);
 }
 function nodeCard(n) {
   if (!n) return null;
-  if (n.kind === 'area' || n.kind === 'libs') return areaCard(n.data, n);
+  if (n.kind === 'libs') return libsCard(n.data, n);
+  if (n.kind === 'area') return areaCard(n.data, n);
   if (n.kind === 'component') return componentCard(n.data, n);
   if (n.kind === 'module') return moduleCard(n.data, n);
   if (n.kind === 'actor') return actorCard(n.data);
   if (n.kind === 'external') return externalCard(n.data);
   return null;
 }
+function flowItem(f) {
+  const onclick = () => { const e = state.layout.edges.find((x) => x.kind === 'flow' && x.data === f); if (e) select({ kind: 'edge', id: e.id }); else go({ level: 0, lens: 'purpose' }, { selectEdge: 'flow:' + M.flows.indexOf(f) }); };
+  return h('li', { class: 'item', onclick }, h('span'), h('span', { class: 'name' }, `${M.nameOf(f.from)} → ${M.nameOf(f.to)}`), h('span', { class: 'count', title: FLOW_DESC[f.kind] || '' }, f.label || f.kind), f.detail ? h('span', { class: 'reason' }, f.detail) : null);
+}
+function lensList(current) {
+  return h('ul', { class: 'list' }, LENSES.filter((l) => l.id !== current).map((l) => h('li', { class: 'item', onclick: () => setLens(l.id) }, h('span'), h('span', { class: 'name' }, l.name), h('span', { class: 'count' }, l.key), h('span', { class: 'reason' }, l.q))));
+}
+function firstSentence(t) { const m = (t || '').match(/^.*?[.!?](\s|$)/); return m ? m[0].trim() : t || ''; }
+function builtLine() {
+  const meta = M.map.meta || {}, repo = meta.repo || {}, when = (meta.scanned_at || meta.built_at || '').slice(0, 10);
+  return h('p', { class: 'why' }, [repo.branch && repo.sha ? `${repo.branch} @ ${repo.sha.slice(0, 8)}` : repo.sha ? repo.sha.slice(0, 8) : null, when].filter(Boolean).join(' · ') || '—', h('br'), 'Structure from the code; descriptions from the repository\'s docs; groupings decided by ', h('span', { title: `${meta.jev_model || 'Jev'}, instructions v${meta.instructions_version || '?'}` }, 'Jev'), '.');
+}
 function systemCard() {
-  const S = M.system, meta = M.map.meta || {}, repo = meta.repo || {}, rc = M.runtimeCounts();
-  return h('div', {}, h('div', { class: 'kind' }, 'System'), h('h2', {}, S.name || 'System'), repo.root ? pathRow(repo.root) : null, h('p', { style: 'margin-top: 8px' }, S.purpose || ''),
-    h('h3', {}, 'Runs as'), h('div', { class: 'strip', style: 'margin-top: 0' }, RUNTIMES.filter((r) => rc[r]).map((r) => h('span', { class: 'row', title: RT_DESC[r] }, icon(r), h('b', {}, String(rc[r])), r))),
+  const S = M.system, rc = M.runtimeCounts(), lead = S.summary || firstSentence(S.purpose), flows = M.flowsInOrder();
+  return h('div', {}, h('div', { class: 'kind' }, 'Start here'), h('h2', {}, S.name || 'System'), h('p', { class: 'lead' }, lead),
+    h('div', { class: 'strip', style: 'margin-top: 4px' }, RUNTIMES.filter((r) => rc[r]).map((r) => h('span', { class: 'row', title: RT_DESC[r] }, icon(r), h('b', {}, String(rc[r])), r))),
+    flows.length ? [h('h3', {}, 'How it fits together'), h('ul', { class: 'list' }, flows.map(flowItem))] : null,
+    h('h3', {}, 'Look at it through'), lensList('purpose'),
     h('h3', {}, 'People'), h('ul', { class: 'list' }, M.actors.map((a) => h('li', { class: 'item', onclick: () => navigateOrSelect('actor', a.id) }, h('span'), h('span', { class: 'name' }, icon('person'), a.name), h('span'), h('span', { class: 'reason' }, a.role)))),
     h('h3', {}, 'Areas'), h('ul', { class: 'list' }, M.areas.map((a) => { const cnt = M.areaCounts(a); return h('li', { class: 'item', onclick: () => navigateOrSelect('area', a.id) }, swatch(a.hue), h('span', { class: 'name' }, a.name), h('span', { class: 'count', title: `${cnt.product} product · ${cnt.supporting} supporting` }, String(cnt.product + cnt.supporting)), h('span', { class: 'reason' }, a.definition)); })),
     h('h3', {}, 'External systems'), h('ul', { class: 'list' }, M.externals.map((x) => h('li', { class: 'item', onclick: () => navigateOrSelect('external', x.id) }, h('span'), h('span', { class: 'name' }, x.name), h('span', { class: 'count', title: EXT_DESC[M.extKind(x)] }, M.extKind(x)), h('span', { class: 'reason' }, x.role)))),
-    h('h3', {}, 'Built'), h('p', { class: 'why' }, [repo.branch, repo.sha ? repo.sha.slice(0, 8) : null, meta.built_at].filter(Boolean).join(' · ') || '—'), meta.jev_model ? h('p', { class: 'why' }, `decisions by ${meta.jev_model} (instructions v${meta.instructions_version || '?'})`) : null);
+    S.purpose && S.purpose !== lead ? [h('h3', {}, 'About'), h('p', { class: 'why' }, S.purpose)] : null,
+    h('h3', {}, 'Map of'), (M.map.meta && M.map.meta.repo && M.map.meta.repo.root) ? pathRow(M.map.meta.repo.root) : null, builtLine());
+}
+function compList(ids, extra) { return h('ul', { class: 'list' }, ids.map((id) => compItem(id, null, null, extra && extra(id)))); }
+function lensCard(lens) {
+  const L = LENS[lens], head = [h('div', { class: 'kind' }, 'Lens'), h('h2', {}, L.name), h('p', { class: 'lead' }, L.q + '.')];
+  if (lens === 'layers') {
+    const sup = M.map.components.filter((c) => !M.isProduct(c)).length, rc = M.runtimeCounts();
+    return h('div', {}, ...head,
+      h('p', {}, 'Columns say where code runs; rows are layers, from what people touch at the top down to the types everything shares. Healthy imports point down. A red dashed arrow is something Health asks you to look at.'),
+      h('div', { class: 'strip' }, RUNTIMES.filter((r) => rc[r]).map((r) => h('span', { class: 'row', title: RT_DESC[r] }, icon(r), h('b', {}, String(rc[r])), r))),
+      h('h3', {}, 'Layers'), h('ul', { class: 'list' }, ROLES.map((r) => h('li', { class: 'item' }, h('span'), h('span', { class: 'name' }, r), h('span', { class: 'count' }, ROLE_GLOSS[r]), h('span', { class: 'reason' }, ROLE_DESC[r])))),
+      sup ? h('p', { class: 'conf', style: 'margin-top: 10px' }, `Only product code is drawn. The ${sup} supporting components (tooling, tests, content, docs, experiments) sit beneath each area and in Build & verify.`) : null,
+      h('h3', {}, 'Also look through'), lensList(lens));
+  }
+  if (lens === 'ships') {
+    const libs = state.layout.nodes.filter((n) => n.shipRow), both = libs.filter((n) => n.where.includes('client') && n.where.includes('server')).map((n) => n.id), none = libs.filter((n) => !n.count).map((n) => n.id);
+    return h('div', {}, ...head,
+      h('p', {}, 'Rows are libraries, grouped by area; columns are the things that run, grouped by where they run. A filled dot means the runnable imports the library itself; a ring means it arrives through another library. Read a row to see everything a change to that library reaches.'),
+      both.length ? [h('h3', {}, `In both client and server (${both.length})`), h('p', { class: 'conf' }, 'Code compiled into both sides: a change here must keep both working.'), compList(both, (id) => `in ${libs.find((n) => n.id === id).count}`)] : null,
+      none.length ? [h('h3', {}, `Ships in nothing (${none.length})`), h('p', { class: 'conf' }, 'Product libraries no runnable imports: used only by tests or tools, loaded some other way, or unused. Worth a look.'), compList(none)] : null,
+      h('h3', {}, 'Also look through'), lensList(lens));
+  }
+  if (lens === 'contracts') {
+    const rows = state.layout.nodes.filter((n) => n.shipRow), both = rows.filter((n) => n.where.includes('client') && n.where.includes('server')).map((n) => n.id), files = rows.filter((n) => M.contractKinds(n.data).length).map((n) => n.id), loose = (M.map.meta && M.map.meta.unowned_contracts) || [];
+    return h('div', {}, ...head,
+      h('p', {}, 'The shared vocabulary of the system: schemas, protocols, and types that parts agree on, plus anything holding interface files such as protobuf, OpenAPI, GraphQL, or JSON Schema. Each row shows which apps, services, and commands carry it; a contract in both client and server is where the two sides meet.'),
+      both.length ? [h('h3', {}, `Shared by client and server (${both.length})`), compList(both, (id) => `in ${rows.find((n) => n.id === id).count}`)] : null,
+      files.length ? [h('h3', {}, `With interface files (${files.length})`), compList(files, (id) => M.contractKinds(M.byComp.get(id)).join(', '))] : null,
+      loose.length ? [h('h3', {}, `Interface files outside any part (${loose.length})`), loose.map((x) => h('div', { class: 'path', title: x.kind }, x.path))] : null,
+      h('h3', {}, 'Also look through'), lensList(lens));
+  }
+  const act = M.activity, top = (key) => M.map.components.slice().sort((p, q) => (key(q) - key(p)) || byId(p, q)).filter((c) => key(c) > 0).slice(0, 6).map((c) => c.id);
+  return h('div', {}, ...head,
+    h('p', {}, `Each tile is a component, sized by its lines of code and grouped by area. ${M.hasActivity ? `Colour is how often its files changed in the ${(act && act.window_days) || 90} days before this commit: the darker, the busier.` : 'This map has no git activity, so tiles take their area\'s colour.'}`),
+    M.hasActivity ? [h('h3', {}, 'Busiest'), compList(top(M.changesOf), (id) => `${M.changesOf(M.byComp.get(id))} changes`)] : null,
+    h('h3', {}, 'Largest'), compList(top(M.locOf), (id) => `${fmtLoc(M.locOf(M.byComp.get(id)))} lines`),
+    h('h3', {}, 'Also look through'), lensList(lens));
 }
 function actorCard(a) {
   const flows = M.flows.filter((f) => f.from === a.id || f.to === a.id), nameOf = (id) => (M.byComp.get(id) || {}).name || (M.actors.find((z) => z.id === id) || {}).name || (M.externals.find((z) => z.id === id) || {}).name || id;
   return h('div', {}, h('div', { class: 'kind' }, icon('person'), 'Person'), h('h2', {}, a.name), h('p', {}, a.role || ''),
     h('h3', {}, 'Uses'), (a.uses || []).length ? h('ul', { class: 'list' }, usesOf(a)) : h('p', { class: 'empty' }, 'nothing recorded'),
-    flows.length ? [h('h3', {}, `Flows (${flows.length})`), h('ul', { class: 'list' }, flows.map((f) => h('li', { class: 'item', onclick: () => go({ level: 0 }, { selectEdge: 'flow:' + M.flows.indexOf(f) }) }, h('span'), h('span', { class: 'name' }, `${nameOf(f.from)} → ${nameOf(f.to)}`), h('span', { class: 'count', title: FLOW_DESC[f.kind] || '' }, f.kind), h('span', { class: 'reason' }, f.label || ''))))] : null);
+    flows.length ? [h('h3', {}, `Flows (${flows.length})`), h('ul', { class: 'list' }, flows.map(flowItem))] : null);
 }
 function externalCard(x) {
   const k = M.extKind(x);
@@ -1321,16 +1564,25 @@ function areaCard(a, n) {
   const byNature = SUPPORT.map((nat) => [nat, comps.filter((c) => M.natureOf(c) === nat)]).filter(([, l]) => l.length);
   const flows = M.flows.filter((f) => rs.some((c) => c.id === f.from || c.id === f.to));
   const nameOf = (id) => (M.byComp.get(id) || {}).name || (M.actors.find((z) => z.id === id) || {}).name || (M.externals.find((z) => z.id === id) || {}).name || id;
-  return h('div', {}, h('div', { class: 'kind' }, swatch(a.hue), 'Area'), h('h2', {}, a.name, a.id === 'unsorted' ? h('span', { class: 'badge' }, 'unresolved') : null), h('p', {}, a.definition || ''),
-    h('div', { class: 'metrics', style: 'margin-top: 8px' }, h('div', { class: 'metric' }, h('b', {}, String(rs.length)), h('span', {}, 'runnable')), h('div', { class: 'metric' }, h('b', {}, String(cnt.product)), h('span', {}, 'product')), h('div', { class: 'metric' }, h('b', {}, String(cnt.supporting)), h('span', {}, 'supporting')), h('div', { class: 'metric' }, h('b', {}, fmtLoc(M.areaLoc(a))), h('span', {}, 'loc'))),
+  return h('div', {}, h('div', { class: 'kind' }, swatch(a.hue), 'Area'), h('h2', {}, a.name, a.id === 'unsorted' ? h('span', { class: 'badge' }, 'not placed') : null), h('p', {}, a.definition || ''),
+    h('div', { class: 'metrics', style: 'margin-top: 8px' }, h('div', { class: 'metric' }, h('b', {}, String(rs.length)), h('span', {}, 'runnable')), h('div', { class: 'metric' }, h('b', {}, String(cnt.product)), h('span', {}, 'product')), h('div', { class: 'metric' }, h('b', {}, String(cnt.supporting)), h('span', {}, 'supporting')), h('div', { class: 'metric' }, h('b', {}, fmtLoc(M.areaLoc(a))), h('span', {}, 'lines'))),
     stripRow(cnt),
     rs.length ? [h('h3', {}, `Runs as (${rs.length})`), h('ul', { class: 'list' }, rs.map((c) => compItem(c.id)))] : null,
-    flows.length ? [h('h3', {}, `Flows (${flows.length})`), h('ul', { class: 'list' }, flows.map((f) => h('li', { class: 'item', onclick: () => { const e = state.layout.edges.find((x) => x.kind === 'flow' && x.data === f); if (e) select({ kind: 'edge', id: e.id }); else go({ level: 0 }, { selectEdge: 'flow:' + M.flows.indexOf(f) }); } }, h('span'), h('span', { class: 'name' }, `${nameOf(f.from)} → ${nameOf(f.to)}`), h('span', { class: 'count', title: FLOW_DESC[f.kind] || '' }, f.kind), h('span', { class: 'reason' }, f.label || ''))))] : null,
+    flows.length ? [h('h3', {}, `Flows (${flows.length})`), h('ul', { class: 'list' }, flows.map(flowItem))] : null,
     h('h3', {}, 'Imports from'), out.length ? h('ul', { class: 'list' }, out.map((e) => areaItem(e.to, e))) : h('p', { class: 'empty' }, 'nothing outside this area'),
     h('h3', {}, 'Imported by'), inn.length ? h('ul', { class: 'list' }, inn.map((e) => areaItem(e.from, e))) : h('p', { class: 'empty' }, 'nothing'),
     libs.length ? [h('h3', {}, `Libraries (${libs.length})`), h('ul', { class: 'list' }, libs.map((c) => compItem(c.id)))] : null,
     byNature.length ? [h('h3', {}, `Supporting (${cnt.supporting})`), h('ul', { class: 'list' }, byNature.flatMap(([, l]) => l.map((c) => compItem(c.id))))] : null,
     n && state.route.level === 0 ? openBtn('Open ' + a.name, n) : null);
+}
+// what the "+N libraries · M supporting" chip stands for: exactly those parts, and a way into the area that draws them
+function libsCard(a, n) {
+  const libs = M.libsOf(a.id), sup = (M.compsOf.get(a.id) || []).filter((c) => !M.isProduct(c));
+  return h('div', {}, h('div', { class: 'kind' }, swatch(a.hue), a.name), h('h2', {}, [libs.length ? `${libs.length} librar${libs.length === 1 ? 'y' : 'ies'}` : null, sup.length ? `${sup.length} supporting` : null].filter(Boolean).join(' · ')),
+    h('p', { class: 'why' }, 'The parts of this area that do not run on their own, so the overview folds them into one chip.'),
+    libs.length ? [h('h3', {}, `Libraries (${libs.length})`), h('ul', { class: 'list' }, libs.map((c) => compItem(c.id)))] : null,
+    sup.length ? [h('h3', {}, `Supporting (${sup.length})`), h('ul', { class: 'list' }, sup.map((c) => compItem(c.id)))] : null,
+    openBtn(`Show them in ${a.name}`, n));
 }
 function componentCard(c, n) {
   const out = M.edgesOf.component.filter((e) => e.from === c.id), inn = M.edgesOf.component.filter((e) => e.to === c.id), flag = M.flagOf(c), u = M.unresolved.get(c.id), a = M.byArea.get(M.areaOf(c));
@@ -1339,41 +1591,42 @@ function componentCard(c, n) {
   return h('div', {}, h('div', { class: 'kind' }, swatch(M.hueOf(c)), `${c.kind || 'component'} · ${a ? a.name : '?'}`), h('h2', {}, c.name || c.id, flagBadge(flag)), pathRow(c.path || c.id),
     facts(c),
     h('p', { class: 'strip', style: 'margin: 2px 0 6px' }, h('span', { class: 'row' }, h('span', { class: 'lbl', style: 'color: var(--faint); text-transform: uppercase; font-size: 9px; letter-spacing: .05em; font-weight: 650' }, 'runs as'), h('b', {}, M.runsAs(c) || '—'), M.isRunnable(c) ? h('span', { class: 'badge muted', title: 'starts as its own process or page; drawn on the system picture' }, 'runnable') : null)),
-    u ? h('p', { class: 'conf' }, `Unresolved: ${u.question} → ${u.reason}. Add evidence and re-run decide.`) : null,
-    h('p', {}, c.responsibility || ''), c.why ? h('p', { class: 'why' }, c.why) : null,
+    u ? h('p', { class: 'conf' }, u.reason === 'provider_error' ? 'Not placed yet: the classification service failed on this part, so its area, runtime, kind, and layer are still open.' : `${flagText({ kind: 'unresolved', question: u.question, confidence: null })}, so it carries a ? until it is settled.`) : null,
+    c.summary ? h('p', { class: 'lead' }, c.summary) : null, h('p', { class: c.summary ? 'why' : '' }, c.responsibility || ''), c.runs ? h('p', { class: 'runs' }, h('span', { class: 'lbl' }, 'How it runs'), c.runs) : null, c.why ? h('p', { class: 'why' }, c.why) : null,
     h('h3', {}, 'Metrics'), metrics(c.metrics),
-    flows.length ? [h('h3', {}, `Flows (${flows.length})`), h('ul', { class: 'list' }, flows.map((f) => h('li', { class: 'item', onclick: () => go({ level: 0 }, { selectEdge: 'flow:' + M.flows.indexOf(f) }) }, h('span'), h('span', { class: 'name' }, `${nameOf(f.from)} → ${nameOf(f.to)}`), h('span', { class: 'count', title: FLOW_DESC[f.kind] || '' }, f.kind), h('span', { class: 'reason' }, f.label || ''))))] : null,
+    flows.length ? [h('h3', {}, `Flows (${flows.length})`), h('ul', { class: 'list' }, flows.map(flowItem))] : null,
     exts.length ? [h('h3', {}, 'Uses externals'), h('ul', { class: 'list' }, exts.map((x) => h('li', { class: 'item', onclick: () => navigateOrSelect('external', x.id) }, h('span'), h('span', { class: 'name' }, x.name), h('span', { class: 'count' }, M.extKind(x)), h('span', { class: 'reason' }, x.role || ''))))] : null,
     h('h3', {}, `Depends on (${out.length})`), out.length ? h('ul', { class: 'list' }, out.map((e) => compItem(e.to, e, () => selectEdgeOrGo(e.from, e.to)))) : h('p', { class: 'empty' }, 'nothing'),
     h('h3', {}, `Depended by (${inn.length})`), inn.length ? h('ul', { class: 'list' }, inn.map((e) => compItem(e.from, e, () => selectEdgeOrGo(e.from, e.to)))) : h('p', { class: 'empty' }, 'nothing'),
     h('h3', {}, 'Modules'), h('ul', { class: 'list' }, (M.modsOf.get(c.id) || []).map((m) => h('li', { class: 'item', onclick: () => navigateOrSelect('module', m.id) }, h('span'), h('span', { class: 'name' }, m.name || m.id), h('span', { class: 'count' }, fmtLoc((m.metrics && m.metrics.loc) || 0)), h('span', { class: 'reason' }, m.responsibility || '')))),
+    (c.contracts || []).length ? [h('h3', {}, `Contract files (${c.contracts.length})`), c.contracts.map((x) => h('div', { class: 'path', title: 'Click to copy' }, h('span', { class: 'conf' }, x.kind + ' '), x.path))] : null,
     (c.entry_points || []).length ? [h('h3', {}, 'Entry points'), c.entry_points.map(pathRow)] : null,
     (c.evidence || []).length ? [h('h3', {}, 'Evidence'), c.evidence.map(pathRow)] : null,
-    n && state.route.level <= 1 ? openBtn(n.ghost ? 'Go to ' + (a ? a.name : 'area') : 'Open modules', n) : null);
+    n && (state.route.level <= 1 || n.ghost) ? openBtn('Open its modules', n) : null);
 }
 function moduleCard(m, n) {
   const c = M.byComp.get(m.component), out = M.edgesOf.module.filter((e) => e.from === m.id), inn = M.edgesOf.module.filter((e) => e.to === m.id);
   const modItem = (id, e) => { const x = M.byMod.get(id); if (!x) return null; const oc = M.byComp.get(x.component); const foreign = x.component !== m.component; return h('li', { class: 'item', onclick: () => navigateOrSelect('module', id) }, swatch(oc ? M.hueOf(oc) : null), h('span', { class: 'name' }, foreign ? `${oc ? oc.name : x.component} / ${x.name || id}` : (x.name || id)), h('span', { class: 'count', title: M.importsLabel(e.count, e.test_count || 0, !!e.test_only), onclick: (ev) => { ev.stopPropagation(); const eid = state.layout.edges.find((y) => y.data === e || (y.from === e.from && y.to === e.to)); if (eid) select({ kind: 'edge', id: eid.id }); } }, e.test_only ? 'tests' : String(e.count)), (e.examples || [])[0] ? h('span', { class: 'reason mono' }, e.examples[0]) : null); };
   void n;
-  return h('div', {}, h('div', { class: 'kind' }, swatch(c ? M.hueOf(c) : null), `module · ${c ? c.name || c.id : m.component}`), h('h2', {}, m.name || m.id), pathRow(m.path || m.id), h('p', { style: 'margin-top: 8px' }, m.responsibility || ''),
+  return h('div', {}, h('div', { class: 'kind' }, swatch(c ? M.hueOf(c) : null), `module · ${c ? c.name || c.id : m.component}`), h('h2', {}, m.name || m.id, m.test ? h('span', { class: 'badge muted' }, 'tests') : null), pathRow(m.path || m.id), m.responsibility_source !== 'generated' && m.responsibility ? h('p', { style: 'margin-top: 8px' }, m.responsibility) : null,
     h('h3', {}, 'Metrics'), metrics(m.metrics),
     h('h3', {}, `Files (${(m.files || []).length})`), h('ul', { class: 'list' }, (m.files || []).map((f) => h('li', { class: 'item file' + (state.file === f.path ? ' hl' : ''), title: 'Click to copy path', onclick: () => copyText(f.path) }, h('span', { class: 'name' }, f.path.startsWith(m.path + '/') ? f.path.slice(m.path.length + 1) : f.path), h('span', { class: 'count' }, fmtLoc(f.loc || 0)), (f.exports || []).length ? h('span', { class: 'exp' }, 'exports ' + f.exports.join(', ')) : null))),
     h('h3', {}, `Depends on (${out.length})`), out.length ? h('ul', { class: 'list' }, out.map((e) => modItem(e.to, e))) : h('p', { class: 'empty' }, 'nothing'),
     h('h3', {}, `Depended by (${inn.length})`), inn.length ? h('ul', { class: 'list' }, inn.map((e) => modItem(e.from, e))) : h('p', { class: 'empty' }, 'nothing'));
 }
-function verdict(f) { const acc = !!f.accepted, c = f.confidence != null ? ' ' + pct(f.confidence) : ''; return { label: acc ? 'accepted by design' + c : 'finding' + c, ok: acc, byJev: f.confidence != null }; }
+function verdict(f) { const acc = !!f.accepted; return { label: acc ? 'fine by design' : 'worth a look', ok: acc, byJev: f.confidence != null, title: f.confidence != null ? `judged ${acc ? 'acceptable by design' : 'a real problem'} with ${pct(acc ? f.confidence : 1 - f.confidence)} confidence` : 'found directly in the imports' }; }
 function edgeCard(e) {
   if (!e) return null; const d = e.data || {}, L = state.layout, a = L.nodes.find((n) => n.id === e.from), b = L.nodes.find((n) => n.id === e.to), f = e.health || null;
   const chip = (n) => h('span', { class: 'chip', onclick: () => select({ kind: 'node', id: n.id }) }, n.label);
   const head = (label) => [h('div', { class: 'kind' }, label), h('div', { class: 'edgehead', style: 'margin: 4px 0 8px; font-size: 15px' }, a ? chip(a) : e.from, h('span', { class: 'arrow' }, e.kind === 'conn' ? '⇢' : '→'), b ? chip(b) : e.to)];
-  if (e.kind === 'flow') return h('div', {}, ...head('flow'), h('p', {}, h('b', {}, e.label || '—')), h('div', { class: 'facts' }, h('span', { class: 'fact', title: FLOW_DESC[e.fkind] }, h('span', { class: 'lbl' }, 'kind'), e.fkind)), h('p', { class: 'why' }, FLOW_DESC[e.fkind]), h('p', { class: 'conf' }, 'Flows come from the repository\'s own documentation, not from imports.'));
+  if (e.kind === 'flow') return h('div', {}, ...head('flow'), h('p', {}, h('b', {}, e.label || '—')), d.detail ? h('p', {}, d.detail) : null, h('div', { class: 'facts' }, h('span', { class: 'fact', title: FLOW_DESC[e.fkind] }, h('span', { class: 'lbl' }, 'kind'), e.fkind)), h('p', { class: 'why' }, FLOW_DESC[e.fkind]), h('p', { class: 'conf' }, 'Flows come from the repository\'s own documentation, not from imports.'));
   if (e.kind === 'use') return h('div', {}, ...head('person uses'), h('p', {}, d.reason || ''));
   if (e.kind === 'conn') return h('div', {}, ...head('uses external'), h('p', {}, d.reason || ''), b && b.data ? h('div', { class: 'facts' }, h('span', { class: 'fact', title: EXT_DESC[b.ext] }, h('span', { class: 'lbl' }, 'kind'), b.ext)) : null);
   if (e.kind === 'imp') return h('div', {}, ...head('imports across areas'), h('p', {}, `${e.count} production import${e.count === 1 ? '' : 's'} from ${a ? a.label : e.from} into ${b ? b.label : e.to}.`), d.reason ? h('p', { class: 'why' }, d.reason) : null);
   const v = f ? verdict(f) : null;
   return h('div', {}, ...head(`${L.level === 1 ? 'component' : 'module'} edge`),
     h('p', {}, M.importsLabel(e.count, e.testCount || 0, !!e.testOnly), f ? h('span', { class: 'badge' + (v.ok ? ' ok' : ' bad') }, CHECK_LABEL[f.check] || f.check) : e.testOnly ? h('span', { class: 'badge muted' }, 'test-only') : null),
-    f ? [h('p', { class: 'why' }, f.meaning || ''), h('p', { class: 'conf' }, `${v.ok ? 'Accepted by design' : 'Finding'}${v.byJev ? ` · Jev ${pct(f.confidence)}` : ' · decided by the scanner'}`)] : null,
+    f ? [h('p', { class: 'why' }, f.meaning || ''), h('p', { class: 'conf', title: v.title }, v.ok ? 'Judged fine by design.' : 'Worth a look.')] : null,
     d.reason ? [h('h3', {}, 'Reason'), h('p', {}, d.reason)] : null,
     (d.examples || []).length ? [h('h3', {}, 'Examples'), d.examples.map((x) => h('div', { class: 'mono ex' }, x))] : null);
 }
@@ -1381,13 +1634,14 @@ function healthSection() {
   const list = M.health, open = M.findings.length;
   const nameOf = (f, id) => ((f.level || 'components') === 'modules' ? ((M.byMod.get(id) || {}).name || id) : ((M.byComp.get(id) || { name: id }).name || id));
   const item = (f) => { const v = verdict(f); return h('div', { class: 'finding' + (state.hl && state.hl.finding === f ? ' active' : ''), title: 'Click to show where this is', onclick: () => showFinding(f) },
-    h('div', { class: 'head' }, h('b', {}, CHECK_LABEL[f.check] || f.check), h('span', { class: 'conf' }, (f.level || 'components')), h('span', { class: 'verdict' + (v.ok ? ' ok' : '') }, v.label)),
+    h('div', { class: 'head' }, h('b', { title: f.check }, CHECK_LABEL[f.check] || f.check), h('span', { class: 'conf' }, (f.level || 'components') === 'modules' ? 'inside a component' : ''), h('span', { class: 'verdict' + (v.ok ? ' ok' : ''), title: v.title }, v.label)),
     h('div', { class: 'nodes' }, (f.nodes || []).map((id, i) => [i ? h('span', { style: 'color: var(--faint)' }, f.check === 'cycle' ? '↔' : '→') : null, h('span', { class: 'chip' }, nameOf(f, id))])),
     h('div', { class: 'meaning' }, f.meaning || ''), (f.evidence || []).slice(0, 3).map((x) => h('div', { class: 'ev' }, x))); };
   const groups = CHECKS.map((c) => [c, list.filter((f) => f.check === c)]);
   for (const f of list) if (!CHECKS.includes(f.check)) { const g = groups.find((x) => x[0] === f.check); if (g) g[1].push(f); else groups.push([f.check, [f]]); }
-  return h('div', { class: 'health' }, h('div', { class: 'kind', style: open ? 'color: var(--bad)' : 'color: var(--ok)' }, `Health · ${groups.length} checks · ${open} finding${open === 1 ? '' : 's'}`),
-    h('div', { class: 'checks' }, groups.map(([c, fs]) => { const n = fs.filter((f) => !f.accepted).length; return h('div', { class: 'check', title: (fs[0] && fs[0].meaning) || '' }, h('b', {}, CHECK_LABEL[c] || c), h('span', { class: 'n' + (n ? ' bad' : '') }, n ? `${n}${fs.length > n ? ` (+${fs.length - n} accepted)` : ''}` : fs.length ? `0 (${fs.length} accepted)` : '0')); })),
+  return h('div', { class: 'health' }, h('div', { class: 'kind', style: open ? 'color: var(--bad)' : 'color: var(--ok)' }, open ? `Health · ${open} worth a look` : 'Health · all clear'),
+    h('p', { class: 'conf' }, 'Four checks on how the code depends on itself. Each result names the imports behind it.'),
+    h('div', { class: 'checks' }, groups.map(([c, fs]) => { const n = fs.filter((f) => !f.accepted).length; return h('div', { class: 'check', title: (fs[0] && fs[0].meaning) || '' }, h('b', { title: c }, CHECK_LABEL[c] || c), h('span', { class: 'n' + (n ? ' bad' : '') }, n ? `${n}${fs.length > n ? ` (+${fs.length - n} accepted)` : ''}` : fs.length ? `0 (${fs.length} accepted)` : '0')); })),
     list.length ? [...list.filter((f) => !f.accepted), ...list.filter((f) => f.accepted)].map(item) : h('p', { class: 'empty' }, 'every check passed'),
     h('p', { class: 'conf', style: 'margin-top: 8px' }, 'Test-only imports never produce findings. Click a finding to see it on the map.'));
 }
@@ -1398,14 +1652,13 @@ scene.addEventListener('pointerout', (e) => { const g = e.target.closest('.node'
 scene.addEventListener('click', (e) => {
   const g = e.target.closest('.node'); if (!g || (drag && drag.moved)) return; e.stopPropagation();
   const id = g.dataset.id, n = state.layout.nodes.find((x) => x.id === id); if (!n) return;
-  if (n.ghost || n.kind === 'libs') { openNode(n); return; }
   if (state.sel && state.sel.kind === 'node' && state.sel.id === id && routeInto(n)) openNode(n); else select({ kind: 'node', id });
 });
 scene.addEventListener('dblclick', (e) => { const g = e.target.closest('.node'); if (!g) return; const n = state.layout.nodes.find((x) => x.id === g.dataset.id); if (n) openNode(n); });
 gEdges.addEventListener('click', (e) => { const g = e.target.closest('.edge'); if (!g) return; e.stopPropagation(); select({ kind: 'edge', id: g.dataset.id }); });
 function edgeTip(ed) {
   const a = state.layout.nodes.find((n) => n.id === ed.from), b = state.layout.nodes.find((n) => n.id === ed.to), an = a ? a.label : ed.from, bn = b ? b.label : ed.to;
-  if (ed.kind === 'flow') return `${an} → ${bn} · ${ed.label || ed.fkind} · ${ed.fkind}`;
+  if (ed.kind === 'flow') return `${an} → ${bn} · ${ed.label || ed.fkind}${ed.data && ed.data.detail ? ': ' + ed.data.detail : ''}`;
   if (ed.kind === 'use') return `${an} uses ${bn}`;
   if (ed.kind === 'conn') return `${an} uses ${bn}`;
   if (ed.kind === 'imp') return `${an} imports ${bn} · ${ed.count} import${ed.count === 1 ? '' : 's'}`;
@@ -1458,13 +1711,13 @@ function setTheme(t, persist) { root.dataset.theme = t; if (persist) try { local
 (() => { let t = null; try { t = localStorage.getItem('codemap.theme'); } catch (e) { /* */ } setTheme(t || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'), false); })();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => { let t = null; try { t = localStorage.getItem('codemap.theme'); } catch (x) { /* */ } if (!t) setTheme(e.matches ? 'dark' : 'light', false); });
 const toggleTheme = () => setTheme(root.dataset.theme === 'dark' ? 'light' : 'dark', true);
-function renderHealthButton() { const b = $('#health-btn'), n = M.findings.length; b.replaceChildren(n ? `Health · ${n} finding${n === 1 ? '' : 's'}` : 'Health ✓', ' ', h('span', { class: 'kbd' }, 'h')); b.classList.toggle('ok', !n); b.classList.toggle('on', state.health); b.title = `${M.health.length} recorded check result${M.health.length === 1 ? '' : 's'} · ${n} open finding${n === 1 ? '' : 's'} (h)`; }
+function renderHealthButton() { const b = $('#health-btn'), n = M.findings.length; b.replaceChildren(n ? `Health · ${n} to look at` : 'Health ✓', ' ', h('span', { class: 'kbd' }, 'h')); b.classList.toggle('ok', !n); b.classList.toggle('on', state.health); b.title = `${M.health.length} recorded check result${M.health.length === 1 ? '' : 's'} · ${n} open finding${n === 1 ? '' : 's'} (h)`; }
 const toggleHealth = () => { state.health = !state.health; if (!state.health) highlight(null); renderHealthButton(); renderPanel(); };
 const toggleLegend = () => { $('#legend').classList.toggle('closed'); fit(); };
 const toggleHelp = (force) => { const el = $('#help'); el.hidden = force == null ? !el.hidden : !force; };
 $('#theme-btn').addEventListener('click', toggleTheme); $('#health-btn').addEventListener('click', toggleHealth); $('#help-btn').addEventListener('click', () => toggleHelp());
 $('#help').addEventListener('click', (e) => { if (e.target === $('#help')) toggleHelp(false); });
-for (const b of $('#lens').querySelectorAll('button')) b.addEventListener('click', () => setLens(b.dataset.lens));
+for (const l of LENSES) $('#lens').append(h('button', { 'data-lens': l.id, role: 'tab', title: `${l.q} (${l.key})`, onclick: () => setLens(l.id) }, l.name, ' ', h('span', { class: 'kbd' }, l.key)));
 $('#zoom-in').addEventListener('click', () => zoomBy(1.3)); $('#zoom-out').addEventListener('click', () => zoomBy(1 / 1.3)); $('#zoom-fit').addEventListener('click', () => fit());
 document.addEventListener('keydown', (e) => {
   if (e.target === q || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -1472,7 +1725,7 @@ document.addEventListener('keydown', (e) => {
   if (k === '/') { e.preventDefault(); q.focus(); q.select(); }
   else if (k === 'Escape') { if (!$('#help').hidden) toggleHelp(false); else if (state.hl) highlight(null); else if (state.sel) select(null); else up(); }
   else if (k === 't') toggleTheme(); else if (k === 'h') toggleHealth(); else if (k === '0') fit(); else if (k === 'l') toggleLegend(); else if (k === '?') toggleHelp();
-  else if (k === '1') setLens('system'); else if (k === '2') setLens('runtime');
+  else if (LENSES.some((l) => l.key === k)) setLens(LENSES.find((l) => l.key === k).id);
   else if (k === '+' || k === '=') zoomBy(1.3); else if (k === '-' || k === '_') zoomBy(1 / 1.3);
   else if (k === 'ArrowLeft') { e.preventDefault(); moveSelection(-1, 0); } else if (k === 'ArrowRight') { e.preventDefault(); moveSelection(1, 0); }
   else if (k === 'ArrowUp') { e.preventDefault(); moveSelection(0, -1); } else if (k === 'ArrowDown') { e.preventDefault(); moveSelection(0, 1); }

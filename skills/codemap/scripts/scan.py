@@ -16,6 +16,14 @@ wasm-pack config, wasm-bindgen), ``server_libs``, ``client_libs``, ``desktop``,
 (``tools``, ``tests``, ``docs``, ``content``, ``prototypes``, ``art``, ``output``
 from the unit's top-level path segment, else null) and ``test_file_share``.
 
+``contracts`` lists tracked contract and schema files found by name alone
+(protobuf, GraphQL, OpenAPI, AsyncAPI, JSON Schema, Avro, Thrift, Cap'n Proto,
+FlatBuffers, XML Schema, Smithy) with the unit that owns their directory.
+
+Every file carries ``changes``: the commits that touched it in the 90 days
+before the scanned commit's own date (``activity`` records the window), so the
+count depends on the commit, never on when the scan ran.
+
 A manifest-less top-level directory with 40 or more source files splits into one
 unit per first-level subdirectory holding 8 or more of them (when at least two
 do), so ``tools/`` reads as ``tools-dev``, ``tools-gltf``, ... rather than one blob;
@@ -91,6 +99,57 @@ def _tracked_files(root: Path) -> list[str]:
     if out.returncode != 0:
         raise ScanError("not a git repository: %s" % root)
     return sorted(p for p in out.stdout.decode("utf-8", "replace").split("\0") if p)
+
+
+ACTIVITY_DAYS = 90
+# contract and schema files, recognized by name alone so any stack's interface definitions count
+CONTRACT_KINDS = (
+    (re.compile(r"\.proto$"), "protobuf"),
+    (re.compile(r"\.(graphql|graphqls|gql)$"), "graphql"),
+    (re.compile(r"(^|/)(openapi|swagger)[^/]*\.(json|ya?ml)$", re.I), "openapi"),
+    (re.compile(r"(^|/)asyncapi[^/]*\.(json|ya?ml)$", re.I), "asyncapi"),
+    (re.compile(r"\.schema\.json$|(^|/)schemas?/[^/]+\.json$", re.I), "json-schema"),
+    (re.compile(r"\.(avsc|avdl)$"), "avro"),
+    (re.compile(r"\.thrift$"), "thrift"),
+    (re.compile(r"\.capnp$"), "capnproto"),
+    (re.compile(r"\.fbs$"), "flatbuffers"),
+    (re.compile(r"\.(xsd|wsdl)$"), "xml-schema"),
+    (re.compile(r"\.smithy$"), "smithy"),
+)
+
+
+def contract_kind(path: str) -> str | None:
+    for pattern, kind in CONTRACT_KINDS:
+        if pattern.search(path):
+            return kind
+    return None
+
+
+
+def _activity(root: Path, sha: str | None) -> tuple[dict, dict[str, int]]:
+    """Commits per path in the ACTIVITY_DAYS before the scanned commit.
+
+    The window ends at the commit's own date, so the same commit always yields
+    the same counts no matter when the scan runs.
+    """
+    if not sha:
+        return {"window_days": ACTIVITY_DAYS, "since": None, "until": None, "commits": 0}, {}
+    until = (_git(root, "show", "-s", "--format=%cI", sha, check=False) or "").strip()
+    if not until:
+        return {"window_days": ACTIVITY_DAYS, "since": None, "until": None, "commits": 0}, {}
+    end = _dt.datetime.fromisoformat(until)
+    since = (end - _dt.timedelta(days=ACTIVITY_DAYS)).isoformat()
+    log = _git(root, "log", "--no-renames", "--format=%x00%H", "--name-only",
+               "--since=%s" % since, "--until=%s" % until, sha, check=False) or ""
+    counts: dict[str, int] = {}
+    commits = 0
+    for block in log.split("\0")[1:]:
+        commits += 1
+        for line in block.splitlines()[1:]:
+            path = line.strip()
+            if path:
+                counts[path] = counts.get(path, 0) + 1
+    return {"window_days": ACTIVITY_DAYS, "since": since, "until": until, "commits": commits}, counts
 
 
 def _is_ignored(path: str) -> bool:
@@ -1232,7 +1291,7 @@ def parse_python(scanner: Scanner, src: str, lines: list[str], unit: Unit | None
 
 TEST_DIRS = {"tests", "test", "__tests__", "spec", "specs", "testing", "fixtures", "e2e", "benches", "benchmarks"}
 TEST_BASENAME = re.compile(
-    r"(?:^|[._-])(?:test|tests|spec)\.[cm]?[jt]sx?$|^test_.*\.py$|_test\.py$|^conftest\.py$|_test\.rs$|^tests?\.rs$"
+    r"(?:^|[._-])(?:test|tests|spec)\.[cm]?[jt]sx?$|^test_.*\.py$|_tests?\.py$|^conftest\.py$|_tests?\.rs$|^tests?\.rs$"
 )
 
 
@@ -1261,6 +1320,7 @@ def scan(repo_root: Path, ref: str = "HEAD", now: str | None = None) -> dict:
     branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD", check=False)
     remote = _git(root, "remote", "get-url", "origin", check=False)
 
+    activity, changes = _activity(root, sha_value)
     files: list[dict] = []
     for path in sorted(scanner.source):
         lang = scanner.source[path]
@@ -1270,7 +1330,8 @@ def scan(repo_root: Path, ref: str = "HEAD", now: str | None = None) -> dict:
         except OSError:
             continue
         lines = text.splitlines()
-        files.append({"path": path, "lang": lang, "loc": len(lines), "role": file_role(path), "unit": unit.id if unit else None})
+        files.append({"path": path, "lang": lang, "loc": len(lines), "role": file_role(path), "unit": unit.id if unit else None,
+                      "changes": changes.get(path, 0)})
         if lang in ("ts", "js"):
             parse_js(scanner, path, lines)
         elif lang == "rust":
@@ -1278,6 +1339,12 @@ def scan(repo_root: Path, ref: str = "HEAD", now: str | None = None) -> dict:
         elif lang == "python":
             parse_python(scanner, path, lines, unit)
 
+    contracts = []
+    for path in tracked:
+        kind = contract_kind(path) if not _is_ignored(path) else None
+        if kind:
+            owner = scanner.unit_for(path)
+            contracts.append({"path": path, "kind": kind, "unit": owner.id if owner else None})
     files_by_unit: dict[str, list[dict]] = {}
     for f in files:
         files_by_unit.setdefault(f["unit"], []).append(f)
@@ -1323,6 +1390,8 @@ def scan(repo_root: Path, ref: str = "HEAD", now: str | None = None) -> dict:
             "branch": branch.strip() if branch else None,
         },
         "scanned_at": now,
+        "activity": activity,
+        "contracts": contracts,
         "units": [u.to_dict() for u in sorted(scanner.units, key=lambda u: u.id)],
         "files": files,
         "edges": edges,

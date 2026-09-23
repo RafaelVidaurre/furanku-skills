@@ -39,11 +39,11 @@ _sleep = time.sleep
 
 def transient(error):
     text = str(error)
-    return "HTTP 429" in text or "HTTP 529" in text or "timed out" in text
+    return any(f"HTTP {code}" in text for code in (429, 502, 503, 529)) or "timed out" in text
 
 
 def evaluate_with_backoff(evaluate, payload):
-    """Retry rate-limit, overload, and timeout failures with exponential backoff; everything else fails at once."""
+    """Retry rate-limit, overload, unavailable, and timeout failures with exponential backoff; everything else fails at once."""
     for delay in RETRY_DELAYS + (None,):
         try:
             return evaluate(payload)
@@ -54,7 +54,7 @@ def evaluate_with_backoff(evaluate, payload):
 
 
 SCHEMA = "codemap.decisions/1"
-INSTRUCTIONS_VERSION = 6
+INSTRUCTIONS_VERSION = 8
 MAX_STATE_CHARS = 6000
 LIST_LIMIT = 8
 RUNTIMES = ("server", "client", "shared", "cli", "build", "none")
@@ -65,23 +65,23 @@ RUNTIME_DEFINITIONS = {
     "server": "a long-lived service process",
     "client": "a page or desktop app a person uses",
     "shared": "a library compiled into more than one runtime",
-    "cli": "a command run by a person or a script",
-    "build": "runs only while building or developing",
+    "cli": "a command that is part of the product, run by its users or operators",
+    "build": "runs only while building, testing, developing, or producing assets, however it is started",
     "none": "not executable: content, docs",
 }
 NATURE_DEFINITIONS = {
     "product": "runs as part of what users use, including the authoring tools designers operate",
-    "tooling": "build, dev stack, quality gates, asset pipelines",
+    "tooling": "build, dev stack, quality gates, asset pipelines and the art or data sources they build from",
     "test": "harnesses, acceptance lanes, test support",
-    "content": "data and scripts the product loads",
+    "content": "data and scripts the product itself loads at run time",
     "docs": "documentation and review evidence",
     "experiment": "prototypes and spikes",
 }
 ROLE_DEFINITIONS = {
     "surface": "what a person or another system touches: UI, API handlers, CLI entry points, editor hosts",
-    "adapter": "I/O and engines: persistence, transport, rendering, filesystem, OS and browser APIs",
-    "core": "the system's own rules, models, sessions, workflows",
-    "kernel": "types, schemas, utilities every role shares",
+    "adapter": "I/O and engines: persistence, transport, rendering, filesystem, and wrappers of OS or browser APIs",
+    "core": "the system's own behavior: rules, models, sessions, workflows, and compilers of authored rule content",
+    "kernel": "the shared vocabulary: types, schemas and their validators, contracts, and plain utilities every role uses",
 }
 ABSTAIN = "Abstain: the state lacks the evidence to decide; do not guess."
 NEW_AREA = "None of the offered areas fits this product component; the draft needs a new area for it."
@@ -96,13 +96,17 @@ AREA_INSTRUCTIONS = (
     "An area is a group of parts one kind of person uses for one purpose. Place this component with the "
     "people who use it, judging by its responsibility rather than by who imports it. A library every area "
     "uses belongs to the area that owns its vocabulary, and a library several areas use with no owner "
-    "goes with its heaviest product consumer. Supporting code (tooling, tests, content, docs, "
-    "experiments) belongs to the area it serves, or to build_verify when it serves the repository itself: "
-    "build, gates, dev stack, repo-wide tests, docs. Choose new_area when this is product code and no "
+    "goes with its heaviest product consumer; that is an ordinary placement, not a reason for new_area. Supporting code (tooling, tests, content, docs, "
+    "experiments) belongs to the one area it serves, or to build_verify when it serves the repository itself or more "
+    "than one area: build, gates, dev stack, repo-wide tests, docs, tools that measure several parts of the system. "
+    "Choose new_area when this is product code and no "
     "offered area fits; choose abstain when the card lacks the evidence to decide."
 )
 RUNTIME_INSTRUCTIONS = (
-    "Decide where this component runs. Weigh the manifest hints first: executable targets, wasm targets, "
+    "Decide where this component runs. Read the card's runs line first: who starts it, when, and what uses its "
+    "output. Code that only developers, artists, testers, or CI run (tooling, pipelines, dev stacks, gates, "
+    "harnesses, sandboxes) is build even when started from a terminal; cli is reserved for commands that are part "
+    "of the product. Then weigh the manifest hints: executable targets, wasm targets, "
     "server libraries, browser libraries, desktop wrappers, and the directory it lives in; then its "
     "dependents, which show which runtimes compile it in. A library with no executable entry is shared when "
     "its dependents run in more than one runtime, and takes its dependents' runtime when they all run in one; "
@@ -112,7 +116,9 @@ RUNTIME_INSTRUCTIONS = (
 NATURE_INSTRUCTIONS = (
     "Decide what kind of code this component is: part of what users use (product, including the authoring "
     "tools designers operate) or something that supports building, testing, describing, or exploring the "
-    "product. Weigh the directory kind, test frameworks, share of test files, and the responsibility. A library "
+    "product. Read the card's runs line first: product code is run by the product's users (players, designers, "
+    "operators, or the agents that drive the product's tools) or loaded by what they run. Then weigh the directory "
+    "kind, test frameworks, share of test files, and the responsibility. A library "
     "that product components import is product code however unglamorous (schemas, contracts, generated types); "
     "tooling and test code never compile into what users run. Choose abstain when the card lacks the evidence to decide."
 )
@@ -120,7 +126,10 @@ ROLE_INSTRUCTIONS = (
     "Place this component at its hexagonal position so that healthy dependencies point down: surface uses "
     "adapters and core, adapters implement for core, core rests on the kernel. Surface is what a person or "
     "another system touches first (an executable's entry, an API, a UI host); an executable service is surface, "
-    "not adapter. Judge by what the component owns and who touches it, not by its size. If the component is not "
+    "not adapter. A library whose job is to call a storage, network, engine, or OS or browser API is adapter; one "
+    "that decides what happens in the system (its rules and workflows) is core; types, schemas, validators, and "
+    "contracts that describe the data every role exchanges are kernel, however detailed their checks. Judge by "
+    "what the component owns and who touches it, not by its size. If the component is not "
     "product code, choose the closest fit anyway; the answer is recorded but unused. Choose abstain when the card "
     "lacks the evidence to decide."
 )
@@ -327,7 +336,7 @@ def component_card(skeleton, draft, component):
         "path": component.get("path"), "kind": component.get("kind"),
         "hints": dict(sorted((component.get("hints") or {}).items())),
         "derived": derived_facts(component, incoming, outgoing),
-        "responsibility": clip(card.get("responsibility")), "why": clip(card.get("why")),
+        "responsibility": clip(card.get("responsibility")), "runs": clip(card.get("runs")), "why": clip(card.get("why")),
         "entry_points": [clip(e, 200) for e in card.get("entry_points") or [] if isinstance(e, str)],
         "evidence": evidence_paths(card.get("evidence")),
         "loc": metrics.get("loc"), "files": metrics.get("files"),
@@ -402,6 +411,19 @@ def edge_state(cards, values, edge, draft, attribute):
     return clip_state(state)
 
 
+DERIVED_RUNTIME = {"tooling": "build", "test": "build", "experiment": "build", "docs": "none"}
+
+
+def derived_runtime(entry):
+    """The runtime a decided nature implies, or None when the nature leaves it open (product, content)."""
+    nature = entry["nature"]
+    value = DERIVED_RUNTIME.get(nature["value"]) if nature["status"] != "unresolved" else None
+    if value is None:
+        return None
+    return {"value": value, "status": "accepted", "confidence": None, "reason": None,
+            "derived": f"{nature['value']} code: runtime follows from the nature"}
+
+
 def question(kind, criteria):
     return {"type": "boolean" if kind in BOOLEAN_QUESTIONS else "choice", "instructions": QUESTIONS[kind], "criteria": criteria}
 
@@ -448,6 +470,7 @@ class Session:
                 self.previous[(record["node"], record["question"], record.get("pass", 1))] = record
         self.evaluate, self.zdr, self.dry_run, self.changes = evaluate, zdr, dry_run, changes or {}
         self.records, self.requests = [], []
+        self.failed, self.streak = [], 0  # nodes the provider could not evaluate; consecutive failed calls
         self.calls = self.cached = 0
         self.last_call = float("-inf")
         self.cost = 0.0
@@ -489,7 +512,18 @@ class Session:
         wait = MIN_INTERVAL - (time.monotonic() - self.last_call)
         if wait > 0:
             _sleep(wait)
-        result = evaluate_with_backoff(self.evaluate, payload)
+        try:
+            result = evaluate_with_backoff(self.evaluate, payload)
+        except jev_client.Error as exc:
+            # One card the provider keeps failing on (502/503 after the backoff) is skipped and re-asked on the
+            # next run; a second failure in a row looks like an outage and stops the run.
+            if self.streak or not any(f"HTTP {code}" in str(exc) for code in (502, 503)):
+                raise
+            self.streak += 1
+            self.last_call = time.monotonic()
+            self.failed.append({"node": node, "error": str(exc)})
+            return answers
+        self.streak = 0
         self.last_call = time.monotonic()
         self.calls += 1
         cost = result.get("cost_usd")
@@ -511,6 +545,13 @@ class Session:
             self.records.append(record)
             answers[kind] = answer
         return answers
+
+    def torn_between(self, node, kind):
+        """The two most likely options of the latest answer to one question: what the evidence must separate."""
+        latest = [r for r in self.records if r["node"] == node and r["question"] == kind]
+        probabilities = (latest[-1].get("probabilities") if latest else None) or {}
+        ranked = sorted(((v, k) for k, v in probabilities.items() if k != "abstain" and isinstance(v, (int, float))), reverse=True)
+        return [k for _v, k in ranked[:2]]
 
     def carry(self, node, kind, state, criteria, previous):
         """Re-record a held decision under the current fingerprint."""
@@ -555,7 +596,7 @@ def partial_cache(interrupted):
 def _decide(session, skeleton, draft, dry_run):
     components = component_index(skeleton)
     areas = draft["areas"]
-    unresolved = []
+    unresolved, uncertain = [], []
 
     # 1. Area, runtime, nature, and role per component, one request each.
     cards = {cid: component_card(skeleton, draft, c) for cid, c in sorted(components.items())}
@@ -578,16 +619,20 @@ def _decide(session, skeleton, draft, dry_run):
             if kind in answers:
                 entry[kind] = resolve_choice(answers[kind])
             else:
-                entry[kind] = {"value": None, "status": "unresolved", "confidence": None, "reason": "dry-run"}
+                failed = any(f["node"] == cid for f in session.failed)
+                entry[kind] = {"value": None, "status": "unresolved", "confidence": None, "reason": "provider_error" if failed else "dry-run"}
         resolution[cid] = entry
 
     # 1b. Second pass: components with a shaky runtime, nature, or role are re-asked with what the first
     # round decided about their neighbours. A second answer replaces the first unless it is worse.
     second_pass = []
     for cid, entry in resolution.items() if not dry_run else []:
+        if any(f["node"] == cid for f in session.failed):
+            continue
         applies = entry["nature"]["value"] in (None, "product")
         shaky = [k for k in SECOND_PASS_QUESTIONS if entry[k]["status"] != "accepted"
-                 and (k != "role" or applies or entry["nature"]["status"] != "accepted")]
+                 and (k != "role" or applies or entry["nature"]["status"] != "accepted")
+                 and (k != "runtime" or derived_runtime(entry) is None)]
         if not shaky:
             continue
         state = second_pass_card(skeleton, components[cid], cards[cid], resolution)
@@ -602,11 +647,20 @@ def _decide(session, skeleton, draft, dry_run):
         second_pass.append(cid)
 
     for cid, entry in resolution.items():
+        # Supporting code runs at build time and docs never run: the runtime follows from the nature.
+        derived = derived_runtime(entry)
+        if derived:
+            entry["runtime"] = derived
         # Role matters only for product code (build treats an unresolved nature as product).
         entry["role_applies"] = entry["nature"]["value"] in (None, "product")
         for kind in COMPONENT_QUESTIONS:
-            if entry[kind]["status"] == "unresolved" and not dry_run and (kind != "role" or entry["role_applies"]):
-                unresolved.append({"node": cid, "question": kind, "reason": entry[kind]["reason"]})
+            if dry_run or entry[kind]["status"] == "accepted" or (kind == "role" and not entry["role_applies"]):
+                continue
+            doubt = {"node": cid, "question": kind, "torn_between": session.torn_between(cid, kind)}
+            if entry[kind]["status"] == "unresolved":
+                unresolved.append(dict(doubt, reason=entry[kind]["reason"]))
+            else:
+                uncertain.append(dict(doubt, value=entry[kind]["value"], confidence=entry[kind]["confidence"]))
 
     # 2. Health checks that need judgment, on production edges between product components.
     value_of = lambda cid, kind: resolution[cid][kind]["value"]
@@ -646,7 +700,7 @@ def _decide(session, skeleton, draft, dry_run):
             "areas_assigned": count_values("area"), "runtimes": count_values("runtime"), "natures": count_values("nature"),
             "findings": findings,
             "total_cost_usd": round(session.cost, 8), "total_elapsed_seconds": round(session.elapsed, 3),
-            "unresolved_nodes": unresolved,
+            "unresolved_nodes": unresolved, "uncertain_nodes": uncertain, "provider_failures": session.failed,
         },
     }
     if dry_run:

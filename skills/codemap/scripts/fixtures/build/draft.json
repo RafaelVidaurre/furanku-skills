@@ -38,6 +38,8 @@
     "apps/api/README.md"
    ],
    "responsibility": "Owns the HTTP API that the CLI and web UI call to start flows and read their state.",
+   "runs": "Runs as a long-lived service the CLI and web UI call over HTTP.",
+   "summary": "The HTTP service the CLI and web UI talk to.",
    "why": "Without it the flows have no process to run in."
   },
   "cli": {
@@ -48,6 +50,8 @@
     "apps/cli/README.md"
    ],
    "responsibility": "Owns the operator command line that runs and inspects flows.",
+   "runs": "Operators run it from a terminal to start and inspect flows.",
+   "summary": "The command-line tool operators use to run flows.",
    "why": "Without it operators cannot trigger ingest or publish."
   },
   "content": {
@@ -58,6 +62,8 @@
     "content/scripts/seed.js"
    ],
    "responsibility": "Owns the seed and spawn scripts the demo loads at start.",
+   "runs": "Not run itself; the demo loads these scripts at start.",
+   "summary": "Seed and spawn scripts the demo loads at start.",
    "why": "Without it the demo starts empty."
   },
   "devtools": {
@@ -68,6 +74,8 @@
     "tools/devtools/bench/run.ts"
    ],
    "responsibility": "Owns benchmarks and lint rules for the workspace.",
+   "runs": "Developers and CI run it; nothing ships it.",
+   "summary": "Benchmarks and lint rules for the workspace.",
    "why": "Without it regressions in rule evaluation go unnoticed."
   },
   "docs": {
@@ -78,6 +86,8 @@
     "docs/README.md"
    ],
    "responsibility": "Owns the worked examples the documentation compiles.",
+   "runs": "Not run; the docs build compiles the examples.",
+   "summary": "Worked examples for the documentation.",
    "why": "Without it the docs drift from the API."
   },
   "harness": {
@@ -88,6 +98,8 @@
     "tests/harness/package.json"
    ],
    "responsibility": "Owns the acceptance lane that drives the CLI and web flows end to end.",
+   "runs": "CI runs it against the CLI and web UI; nothing ships it.",
+   "summary": "End-to-end tests that drive the CLI and web UI.",
    "why": "Without it a broken flow ships unnoticed."
   },
   "lab": {
@@ -98,6 +110,8 @@
     "prototypes/lab/README.md"
    ],
    "responsibility": "Owns the quick-ingest spike that tries a streaming variant of ingest.",
+   "runs": "A developer runs it by hand to try a streaming ingest; nothing ships it.",
+   "summary": "A throwaway experiment with streaming ingest.",
    "why": "Without it the streaming idea has no place to be tried."
   },
   "orchestrator": {
@@ -108,6 +122,8 @@
     "packages/orchestrator/README.md"
    ],
    "responsibility": "Owns the ingest and publish workflows and their queue.",
+   "runs": "Compiled into the API service; runs inside it.",
+   "summary": "The ingest and publish workflows and their queue.",
    "why": "Without it nothing coordinates rules and storage."
   },
   "rules": {
@@ -118,6 +134,8 @@
     "packages/rules/README.md"
    ],
    "responsibility": "Owns the record model and the rule engine that evaluates it.",
+   "runs": "Compiled into the API service and the web UI.",
+   "summary": "The record model and the rule engine that checks records.",
    "why": "Without it records cannot be judged."
   },
   "schema": {
@@ -128,6 +146,8 @@
     "packages/schema/README.md"
    ],
    "responsibility": "Owns the shared entity and event types and their validators.",
+   "runs": "Compiled into every product component that exchanges entities.",
+   "summary": "Shared entity and event types with their validators.",
    "why": "Without it packages disagree on record shapes."
   },
   "store": {
@@ -138,6 +158,8 @@
     "packages/store/README.md"
    ],
    "responsibility": "Owns persistence of records in SQLite and in memory.",
+   "runs": "Compiled into the API service; reads and writes SQLite.",
+   "summary": "Record storage in SQLite or in memory.",
    "why": "Without it nothing survives a restart."
   },
   "web": {
@@ -148,6 +170,8 @@
     "apps/web/README.md"
    ],
    "responsibility": "Owns the browser UI analysts use to review results.",
+   "runs": "Analysts open it in a browser.",
+   "summary": "The browser app analysts use to review results.",
    "why": "Without it results are only visible through the CLI."
   }
  },
@@ -178,6 +202,22 @@
  },
  "module_responsibilities": {
   "rules/engine": "Compiles and evaluates rules against entities."
+ },
+ "module_summaries": {
+  "cli/commands": "The commands part of cli.",
+  "cli/root": "The cli part of cli.",
+  "devtools/bench": "The bench part of devtools.",
+  "devtools/lint": "The lint part of devtools.",
+  "orchestrator/flows": "The flows part of orchestrator.",
+  "orchestrator/queue": "The queue part of orchestrator.",
+  "rules/engine": "The engine part of rules.",
+  "rules/model": "The model part of rules.",
+  "schema/types": "The types part of schema.",
+  "schema/validate": "The validate part of schema.",
+  "store/memory": "The memory part of store.",
+  "store/sqlite": "The sqlite part of store.",
+  "web/state": "The state part of web.",
+  "web/views": "The views part of web."
  },
  "schema": "codemap.draft/1",
  "system": {
@@ -230,15 +270,17 @@
   ],
   "flows": [
    {
+    "detail": "starts ingest and publish flows",
     "from": "cli",
     "kind": "network",
-    "label": "HTTP: starts ingest and publish flows",
+    "label": "HTTP",
     "to": "api"
    },
    {
+    "detail": "flow state and results",
     "from": "web",
     "kind": "network",
-    "label": "HTTP: flow state and results",
+    "label": "HTTP",
     "to": "api"
    },
    {
@@ -248,13 +290,15 @@
     "to": "sqlite"
    },
    {
+    "detail": "status reads persisted records",
     "from": "cli",
     "kind": "file",
-    "label": "status reads persisted records",
+    "label": "reads records",
     "to": "sqlite"
    }
   ],
   "name": "Demo",
-  "purpose": "Demo ingests records, evaluates them against rules, and publishes results to operators through a CLI and a web UI."
+  "purpose": "Demo ingests records, evaluates them against rules, and publishes results to operators through a CLI and a web UI.",
+  "summary": "A rules engine operators drive from a CLI and a web UI to ingest, evaluate, and publish records."
  }
 }

@@ -45,7 +45,9 @@ def test_fixture_trio_builds_a_valid_deterministic_map(trio, valid_map):
     assert comp["devtools"]["area"] == "build-verify" and comp["devtools"]["decision"]["area"] == {"confidence": 0.7, "flag": None}
     assert [(a["id"], a["uses"]) for a in valid_map["system"]["actors"]] == [("analyst", ["web"]), ("operator", ["cli"])]
     assert [(e["id"], e["kind"], e["used_by"]) for e in valid_map["system"]["externals"]] == [("browser", "runtime", ["web"]), ("playwright", "devtool", ["harness"]), ("sqlite", "datastore", ["store"])]
-    assert valid_map["flows"][0] == {"from": "cli", "to": "api", "label": "HTTP: starts ingest and publish flows", "kind": "network"}
+    assert valid_map["flows"][0] == {"from": "cli", "to": "api", "label": "HTTP", "detail": "starts ingest and publish flows", "kind": "network"}
+    assert "detail" not in valid_map["flows"][2]
+    assert valid_map["system"]["summary"].startswith("A rules engine")
     assert len(valid_map["flows"]) == 4
     assert (comp["web"]["runtime"], comp["orchestrator"]["runtime"], comp["rules"]["runtime"]) == ("client", "server", "shared")
     assert {c["id"]: c["nature"] for c in valid_map["components"] if c["nature"] != "product"} == {
@@ -94,7 +96,9 @@ def test_fixture_trio_builds_a_valid_deterministic_map(trio, valid_map):
                                                 "evidence": "experiment code imported by product components: orchestrator"}]
     mods = {m["id"]: m for m in valid_map["modules"]}
     assert mods["rules/engine"]["name"] == "Rule engine" and mods["rules/engine"]["responsibility_source"] == "draft"
-    assert mods["rules/model"]["responsibility_source"] == "generated" and mods["rules/model"]["responsibility"]
+    assert mods["rules/model"]["responsibility_source"] == "draft"  # a module summary from module_summaries
+    small = [m for m in valid_map["modules"] if m["responsibility_source"] == "generated"]
+    assert small and all(m["responsibility"] for m in small)  # modules too small to need a summary get a generated line
 
 
 def test_unresolved_components_fall_back_flagged_without_crashing(trio):

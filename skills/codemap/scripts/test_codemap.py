@@ -85,13 +85,13 @@ def test_draft_template_writes_fixed_shape_once_then_reports_gaps(repo, capsys):
     code, payload = run(capsys, "draft-template", "--repo", str(repo))
     assert code == 0 and payload["created"] is True
     draft = store.read_json(store.paths(repo)["draft"])
-    assert draft["system"] == {"name": "", "purpose": "", "actors": [], "externals": [], "flows": []}
+    assert draft["system"] == {"name": "", "summary": "", "purpose": "", "actors": [], "externals": [], "flows": []}
     assert draft["areas"] == [] and draft["module_names"] == {}
     assert "domain_partitions" not in draft
     assert payload["shapes"] == codemap.SHAPES and set(payload["shapes"]) == {"actor", "external", "flow", "area"}
-    assert payload["gaps"][:2] == ["system.name", "system.purpose"] and {"system.flows", "areas"} <= set(payload["gaps"])
+    assert payload["gaps"][:3] == ["system.name", "system.summary", "system.purpose"] and {"system.flows", "areas"} <= set(payload["gaps"])
     assert set(draft["components"]) == {"api", "cli", "web", "orchestrator", "rules", "store", "schema", "devtools", "harness", "lab", "content", "docs"}
-    assert draft["components"]["cli"] == {"responsibility": "", "why": "", "entry_points": [], "evidence": []}
+    assert draft["components"]["cli"] == {"summary": "", "responsibility": "", "runs": "", "why": "", "entry_points": [], "evidence": []}
     assert draft["edge_reasons"]["cli->orchestrator"] == ""
     assert len(draft["edge_reasons"]) == 19
     assert "components.cli.responsibility" in payload["gaps"] and "edge_reasons.cli->store" in payload["gaps"]
@@ -99,12 +99,14 @@ def test_draft_template_writes_fixed_shape_once_then_reports_gaps(repo, capsys):
     draft["system"]["name"] = "Demo"
     draft["system"]["actors"] = [{"id": "operator", "name": "Operator", "role": "Runs flows.", "uses": []}]
     draft["system"]["externals"] = [{"id": "sqlite", "name": "SQLite", "role": "Records.", "used_by": ["store"]}]
+    draft["system"]["flows"] = [{"from": "cli", "to": "api", "kind": "network", "label": "HTTP: starts ingest and publish flows"}]
     draft["areas"] = [{"id": "operating", "name": "Operating", "definition": "x", "components": ["cli"]}]
     store.write_json(store.paths(repo)["draft"], draft)
     code, payload = run(capsys, "draft-template", "--repo", str(repo))
     assert code == 0 and payload["created"] is False and payload["complete"] is False
     assert "system.name" not in payload["gaps"] and "system.purpose" in payload["gaps"] and "areas" not in payload["gaps"]
     assert "system.actors[operator].uses" in payload["gaps"] and "system.externals[sqlite].kind" in payload["gaps"]
+    assert any(g.startswith("system.flows[cli->api].label longer than 32") for g in payload["gaps"])
     assert store.read_json(store.paths(repo)["draft"])["system"]["name"] == "Demo"
 
 
@@ -196,6 +198,8 @@ def test_all_stops_on_missing_or_incomplete_draft_then_runs_pipeline(repo, capsy
     assert payload["areas"] == {"build_verify": 3, "operating": 1, "processing": 7, "reviewing": 1}
     assert payload["runtimes"] == {"build": 2, "cli": 1, "client": 2, "none": 2, "server": 3, "shared": 2}
     assert payload["natures"]["product"] == 7 and payload["findings"] == {"core-uses-adapter": 1} and payload["unresolved"] == []
+    # decide's own doubt lists reach the agent through the CLI summary
+    assert "unresolved_nodes" in payload and "calls_made" in payload
     code, payload = run(capsys, "decide", "--repo", str(repo), "--require-zdr")
     assert code == 1 and "require-zdr" in payload["error"]
 
@@ -250,7 +254,7 @@ def test_update_records_changes_merges_draft_and_defers_decide_until_gaps_are_fi
     assert changes["components"]["rules"]["files_changed"] == [rules_file["path"]]
     assert changes["previous_sha"] != changes["current_sha"] == "b" * 40
     draft = store.read_json(paths["draft"])
-    assert draft["components"]["metrics"] == {"responsibility": "", "why": "", "entry_points": [], "evidence": []}
+    assert draft["components"]["metrics"] == {"summary": "", "responsibility": "", "runs": "", "why": "", "entry_points": [], "evidence": []}
     assert draft["edge_reasons"]["metrics->schema"] == "" and draft["edge_reasons"]["cli->schema"] == ""
     assert draft["components"]["cli"]["responsibility"]  # existing prose untouched
     assert payload["draft"]["components_added"] == ["metrics"] and payload["draft"]["edges_added"] == ["cli->schema", "metrics->schema"]

@@ -108,8 +108,8 @@ def test_metrics_edges_and_cycles():
     )
     result = skeleton.skeleton(scan)
     comp = {c["id"]: c for c in result["components"]}
-    assert comp["a"]["metrics"] == {"files": 4, "loc": 40, "fan_in": 0, "fan_out": 1, "instability": 1.0, "in_cycle": False}
-    assert comp["b"]["metrics"] == {"files": 2, "loc": 14, "fan_in": 1, "fan_out": 1, "instability": 0.5, "in_cycle": False}
+    assert comp["a"]["metrics"] == {"files": 4, "loc": 40, "fan_in": 0, "fan_out": 1, "instability": 1.0, "in_cycle": False, "changes": 0}
+    assert comp["b"]["metrics"] == {"files": 2, "loc": 14, "fan_in": 1, "fan_out": 1, "instability": 0.5, "in_cycle": False, "changes": 0}
     assert comp["c"]["metrics"]["instability"] == 0.0
     mods = {m["id"]: m for m in result["modules"]}
     assert mods["a/x"]["metrics"]["in_cycle"] and mods["a/y"]["metrics"]["in_cycle"]
@@ -187,3 +187,29 @@ def test_display_name_drops_package_scope():
     assert skeleton.display_name({"id": "world-renderer", "name": "@ue-mmo/world-renderer"}) == "world-renderer"
     assert skeleton.display_name({"id": "sim-core", "name": "sim-core"}) == "sim-core"
     assert skeleton.display_name({"id": "tools", "name": ""}) == "tools"
+
+
+def test_flat_root_splits_by_file_stem_and_test_modules_are_marked():
+    files = [(f"crates/sim/src/{stem}.rs", 100, "sim") for stem in ("lib", "step", "world", "rules", "items", "death")]
+    files += [("crates/sim/src/combat/mod.rs", 50, "sim"), ("crates/sim/src/combat/melee.rs", 50, "sim"), ("crates/sim/src/combat.rs", 20, "sim")]
+    files += [("crates/sim/tests/a.rs", 40, "sim"), ("crates/sim/tests/b.rs", 40, "sim")]
+    scan = make_scan([("sim", "crates/sim")], files)
+    for f in scan["files"]:
+        f["role"] = "test" if "/tests/" in f["path"] else "source"
+        f["changes"] = 2 if f["path"].endswith("step.rs") else 0
+    result = skeleton.skeleton(scan)
+    mods = {m["id"]: m for m in result["modules"]}
+    # entry files stay in root; each other root file is its own module; combat.rs joins combat/
+    assert module_map(result)["sim/root"] == ["crates/sim/src/lib.rs"]
+    assert {"sim/step", "sim/world", "sim/rules", "sim/items", "sim/death"} <= set(mods)
+    assert sorted(module_map(result)["sim/combat"]) == ["crates/sim/src/combat.rs", "crates/sim/src/combat/melee.rs", "crates/sim/src/combat/mod.rs"]
+    assert mods["sim/step"]["metrics"]["changes"] == 2
+    assert [m["id"] for m in result["modules"] if m["test"]] == ["sim/tests"]
+    assert mods["sim/step"]["root_file"] and mods["sim/root"]["root_file"] and not mods["sim/tests"]["root_file"]
+    assert result["components"][0]["metrics"]["changes"] == 2
+
+
+def test_small_or_minor_root_does_not_split():
+    files = [("p/src/a.ts", 10, "p"), ("p/src/b.ts", 10, "p"), ("p/src/x/1.ts", 100, "p"), ("p/src/x/2.ts", 100, "p")]
+    result = skeleton.skeleton(make_scan([("p", "p")], files))
+    assert set(module_map(result)) == {"p/root", "p/x"}

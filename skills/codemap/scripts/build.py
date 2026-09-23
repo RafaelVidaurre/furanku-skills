@@ -9,7 +9,7 @@ draft      the agent's ``draft.json``: ``system`` {name, purpose, actors
            flows [{from, to, label, kind}]}, ``areas`` [{id, name, definition,
            components: [ids]}], ``components`` {id: {responsibility, why,
            entry_points, evidence}}, ``edge_reasons`` {"from->to": reason},
-           optional ``module_names`` {id: name} and ``module_responsibilities``
+           optional ``module_names`` {id: name} and ``module_summaries`` (legacy ``module_responsibilities``)
            {id: text}.
 decisions  ``decisions.json`` from decide.py: per-component
            ``resolution`` {id: {area, runtime, nature, role}} entries of the
@@ -65,7 +65,7 @@ UNSORTED = "unsorted"
 BUILD_VERIFY = "build-verify"
 BUILD_VERIFY_ANSWER = "build_verify"
 BUILD_VERIFY_DEFINITION = "Supporting code that serves the repository itself rather than one area: build, gates, dev stack, repo-wide tests, docs."
-UNSORTED_DEFINITION = "Components whose area is unresolved; add evidence to the draft and re-run decide."
+UNSORTED_DEFINITION = "Parts the map could not place in an area yet; each card says what was left open."
 IMPLICIT_AREAS = (BUILD_VERIFY, UNSORTED)
 HUE_START = 210
 ACCEPT = 0.6
@@ -284,8 +284,11 @@ def _flows(system: dict) -> list[dict]:
     flows = []
     for item in system.get("flows") or []:
         if isinstance(item, dict):
-            flows.append({"from": str(item.get("from", "")), "to": str(item.get("to", "")),
-                          "label": str(item.get("label", "")), "kind": str(item.get("kind", ""))})
+            flow = {"from": str(item.get("from", "")), "to": str(item.get("to", "")),
+                    "label": str(item.get("label", "")), "kind": str(item.get("kind", ""))}
+            if item.get("detail"):
+                flow["detail"] = str(item["detail"])
+            flows.append(flow)
     return flows
 
 
@@ -315,7 +318,7 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
     if isinstance(edge_reasons, list):
         edge_reasons = {edge_key(e["from"], e["to"]): e.get("reason", "") for e in edge_reasons if isinstance(e, dict)}
     module_names = draft.get("module_names") or {}
-    module_texts = draft.get("module_responsibilities") or {}
+    module_texts = {**(draft.get("module_responsibilities") or {}), **{k: v for k, v in (draft.get("module_summaries") or {}).items() if v}}
 
     components = []
     unresolved = []
@@ -372,7 +375,10 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
             "runtime": values["runtime"],
             "nature": values["nature"],
             "role": values["role"],
+            "summary": str(card.get("summary", "")),
+            "contracts": [dict(c) for c in comp.get("contracts", [])],
             "responsibility": str(card.get("responsibility", "")),
+            "runs": str(card.get("runs", "")),
             "why": str(card.get("why", "")),
             "entry_points": [str(e) for e in card.get("entry_points", [])],
             "evidence": [str(e) for e in card.get("evidence", [])],
@@ -403,7 +409,7 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
              for aid, spec, hue in zip(area_ids, areas_in, hues)]
     areas.append(area_entry(BUILD_VERIFY, "Build & verify", BUILD_VERIFY_DEFINITION, None))
     if members[UNSORTED]:
-        areas.append(area_entry(UNSORTED, "Unsorted", UNSORTED_DEFINITION, None))
+        areas.append(area_entry(UNSORTED, "Not placed yet", UNSORTED_DEFINITION, None))
     area_of = {c["id"]: c["area"] for c in components}
     name_of = {c["id"]: c["name"] for c in components}
 
@@ -417,6 +423,7 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
             "component": mod["component"],
             "name": name,
             "path": mod.get("path", ""),
+            "test": bool(mod.get("test", False)),
             "responsibility": str(text) if text else f"Holds the {name} files of {name_of.get(mod['component'], mod['component'])}.",
             "responsibility_source": "draft" if text else "generated",
             "files": [dict(f) for f in mod.get("files", [])],
@@ -477,13 +484,14 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
             "reason_source": "draft" if drafted else "generated",
             "count": bucket["count"],
         })
+    root_modules = {m["id"] for m in skeleton.get("modules", []) if m.get("root_file", m["id"].endswith("/root"))}
     for level in ("components", "modules"):
         level_edges = component_edges if level == "components" else skeleton.get("edges", {}).get("modules", [])
         for cycle in skeleton.get("cycles", {}).get(level, []):
             inside = set(cycle)
-            # A module cycle through the component's root module (lib.rs / index.ts re-exporting submodules
-            # that import shared items back) is the ordinary hub pattern, not a finding.
-            if level == "modules" and any(node.endswith("/root") for node in inside):
+            # A module cycle through the component's source root (lib.rs / index.ts re-exporting submodules that
+            # import shared items back, or sibling files of a flat crate) is the ordinary hub pattern, not a finding.
+            if level == "modules" and inside & root_modules:
                 continue
             evidence = [ex for e in level_edges if e["from"] in inside and e["to"] in inside and not e.get("test_only")
                         for ex in e.get("examples", [])[:1]]
@@ -500,6 +508,8 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
             "repo": dict(skeleton.get("meta", {}).get("repo", {})),
             "built_at": built_at or scanned_at,
             "scanned_at": scanned_at,
+            "activity": skeleton.get("meta", {}).get("activity"),
+            "unowned_contracts": list(skeleton.get("meta", {}).get("unowned_contracts") or []),
             "skill_version": SKILL_VERSION,
             "jev_model": str(meta_in.get("model") or DEFAULT_MODEL),
             "instructions_version": int(meta_in.get("instructions_version") or 1),
@@ -508,6 +518,7 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
             "id": "system",
             "name": str(system.get("name", "")),
             "purpose": str(system.get("purpose", "")),
+            "summary": str(system.get("summary", "")),
             "actors": _people(system.get("actors"), "actors"),
             "externals": _people(system.get("externals"), "externals"),
             "runtime_counts": {r: sum(1 for c in product_components if c["runtime"] == r) for r in RUNTIMES},
