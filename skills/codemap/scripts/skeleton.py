@@ -119,12 +119,73 @@ def _tarjan(nodes: list[str], adjacency: dict[str, set[str]]) -> list[list[str]]
     return sorted(result)
 
 
+GENERIC_SEGMENTS = {"src", "lib", "app", "source", "internal"}
+
+
+def _module_label(key: str) -> str:
+    """A split module's name without the generic folders every path shares: src/lib/entities/assets -> entities/assets."""
+    parts = key.split("/")
+    while len(parts) > 1 and parts[0] in GENERIC_SEGMENTS:
+        parts.pop(0)
+    return "/".join(parts)
+
+
+LARGE_MODULE_FILES = 60
+SPLIT_DEPTH = 3
+
+
+def _split_large(groups: dict) -> None:
+    """Split a module holding more than LARGE_MODULE_FILES files by its next directory level (up to SPLIT_DEPTH).
+
+    One 500-file module meets the per-screen bound by hiding the structure a reader came for; its subdirectories
+    (feature folders in any stack) are the natural next level. Files directly in the directory stay together.
+    """
+    for _ in range(SPLIT_DEPTH):
+        changed = False
+        for key in sorted(k for k in groups if k != "root"):
+            group = groups[key]
+            if len(group["files"]) <= LARGE_MODULE_FILES:
+                continue
+            base = group["path"].rstrip("/") + "/"
+
+            def by_next_dir(prefix):
+                out = {}
+                for f in group["files"]:
+                    rest = f["path"][len(prefix):] if f["path"].startswith(prefix) else None
+                    out.setdefault(rest.split("/", 1)[0] if rest and "/" in rest else "", []).append(f)
+                return out
+            subs, hops, loose = by_next_dir(base), [], []
+            # descend through a chain of single folders (src/lib/...) to where the code actually branches;
+            # a few loose files beside that folder (an index file) stay with the parent module
+            while (len(named := [k for k in subs if k]) == 1 and len(subs[named[0]]) >= 0.8 * len(group["files"])
+                   and len(hops) < 4):
+                loose += subs.get("", [])
+                hops.append(named[0])
+                subs = by_next_dir(base + "/".join(hops) + "/")
+                subs = {k: [f for f in v if f not in loose] for k, v in subs.items()}
+            if len([k for k in subs if k]) < 2:
+                continue
+            subs[""] = loose + subs.get("", [])
+            if not subs[""]:
+                subs.pop("")
+            base = base + "".join(h + "/" for h in hops)
+            groups.pop(key)
+            for sub, files in sorted(subs.items()):
+                new_key = "/".join([key, *hops, sub]) if sub else key
+                groups[new_key] = {"files": files, "path": base + sub if sub else group["path"],
+                                   **({"root_file": group["root_file"]} if group.get("root_file") else {})}
+            changed = True
+        if not changed:
+            return
+
+
 def _merge_to_cap(groups: dict, edges: list) -> None:
     """Merge the smallest module into the one it shares the most imports with until MODULE_CAP remain.
 
     Files that import each other belong together whatever the language, so nothing lands in a catch-all
     bucket. The entry module (root) is the last resort: every file hangs off it, so its links say nothing.
-    Deterministic: smallest by lines, then by key; ties between neighbours go to the larger, then by key.
+    Deterministic: smallest by lines, then by key; among neighbours, those under the size bound first, then the
+    most shared imports, then the smaller, then by key.
     """
     loc = lambda k: sum(f["loc"] for f in groups[k]["files"])
     while len(groups) > MODULE_CAP:
@@ -136,7 +197,10 @@ def _merge_to_cap(groups: dict, edges: list) -> None:
             if ka and kb and ka != kb and small in (ka, kb):
                 other = kb if ka == small else ka
                 links[other] = links.get(other, 0) + 1
-        ranked = sorted((k for k in links if k != "root"), key=lambda k: (-links[k], -loc(k), k))
+        # prefer neighbours still under the size bound, then the most shared imports, then the smaller one, so a
+        # module everything imports (a shared lib folder) does not snowball into a catch-all
+        big = lambda k: len(groups[k]["files"]) > LARGE_MODULE_FILES
+        ranked = sorted((k for k in links if k != "root"), key=lambda k: (big(k), -links[k], loc(k), k))
         target = ranked[0] if ranked else ("root" if "root" in groups else min((k for k in groups if k != small), key=lambda k: (-loc(k), k)))
         absorbed = groups.pop(small)
         dest = groups[target]
@@ -240,6 +304,7 @@ def skeleton(scan: dict) -> dict:
             groups["root"]["files"] = keep
             if not keep:
                 groups.pop("root")
+        _split_large(groups)
         _merge_to_cap(groups, unit_edges.get(unit_id, []))
         module_ids = []
         for key in sorted(groups):
@@ -253,7 +318,7 @@ def skeleton(scan: dict) -> dict:
             modules.append({
                 "id": module_id,
                 "component": unit_id,
-                "name": (display_name(unit) if key == "root" else key) + (f" + {len(group['merged'])} more" if group.get("merged") else ""),
+                "name": (display_name(unit) if key == "root" else _module_label(key)) + (f" + {len(group['merged'])} more" if group.get("merged") else ""),
                 "merged": sorted(group.get("merged", [])),
                 "path": group["path"] or unit_path,
                 "test": bool(records) and tests >= len(records) * TEST_MODULE_SHARE,
