@@ -127,14 +127,16 @@ edge carries a grounded fact and path, and each branch or loop is explicit.
 
 `landscape` contains `{enabled, decision}`. Project records contain accepted
 `components`, resolved `kind`, the primary-kind `decision`, and
-`membership_decisions: [{component, decision}]`. Only accepted graphs enter
-`views`, each with a `decision`; `view_decisions: [{id, project, kind, decision}]`
-retains every proposal, including rejected and uncertain ones.
+`membership_decisions: [{component, decision}]`. Accepted graphs and graphs Jev
+was unsure of (40–60%) enter `views`, each with its `decision`; the viewer marks an
+unsure graph "unsure", as it marks an unsure component. `view_decisions: [{id,
+project, kind, decision}]` retains every proposal, including rejected ones.
 
 A decision is `{value, status, confidence, reason}`. Repository choices use
 `accepted`, `uncertain`, or `unresolved`; membership and view booleans can also
-be `rejected`. Only an accepted true boolean admits a member or view. If an
-accepted view links a component whose membership was not accepted, the whole
+be `rejected`. Only an accepted true boolean admits a member; a view is shown when
+accepted or unsure and hidden when rejected or unresolved. If a shown view links a
+component whose membership was not accepted, the whole
 view is withheld with an unresolved diagnostic. The graph is never silently
 rewritten to conceal rejected ownership.
 

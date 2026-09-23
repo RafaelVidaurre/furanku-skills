@@ -720,7 +720,8 @@ def repository_map(skeleton, draft, decisions):
                         "reason": "view references a component without accepted membership in this project"}
             accepted = False
         diagnostics.append({"id": proposed["id"], "project": proposed["project"], "kind": proposed["kind"], "decision": decision})
-        if accepted:
+        # like a component, a view Jev was unsure of (40-60%) is shown with an unsure mark; below that it stays hidden
+        if accepted or (decision["status"] == "uncertain" and not any(n.get("component") not in members for n in proposed["nodes"] if "component" in n)):
             views.append(dict(proposed, decision=decision))
     return {"landscape": {"enabled": enabled, "decision": shape}, "projects": projects,
             "project_relations": draft.get("project_relations", []) if enabled else [],
@@ -783,17 +784,18 @@ def validate_repository_map(map_obj):
             errors.append("view_decisions: dangling project")
     for view in map_obj.get("views", []):
         decision = view["decision"]
-        if decision["status"] != "accepted" or decision["value"] is not True:
-            errors.append(f"view {view['id']}: lacks accepted Jev decision")
+        if not ((decision["status"] == "accepted" and decision["value"] is True) or decision["status"] == "uncertain"):
+            errors.append(f"view {view['id']}: lacks an accepted or unsure Jev decision")
         diag = diagnostics.get(view["id"], {})
         if any(diag.get(k) != view[k] for k in ("decision", "project", "kind")):
             errors.append(f"view {view['id']}: diagnostic disagrees")
         members = projects.get(view["project"], {}).get("components", [])
         if any(n["component"] not in members for n in view["nodes"] if "component" in n):
             errors.append(f"view {view['id']}: node outside project membership")
-    accepted_ids = {v["id"] for v in diagnostics.values() if v["decision"]["status"] == "accepted" and v["decision"]["value"] is True}
-    if accepted_ids != {v["id"] for v in map_obj.get("views", [])}:
-        errors.append("view_decisions: accepted views disagree with published views")
+    shown_ids = {v["id"] for v in diagnostics.values()
+                 if (v["decision"]["status"] == "accepted" and v["decision"]["value"] is True) or v["decision"]["status"] == "uncertain"}
+    if shown_ids != {v["id"] for v in map_obj.get("views", [])}:
+        errors.append("view_decisions: shown views disagree with published views")
     return errors
 
 
