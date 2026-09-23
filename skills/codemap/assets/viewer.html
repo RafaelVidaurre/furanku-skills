@@ -754,8 +754,12 @@ function layoutSystem(M) {
   const pic = M.areas.filter((a) => a.id !== 'build-verify' && a.id !== 'unsorted' && visibleCompsOf(a.id).length), picIds = new Set(pic.map((a) => a.id));
   // columns are the topological order of flows aggregated by area; areas of equal rank stack top to bottom by id
   const aEdges = []; for (const f of shownFlows) { const fa = runnableArea(f.from), fb = runnableArea(f.to); if (fa && fb && fa !== fb && picIds.has(fa) && picIds.has(fb)) aEdges.push({ from: fa, to: fb }); }
-  const rank = rankByLongestPath(pic.map((a) => a.id), aEdges), depth = pic.length ? Math.max(...rank.values()) + 1 : 0;
-  const cols = Array.from({ length: depth }, () => []); for (const a of pic) cols[rank.get(a.id)].push(a); cols.forEach((c) => c.sort(byId));
+  const rank = rankByLongestPath(pic.map((a) => a.id), aEdges), ranks = pic.length ? Math.max(...rank.values()) + 1 : 0;
+  const byRank = Array.from({ length: ranks }, () => []); for (const a of pic) byRank[rank.get(a.id)].push(a); byRank.forEach((c) => c.sort(byId));
+  // a rank holding many areas wraps into side-by-side columns of at most MAX_STACK, so the picture keeps a screen's
+  // proportions instead of one tall column whose text shrinks to nothing when fitted
+  const MAX_STACK = 3, cols = byRank.flatMap((c) => Array.from({ length: Math.ceil(c.length / MAX_STACK) || 1 }, (_, i) => c.slice(i * MAX_STACK, (i + 1) * MAX_STACK))).filter((c) => c.length);
+  const depth = cols.length;
   const info = new Map(), hasExt = M.externals.some((x) => M.extKind(x) !== 'devtool');
   const measure = () => {
     for (const a of pic) {

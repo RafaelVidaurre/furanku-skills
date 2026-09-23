@@ -194,6 +194,57 @@ def merge_draft(draft: dict, skeleton: dict) -> dict:
             "edges_added": added_edges, "edges_removed": removed_edges}
 
 
+def component_renames(old_skeleton: dict, new_skeleton: dict) -> dict:
+    """{old id: new id} for components whose id changed while their path did not (a scanner naming improvement)."""
+    old = {c["id"]: c.get("path") for c in old_skeleton.get("components", [])}
+    new = {c["id"]: c.get("path") for c in new_skeleton.get("components", [])}
+    by_path = {path: cid for cid, path in new.items() if path is not None and cid not in old}
+    return {cid: by_path[path] for cid, path in sorted(old.items()) if cid not in new and path in by_path}
+
+
+def rename_in_draft(draft: dict, renames: dict) -> None:
+    """Carry every reference to a renamed component over to its new id, so written prose survives the rename."""
+    if not renames:
+        return
+    ren = lambda cid: renames.get(cid, cid)
+    ren_list = lambda xs: [ren(x) if isinstance(x, str) else x for x in xs or []]
+    def ren_module(mid):
+        head, sep, rest = mid.partition("/")
+        return ren(head) + sep + rest
+    components = draft.get("components") or {}
+    for old, new in renames.items():
+        if old in components and new not in components:
+            components[new] = components.pop(old)
+    for card in components.values():
+        if isinstance(card, dict) and card.get("loaded_by"):
+            card["loaded_by"] = ren_list(card["loaded_by"])
+    reasons = draft.get("edge_reasons") or {}
+    for key in list(reasons):
+        a, sep, b = key.partition("->")
+        if sep and (a in renames or b in renames):
+            reasons[f"{ren(a)}->{ren(b)}"] = reasons.pop(key)
+    for field in ("module_summaries", "module_names", "module_responsibilities"):
+        table = draft.get(field) or {}
+        for mid in list(table):
+            if ren_module(mid) != mid:
+                table[ren_module(mid)] = table.pop(mid)
+    system = draft.get("system") or {}
+    for actor in system.get("actors") or []:
+        actor["uses"] = ren_list(actor.get("uses"))
+    for external in system.get("externals") or []:
+        external["used_by"] = ren_list(external.get("used_by"))
+    for flow in system.get("flows") or []:
+        flow["from"], flow["to"] = ren(flow.get("from")), ren(flow.get("to"))
+    for area in draft.get("areas") or []:
+        area["components"] = ren_list(area.get("components"))
+    for project in draft.get("projects") or []:
+        project["components"] = ren_list(project.get("components"))
+    for view in draft.get("views") or []:
+        for node in view.get("nodes") or []:
+            if "component" in node:
+                node["component"] = ren(node["component"])
+
+
 def unit_edges(scan: dict) -> set:
     owner = {f["path"]: f.get("unit") for f in scan.get("files", [])}
     return {(owner.get(e["from"]), owner.get(e["to"])) for e in scan.get("edges", [])
@@ -504,13 +555,17 @@ def cmd_update(args) -> dict:
         if not paths[name].exists():
             raise Failure(f"{name}.json is missing: build the first map with scan, skeleton, draft-template, decide, and build")
     previous = store.read_json(paths["scan"])
+    old_skeleton = store.read_json(paths["skeleton"]) if paths["skeleton"].exists() else {}
     steps = [{"command": "scan", **cmd_scan(args)}, {"command": "skeleton", **cmd_skeleton(args)}]
     current = store.read_json(paths["scan"])
     changes = scan_changes(previous, current)
     store.write_json(paths["changes"], changes)
     skeleton = store.read_json(paths["skeleton"])
     draft = store.read_json(paths["draft"])
+    renames = component_renames(old_skeleton, skeleton)
+    rename_in_draft(draft, renames)
     merged = merge_draft(draft, skeleton)
+    merged["components_renamed"] = renames
     store.write_json(paths["draft"], draft)
     gaps = draft_gaps(draft, skeleton)
     summary = {

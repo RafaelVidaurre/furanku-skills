@@ -302,3 +302,22 @@ def test_update_records_changes_merges_draft_and_defers_decide_until_gaps_are_fi
     assert not paths["changes"].exists()
     code, payload = run(capsys, "decide", "--repo", str(repo))
     assert code == 0 and "changes" not in seen[-1]
+
+
+def test_a_renamed_component_keeps_its_written_prose():
+    old = {"components": [{"id": "apps-api", "path": "apps/api"}, {"id": "lib", "path": "libs/lib"}]}
+    new = {"components": [{"id": "api", "path": "apps/api"}, {"id": "lib", "path": "libs/lib"}]}
+    renames = codemap.component_renames(old, new)
+    assert renames == {"apps-api": "api"}
+    draft = {"components": {"apps-api": {"summary": "The HTTP API."}, "lib": {"loaded_by": ["apps-api"]}},
+             "edge_reasons": {"apps-api->lib": "uses the lib"}, "module_summaries": {"apps-api/routes": "Routes."},
+             "system": {"actors": [{"uses": ["apps-api"]}], "externals": [{"used_by": ["apps-api"]}],
+                        "flows": [{"from": "apps-api", "to": "db"}]},
+             "areas": [{"components": ["apps-api"]}], "projects": [{"components": ["apps-api", "lib"]}],
+             "views": [{"nodes": [{"component": "apps-api"}]}]}
+    codemap.rename_in_draft(draft, renames)
+    assert draft["components"]["api"] == {"summary": "The HTTP API."} and "apps-api" not in draft["components"]
+    assert draft["components"]["lib"]["loaded_by"] == ["api"]
+    assert draft["edge_reasons"] == {"api->lib": "uses the lib"} and draft["module_summaries"] == {"api/routes": "Routes."}
+    assert draft["system"]["flows"][0]["from"] == "api" and draft["areas"][0]["components"] == ["api"]
+    assert draft["projects"][0]["components"] == ["api", "lib"] and draft["views"][0]["nodes"][0]["component"] == "api"
