@@ -498,7 +498,8 @@ class DecideTest(unittest.TestCase):
         with mock.patch.object(dc, "_sleep") as sleep:
             result = dc.decide(SKELETON, DRAFT, None, evaluate=flaky)
         self.assertEqual(result["summary"]["calls_made"], 7)
-        self.assertEqual([c.args[0] for c in sleep.call_args_list if c.args[0] >= 1], [2, 4])
+        # a rate limit waits on its own longer schedule; the overload that follows starts the short one
+        self.assertEqual([c.args[0] for c in sleep.call_args_list if c.args[0] >= 1], [5, 2])
 
         def broken(payload):
             raise jc.Error("Gateway HTTP 401: check the saved Gateway key")
