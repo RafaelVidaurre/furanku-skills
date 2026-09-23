@@ -35,6 +35,7 @@ class Interrupted(Error):
 
 
 RETRY_DELAYS = (2, 4, 8, 16, 32)
+RATE_LIMIT_DELAYS = (5, 15, 30, 60, 120, 240)  # about eight minutes before a run stops on HTTP 429
 PROGRESS_EVERY = 10
 _progress_stream = sys.stderr
 _started = [None]
@@ -64,11 +65,15 @@ def transient(error):
 
 def evaluate_with_backoff(evaluate, payload):
     """Retry rate-limit, overload, unavailable, and timeout failures with exponential backoff; everything else fails at once."""
-    for delay in RETRY_DELAYS + (None,):
+    delays = iter(RETRY_DELAYS)
+    rate_delays = iter(RATE_LIMIT_DELAYS)
+    while True:
         try:
             return evaluate(payload)
         except jev_client.Error as exc:
-            if delay is None or not transient(exc):
+            # a rate limit (per minute, per account) needs longer waits than an overload blip
+            delay = next(rate_delays if "HTTP 429" in str(exc) else delays, None) if transient(exc) else None
+            if delay is None:
                 raise
             progress("retry", 0, 0, wait_seconds=delay, reason=str(exc)[:60])
             _sleep(delay)

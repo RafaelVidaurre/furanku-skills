@@ -1014,7 +1014,10 @@ function layoutModules(M, compId) {
   }
   const intra = Ein.filter((e) => !e.ghost), testIds = new Set(nodes.filter((n) => n.test).map((n) => n.id)), codeIds = [...ids].filter((id) => !testIds.has(id));
   const r = rankByLongestPath(codeIds.length ? codeIds : [...ids], intra.filter((e) => !testIds.has(e.from) && !testIds.has(e.to))), codeDepth = Math.max(0, ...r.values()) + 1;
-  if (codeIds.length) for (const id of testIds) r.set(id, codeDepth);
+  // a densely linked component ranks into one long chain; squeeze the ranks into a few rows, keeping their order
+  const MAX_ROWS = 5;
+  if (codeDepth > MAX_ROWS) for (const [id, v] of r) r.set(id, Math.floor(v * MAX_ROWS / codeDepth));
+  if (codeIds.length) for (const id of testIds) r.set(id, Math.min(codeDepth, MAX_ROWS));
   const depth = Math.max(0, ...r.values()) + 1;
   const rows = Array.from({ length: depth }, () => []); nodes.forEach((n) => rows[r.get(n.id)].push(n));
   const gap = 32; orderBands(rows, intra, gap);
