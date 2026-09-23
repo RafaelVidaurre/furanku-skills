@@ -32,9 +32,13 @@ def repo(tmp_path):
     return root
 
 
+SCANNER_VERSION = __import__("scan").SCANNER_VERSION  # read before any test swaps the module
+
+
 def fixture_scan(repo):
     scan = json.loads((FIXTURES / "scan.json").read_text())
     scan["repo"]["root"] = str(repo)
+    scan["scanner"] = SCANNER_VERSION
     scan["repo"]["sha"] = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
     return scan
 
@@ -154,6 +158,12 @@ def test_build_writes_map_html_snapshot_and_status_sees_fresh_map(repo, capsys, 
     assert (paths["snapshots"] / sha / "map.json").exists()
     code, status = run(capsys, "status", "--repo", str(repo))
     assert status["artifacts"]["map"]["exists"] and status["stale"] is False and status["snapshots"] == [sha]
+    assert status["outdated"] == []
+    # a map read by an older scanner is stale even at the same commit, so an upgraded skill rescans it
+    old = store.read_json(paths["scan"]); old.pop("scanner"); store.write_json(paths["scan"], old)
+    code, status = run(capsys, "status", "--repo", str(repo))
+    assert status["stale"] is True and status["outdated"] == ["scan"]
+    store.write_json(paths["scan"], fixture_scan(repo))
     # Rebuilding identical inputs leaves the snapshot untouched.
     code, payload = run(capsys, "build", "--repo", str(repo), "--template", str(template))
     assert payload["snapshot"]["status"] == "unchanged"

@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -320,6 +321,13 @@ def cmd_status(args) -> dict:
     scan_mod = _import("scan")
     worktree_now = scan_mod.worktree_state(repo)
     map_worktree = (((store.read_json(paths["map"]).get("meta") or {}).get("repo") or {}).get("worktree") or {}) if artifacts["map"]["exists"] else {}
+    # a map read by an older scanner or skeleton keeps the old structure until it is rescanned
+    outdated = []
+    if artifacts["scan"]["exists"] and store.read_json(paths["scan"]).get("scanner") != scan_mod.SCANNER_VERSION:
+        outdated.append("scan")
+    if artifacts["skeleton"]["exists"] and (store.read_json(paths["skeleton"]).get("meta") or {}).get("version") != _import("skeleton").SKELETON_VERSION:
+        outdated.append("skeleton")
+    moved = bool(map_sha and head and (map_sha != head or (map_worktree and map_worktree.get("fingerprint") != worktree_now.get("fingerprint"))))
     snapshots = sorted(p.name for p in paths["snapshots"].iterdir() if p.is_dir()) if paths["snapshots"].exists() else []
     try:
         jev_client = __import__("jev_client")
@@ -338,8 +346,10 @@ def cmd_status(args) -> dict:
         "scan_sha": scan_sha,
         "map_sha": map_sha,
         "worktree": worktree_now,
-        # stale when the commit moved or the uncommitted changes the map was read from differ from the checkout's now
-        "stale": bool(map_sha and head and (map_sha != head or (map_worktree and map_worktree.get("fingerprint") != worktree_now.get("fingerprint")))),
+        # stale when the commit moved, the uncommitted changes the map was read from differ from the checkout's now,
+        # or the installed skill reads repositories differently from the one that built the map
+        "stale": moved or bool(map_sha and outdated),
+        "outdated": outdated,
         "snapshots": snapshots,
         "jev": jev,
     }
@@ -428,6 +438,12 @@ def cmd_decide(args) -> dict:
         if not accepts:
             raise Failure("this decide.py does not support --require-zdr")
         kwargs["require_zdr"] = True
+    if "checkpoint" in inspect.signature(decide_mod.decide).parameters:
+        kwargs["checkpoint"] = lambda records: store.write_json(paths["decisions"], decide_mod.partial_cache("decide is still running.", records))
+    # a harness that times the command out sends SIGTERM: stop like Ctrl-C so the answers so far are saved
+    def stop(*_):
+        raise KeyboardInterrupt
+    previous_term = signal.signal(signal.SIGTERM, stop)
     try:
         decisions = decide_mod.decide(skeleton, draft, cache, **kwargs)
     except Exception as exc:
@@ -437,6 +453,8 @@ def cmd_decide(args) -> dict:
             store.write_json(paths["decisions"], decide_mod.partial_cache(exc))
             raise Failure(f"decide failed: {exc} Progress was saved; rerun decide to continue from the cache.") from None
         raise Failure(f"decide failed: {exc}") from None
+    finally:
+        signal.signal(signal.SIGTERM, previous_term)
     path = store.write_json(paths["decisions"], decisions)
     if "changes" in kwargs:
         paths["changes"].unlink(missing_ok=True)
@@ -475,12 +493,14 @@ def cmd_decide(args) -> dict:
 
 
 def open_in_browser(path: Path) -> bool:
-    for opener in ("open", "xdg-open"):
-        executable = shutil.which(opener)
-        if executable:
-            subprocess.Popen([executable, str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return True
-    return False
+    # `open` is only the file opener on macOS (on Linux it can be openvt); elsewhere the platform default browser
+    opener = {"darwin": "open", "linux": "xdg-open"}.get(sys.platform)
+    executable = shutil.which(opener) if opener else None
+    if executable:
+        subprocess.Popen([executable, str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    import webbrowser
+    return webbrowser.open(path.resolve().as_uri())
 
 
 def cmd_build(args) -> dict:
