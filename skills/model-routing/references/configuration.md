@@ -62,7 +62,7 @@ Every layer is a version 4 document. A persisted layer defines only the routes i
 
 - `preferences` are plain-language routing statements addressed to the spawning agent. They may name models, candidates, tiers, budgets, or conditions—anything the user wants weighed. They are not machine-enforced; the brief presents them and the spawn guidance makes them binding on the agent's judgment.
 - `on_quota_unusable` is optional on any route. Omit it or set `"ask"` to keep asking. An object requires a `fallback` launch tuple different from the route and may set `ask_seconds` (default 120): the agent asks once per quota blocker, then `check --use-quota-fallback` may take that fallback if the principal has not answered. Whole-row replacement still applies — a later layer that omits the field removes the fallback.
-- `candidates` add new launchable candidates or patch builtin ones. A candidate carries one exact `agent/model/effort` launch tuple; capability assessments carry a score, conservative value, confidence, date, public evidence, and a `scale` naming the benchmark and version the score comes from; unavailable evidence remains unknown. `{"enabled": false}` removes a candidate from play; `check` refuses it. A candidate whose launcher always bills one fixed account sets `quota_account` to that account's provider key in `accounts`.
+- `candidates` add new launchable candidates or patch builtin ones. A candidate carries one exact `agent/model/effort` launch tuple; capability assessments carry a score, conservative value, confidence, date, public evidence, and a `scale` naming the benchmark and version the score comes from; unavailable evidence remains unknown. `{"enabled": false}` makes it unavailable and `check` refuses it. `{"enabled": true, "explicit": true}` requires a principal request for that model and effort, recorded with `check --explicit-basis`. The default is enabled; `explicit: false` restores ordinary selection. A candidate whose launcher always bills one fixed account sets `quota_account` to that account's provider key in `accounts`.
 - The `agent` token names the launcher capability that can serve the model, not a vendor. Two launchers reaching the same model hold different tokens — `codex/gpt-6-astra/high` and `claudex/gpt-6-astra/high` are the same model through different surfaces. Give a launcher its own token whenever it serves models no other launcher can reach, so that a consumer omitting it from `check --launchable-via` genuinely loses those models. Folding such a launcher under a broader token makes its exclusive models unrefusable: the gate compares tokens, so a model reachable only through a parked launcher stays selectable under the shared token. Keep the launcher out of the model name; the token carries it.
 - `quota_pool` marks a candidate that does not bill the account its launch harness uses — the same model reached through a proxy that holds several credentials and picks one per request. It carries the billed `provider` and a `detail` explaining the arrangement. Such a candidate never inherits its harness's quota and never borrows a single credential's number. Its quota reports `pooled`, which passes with a warning: the surface has no one account to measure and rotates off exhausted credentials itself, so this is a settled state rather than a failed reading, and acceptance stays for quota that is normally readable and currently is not. The harness's authentication and health still gate it: the proxy supplies the account, not the ability to run.
 - `quota_provider` marks a candidate billed by a provider other than its launch harness. It carries the billed `provider` and a `detail` explaining the arrangement. The candidate keeps the harness's authentication and health gates but never inherits the harness account's quota. Provider runtime is projected onto the candidate when an adapter supplies it; otherwise quota stays `unknown` and requires explicit acceptance. Use this for a single-provider route; use `quota_pool` only when the serving surface actually rotates credentials.
@@ -74,6 +74,14 @@ Every layer is a version 4 document. A persisted layer defines only the routes i
 After layers merge, each compiled candidate is validated independently. A malformed entry is omitted from the launchable table and listed as excluded in `router.py brief` and `config.py report`. `check --candidate` of that id, or `check --exact-route` whose launch matches only that entry, fails closed with that entry's diagnostic. A valid sibling remains checkable; the malformed row is not repaired from a lower layer. Invalid layer JSON, document schema, or route rows remain hard errors for the whole document.
 
 ## View configuration
+
+For the concise effective model and effort list, including all launch surfaces and each row's source:
+
+```sh
+python3 <skill-dir>/scripts/config.py models --repo <root>
+```
+
+`list` is an alias for `models`; `--format json` is available for consumers. The markers mean 🟢 enabled (ordinary selection), 🟡 explicit (principal request only), and 🔴 disabled (unavailable). These are configuration states, not live quota or authentication status.
 
 Run both views because exact dispatch and the routing brief are separate surfaces:
 
@@ -88,6 +96,15 @@ python3 "$ROUTER" brief --repo <root> [--quota-axi] \
 The first shows persisted layers, exact rows, whole-row winners, and any excluded malformed candidates. The second shows what a spawning agent sees: preferences with scope tags, effective routes, the merged candidate table with evidence, and the same excluded malformed candidates. A raw file alone does not establish effective configuration.
 
 ## Modify configuration
+
+Set a model and effort in the machine-wide layer by default. When several launch surfaces match, choose one with `--agent` or deliberately change all with `--all-agents`. Use `--scope repo` for tracked project behavior or `--scope machine-repo` for private project behavior. Creating a combination absent from the catalog requires `--create --agent <launcher>`; the new candidate has unknown capability evidence until separately researched.
+
+```sh
+python3 <skill-dir>/scripts/config.py set explicit gpt-6-astra high --agent codex --repo <root>
+python3 <skill-dir>/scripts/config.py set enabled gpt-6-sol xhigh --agent codex --create --repo <root>
+```
+
+The command preserves other configuration fields, refuses a lower-scope state shadowed by a higher scope, and prints the effective changed rows. Re-run `models` to inspect the result. A candidate made explicit can pass `router.py check` only with `--explicit-basis` carrying the principal's request for its model and effort. Naming an exact route without naming the model and effort does not authorize an explicit candidate or a quota fallback to one.
 
 1. Run both views against the target repository.
 2. Select the requested scope: `global` for machine-wide behavior, `repo` for shared project behavior, or `machine-repo` for private project behavior. Ask when the intended scope is materially ambiguous.

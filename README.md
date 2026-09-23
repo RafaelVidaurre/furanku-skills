@@ -206,6 +206,8 @@ First use walks you through approving which model tools may run on your machine.
 
 **Selector setup:** [Choose agent or Jev routing](skills/model-routing/references/jev.md) once per machine. Jev uses Vercel AI Gateway with your key entered at a hidden terminal prompt, and returns decisions checked by the same launch gates. Toggle either mode with `router.py setup --selector agent|jev`.
 
+Use `/model-routing list` (or `models`) to see the effective model and effort states. Use `/model-routing set explicit gpt-6-astra high --agent codex` to require an explicit user request for that combination; `enabled` and `disabled` are the other states. When a combination has several launch surfaces, specify the agent or ask for all of them. The skill runs the configuration helper and shows the effective result.
+
 ```text
 > Which model should own this refactor? Show me the routing brief.
 > Prefer terra for bulk edits in this repo.

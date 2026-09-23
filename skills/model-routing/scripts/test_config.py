@@ -118,6 +118,40 @@ class ConfigTest(unittest.TestCase):
             result.stderr,
         )
 
+    def test_model_state_command_preserves_other_config_and_lists_effective_states(self):
+        self.write("global", {"version": 4, "routes": {}, "preferences": ["Keep this preference."]})
+        ambiguous = self.run_config("set", "explicit", "gpt-6-astra", "high", "--repo", str(self.repo), ok=False)
+        self.assertIn("multiple launch surfaces", ambiguous.stderr)
+        self.run_config("set", "explicit", "gpt-6-astra", "high", "--all-agents", "--repo", str(self.repo))
+        listed = json.loads(self.run_config("models", "--format", "json", "--repo", str(self.repo)).stdout)["models"]
+        astra = [row for row in listed if row["model"] == "gpt-6-astra" and row["effort"] == "high"]
+        self.assertEqual({"explicit"}, {row["state"] for row in astra})
+        self.assertEqual({"global"}, {row["source"] for row in astra})
+        config = json.loads(self.run_config("read", "global").stdout)["config"]
+        self.assertEqual(["Keep this preference."], config["preferences"])
+        self.run_config("set", "disabled", "gpt-6-astra", "high", "--all-agents", "--repo", str(self.repo))
+        self.run_config("set", "enabled", "gpt-6-astra", "high", "--all-agents", "--repo", str(self.repo))
+        listed = json.loads(self.run_config("list", "--format", "json", "--repo", str(self.repo)).stdout)["models"]
+        self.assertEqual({"enabled"}, {row["state"] for row in listed if row["model"] == "gpt-6-astra" and row["effort"] == "high"})
+
+    def test_model_state_create_and_scope_shadowing(self):
+        self.run_config("set", "explicit", "gpt-6-nova", "max", "--repo", str(self.repo), ok=False)
+        self.run_config("set", "explicit", "gpt-6-nova", "max", "--create", "--agent", "codex", "--repo", str(self.repo))
+        listed = json.loads(self.run_config("models", "--format", "json", "--repo", str(self.repo)).stdout)["models"]
+        self.assertIn({"candidate": "codex/gpt-6-nova/max", "model": "gpt-6-nova", "effort": "max", "agent": "codex", "state": "explicit", "source": "global"}, listed)
+        self.run_config("set", "disabled", "gpt-6-nova", "max", "--scope", "repo", "--repo", str(self.repo))
+        result = self.run_config("set", "enabled", "gpt-6-nova", "max", "--scope", "global", "--repo", str(self.repo), ok=False)
+        self.assertIn("repo overrides state", result.stderr)
+
+    def test_models_source_names_state_layer_after_unrelated_override(self):
+        self.run_config("set", "explicit", "gpt-6-astra", "high", "--agent", "codex", "--repo", str(self.repo))
+        self.write("repo", {"version": 4, "routes": {},
+                            "candidates": {"codex/gpt-6-astra/high": {"context": 123456}}}, self.repo)
+        rows = json.loads(self.run_config("models", "--format", "json", "--repo", str(self.repo)).stdout)["models"]
+        row = next(row for row in rows if row["candidate"] == "codex/gpt-6-astra/high")
+        self.assertEqual("explicit", row["state"])
+        self.assertEqual("global", row["source"])
+
     def test_fresh_install_resolves_builtin_defaults(self):
         result = json.loads(
             self.run_config("resolve", "--repo", str(self.repo)).stdout

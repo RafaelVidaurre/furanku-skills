@@ -14,6 +14,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import router
+import jev_context
 
 
 SCRIPT = Path(__file__).with_name("router.py")
@@ -407,6 +408,69 @@ class RouterTest(unittest.TestCase):
         )
         self.assertEqual("refused", decision["status"])
         self.assertIn("disabled by configuration", decision["reasons"])
+
+    def test_explicit_candidate_requires_principal_basis_and_is_excluded_from_jev(self):
+        candidate = "codex/gpt-6-astra/high"
+        self.write_repo_layer({"version": 4, "routes": {}, "candidates": {candidate: {"explicit": True}}})
+        brief = self.run_router("brief").stdout
+        self.assertIn(f"| {candidate} | explicit |", brief)
+        refused = self.check("--candidate", candidate, "--reason", "Suitable for this task.", expect_code=1)
+        self.assertIn("explicit-only candidate requires --explicit-basis", refused["reasons"][0])
+        bad_basis = self.check("--candidate", candidate, "--reason", "Principal chose it.",
+                               "--explicit-basis", "Use a model for this task.", expect_code=1)
+        self.assertIn("explicit basis must name gpt-6-astra", bad_basis["reasons"][0])
+        selected = self.check("--candidate", candidate, "--reason", "Principal chose it.",
+                              "--explicit-basis", "Use Astra at high for this task.",
+                              runtime={"harnesses": {"codex": {"quota": {"status": "known"}}}})
+        self.assertEqual("selected", selected["status"])
+        self.assertEqual("Use Astra at high for this task.", selected["explicit_basis"])
+        compiled = router.compile_brief(self.repo)
+        _payload, mapping, excluded = jev_context.prepare_case(
+            compiled, {}, {"task": "A bounded coding task."}, {"codex"}
+        )
+        self.assertIn(candidate, excluded)
+        self.assertNotIn(candidate, mapping.values())
+
+    def test_exact_route_does_not_bypass_explicit_state(self):
+        self.write_repo_layer({"version": 4, "routes": {},
+                               "candidates": {"grok/grok-4.7/high": {"explicit": True}}})
+        refused = self.check("--exact-route", "worker", "--route-basis", ROUTE_BASIS,
+                             expect_code=1)
+        self.assertIn("explicit-only candidate requires --explicit-basis", refused["reasons"][0])
+        chosen = self.check("--exact-route", "worker", "--route-basis", ROUTE_BASIS,
+                            "--explicit-basis", "Use grok-4.7 at high.",
+                            runtime={"harnesses": {"grok": {"quota": {"status": "known"}}}})
+        self.assertEqual("exact", chosen["status"])
+
+    def test_explicit_basis_cannot_bypass_ordinary_max_effort_rule(self):
+        self.add_effort_candidates()
+        result = self.run_router("check", "--candidate", "codex/test-frontier/max",
+                                 "--reason", "Prefer maximum effort.",
+                                 "--explicit-basis", "Use test-frontier at max.", expect_code=1)
+        self.assertIn("applies only to an explicit candidate", result.stderr)
+
+    def test_quota_fallback_needs_its_own_explicit_model_request(self):
+        worker = {"agent": "grok", "model": "grok-4.7", "effort": "high",
+                  "on_quota_unusable": {"fallback": {"agent": "codex", "model": "gpt-6-astra", "effort": "high"}}}
+        self.write_repo_layer({"version": 4, "routes": {"worker": worker},
+                               "candidates": {"grok/grok-4.7/high": {"explicit": True},
+                                              "codex/gpt-6-astra/high": {"explicit": True}}})
+        runtime = {"harnesses": {"grok": {"quota": {"status": "unknown"}},
+                                 "codex": {"quota": {"status": "known"}}}}
+        base = ("--exact-route", "worker", "--route-basis", ROUTE_BASIS,
+                "--use-quota-fallback", "Waited 120 seconds.")
+        refused = self.check(*base, "--explicit-basis", "Use grok-4.7 at high.",
+                             runtime=runtime, expect_code=1)
+        self.assertIn("quota fallback refused: explicit basis must name gpt-6-astra", refused["reasons"][0])
+        chosen = self.check(*base, "--explicit-basis", "Use grok-4.7 at high; if unavailable, use Astra at high.",
+                            runtime=runtime)
+        self.assertEqual("exact", chosen["status"])
+        self.assertEqual("codex/gpt-6-astra/high", chosen["selected"]["id"])
+
+    def test_brief_candidate_table_has_matching_column_count(self):
+        brief = self.run_router("brief").stdout.splitlines()
+        header = next(index for index, line in enumerate(brief) if line.startswith("| Candidate | State |"))
+        self.assertEqual(brief[header].count("|"), brief[header + 1].count("|"))
 
     def test_check_refuses_exhausted_quota(self):
         candidate = "grok/grok-4.7/high"
@@ -1284,7 +1348,7 @@ class RouterTest(unittest.TestCase):
         brief = router.brief_markdown(compiled, None, "/repo")
         self.assertIn("- reasoning: A = Index v1; B = Index v2", brief)
         self.assertNotIn("- implementation: A =", brief)
-        self.assertIn("| codex/a/high | 0.50 (h, B) | 0.60 (h) |", brief)
+        self.assertIn("| codex/a/high | enabled | 0.50 (h, B) | 0.60 (h) |", brief)
         self.assertIn("scale Index v1", brief)
 
     def test_capability_scale_must_be_a_non_empty_string(self):

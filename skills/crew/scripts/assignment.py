@@ -501,6 +501,7 @@ def route_decision(args, manifest):
             args.reason,
             args.route_basis,
             args.max_effort_basis,
+            args.explicit_basis,
             args.require_feature,
             args.minimum_context,
             args.accept_quota_unknown,
@@ -549,6 +550,7 @@ def route_decision(args, manifest):
         ]
     scalar_options = (
         ("--max-effort-basis", args.max_effort_basis),
+        ("--explicit-basis", args.explicit_basis),
         ("--minimum-context", args.minimum_context),
         ("--accept-quota-unknown", args.accept_quota_unknown),
         ("--use-quota-fallback", args.use_quota_fallback),
@@ -580,6 +582,9 @@ def route_decision(args, manifest):
             "model-routing check returned an inconsistent result: "
             f"status {status!r} requires exit {expected_exit}, got {result.returncode}"
         )
+    expected_explicit_basis = args.explicit_basis.strip() if args.explicit_basis else None
+    if decision.get("explicit_basis") != expected_explicit_basis:
+        raise Error("model-routing check returned a different explicit basis than requested")
     if args.candidate:
         returned_candidate = decision.get("candidate")
         selected = decision.get("selected")
@@ -691,6 +696,8 @@ def routing_summary(decision):
             summary["candidate"] = selected["id"]
     if decision.get("quota_acceptance"):
         summary["quota_acceptance"] = decision["quota_acceptance"]
+    if decision.get("explicit_basis"):
+        summary["explicit_basis"] = decision["explicit_basis"]
     if decision.get("quota_fallback"):
         summary["quota_fallback"] = decision["quota_fallback"]
     return summary
@@ -784,6 +791,10 @@ def build_packet(args):
     if routing.get("reason"):
         lines.append(
             f"routing_reason: {json.dumps(routing['reason'], ensure_ascii=False)}"
+        )
+    if routing.get("explicit_basis"):
+        lines.append(
+            f"explicit_basis: {json.dumps(routing['explicit_basis'], ensure_ascii=False)}"
         )
     if routing["warnings"]:
         lines.append(
@@ -891,6 +902,10 @@ def main(argv=None):
     packet.add_argument(
         "--max-effort-basis",
         help="why the strongest enabled lower effort is materially insufficient",
+    )
+    packet.add_argument(
+        "--explicit-basis",
+        help="verbatim principal request for this explicit-only model and effort",
     )
     packet.add_argument(
         "--require-feature",

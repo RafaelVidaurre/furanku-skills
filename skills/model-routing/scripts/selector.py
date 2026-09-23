@@ -115,15 +115,26 @@ def route(compiled, args, runtime):
         return router.check(compiled, args, runtime)
     if settings['selector'] == 'agent':
         return router.check(compiled, args, runtime)
-    if args.candidate or args.reason or args.route_basis or args.use_quota_fallback:
-        raise jev.Error('Jev chooses the candidate; omit candidate/reason/route-basis/fallback flags.')
+    if args.candidate or args.reason or args.route_basis or args.use_quota_fallback or getattr(args, 'explicit_basis', None):
+        raise jev.Error('Jev chooses ordinary candidates; use check --candidate --explicit-basis for a principal-requested explicit candidate, or omit candidate/reason/route-basis/fallback flags.')
     launchers = router.parse_allowed_launchers(args.launchable_via)
     if not launchers:
         raise jev.Error('Jev routing requires --launchable-via from the consumer.')
     case = {'task': load_task(args.task_file), 'require_features': args.require_feature,
             'minimum_context': args.minimum_context, 'max_effort_basis': args.max_effort_basis,
             'allowed_models': args.allow_model, 'allowed_efforts': args.allow_effort}
-    payload, mapping, excluded = prepare_case(compiled, runtime, case, launchers)
+    try:
+        payload, mapping, excluded = prepare_case(compiled, runtime, case, launchers)
+    except jev.Error as exc:
+        if "No eligible candidates" in str(exc) and any(
+            candidate.get("explicit", False)
+            and candidate["launch"]["agent"] in launchers
+            and (not args.allow_model or candidate["launch"]["model"] in args.allow_model)
+            and (not args.allow_effort or candidate["launch"]["effort"] in args.allow_effort)
+            for candidate in compiled["candidates"].values()
+        ):
+            raise jev.Error("Only explicit candidates match; use check --candidate --explicit-basis with the principal's model and effort request.") from exc
+        raise
     if args.require_zdr:
         payload['providerOptions']['gateway']['zeroDataRetention'] = True
     result = jev.evaluate_bounded(payload)

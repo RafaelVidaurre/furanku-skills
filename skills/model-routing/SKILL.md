@@ -1,6 +1,6 @@
 ---
 name: model-routing
-description: Choose an agent, model, and effort using capability evidence, routing preferences, and live quota, then gate-check the launch decision. Use before delegating work; when inspecting or changing routing configuration; when diagnosing a routing brief or launch gate; or when setting up or toggling Jev selection through Vercel AI Gateway.
+description: Choose an agent, model, and effort using capability evidence, routing preferences, and live quota, then gate-check the launch decision. Use before delegating work; to list models or set a model and effort enabled, disabled, or explicit; when changing routing configuration; when diagnosing a routing brief or launch gate; or when setting up or toggling Jev selection through Vercel AI Gateway.
 ---
 
 # Model routing
@@ -51,6 +51,7 @@ Run one check per decision—each delegated outcome carries its own judgment and
 ```sh
 python3 <skill-dir>/scripts/router.py check --repo <root> \
   --candidate <id> --reason "<the task judgment behind this pick>" \
+  [--explicit-basis "<verbatim principal request for this model and effort>"] \
   [--max-effort-basis "<why xhigh or the strongest lower effort is insufficient>"] \
   [--launchable-via <agent,...>] \
   [--require-feature <feature>] [--minimum-context <tokens>] \
@@ -59,7 +60,7 @@ python3 <skill-dir>/scripts/router.py check --repo <root> \
 
 When the brief's activation rule applies, use `check --exact-route <route-id> --route-basis "<verbatim principal request>"` instead of `--candidate`/`--reason`. Preserve that basis on every quota-acceptance or fallback re-check. `--launchable-via` names the catalog `agent` tokens the consumer's spawning mechanism can launch (for example `claude` alone for harness-native subagents); a candidate outside that set is refused, never silently substituted. A consumer that already owns this list should inject it rather than asking the spawning agent to transcribe it. `--compact` changes JSON whitespace only and is never part of the routing proof.
 
-`check` enforces hard gates—disabled candidates, missing required features or context, unlaunchable agents, authentication, exhausted quota—and maximum-effort proportionality. A malformed compiled candidate is excluded and named in the brief; other checks continue. [Configuration](references/configuration.md) states the isolation rule. A judged `max` candidate is refused when the same agent and model have an enabled lower-effort candidate unless `--max-effort-basis` explicitly names the strongest lower effort and records why it is materially insufficient. Principal-requested exact routes remain governed by their verbatim route basis. The check emits one JSON decision:
+`check` enforces hard gates—disabled candidates, explicit candidates without a principal request for their model and effort, missing required features or context, unlaunchable agents, authentication, exhausted quota—and maximum-effort proportionality. A malformed compiled candidate is excluded and named in the brief; other checks continue. [Configuration](references/configuration.md) states the isolation rule. A judged `max` candidate is refused when the same agent and model have an enabled lower-effort candidate unless `--max-effort-basis` explicitly names the strongest lower effort and records why it is materially insufficient. A principal-requested explicit `max` candidate uses its verbatim request as the basis instead. Principal-requested exact routes remain governed by their verbatim route basis. The check emits one JSON decision:
 
 - `selected` (exit 0): the configured selector’s pick passed; carries `selected` launch tuple, `reason`, `warnings`, `quota`.
 - `exact` (exit 0): principal-requested route passed; carries the task's `route_basis`, `exact_route`, and configuration-layer `provenance` instead of a candidate judgment.
@@ -77,5 +78,7 @@ A candidate whose launch tuple pins one account is not the same offer as the sam
 ## View or modify configuration
 
 For requests to inspect, explain, add, change, or remove routing configuration—exact routes, preferences, candidate overrides—read [Configuration](references/configuration.md) before acting. `config.py` owns persisted layers and exact-route provenance; `router.py brief` shows what a spawning agent actually sees.
+
+For `/model-routing list` or `/model-routing models`, run `python3 <skill-dir>/scripts/config.py models --repo <root>`. For `/model-routing set <enabled|disabled|explicit> <model> <effort>`, use `config.py set` as documented in Configuration. An explicit candidate is available only when the principal requested that model and effort for the task; pass the verbatim request to `check --explicit-basis`. An exact route name alone does not supply this basis. Ordinary agent and Jev selection exclude explicit candidates.
 
 **Complete when:** a view shows effective routes and the brief with provenance, or a change is validated in its intended scope and visible in the regenerated brief.
