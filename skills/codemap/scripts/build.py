@@ -48,7 +48,7 @@ import decide as decisions_mod
 
 SKILL_VERSION = "1.0.0"
 DEFAULT_MODEL = "typesafe-ai/jev"
-RUNTIMES = ("client", "shared", "server", "cli", "build", "none")
+RUNTIMES = ("client", "fullstack", "shared", "server", "cli", "build", "none")
 NATURES = ("product", "tooling", "test", "content", "docs", "experiment")
 ROLES = ("surface", "adapter", "core", "kernel")
 SUPPORT_NATURES = ("tooling", "test", "experiment")
@@ -103,7 +103,7 @@ UNCERTAIN = 0.4
 NON_ANSWERS = {None, "", "abstain", "new_area"}
 EXTERNAL_KINDS = ("datastore", "service", "runtime", "devtool")
 FLOW_KINDS = ("network", "file", "process")
-RUNNABLE_RUNTIMES = ("client", "server", "cli")
+RUNNABLE_RUNTIMES = ("client", "fullstack", "server", "cli")
 BOUNDS = {"actors": 6, "externals": 8, "uses": 2, "areas": (1, 7), "components_per_area": 12, "modules_per_component": 16}
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "references" / "map-schema.json"
 PLACEHOLDER = "/*__CODEMAP_JSON__*/"
