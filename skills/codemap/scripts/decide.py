@@ -35,6 +35,21 @@ class Interrupted(Error):
 
 
 RETRY_DELAYS = (2, 4, 8, 16, 32)
+PROGRESS_EVERY = 10
+_progress_stream = sys.stderr
+_started = [None]
+
+
+def progress(phase, done, total, **extra):
+    """One bounded JSON line on stderr: which phase, how far, how long. Never a provider body or a credential."""
+    if _progress_stream is None:
+        return
+    if _started[0] is None:
+        _started[0] = time.monotonic()
+    if done not in (0, total) and done % PROGRESS_EVERY:
+        return
+    line = {"progress": phase, "done": done, "total": total, "elapsed_seconds": round(time.monotonic() - _started[0], 1), **extra}
+    print(json.dumps(line), file=_progress_stream, flush=True)
 MIN_INTERVAL = 0.3
 _sleep = time.sleep
 
@@ -52,6 +67,7 @@ def evaluate_with_backoff(evaluate, payload):
         except jev_client.Error as exc:
             if delay is None or not transient(exc):
                 raise
+            progress("retry", 0, 0, wait_seconds=delay, reason=str(exc)[:60])
             _sleep(delay)
 
 
@@ -747,7 +763,8 @@ def _decide(session, skeleton, draft, dry_run):
     # 1. Area, runtime, nature, and role per component, one request each.
     cards = {cid: component_card(skeleton, draft, c) for cid, c in sorted(components.items())}
     resolution = {}
-    for cid, card in cards.items():
+    for i, (cid, card) in enumerate(cards.items()):
+        progress("components", i, len(cards), calls=session.calls, cached=session.cached)
         questions = component_questions(areas)
         prints = {k: fingerprint(k, card, v) for k, v in questions.items()}
         missing = [k for k in questions if not session.cached_record(cid, k, prints[k])]
@@ -830,6 +847,7 @@ def _decide(session, skeleton, draft, dry_run):
             verdict = quality_verdict("hub_coupling", answer) if answer else None
             if verdict:
                 quality[f"hub-coupling|{cid}"] = dict(verdict, check="hub-coupling", nodes=[cid])
+    progress("components", len(cards), len(cards), calls=session.calls, cached=session.cached)
     for edge in graph_edges:
         src, dst = edge["from"], edge["to"]
         if edge.get("test_only") or src not in product or dst not in product:
@@ -863,6 +881,7 @@ def _decide(session, skeleton, draft, dry_run):
 
     # Repository judgments are always fingerprinted afresh, independently of component holds.
     repository = {}
+    progress("checks", len(graph_edges), len(graph_edges), calls=session.calls, cached=session.cached)
     for node, kind, state, criteria in project_types.questions(skeleton, draft):
         answer = session.ask(node, state, {kind: criteria}).get(kind)
         entry = resolve_repository_answer(kind, answer)
