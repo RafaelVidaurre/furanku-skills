@@ -33,7 +33,7 @@ MODULE_CAP = 16
 EXAMPLE_LIMIT = 3
 EMPTY_HINTS = {
     "executable": False, "wasm": False, "server_libs": [], "client_libs": [], "desktop": False,
-    "test_libs": [], "directory_kind": None, "test_file_share": 0.0,
+    "test_libs": [], "directory_kind": None, "test_file_share": 0.0, "declared_kind": None,
 }
 EXTERNAL_LIMIT = 10
 SRC_ROOT_SHARE = 0.5

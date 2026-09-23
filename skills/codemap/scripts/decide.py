@@ -359,6 +359,8 @@ def derived_facts(component, incoming, outgoing, natures=None):
     if not hints.get("server_libs") and not hints.get("client_libs"):
         facts.append("Imports no runtime libraries")
     facts.append("Has an executable entry" if hints.get("executable") else "No executable entry")
+    if hints.get("declared_kind"):
+        facts.append(f"Its build configuration declares it an {hints['declared_kind']}")
     if hints.get("wasm"):
         facts.append("Compiles to wasm")
     if hints.get("desktop"):

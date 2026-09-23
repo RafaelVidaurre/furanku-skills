@@ -312,6 +312,28 @@ def _js_workspace_patterns(root: Path) -> list[str]:
     return patterns
 
 
+NX_START_TARGETS = {"serve", "start", "dev", "preview", "serve-static"}
+START_SCRIPTS = {"start", "dev", "serve", "preview"}
+
+
+def _detect_nx_units(root: Path, tracked: list[str]) -> list[Unit]:
+    """Nx projects declare their own boundary in project.json, with or without a package.json beside it."""
+    units: list[Unit] = []
+    for rel_file in tracked:
+        if posixpath.basename(rel_file) != "project.json" or rel_file == "project.json" or _is_ignored(rel_file):
+            continue
+        data = _load_json_lenient(root / rel_file)
+        if not isinstance(data, dict) or not any(k in data for k in ("targets", "projectType", "sourceRoot")):
+            continue
+        rel = posixpath.dirname(rel_file)
+        pkg = _load_json_lenient(root / rel / "package.json") or {}
+        name = data.get("name") if isinstance(data.get("name"), str) else posixpath.basename(rel)
+        desc = pkg.get("description") if isinstance(pkg.get("description"), str) else None
+        kind = "app" if data.get("projectType") == "application" else "package"
+        units.append(Unit(rel, kind, name, rel_file, desc, _readme_for(root, rel), dict(pkg, nx=data)))
+    return units
+
+
 def _detect_js_units(root: Path) -> list[Unit]:
     units: list[Unit] = []
     for rel in _expand_dir_globs(root, _js_workspace_patterns(root), "package.json"):
@@ -462,7 +484,7 @@ def _assign_ids(units: list[Unit]) -> None:
 
 EMPTY_HINTS = {
     "executable": False, "wasm": False, "server_libs": [], "client_libs": [], "desktop": False,
-    "test_libs": [], "directory_kind": None, "test_file_share": 0.0,
+    "test_libs": [], "directory_kind": None, "test_file_share": 0.0, "declared_kind": None,
 }
 SERVER_LIBS = {
     "axum", "tokio", "hyper", "actix", "actix-web", "warp", "rocket", "tonic", "tower", "tokio-tungstenite",
@@ -560,9 +582,25 @@ def _manifest_deps(unit: Unit) -> tuple[list[str], list[str]]:
     return [], []
 
 
+def _declared_kind(unit: Unit) -> str | None:
+    """What the unit's own build configuration says it is: 'application', 'library', or None."""
+    nx = (unit.data or {}).get("nx") or {}
+    kind = nx.get("projectType")
+    return kind if kind in ("application", "library") else None
+
+
 def _is_executable(scanner: "Scanner", unit: Unit, files: list[str]) -> bool:
     data = unit.data or {}
     base = unit.path + "/" if unit.path else ""
+    # start evidence any stack declares: a start/serve target, a start/dev script, or a container image
+    targets = ((data.get("nx") or {}).get("targets") or {}) if isinstance(data.get("nx"), dict) else {}
+    scripts = data.get("scripts") if isinstance(data.get("scripts"), dict) else {}
+    # a package that exports a library entry uses start/dev scripts for watch builds, not to run anything
+    exports_library = any(data.get(k) for k in ("main", "exports", "types", "module"))
+    if _declared_kind(unit) != "library" and (NX_START_TARGETS & set(targets)
+                                               or (START_SCRIPTS & set(scripts) and not exports_library)
+                                               or (base + "Dockerfile") in scanner.tracked):
+        return True
     if unit.kind == "crate":
         if scanner.is_source(base + "src/main.rs") or "bin" in (data.get("sections") or {}):
             return True
@@ -601,6 +639,7 @@ def unit_hints(scanner: "Scanner", unit: Unit, files: list[dict], externals: dic
     tests = sum(1 for f in files if f.get("role") == "test")
     return {
         "executable": _is_executable(scanner, unit, paths),
+        "declared_kind": _declared_kind(unit),
         "wasm": _is_wasm(unit, everything),
         "server_libs": matched(shaping, SERVER_LIBS),
         "client_libs": matched(shaping, CLIENT_LIBS),
@@ -652,6 +691,15 @@ class Scanner:
     def detect_units(self) -> None:
         units = _detect_js_units(self.root) + _detect_rust_units(self.root) \
             + _detect_python_units(self.root, sorted(self.tracked))
+        # an Nx project.json adds its declaration to a unit already found at that path, or defines the unit itself
+        known = {u.path: u for u in units}
+        for nx in _detect_nx_units(self.root, sorted(self.tracked)):
+            if nx.path in known:
+                known[nx.path].data = dict(known[nx.path].data or {}, nx=nx.data["nx"])
+                if nx.kind == "app":
+                    known[nx.path].kind = "app"
+            else:
+                units.append(nx)
         # deepest manifest wins: dedupe identical paths (first detector wins)
         by_path: dict[str, Unit] = {}
         for u in units:
