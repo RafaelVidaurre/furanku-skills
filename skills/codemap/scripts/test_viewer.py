@@ -347,7 +347,7 @@ assert.ok(!textOf(l2.items).includes('imports'));
 M = modelFor('infra');
 assert.ok(textOf(viewCard(repositoryModel.byView.get('infrastructure'))).includes('Declared staging'));
 assert.ok(textOf(projectCoverage(M.project)).includes('outside the source scan'));
-assert.ok(textOf(projectCoverage(M.project)).includes('7 tracked files outside import parsing'));
+assert.ok(textOf(projectCoverage(M.project)).includes('The other 7 files'));
 """, cards=True)
 
 
@@ -356,16 +356,18 @@ def test_undecided_repository_and_project_kinds_explain_generic_pictures():
 for (const status of ['uncertain', 'unresolved', 'abstain']) {
   repositoryModel.map.landscape.decision = {status, confidence: 0.27, reason: 'Boundary evidence is incomplete'};
   const notice = textOf(repositoryGroupingNotice());
-  assert.ok(notice.includes('Project boundaries'));
-  assert.ok(notice.includes('Boundary evidence is incomplete'));
-  assert.ok(notice.includes('27%'));
+  assert.ok(notice.includes('Shown as one system'));
+  // the reason and confidence stay available on hover instead of as pipeline text on screen
+  const tip = repositoryGroupingNotice().attrs.title;
+  assert.ok(tip.includes('Boundary evidence is incomplete') && tip.includes('27%'));
+  assert.ok(!notice.includes('27%'));
   M = modelFor('api-project');
   assert.equal(repositoryGroupingNotice(), null);
   M.project.kind = 'other';
   M.project.decision = {status, reason: 'Several purposes overlap'};
   const card = textOf(projectCoverage(M.project));
   assert.ok(card.includes('primary project kind'));
-  assert.ok(card.includes('Several purposes overlap'));
+  assert.ok(elements(projectCoverage(M.project)).some((e) => e.attrs && String(e.attrs.title || '').includes('Several purposes overlap')));
   assert.ok(!card.includes('undefined') && !card.includes('NaN'));
   assert.equal(M.project.kind, 'other');
   M = repositoryModel;

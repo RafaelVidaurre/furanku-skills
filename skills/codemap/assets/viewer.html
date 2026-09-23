@@ -1590,25 +1590,31 @@ function renderPanel() {
 function importCoverage() {
   const coverage = repositoryModel.map.meta && repositoryModel.map.meta.import_coverage;
   if (!coverage || !coverage.inventory_available) return null;
-  return h('p', { class: 'conf' }, `Repository import coverage: ${coverage.parsed_files} files parsed${coverage.languages.length ? ' (' + coverage.languages.join(', ') + ')' : ''}; ${coverage.unparsed_files} tracked files outside import parsing. Behavior evidence can include those files.`);
+  const langs = coverage.languages.length ? ` (${coverage.languages.join(', ')})` : '';
+  return h('p', { class: 'conf' }, `Dependencies come from imports in ${coverage.parsed_files.toLocaleString()} source files${langs}. The other ${coverage.unparsed_files.toLocaleString()} files, such as docs, configuration, assets, and other languages, are read for descriptions but not for imports.`);
 }
 function decisionNotice(decision, message) {
   if (!decision || !['uncertain', 'unresolved', 'abstain'].includes(decision.status)) return null;
-  const detail = [decision.reason, Number.isFinite(decision.confidence) ? `${pct(decision.confidence)} confidence` : null].filter(Boolean).join(' · ');
-  return h('div', {}, h('p', { class: 'conf' }, message), detail ? h('p', { class: 'why' }, detail) : null);
+  // the confidence behind the judgment stays in the tooltip, like every other decision on screen
+  const detail = [decision.reason, Number.isFinite(decision.confidence) ? `${pct(decision.confidence)} confident` : null].filter(Boolean).join(' · ');
+  return h('p', { class: 'conf', title: detail || null }, message);
 }
 function repositoryGroupingNotice() {
   return M.project ? null : decisionNotice(repositoryModel.map.landscape && repositoryModel.map.landscape.decision,
-    'Project boundaries are not established. This picture shows the repository together.');
+    'Shown as one system: the repository\'s separate projects could not be told apart with confidence.');
+}
+const VIEW_REASON = { 'insufficient evidence': 'the evidence gathered so far does not support every step clearly enough' };
+function heldBackViews(views) {
+  return views.length ? [h('h3', {}, 'Views not shown yet'), ...views.map((v) => h('p', { class: 'why', title: v.decision && Number.isFinite(v.decision.confidence) ? `${pct(v.decision.confidence)} confident` : null }, `${VIEW_KIND[v.kind] || v.kind}: ${VIEW_REASON[v.decision && v.decision.reason] || (v.decision && v.decision.reason) || 'the available evidence did not establish a useful view'}.`))] : null;
 }
 function projectCoverage(project) {
-  if (!project) return importCoverage();
+  if (!project) return h('div', {}, importCoverage(), heldBackViews((repositoryModel.map.view_decisions || []).filter((v) => !repositoryModel.byView.has(v.id))));
   const views = (repositoryModel.map.view_decisions || []).filter((v) => v.project === project.id && !repositoryModel.byView.has(v.id));
   const memberships = (project.membership_decisions || []).filter((m) => m.decision && ['uncertain', 'unresolved', 'abstain'].includes(m.decision.status));
   return h('div', {}, !project.components.length ? h('p', { class: 'conf' }, 'No code components are mapped to this project yet. Its evidence and behavior views may describe code or infrastructure outside the source scan.') : null,
     decisionNotice(project.decision, 'The primary project kind is not established; a generic label is shown.'),
     importCoverage(), memberships.length ? [h('p', { class: 'conf' }, `${memberships.length} component membership${memberships.length === 1 ? ' is' : 's are'} still uncertain.`), ...memberships.map((m) => h('p', { class: 'why' }, `${repositoryModel.nameOf(m.component)}: ${m.decision.reason || 'Its relationship to this project is not established.'}`))] : null,
-    views.length ? [h('h3', {}, 'Views not shown'), ...views.map((v) => h('p', { class: 'why' }, `${VIEW_KIND[v.kind] || v.kind}: ${(v.decision && v.decision.reason) || 'The available evidence did not establish a useful view.'}`))] : null);
+    heldBackViews(views));
 }
 function evidenceCard(paths) {
   return paths && paths.length ? h('div', {}, h('h3', {}, 'Evidence'), paths.map(pathRow)) : null;
@@ -1634,7 +1640,7 @@ function projectCard(project, node) {
 function viewCard(view) {
   return h('div', {}, h('div', { class: 'kind' }, VIEW_KIND[view.kind]), h('h2', {}, view.title), h('p', { class: 'lead' }, view.question), h('h3', {}, view.kind === 'infrastructure' ? 'Declared environment' : 'Scope'), h('p', {}, view.scope), h('p', {}, view.summary),
     view.kind === 'infrastructure' ? h('p', { class: 'conf' }, 'Repository declarations describe this environment; they do not establish what is deployed now.') : null,
-    h('p', { class: 'why' }, 'Arrows show the recorded relationships. Select a part or an arrow for its explanation and evidence.'), evidenceCard(view.evidence), projectCoverage(M.project), viewLinks(view.project));
+    h('p', { class: 'why' }, 'Arrows show the recorded relationships. Select a part or an arrow for its explanation and evidence.'), evidenceCard(view.evidence), viewLinks(view.project));
 }
 function conceptCard(node) {
   const c = M.byComp.get(node.component);
