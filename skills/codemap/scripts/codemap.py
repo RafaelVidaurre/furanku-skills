@@ -100,6 +100,7 @@ def draft_template(skeleton: dict) -> dict:
         "schema": "codemap.draft/1",
         "system": {"name": "", "summary": "", "purpose": "", "actors": [], "externals": [], "flows": []},
         "areas": [],
+        "projects": [], "project_relations": [], "views": [], "evidence_excerpts": [],
         "components": {
             c["id"]: {"summary": "", "responsibility": "", "runs": "", "why": "", "entry_points": [], "evidence": [], "loaded_by": []}
             for c in skeleton.get("components", [])
@@ -124,14 +125,12 @@ def draft_gaps(draft: dict, skeleton: dict) -> list[str]:
     for i, external in enumerate(system.get("externals") or []):
         if isinstance(external, dict) and not external.get("kind"):
             gaps.append(f"system.externals[{external.get('id') or i}].kind")
-    if not system.get("flows"):
-        gaps.append("system.flows")
     for flow in system.get("flows") or []:
         # the label is drawn on the arrow in full; what travels belongs in detail
         if isinstance(flow, dict) and len(str(flow.get("label", ""))) > FLOW_LABEL_MAX:
             gaps.append(f"system.flows[{flow.get('from')}->{flow.get('to')}].label longer than {FLOW_LABEL_MAX} characters: "
                         "keep the mechanism, move the rest to detail")
-    if not draft.get("areas"):
+    if not draft.get("areas") and skeleton.get("components"):
         gaps.append("areas")
     components = draft.get("components") or {}
     for comp in skeleton.get("components", []):
@@ -148,6 +147,8 @@ def draft_gaps(draft: dict, skeleton: dict) -> list[str]:
         key = build_mod.edge_key(edge["from"], edge["to"])
         if not reasons.get(key):
             gaps.append(f"edge_reasons.{key}")
+    gaps.extend(build_mod.project_types.validate(draft, {c["id"] for c in skeleton.get("components", [])},
+                                               build_mod.project_types.inventory_paths(skeleton)))
     return gaps
 
 
@@ -155,12 +156,14 @@ def merge_draft(draft: dict, skeleton: dict) -> dict:
     """Add template entries for new components and edges, drop entries for vanished ones, keep every written field."""
     if "domain_partitions" in draft:
         raise Failure("draft.json uses the retired domain_partitions block; rewrite it as areas: "
-                      "[{id, name, definition, components}] (3-7 areas, each holding at least one runnable) and rerun")
+                      "[{id, name, definition, components}] (1-7 nonempty areas) and rerun")
     template = draft_template(skeleton)
     draft.setdefault("schema", template["schema"])
     system = draft.setdefault("system", template["system"])
     for key, empty in template["system"].items():
         system.setdefault(key, empty)
+    for key in ("projects", "project_relations", "views", "evidence_excerpts"):
+        draft.setdefault(key, [])
     draft.setdefault("areas", [])
     draft.setdefault("module_names", {})
     module_summaries = draft.setdefault("module_summaries", {})

@@ -21,6 +21,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import jev_client  # noqa: E402
+import project_types  # noqa: E402
 from jev_client import Error  # noqa: E402
 
 
@@ -54,7 +55,7 @@ def evaluate_with_backoff(evaluate, payload):
 
 
 SCHEMA = "codemap.decisions/1"
-INSTRUCTIONS_VERSION = 8
+INSTRUCTIONS_VERSION = 9
 MAX_STATE_CHARS = 6000
 LIST_LIMIT = 8
 RUNTIMES = ("server", "client", "shared", "cli", "build", "none")
@@ -159,7 +160,8 @@ COMPONENT_QUESTIONS = ("area", "runtime", "nature", "role")
 SECOND_PASS_QUESTIONS = ("runtime", "nature", "role")
 STATUS_RANK = {"accepted": 2, "uncertain": 1, "unresolved": 0}
 CHECKS = {"core_uses_adapter": "core-uses-adapter", "crosses_the_wire": "crosses-the-wire"}
-BOOLEAN_QUESTIONS = tuple(CHECKS) + ("holds",)
+QUESTIONS.update(project_types.INSTRUCTIONS)
+BOOLEAN_QUESTIONS = tuple(CHECKS) + ("holds",) + project_types.BOOLEAN_QUESTIONS
 
 
 def canonical(value):
@@ -199,15 +201,22 @@ def clip_state(state):
 
 def load_inputs(skeleton, draft):
     components = skeleton.get("components")
-    if not isinstance(components, list) or not components or not all(isinstance(c, dict) and c.get("id") for c in components):
+    if not isinstance(components, list) or not all(isinstance(c, dict) and c.get("id") for c in components):
         raise Error("skeleton.json has no components; run skeleton first.")
     if not isinstance(draft, dict) or not isinstance(draft.get("components"), dict):
         raise Error("draft.json has no components block; run enrich first.")
+    if not components and not draft.get("projects"):
+        raise Error("skeleton.json has no components; provide evidence-backed projects for unsupported languages.")
     if "domain_partitions" in draft:
         raise Error("draft.json still has domain_partitions; rewrite it as areas: [{id, name, definition, components}].")
     areas = draft.get("areas")
-    if not isinstance(areas, list) or not areas:
-        raise Error("draft.json has no areas; enrich must propose 3-7 areas, each with an id, name, definition, and components.")
+    if not isinstance(areas, list) or (not areas and components):
+        raise Error("draft.json has no areas; enrich must propose 1-7 areas, each with an id, name, definition, and components.")
+    errors = project_types.validate(draft, {c["id"] for c in components}, project_types.inventory_paths(skeleton))
+    if not errors:
+        errors.extend(project_types.question_errors(skeleton, draft))
+    if errors:
+        raise Error("Invalid repository proposals: " + "; ".join(errors))
     seen = set()
     for area in areas:
         if not isinstance(area, dict) or not isinstance(area.get("id"), str) or not area["id"]:
@@ -454,6 +463,19 @@ def resolve_boolean(answer):
     return {"accepted": False, "flag": "uncertain", "probability": p}
 
 
+def resolve_repository_answer(kind, answer):
+    if answer is None:
+        return {"value": None, "status": "unresolved", "confidence": None, "reason": "missing decision"}
+    if kind not in project_types.BOOLEAN_QUESTIONS:
+        return resolve_choice(answer)
+    probability = answer["probability"]
+    if probability >= ACCEPT_AT:
+        return {"value": True, "status": "accepted", "confidence": probability, "reason": None}
+    if probability <= UNCERTAIN_AT:
+        return {"value": False, "status": "rejected", "confidence": 1 - probability, "reason": None}
+    return {"value": None, "status": "uncertain", "confidence": probability, "reason": "insufficient evidence"}
+
+
 def answer_value(answer):
     return answer.get("choice", answer.get("score", answer.get("probability")))
 
@@ -501,6 +523,8 @@ class Session:
                 pending[kind] = (criteria, print_)
         if not pending:
             return answers
+        if any(kind in project_types.INSTRUCTIONS for kind in pending) and len(canonical(state).encode("utf-8")) > 250_000:
+            raise Error(f"{node}: repository state exceeds 250 KB; narrow proposal cards before deciding")
         payload = {"model": jev_client.MODEL, "state": state,
                    "questions": {kind: question(kind, criteria) for kind, (criteria, _) in pending.items()}}
         if self.zdr:
@@ -684,14 +708,25 @@ def _decide(session, skeleton, draft, dry_run):
                 key = node if node not in edges else f"{node}|{CHECKS[kind]}"
                 edges[key] = dict(resolve_boolean(answers[kind]), **{"from": src, "to": dst, "check": CHECKS[kind]})
 
+    # Repository judgments are always fingerprinted afresh, independently of component holds.
+    repository = {}
+    for node, kind, state, criteria in project_types.questions(skeleton, draft):
+        answer = session.ask(node, state, {kind: criteria}).get(kind)
+        entry = resolve_repository_answer(kind, answer)
+        repository[node] = entry
+        if not dry_run and entry["status"] in ("uncertain", "unresolved"):
+            diagnostic = {"node": node, "question": kind, **entry}
+            (uncertain if entry["status"] == "uncertain" else unresolved).append(diagnostic)
+
     statuses = [e[k]["status"] for e in resolution.values() for k in COMPONENT_QUESTIONS if k != "role" or e["role_applies"]]
+    statuses.extend(entry["status"] for entry in repository.values())
     count_values = lambda kind: dict(sorted(
         {v: sum(1 for e in resolution.values() if (e[kind]["value"] or "unresolved") == v) for v in
          {e[kind]["value"] or "unresolved" for e in resolution.values()}}.items()))
     findings = {check: sum(1 for e in edges.values() if e["check"] == check and not e["accepted"]) for check in sorted(CHECKS.values())}
     result = {
         "schema": SCHEMA, "instructions_version": INSTRUCTIONS_VERSION, "model": jev_client.MODEL, "decided_at": now(),
-        "resolution": resolution, "edges": edges, "records": session.records,
+        "resolution": resolution, "edges": edges, "repository": repository, "records": session.records,
         "summary": {
             "components": len(components), "areas": len(areas),
             "questions": len(session.records), "calls_made": session.calls, "calls_cached": session.cached,

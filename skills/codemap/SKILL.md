@@ -26,9 +26,9 @@ python3 <skill-dir>/scripts/codemap.py scan --repo <root>
 python3 <skill-dir>/scripts/codemap.py skeleton --repo <root>
 ```
 
-The scan records every tracked TypeScript, JavaScript, Rust, and Python file, its imports, and the units (packages, crates, apps, directories) that own them. The skeleton turns that into components, modules, metrics, and aggregated edges. Read the scan summary: units by kind, files by language, unresolved imports. Unresolved imports above a few percent of edges mean a resolution gap; report it as a scanner limitation in the final summary rather than working around it in prose.
+The scan inventories all tracked paths and document/manifest/deployment reading leads, and extracts supported TypeScript, JavaScript, Rust, and Python imports and owning units. The skeleton turns that into components, modules, metrics, and aggregated edges. Read the scan summary: units by kind, files by language, unresolved imports. Unresolved imports above a few percent of edges mean a resolution gap; report it as a scanner limitation in the final summary rather than working around it in prose.
 
-**Complete when:** both commands succeed and the component count matches what you would expect from the repository's workspace manifests.
+**Complete when:** both commands succeed and the inventory is present and any gap between scanned components and repository contents is explained by import coverage.
 
 ## 3. Enrich the draft
 
@@ -36,9 +36,9 @@ The scan records every tracked TypeScript, JavaScript, Rust, and Python file, it
 python3 <skill-dir>/scripts/codemap.py draft-template --repo <root>
 ```
 
-This writes `draft.json` with every field you must fill, in a fixed shape, and on later runs lists the fields still empty. Fill it by following [enrichment](references/enrichment.md): a one-sentence summary and the system purpose, people with what they use, externals with their kind, runtime flows with a short label and a detail, 3–7 areas, one responsibility, one line on how it runs, and one reason-to-exist per component, and one reason per component edge. Every sentence traces to something you read in the repository, in the evidence order that reference sets.
+This writes `draft.json` with every field you must fill, in a fixed shape, and on later runs lists the fields still empty. Fill it by following [enrichment](references/enrichment.md): a one-sentence summary and the system purpose, people with what they use, externals with their kind, evidenced runtime flows with a short label and detail, genuine areas, one responsibility, one line on how it runs, and one reason-to-exist per component, and one reason per component edge. For a new repository or changed project/view scope, read [project types](references/project-types.md) to propose project boundaries, shared memberships and useful behavior graphs from tracked evidence.
 
-**Complete when:** `draft-template` reports zero empty required fields and every area lists at least one runnable.
+**Complete when:** `draft-template` reports zero gaps, including project/view references and evidence.
 
 ## 4. Decide with Jev
 
@@ -62,13 +62,13 @@ A node still in doubt after its evidence pass keeps its badge; leave it and name
 python3 <skill-dir>/scripts/codemap.py build --repo <root> --open
 ```
 
-Build validates the map (every file in a module, every module in a component, every component in an area, Build & verify, or the `unsorted` group (shown as *Not placed yet*), with a runtime and nature; 3–7 areas each with a runnable; every flow endpoint known; every edge with a reason), writes `map.json` and `index.html`, and stores an immutable snapshot for the scanned commit. A validation failure names the rule and the node; fix the draft or report the scanner gap, then rebuild.
+Build validates the map (every file in a module, every module in a component, every component in an area, Build & verify, or the `unsorted` group (shown as *Not placed yet*), with a runtime and nature; nonempty areas with the bounds in project types; accepted project memberships and bounded behavior graphs; every flow endpoint known; every edge with a reason), writes `map.json` and `index.html`, and stores an immutable snapshot for the scanned commit. A validation failure names the rule and the node; fix the draft or report the scanner gap, then rebuild.
 
 **Complete when:** build reports zero validation errors and the HTML path.
 
 ## 6. Review and report
 
-Open five component cards at random in `map.json` and compare each responsibility and its strongest edge reason against the code they point at; correct the draft and rebuild when one is wrong.
+Open up to five component cards at random in `map.json` and compare each responsibility and its strongest edge reason against the code they point at; correct the draft and rebuild when one is wrong.
 
 Then answer the user in this order, in plain words, the way the map's start-here panel reads:
 
@@ -87,6 +87,6 @@ Counts per level and per runtime are one line at most. Explain the viewer in the
 python3 <skill-dir>/scripts/codemap.py update --repo <root>
 ```
 
-Update re-scans, rebuilds the skeleton, records what changed per component since the previous scan (files added, removed, or changed; dependencies gained or lost), and merges the draft: new components and edges get empty fields, vanished ones are dropped, everything you wrote stays. When the draft has no gaps it runs `decide` at once; otherwise it lists the gaps and stops. Fill only the listed fields following [enrichment](references/enrichment.md), then run `decide` and `build`. Jev reuses every cached answer whose card is unchanged, asks whether the previous assignment still holds for components with recorded changes, and asks the full question set for new components. Areas stay as they are unless a component comes back `new_area`; then revise the areas in the draft and run `decide` again.
+Update re-scans, rebuilds the skeleton, records what changed per component since the previous scan (files added, removed, or changed; dependencies gained or lost), and merges the draft: new components and edges get empty fields, vanished ones are dropped, authored projects and views stay, with vanished component or evidence references reported as gaps. When the draft has no gaps it runs `decide` at once; otherwise it lists the gaps and stops. Fill only the listed fields following [enrichment](references/enrichment.md), then run `decide` and `build`. Jev reuses every cached answer whose card is unchanged, asks whether the previous assignment still holds for components with recorded changes, and asks the full question set for new components. Areas stay as they are unless a component comes back `new_area`; then revise the areas in the draft and run `decide` again.
 
 **Complete when:** build succeeds and your summary names the components that changed, appeared, or vanished since the previous snapshot.

@@ -36,16 +36,6 @@ def test_template_is_self_contained():
     assert "@import" not in html
 
 
-def test_template_routes_and_lenses():
-    html = TEMPLATE.read_text()
-    for route in ("'#/area/'", "'#/component/'", "h === 'layers' || h === 'runtime'", "h === 'ships' || h === 'size'"):
-        assert route in html
-    for lens in ("id: 'purpose'", "id: 'layers'", "id: 'ships'", "id: 'size'"):
-        assert lens in html
-    assert "#/domain" not in html.replace("(?:area|domain)", "")
-    assert "layoutSystem" in html and "layoutShips" in html and "layoutSize" in html and "layoutDomains" not in html
-
-
 def test_fixture_tells_its_story_in_short_labels():
     data = load()
     assert data["system"]["summary"] and len(data["system"]["summary"].split()) <= 30
@@ -197,3 +187,178 @@ def test_screens_describe_state_and_never_hand_the_reader_pipeline_steps():
     assert not agent_steps.search(code), agent_steps.search(code)
     for text in (build.UNSORTED_DEFINITION, build.BUILD_VERIFY_DEFINITION, *build.MEANINGS.values()):
         assert not agent_steps.search(text), text
+
+
+def project_map():
+    """Small overlapping projects, including one evidenced only by infrastructure."""
+    components = [
+        {"id": "api", "name": "API", "area": "app", "nature": "product", "runtime": "server", "role": "surface", "runnable": True},
+        {"id": "game", "name": "Game", "area": "app", "nature": "product", "runtime": "client", "role": "surface", "runnable": True},
+        {"id": "shared", "name": "Shared", "area": "lib", "nature": "product", "runtime": "shared", "role": "kernel", "runnable": False},
+    ]
+    views = []
+    for kind in ("request", "game-loop", "ecs", "infrastructure", "compiler"):
+        views.append({
+            "id": kind, "project": "infra" if kind == "infrastructure" else "api-project", "kind": kind,
+            "title": kind, "question": "How does work move?", "scope": "Declared staging" if kind == "infrastructure" else "One operation", "summary": "Grounded behavior",
+            "evidence": ["src/entry"], "decision": {"status": "accepted", "value": True},
+            "nodes": [{"id": n, "label": n, "kind": role, "component": "api" if n == "entry" and kind != "infrastructure" else None, "detail": "Explains " + n, "evidence": ["src/entry"]} for n, role in (("entry", "system"), ("work", "component data"), ("reject", "response"))],
+            "edges": [{"from": a, "to": b, "label": label, "detail": "Explains " + label, "kind": "network" if kind == "infrastructure" else "control", "evidence": ["src/entry"]} for a, b, label in (("entry", "work", "continue"), ("entry", "reject", "reject"), ("work", "entry", "repeat"), ("work", "work", "next tick"))],
+        })
+    views.append({**views[0], "id": "unsupported", "decision": {"status": "rejected", "value": False}})
+    return {
+        "schema": "codemap.map/1", "meta": {"import_coverage": {"languages": ["TypeScript"], "parsed_files": 3, "unparsed_files": 7, "inventory_available": True}}, "landscape": {"enabled": True},
+        "system": {"name": "Repository", "actors": [{"id": "visitor", "name": "Visitor", "uses": ["api"]}, {"id": "player", "name": "Player", "uses": ["game"]}], "externals": [{"id": "db", "name": "Database", "used_by": ["api", "game"], "kind": "datastore"}]},
+        "areas": [{"id": "app", "name": "Application", "components": ["api", "game"], "hue": 100}, {"id": "lib", "name": "Libraries", "components": ["shared"], "hue": 200}],
+        "components": components, "modules": [{"id": c["id"] + "/main", "name": "main", "component": c["id"], "files": []} for c in components],
+        "edges": {"components": [{"from": "api", "to": "shared", "count": 2}, {"from": "game", "to": "shared", "count": 5}, {"from": "api", "to": "game", "count": 1}], "modules": [{"from": "api/main", "to": "game/main", "count": 1}], "areas": []},
+        "flows": [{"from": "visitor", "to": "api", "kind": "network", "label": "request"}, {"from": "api", "to": "db", "kind": "network", "label": "query"}, {"from": "game", "to": "db", "kind": "network", "label": "save"}],
+        "health": [{"nodes": ["api", "game"], "check": "cycle", "accepted": False}], "unresolved": [],
+        "projects": [{"id": "api-project", "name": "API project", "kind": "web-service", "components": ["api", "shared"]}, {"id": "game-project", "name": "Game project", "kind": "game", "components": ["game", "shared"]}, {"id": "infra", "name": "Infrastructure", "kind": "infrastructure", "components": []}],
+        "project_relations": [{"from": "api-project", "to": "game-project", "label": "serves", "detail": "API serves game", "evidence": ["README.md"]}], "views": views,
+    }
+
+
+def run_viewer_js(body, cards=False):
+    """Execute the shipped model/layout/router code in Node; DOM rendering is checked in a browser."""
+    import subprocess
+    html = TEMPLATE.read_text()
+    code = html.split("(function () {", 1)[1].split("/* ================================================================== state */", 1)[0]
+    routes = html.split("function parseHash(", 1)[1].split("/* ================================================================== dom helpers */", 1)[0]
+    program = code + "\nconst assert = require('node:assert/strict');\n"
+    program += "const repositoryModel = buildModel(" + json.dumps(project_map()) + ");\n"
+    program += "let M = repositoryModel; const state = {route: {}}; const cache = new Map(); const modelFor = (id) => id ? projectModel(repositoryModel, id) : repositoryModel;\n"
+    program += html[html.index("function trunc("):html.index("function swatch(")]
+    program += "function parseHash(" + routes + "\n"
+    if cards:
+        program += html[html.index("function importCoverage("):html.index("function frameCard(")]
+        program += html[html.index("function navigateTo("):html.index("function routeForFinding(")]
+        program += html[html.index("function navigateOrSelect("):html.index("function selectEdgeOrGo(")]
+        program += """
+const h = (tag, attrs, ...children) => ({tag, attrs, children: children.flat(Infinity).filter(x => x != null)});
+const pathRow = p => h('path', {}, p), compList = ids => h('components', {}, ...ids), openBtn = () => null;
+const lensList = () => null, swatch = () => null, shapeGlyph = () => null, edgeGlyph = () => null;
+let navigation = null, selection = null;
+const go = (route, opts) => navigation = {route, opts}, select = sel => selection = sel;
+const textOf = node => node == null ? '' : typeof node === 'object' ? (Array.isArray(node) ? node : node.children || []).map(textOf).join(' ') : String(node);
+const elements = node => !node || typeof node !== 'object' ? [] : [node, ...(node.children || []).flatMap(elements)];
+"""
+    program += body
+    result = subprocess.run(["node", "-"], input=program, text=True, capture_output=True, timeout=15)
+    assert result.returncode == 0, result.stderr
+
+
+def test_project_scope_preserves_sharing_and_removes_foreign_relationships():
+    run_viewer_js("""
+const api = modelFor('api-project'), game = modelFor('game-project');
+assert.deepEqual([...api.byComp.keys()], ['api', 'shared']);
+assert.equal(api.byComp.get('shared'), game.byComp.get('shared'));
+assert.deepEqual(api.actors.map(a => a.id), ['visitor']);
+assert.deepEqual(api.externals[0].used_by, ['api']);
+assert.equal(api.flows.length, 2);
+assert.equal(api.edgesOf.component.length, 1);
+assert.equal(api.edgesOf.area[0].count, 2);
+assert.equal(api.edgesOf.module.length, 0);
+assert.equal(api.health.length, 0);
+assert.equal(api.areaCounts(api.byArea.get('app')).product, 1);
+assert.equal(api.runtimeCounts().client, undefined);
+assert.ok(!layoutProject(api).nodes.some(n => n.id === 'game'));
+assert.ok(!layoutMatrix(api).nodes.some(n => n.id === 'game'));
+assert.ok(!layoutShips(api).nodes.some(n => n.id === 'game'));
+assert.deepEqual(availableLenses(modelFor('infra')).map(l => l.id), ['purpose']);
+const singleRoot = buildModel({...modelFor('infra').map, landscape: {enabled: false}});
+assert.equal(singleRoot.project, undefined);
+assert.deepEqual(availableLenses(singleRoot).map(l => l.id), ['purpose']);
+assert.equal(modelFor('infra').views.length, 1);
+assert.ok(Number.isFinite(layoutProject(modelFor('infra')).bounds.w));
+""")
+
+
+def test_graphs_preserve_branches_repeats_evidence_and_code_owners():
+    run_viewer_js("""
+assert.ok(!repositoryModel.byView.has('unsupported'));
+for (const view of repositoryModel.views) {
+  const graph = layoutView(modelFor(view.project), view);
+  assert.equal(graph.nodes.length, 3);
+  assert.equal(graph.edges.length, 4);
+  assert.equal(new Set(graph.edges.map(e => e.id)).size, 4);
+  assert.equal(new Set(graph.edges.map(e => e.d)).size, 4);
+  assert.equal(graph.edges.filter(e => e.from === 'entry').length, 2);
+  assert.ok(graph.edges.some(e => e.from === e.to));
+  assert.ok(graph.edges.every(e => e.data.evidence[0] === 'src/entry' && !/NaN|Infinity/.test(e.d)));
+  assert.equal(graph.nodes[0].hue, view.kind === 'infrastructure' ? null : 100);
+  assert.equal(graph.nodes[1].sub, 'component data');
+  assert.ok(graph.bounds.y < Math.min(...graph.nodes.map(n => n.y - n.h / 2)));
+}
+assert.equal(layoutLandscape(repositoryModel).edges[0].data.detail, 'API serves game');
+""")
+
+
+def test_routes_roundtrip_keep_project_context_and_degrade_safely():
+    run_viewer_js("""
+for (const hash of ['#/project/api-project', '#/project/api-project/layers', '#/project/api-project/area/app', '#/project/api-project/component/api', '#/view/request', '#/system']) {
+  assert.equal(hashFor(parseHash(hash)), hash);
+}
+assert.equal(layoutFor(parseHash('#/')).lens, 'landscape');
+assert.equal(layoutFor(parseHash('#/system')).lens, 'purpose');
+assert.equal(parentRoute(parseHash('#/view/request')).project, 'api-project');
+assert.equal(parentRoute(parseHash('#/project/api-project/component/api')).project, 'api-project');
+assert.equal(parentRoute(parseHash('#/project/api-project')).project, undefined);
+assert.equal(parseHash('#/project/api-project/component/game').level, 0);
+assert.equal(parseHash('#/project/api-project/component/game').project, 'api-project');
+for (const hash of ['#/view/missing', '#/view/unsupported', '#/project/missing', '#/view/%broken']) assert.equal(hashFor(parseHash(hash)), '#/');
+state.route = parseHash('#/project/api-project');
+assert.equal(routeInto({kind: 'component', data: {id:'api'}}).project, 'api-project');
+assert.equal(routeInto({kind: 'concept', data: {component:'api'}}), null);
+repositoryModel.landscape = false; cache.clear();
+assert.equal(layoutFor(parseHash('#/')).lens, 'purpose');
+assert.equal(parseHash('#/domain/app').id, 'app');
+assert.equal(parseHash('#/runtime').lens, 'layers');
+""")
+
+
+def test_view_cards_explain_evidence_and_navigate_to_real_scoped_component():
+    run_viewer_js("""
+M = modelFor('api-project'); state.route = parseHash('#/view/request');
+const view = repositoryModel.byView.get('request');
+state.layout = layoutView(M, view);
+const concept = conceptCard(view.nodes[0]);
+assert.ok(textOf(concept).includes('Explains entry'));
+assert.ok(textOf(concept).includes('src/entry'));
+assert.ok(elements(concept).some(e => e.tag === 'components' && e.children.includes('api')));
+navigateTo('component', 'api');
+assert.equal(hashFor(navigation.route), '#/project/api-project/area/app');
+assert.equal(navigation.opts.select, 'api');
+state.layout.nodes[0].id = 'api'; navigation = null;
+navigateOrSelect('component', 'api');
+assert.equal(navigation.opts.select, 'api');
+state.layout.nodes[0].id = 'entry';
+const edge = graphEdgeCard(state.layout.edges[0]);
+assert.ok(textOf(edge).includes('Explains continue'));
+assert.ok(textOf(edge).includes('src/entry'));
+elements(edge).find(e => e.tag === 'button').attrs.onclick();
+assert.equal(selection.id, 'entry');
+assert.ok(!textOf(viewLinks()).includes('unsupported'));
+const l1 = {items: [], append(...xs) {this.items.push(...xs);}}, l2 = {items: [], append(...xs) {this.items.push(...xs);}};
+renderGraphLegend(state.layout, l1, l2);
+assert.ok(textOf(l2.items).includes('control flow'));
+assert.ok(!textOf(l2.items).includes('network traffic'));
+assert.ok(!textOf(l2.items).includes('imports'));
+M = modelFor('infra');
+assert.ok(textOf(viewCard(repositoryModel.byView.get('infrastructure'))).includes('Declared staging'));
+assert.ok(textOf(projectCoverage(M.project)).includes('outside the source scan'));
+assert.ok(textOf(projectCoverage(M.project)).includes('7 tracked files outside import parsing'));
+""", cards=True)
+
+
+def test_old_maps_keep_existing_lenses_without_project_metadata():
+    run_viewer_js("const legacy = buildModel(" + json.dumps(load()) + """ );
+assert.equal(legacy.landscape, false);
+assert.equal(legacy.projects.length, 0);
+assert.equal(legacy.views.length, 0);
+assert.equal(availableLenses(legacy).length, 5);
+for (const layout of [layoutSystem(legacy), layoutMatrix(legacy), layoutShips(legacy), layoutShips(legacy, true), layoutSize(legacy), layoutModules(legacy, legacy.map.components[0].id)]) {
+  assert.ok(layout.nodes.length > 0);
+  assert.ok(Object.values(layout.bounds).every(Number.isFinite));
+}
+""")

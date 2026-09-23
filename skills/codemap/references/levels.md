@@ -12,13 +12,13 @@ The map answers one question per screen. There is more than one honest way to lo
 | Size & activity | Where is the code, and where is work happening? | every component as a tile sized by lines, grouped by area, shaded by recent changes | line counts and the scan's git window |
 | Contracts | Which shared schemas and contracts exist, and what uses each? | the Ships in matrix restricted to contracts: kernel-layer product components and any component holding interface files | Jev's role answers, contract files the scanner finds by name in any stack |
 
-Purpose is where the map opens; its panel is a start-here summary (the `summary` sentence, the flows in reading order, the lenses). Switching lens keeps the selected component selected. Ships in makes two things visible that no other screen does: libraries compiled into both client and server, and product libraries no runnable imports.
+An accepted landscape opens above the project system pictures; otherwise Purpose opens. Read [project types](project-types.md) when proposing project boundaries or behavior views, including per-project area bounds and unsupported-language repositories. On Purpose, its panel is a start-here summary (the `summary` sentence, the flows in reading order, the lenses). Switching lens keeps the selected component selected. Ships in makes two things visible that no other screen does: libraries compiled into both client and server, and product libraries no runnable imports.
 
 ## Levels
 
 | Level | Name | What is drawn | Question it answers | Bounds |
 | --- | --- | --- | --- | --- |
-| L0 | System picture (the Purpose lens) | people on the left, areas with their runnable parts in the middle, the external systems the product touches on the right, runtime flows between them, Build & verify along the bottom | What is this, who uses it, what runs, what talks to what? | ≤ 6 people, 3–7 areas, ≤ 10 runnables, ≤ 8 externals |
+| L0 | System picture (the Purpose lens) | people on the left, areas with their runnable parts in the middle, the external systems the product touches on the right, runtime flows between them, Build & verify along the bottom | What is this, who uses it, what runs, what talks to what? | ≤ 6 people, 1–7 areas, ≤ 10 runnables, ≤ 8 externals |
 | L1 | Area | one area's components in the runtime × role matrix, ghosts for touched components of other areas, supporting tray beneath | Inside this area, what are the parts, where do they run, which feed which? | ≤ 12 product components per area |
 | L2 | Component | modules of one component, test modules in their own band beneath, files listed on the card | Inside this component, where does each responsibility live? | ≤ 16 modules |
 
@@ -26,7 +26,7 @@ The map stops at files. A leaf links to a path; reading code is the editor's job
 
 ## Areas, runnables, flows
 
-An **area** is a group of parts one kind of person uses for one purpose: *Playing*, *Authoring worlds*, *Serving a World*, *Operating*. You propose 3–7 areas with definitions in the repository's vocabulary; Jev places every component. Every area must hold at least one **runnable**: a `surface` product component that starts as its own process or page (an executable, or a `client`, `server`, or `cli` runtime). Supporting code (tooling, tests, docs, experiments) lands with the area it serves or in the implicit **Build & verify** area; it never forms an area of its own.
+An **area** is a group of parts one kind of person uses for one purpose: *Playing*, *Authoring worlds*, *Serving a World*, *Operating*. You propose 1–7 areas with definitions in the repository's vocabulary; Jev places every component. An area holds components and may consist entirely of libraries. A **runnable** is a `surface` product component that starts as its own process or page (an executable, or a `client`, `server`, or `cli` runtime). Supporting code (tooling, tests, docs, experiments) lands with the area it serves or in the implicit **Build & verify** area; it never forms an area of its own.
 
 **Flows** are the arrows of the system picture. Imports cannot say that the client talks to the gateway over HTTPS or that the server loads content files, so you write flows from the repository's documentation: `{from, to, label, detail, kind}` with endpoints among runnables, people, and externals, a short `label` naming the mechanism (drawn on the arrow in full), a `detail` saying what travels (shown on hover and in the card), and kind `network`, `file`, or `process`.
 

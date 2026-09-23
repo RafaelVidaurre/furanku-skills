@@ -321,6 +321,7 @@ def skeleton(scan: dict) -> dict:
 
     return {
         "schema": "codemap.skeleton/1",
+        **({"inventory": scan["inventory"]} if "inventory" in scan else {}),
         "meta": {"repo": scan.get("repo", {}), "scanned_at": scan.get("scanned_at", ""), "activity": scan.get("activity"),
                  "unowned_contracts": [{"path": c["path"], "kind": c["kind"]} for c in scan.get("contracts", []) if not c.get("unit") or c["unit"] not in units]},
         "components": components,

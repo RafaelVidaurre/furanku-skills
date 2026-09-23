@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "codemap.map/1",
-  "description": "Structure of map.json. build.py checks it with a built-in validator limited to type, required, enum, items, properties, and additionalProperties, then applies the semantic rules from the design spec: every component carries an area, runtime, nature, and (for product code) role; 3-7 explicit areas plus the implicit build-verify area (and unsorted when needed), each explicit area with at least one runnable; flows join runnables, actors, and externals; health lists one entry per check result.",
+  "description": "Structure of map.json. build.py checks it with a built-in validator limited to type, required, enum, items, properties, and additionalProperties, then applies the semantic rules from the design spec: every component carries an area, runtime, nature, and (for product code) role; 1-7 explicit areas (zero only when no components were scanned) plus the implicit build-verify area (and unsorted when needed), each explicit area with components; flows join runnables, actors, and externals; health lists one entry per check result.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -851,6 +851,46 @@
           }
         }
       }
+    },
+    "landscape": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "decision"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "decision": {
+          "$ref": "#/definitions/repositoryDecision"
+        }
+      },
+      "additionalProperties": false
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/project"
+      }
+    },
+    "project_relations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/projectRelation"
+      }
+    },
+    "views": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/view"
+      }
+    },
+    "view_decisions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/viewDecision"
+      }
     }
   },
   "definitions": {
@@ -921,6 +961,341 @@
           "description": "uncertain: confidence 0.4-0.6; unresolved: fallback value in use; contradicts-evidence: resolved answer the scan evidence argues against (sharpen the card and re-run decide)."
         }
       }
+    },
+    "repositoryDecision": {
+      "type": "object",
+      "required": [
+        "value",
+        "status",
+        "confidence",
+        "reason"
+      ],
+      "properties": {
+        "value": {
+          "type": [
+            "string",
+            "boolean",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "accepted",
+            "rejected",
+            "uncertain",
+            "unresolved"
+          ]
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "projectMembership": {
+      "type": "object",
+      "required": [
+        "component",
+        "decision"
+      ],
+      "properties": {
+        "component": {
+          "type": "string"
+        },
+        "decision": {
+          "$ref": "#/definitions/repositoryDecision"
+        }
+      },
+      "additionalProperties": false
+    },
+    "project": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "summary",
+        "purpose",
+        "components",
+        "evidence",
+        "kind",
+        "decision",
+        "membership_decisions"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "kind": {
+          "enum": [
+            "web-service",
+            "game",
+            "library",
+            "cli",
+            "data-pipeline",
+            "application",
+            "compiler",
+            "ml",
+            "embedded",
+            "infrastructure",
+            "other"
+          ]
+        },
+        "decision": {
+          "$ref": "#/definitions/repositoryDecision"
+        },
+        "membership_decisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/projectMembership"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "projectRelation": {
+      "type": "object",
+      "required": [
+        "from",
+        "to",
+        "label",
+        "detail",
+        "evidence"
+      ],
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "viewNode": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "kind",
+        "detail",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "component": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "viewEdge": {
+      "type": "object",
+      "required": [
+        "from",
+        "to",
+        "label",
+        "detail",
+        "kind",
+        "evidence"
+      ],
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "control",
+            "data",
+            "network",
+            "file",
+            "process"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "view": {
+      "type": "object",
+      "required": [
+        "id",
+        "project",
+        "title",
+        "question",
+        "scope",
+        "summary",
+        "kind",
+        "evidence",
+        "nodes",
+        "edges",
+        "decision"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "project": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "question": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "request",
+            "game-loop",
+            "ecs",
+            "library-api",
+            "command",
+            "data-pipeline",
+            "app-lifecycle",
+            "compiler",
+            "ml-lifecycle",
+            "device-lifecycle",
+            "infrastructure"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/viewNode"
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/viewEdge"
+          }
+        },
+        "decision": {
+          "$ref": "#/definitions/repositoryDecision"
+        }
+      },
+      "additionalProperties": false
+    },
+    "viewDecision": {
+      "type": "object",
+      "required": [
+        "id",
+        "project",
+        "kind",
+        "decision"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "project": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "request",
+            "game-loop",
+            "ecs",
+            "library-api",
+            "command",
+            "data-pipeline",
+            "app-lifecycle",
+            "compiler",
+            "ml-lifecycle",
+            "device-lifecycle",
+            "infrastructure"
+          ]
+        },
+        "decision": {
+          "$ref": "#/definitions/repositoryDecision"
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

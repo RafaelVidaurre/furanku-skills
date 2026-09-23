@@ -1302,6 +1302,23 @@ def file_role(path: str) -> str:
         return "test"
     return "test" if TEST_BASENAME.search(parts[-1]) else "source"
 
+def repository_inventory(tracked, parsed):
+    """Filenames are reading leads, never classifications or import evidence."""
+    documents, manifests, deployments = [], [], []
+    for path in tracked:
+        name = path.rsplit("/", 1)[-1].lower()
+        if name.endswith((".md", ".rst", ".adoc")) or name.startswith(("readme", "architecture")):
+            documents.append(path)
+        if name in {"package.json", "cargo.toml", "pyproject.toml", "go.mod", "pom.xml", "build.gradle", "build.gradle.kts", "gemfile", "composer.json", "pubspec.yaml", "mix.exs", "cmakelists.txt", "package.swift", "project.godot"} or name.endswith((".csproj", ".fsproj", ".sln", ".uproject", ".uplugin")):
+            manifests.append(path)
+        if name.startswith(("dockerfile", "compose.", "docker-compose.", "serverless.")) or name in {"chart.yaml", "skaffold.yaml", "pulumi.yaml"} or name.endswith((".tf", ".tfvars", ".bicep")) or any(part.lower() in {"deploy", "deployment", "deployments", "k8s", "kubernetes", "terraform", "helm", "infra"} for part in path.split("/")[:-1]):
+            deployments.append(path)
+    covered = sorted(parsed)
+    return {"tracked_paths": sorted(set(tracked)), "documents": documents, "manifests": manifests,
+            "deployments": deployments, "import_coverage": {"languages": ["javascript", "typescript", "rust", "python"],
+            "parsed_paths": covered, "unparsed_paths": sorted(set(tracked) - set(covered))}}
+
+
 def scan(repo_root: Path, ref: str = "HEAD", now: str | None = None) -> dict:
     root = Path(repo_root).resolve()
     if not root.is_dir():
@@ -1392,6 +1409,7 @@ def scan(repo_root: Path, ref: str = "HEAD", now: str | None = None) -> dict:
         "scanned_at": now,
         "activity": activity,
         "contracts": contracts,
+        "inventory": repository_inventory(tracked, [f["path"] for f in files]),
         "units": [u.to_dict() for u in sorted(scanner.units, key=lambda u: u.id)],
         "files": files,
         "edges": edges,

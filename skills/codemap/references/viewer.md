@@ -4,7 +4,19 @@
 
 ## What a reader sees first
 
-The map opens on the **Purpose** lens with a start-here panel: the system's one-sentence `summary`, a runtime strip ("14 client · 10 shared · 5 server"), **How it fits together** (every flow in reading order: people first, then along the direction the flows run, each with its mechanism and what travels), the other lenses with the question each answers, then people, areas, external systems, the full `purpose` under About, and the commit the map describes.
+Single-project and older maps open on the **Purpose** lens with a start-here panel: the system's one-sentence `summary`, a runtime strip ("14 client · 10 shared · 5 server"), **How it fits together** (every flow in reading order: people first, then along the direction the flows run, each with its mechanism and what travels), the other lenses with the question each answers, then people, areas, external systems, the full `purpose` under About, and the commit the map describes.
+
+## Repository landscape and behavior
+
+When the map establishes several independent projects, `#/` opens a **Repository landscape**. Each project card explains its purpose and primary kind, lists components shared with other projects, and links to evidenced project relationships. Click a project to read its card; click again, press `Enter`, or use its Open button to enter `#/project/<id>`.
+
+A project's Purpose picture and existing lenses contain only its accepted component memberships, relevant people, external systems, and relationships. Shared components retain their identity and area colour in every project. Project subroutes preserve that scope: `#/project/<id>/layers`, `/area/<area-id>`, and `/component/<component-id>`. Breadcrumbs and Backspace return through the project. Empty lenses disappear from its selector based on available data, not its project kind. **All code and system** (`#/system`) and the repository-wide lenses keep components with no accepted project membership reachable.
+
+**Explore behavior** offers the supported views independently of primary project kind. A game may have request and infrastructure views. `#/view/<id>` shows the view's question, concrete scope, directed graph, and evidence. Supported kinds are request path, game loop, ECS, library API, command path, data pipeline, app lifecycle, compiler stages, ML lifecycle, device lifecycle, and declared infrastructure. These all use the same bounded graph renderer; they are not source-level trace replays or specialized sequence/ECS charts.
+
+Branches, repeats, reads/writes and scheduling are explicit labeled edges. Concept cards explain roles such as middleware, system, component data, gateway or datastore, with evidence paths; an optional code component opens its real card and navigation. Concept nodes without a code owner are neutral. Edge cards show the relationship's own explanation and evidence. The legend lists only displayed relationships: control flow, data flow, network traffic, file handoff, or starts/hosts, each with a distinct stroke pattern.
+
+Infrastructure cards name the **declared environment** and distinguish repository declarations from current deployed state. Projects with no parsed components can still have useful evidence and behavior views; the panel explains that coverage gap and reports repository-wide import parsing coverage separately from behavior evidence. Uncertain memberships and views omitted for insufficient evidence remain visible as explanations, without displaying unsupported graphs. Unknown project/view links return safely to a valid picture.
 
 ## Lenses
 
@@ -35,7 +47,7 @@ Clicking selects and opens the card; clicking again, double-clicking, or `Enter`
 | Corner icon | where it runs: window (client), two arrows (shared), rack (server), `>_` (cli), wrench (build) |
 | Shape | the kind of thing: person pill; strong-bordered rectangle for a part that runs on its own; flat rectangle for a library; dashed cylinder, cloud, or device for datastore, service, or runtime; tinted region for an area; outlined tooling, dashed tests, folded page for content and docs, dotted experiments |
 | Arrow on Purpose | a flow: running things talking, from the repository's docs. Solid over the network, dashed through files, dotted when one starts or hosts the other. Thin gray: a person uses something. Faint dotted, on hover only: imports into another area |
-| Arrow elsewhere | code importing code: thicker for more imports; faint dotted when only tests import; red dashed when Health says it is worth a look |
+| Arrow on Layers / Component | code importing code: thicker for more imports; faint dotted when only tests import; red dashed when Health says it is worth a look |
 | Badge | amber dot: the classifier was unsure (40–60%); `?`: it could not decide, the card says which fact |
 | Hover | blue = what it uses, magenta = what uses it; everything else fades |
 

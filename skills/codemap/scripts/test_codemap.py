@@ -89,7 +89,7 @@ def test_draft_template_writes_fixed_shape_once_then_reports_gaps(repo, capsys):
     assert draft["areas"] == [] and draft["module_names"] == {}
     assert "domain_partitions" not in draft
     assert payload["shapes"] == codemap.SHAPES and set(payload["shapes"]) == {"actor", "external", "flow", "area"}
-    assert payload["gaps"][:3] == ["system.name", "system.summary", "system.purpose"] and {"system.flows", "areas"} <= set(payload["gaps"])
+    assert payload["gaps"][:3] == ["system.name", "system.summary", "system.purpose"] and {"areas"} <= set(payload["gaps"])
     assert set(draft["components"]) == {"api", "cli", "web", "orchestrator", "rules", "store", "schema", "devtools", "harness", "lab", "content", "docs"}
     assert draft["components"]["cli"] == {"summary": "", "responsibility": "", "runs": "", "why": "", "entry_points": [], "evidence": [], "loaded_by": []}
     assert draft["edge_reasons"]["cli->orchestrator"] == ""
