@@ -412,6 +412,13 @@ def language_of(skeleton: dict, cid: str):
     return max(sorted(lines), key=lambda k: lines[k]) if lines else None
 
 
+def generated_module_text(mod: dict) -> str:
+    """Plain words for a module nobody summarized: where its code lives, never a guess at what it does."""
+    merged = len(mod.get("merged") or [])
+    where = mod.get("path") or mod["id"]
+    return f"Code in {where}" + (f" and {merged} nearby folder{'s' if merged != 1 else ''}." if merged else ".")
+
+
 def is_runnable(component: dict) -> bool:
     """Product code that starts as its own process or page."""
     if component["nature"] != "product":
@@ -567,7 +574,7 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
             "path": mod.get("path", ""),
             "test": bool(mod.get("test", False)),
             "merged": list(mod.get("merged", [])),
-            "responsibility": str(text) if text else f"Holds the {name} files of {name_of.get(mod['component'], mod['component'])}.",
+            "responsibility": str(text) if text else generated_module_text(mod),
             "responsibility_source": "draft" if text else "generated",
             "files": [dict(f, test=bool(f.get("test", False))) for f in mod.get("files", [])],
             "metrics": dict(mod.get("metrics", {})),
@@ -638,6 +645,7 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
             "count": bucket["count"],
         })
     root_modules = {m["id"] for m in skeleton.get("modules", []) if m.get("root_file", m["id"].endswith("/root"))}
+    looped = set()  # modules in a reported cycle; a skipped hub cycle is not "in a loop" either
     for level in ("components", "modules"):
         level_edges = component_edges if level == "components" else skeleton.get("edges", {}).get("modules", [])
         for cycle in skeleton.get("cycles", {}).get(level, []):
@@ -652,6 +660,8 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
                 lookup = by_id if level == "components" else {m["id"]: m for m in modules}
                 evidence = [lookup[n]["path"] for n in cycle]
             health.append(health_entry("cycle", level, list(cycle), evidence, False, None))
+            if level == "modules":
+                looped |= inside
     for comp in components:
         cid = comp["id"]
         jobs = (draft_components.get(cid) or {}).get("mixed_jobs") or []
@@ -667,6 +677,9 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
                         for ex in edge["examples"][:1]] or [comp["path"]]
             health.append(health_entry("hub-coupling", "components", [cid], evidence,
                                        hub["accepted"], hub["probability"]))
+    for mod in modules:
+        if "in_cycle" in mod["metrics"]:
+            mod["metrics"]["in_cycle"] = mod["id"] in looped
     health.sort(key=lambda h: (h["level"] != "components", CHECKS.index(h["check"]), h["nodes"]))
     product_components = [c for c in components if c["nature"] == "product"]
 
