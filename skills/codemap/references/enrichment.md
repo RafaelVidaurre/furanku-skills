@@ -30,6 +30,7 @@ For each new repository or changed project boundary, follow [project types](proj
 
 ## Component cards
 
+- `summary`: what the component IS, in one plain sentence of about 8–16 words, for someone who does not know the codebase. It is the hover text and the first line of the card. Start with the kind of thing ("The login service…", "Browser pages artists use to…", "Tests that…"); no "Owns", no lists of everything inside, no "shared by X and Y". "The server that runs one game world and everyone playing in it."
 - `responsibility`: one sentence starting with what it owns. "Owns the authoritative tick loop, movement, and combat resolution for one world." Ban vague nouns: logic, stuff, helpers, utilities, misc. When it wraps an outside API (a database driver, `document.modelContext`, the filesystem), name the API: that is what makes it an adapter rather than a shared helper.
 - `runs`: one sentence on who or what starts it, when, and what uses its output. This is the fact Jev leans on most for runtime and nature, and names alone rarely carry it. "Players open it in a browser or the Electron shell." "Compiled into world-server and the wasm client; never started on its own." "Artists run these Python scripts from a terminal with Blender installed; the GLBs they write ship, the scripts do not." "Designers and coding agents run it on one content/ directory per batch." Say "nothing ships it" for code only developers, artists, or CI run.
 - `why`: the consequence of its absence. "Without it no client could predict movement between server ticks."
@@ -43,7 +44,9 @@ After a doubt evidence pass reveals two genuinely distinct jobs in one component
 
 Each component edge gets one line naming what the dependency is for, written from the example imports: "reads the wire format for entity snapshots", "compiles enemy sources against the content schema". A reason that could apply to any edge ("uses types from") is not a reason; open one example import and say what it carries.
 
-## Module names
+## Module summaries and names
+
+`draft-template` lists every module holding at least a tenth of its component's lines under `module_summaries`: write each one like a component `summary`, after opening the module's entry file and listing. When a module absorbed smaller ones (`merged`), say what the parts have in common, since they were grouped because they import each other. Smaller modules need no summary.
 
 Only when a directory name is opaque (`core`, `lib`, `misc`, an abbreviation) supply a human name in `module_names`; a clear directory name stands on its own.
 
