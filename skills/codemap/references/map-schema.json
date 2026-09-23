@@ -520,6 +520,13 @@
                 }
               }
             }
+          },
+          "loaded_by": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Components that load this one through something other than an import (Wasm, FFI, generated code, plugins), from the draft."
           }
         }
       }

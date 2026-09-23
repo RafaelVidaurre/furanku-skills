@@ -101,7 +101,7 @@ def draft_template(skeleton: dict) -> dict:
         "system": {"name": "", "summary": "", "purpose": "", "actors": [], "externals": [], "flows": []},
         "areas": [],
         "components": {
-            c["id"]: {"summary": "", "responsibility": "", "runs": "", "why": "", "entry_points": [], "evidence": []}
+            c["id"]: {"summary": "", "responsibility": "", "runs": "", "why": "", "entry_points": [], "evidence": [], "loaded_by": []}
             for c in skeleton.get("components", [])
         },
         "edge_reasons": {
