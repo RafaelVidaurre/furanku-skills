@@ -15,7 +15,7 @@ Scripts do everything mechanical. You write the prose from repository evidence. 
 python3 <skill-dir>/scripts/codemap.py status --repo <root>
 ```
 
-The status reports which artifacts exist, whether the map is stale against the current commit, and whether a Gateway key is available. Jev is required: without a key, stop and hand the user the model-routing skill's `jev.py setup` command (a hidden terminal prompt for their Vercel AI Gateway key), then resume here. A map that already exists for this repository sends you to step 7.
+The status reports which artifacts exist, whether the map is stale against the current commit (or against the uncommitted changes it was read from; the scan reads the working tree and records a fingerprint of any such changes), and whether a Gateway key is available. Jev is required: without a key, stop and hand the user the model-routing skill's `jev.py setup` command (a hidden terminal prompt for their Vercel AI Gateway key), then resume here. A map that already exists for this repository sends you to step 7.
 
 **Complete when:** status shows the key configured and you know whether this is a first build or an update.
 

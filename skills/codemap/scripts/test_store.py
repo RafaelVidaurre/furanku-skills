@@ -72,3 +72,13 @@ def test_log_appends_one_json_line_per_command(tmp_path):
     assert first["command"] == "scan" and first["outcome"] == "ok" and first["files"] == 3
     assert second["error"] == "boom"
     assert first["time"].endswith("Z")
+
+
+def test_a_map_of_uncommitted_changes_gets_its_own_snapshot(tmp_path):
+    repo = tmp_path / "proj"
+    repo.mkdir()
+    dirty = {"meta": {"repo": {"worktree": {"clean": False, "changed_paths": 2, "fingerprint": "ab" * 32}}}}
+    result = store.snapshot(repo, "c" * 40, dirty)
+    assert Path(result["path"]).parent.name == "c" * 40 + "-worktree-" + ("ab" * 6)
+    clean = store.snapshot(repo, "c" * 40, {"meta": {"repo": {"worktree": {"clean": True}}}})
+    assert Path(clean["path"]).parent.name == "c" * 40

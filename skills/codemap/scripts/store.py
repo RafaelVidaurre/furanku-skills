@@ -98,6 +98,9 @@ def snapshot(repo_root, sha: str, map_obj) -> dict:
     """
     if not sha or "/" in sha or sha.startswith("."):
         raise ValueError("snapshot needs a commit sha")
+    worktree = ((map_obj.get("meta") or {}).get("repo") or {}).get("worktree") or {}
+    if worktree.get("clean") is False and worktree.get("fingerprint"):
+        sha = f"{sha}-worktree-{worktree['fingerprint'][:12]}"  # a map of uncommitted changes is not the commit's map
     directory = paths(repo_root)["snapshots"] / sha
     target = directory / "map.json"
     text = dumps(map_obj)
