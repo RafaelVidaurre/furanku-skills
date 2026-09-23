@@ -40,10 +40,10 @@ a { color: var(--sel); }
 #nav { display: flex; gap: 2px; }
 #nav .btn { width: 28px; height: 28px; padding: 0; justify-content: center; border: 0; background: none; font-size: 15px; }
 #nav .btn:disabled { color: var(--line); cursor: default; background: none; }
-#crumbs { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; }
+#crumbs { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1 1 auto; white-space: nowrap; overflow: hidden; }
 #crumbs .crumb { border: 0; background: none; padding: 5px 8px; border-radius: 6px; color: var(--muted); cursor: pointer; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
 #crumbs .crumb:hover { background: var(--chrome); color: var(--text); }
-#crumbs .crumb.current { color: var(--text); font-weight: 650; cursor: default; }
+#crumbs .crumb.current { color: var(--text); font-weight: 650; cursor: default; flex: none; }
 #crumbs .crumb.current:hover { background: none; }
 #crumbs .sep { color: var(--faint); }
 #crumbs .hint { color: var(--faint); margin-left: 8px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
@@ -52,7 +52,7 @@ a { color: var(--sel); }
 #lens button { border: 0; background: none; border-radius: 6px; padding: 3px 10px; cursor: pointer; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
 #lens button.on { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(16, 24, 40, .12); }
 #lens button .kbd { margin-left: 2px; }
-#search { position: relative; width: 260px; flex: none; }
+#search { position: relative; flex: 0 1 260px; min-width: 150px; }
 #q { width: 100%; height: 32px; padding: 0 30px 0 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; outline: none; transition: border-color .2s, box-shadow .2s; }
 #q:focus { border-color: var(--sel); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sel) 22%, transparent); }
 #search .kbd { position: absolute; right: 8px; top: 7px; pointer-events: none; }
