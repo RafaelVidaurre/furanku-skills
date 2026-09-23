@@ -221,3 +221,14 @@ def test_small_or_minor_root_does_not_split():
     files = [("p/src/a.ts", 10, "p"), ("p/src/b.ts", 10, "p"), ("p/src/x/1.ts", 100, "p"), ("p/src/x/2.ts", 100, "p")]
     result = skeleton.skeleton(make_scan([("p", "p")], files))
     assert set(module_map(result)) == {"p/root", "p/x"}
+
+
+def test_an_oversized_module_splits_along_its_folders_under_generic_ones():
+    files = [("svc/src/app/auth/a%02d.ts" % i, 10, "svc") for i in range(40)]
+    files += [("svc/src/app/users/u%02d.ts" % i, 10, "svc") for i in range(40)]
+    files += [("svc/src/app/app.module.ts", 5, "svc"), ("svc/src/main.ts", 5, "svc")]
+    result = skeleton.skeleton(make_scan([("svc", "svc")], files))
+    mods = {m["id"]: m for m in result["modules"]}
+    assert {"svc/app/auth", "svc/app/users"} <= set(mods)
+    assert mods["svc/app/auth"]["name"] == "auth" and len(mods["svc/app/auth"]["files"]) == 40
+    assert max(len(m["files"]) for m in result["modules"]) <= skeleton.LARGE_MODULE_FILES
