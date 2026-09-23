@@ -567,3 +567,27 @@ class ProviderFailureTest(unittest.TestCase):
 
         with mock.patch.object(dc, "_sleep"), self.assertRaises(dc.Interrupted):
             dc.decide(SKELETON, DRAFT, None, evaluate=down)
+
+
+class CompactFallbackTest(unittest.TestCase):
+    def test_a_card_the_provider_fails_is_answered_from_its_compact_form_and_cached(self):
+        def picky(payload):
+            state = payload["state"]
+            if state.get("id") == "ui" and any(isinstance(v, list) and len(v) > 2 for v in state.values()):
+                raise jc.Error("Gateway HTTP 503: evaluation failed; no fallback was used.")
+            return FakeJev()(payload)
+
+        draft = deepcopy(DRAFT)
+        draft["components"]["ui"]["entry_points"] = ["a.ts", "b.ts", "c.ts", "d.ts"]
+        with mock.patch.object(dc, "_sleep"):
+            result = dc.decide(SKELETON, draft, None, evaluate=picky)
+        self.assertEqual(result["summary"]["compacted"], ["ui"])
+        self.assertEqual(result["summary"]["provider_failures"], [])
+        self.assertEqual(result["resolution"]["ui"]["area"]["status"], "accepted")
+        ui = [r for r in result["records"] if r["node"] == "ui"]
+        self.assertTrue(ui and all(r.get("compact") for r in ui))
+        # the next run reuses the compact answers without calling the provider for ui again
+        again = []
+        with mock.patch.object(dc, "_sleep"):
+            dc.decide(SKELETON, draft, result, evaluate=lambda p: again.append(p["state"].get("id")) or FakeJev()(p))
+        self.assertNotIn("ui", again)

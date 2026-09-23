@@ -110,7 +110,7 @@ Measured today: about 0.5–1 s per request and well under a cent per call (a co
 
 ## Errors and actions
 
-Every error is a JSON `{"status":"error","error":"…"}` on stderr, never containing a key or a provider body. The run stops; there is no agent fallback for decisions. One exception: when a single card still gets HTTP 502 or 503 after the backoff while the calls around it succeed, that component is left unresolved with reason `provider_error`, listed in `summary.provider_failures`, and asked again on the next run; a second failure in a row stops the run as an outage. Rerun `decide` later for those components; do not rewrite their cards to get past it.
+Every error is a JSON `{"status":"error","error":"…"}` on stderr, never containing a key or a provider body. The run stops; there is no agent fallback for decisions. One exception: when a single card still gets HTTP 502 or 503 after the backoff while the calls around it succeed, it is asked once more in its compact form (every list cut to two entries, every string to 200 characters), which the provider has evaluated where a full card kept failing. Those answers carry `compact: true`, the component is listed in `summary.compacted`, and later runs reuse them from the cache. If the compact card fails too, the component is left unresolved with reason `provider_error`, listed in `summary.provider_failures`, and asked again on the next run; a second failure in a row stops the run as an outage. Rerun `decide` later for those components; do not rewrite their cards to get past it.
 
 | Error | Action |
 | --- | --- |

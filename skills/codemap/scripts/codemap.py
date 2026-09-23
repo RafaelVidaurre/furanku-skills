@@ -411,7 +411,7 @@ def cmd_decide(args) -> dict:
     }
     # what Jev still doubts, each with the two options the next evidence pass must separate
     inner = decisions.get("summary") if isinstance(decisions, dict) else None
-    for key in ("calls_made", "calls_cached", "unresolved_nodes", "uncertain_nodes", "provider_failures"):
+    for key in ("calls_made", "calls_cached", "unresolved_nodes", "uncertain_nodes", "provider_failures", "compacted"):
         if isinstance(inner, dict) and key in inner:
             summary[key] = inner[key]
     store.log(repo, "decide", "ok", count=summary["count"], unresolved=len(unresolved))

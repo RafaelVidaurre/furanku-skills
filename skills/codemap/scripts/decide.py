@@ -217,6 +217,17 @@ def clip(text, limit=600):
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
+def compact_state(state):
+    """The provider fallback card: every list cut to two entries and every string to 200 characters, recursively."""
+    if isinstance(state, dict):
+        return {k: compact_state(v) for k, v in state.items()}
+    if isinstance(state, list):
+        return [compact_state(v) for v in state[:2]]
+    if isinstance(state, str):
+        return clip(state, 200)
+    return state
+
+
 def clip_state(state):
     """Shrink list fields deterministically until the state fits the character budget."""
     for limit in (LIST_LIMIT, 4, 2, 1):
@@ -582,6 +593,7 @@ class Session:
         self.evaluate, self.zdr, self.dry_run, self.changes = evaluate, zdr, dry_run, changes or {}
         self.records, self.requests = [], []
         self.failed, self.streak = [], 0  # nodes the provider could not evaluate; consecutive failed calls
+        self.compacted = []  # nodes answered from their compact card after the full card failed
         self.calls = self.cached = 0
         self.last_call = float("-inf")
         self.cost = 0.0
@@ -598,12 +610,16 @@ class Session:
             return record
         return None
 
-    def ask(self, node, state, questions, pass_=1):
+    def ask(self, node, state, questions, pass_=1, compact=False):
         """Answer the given {kind: criteria} for one node, reusing cache per question; one request for the rest."""
         answers, pending = {}, {}
         for kind, criteria in questions.items():
             print_ = fingerprint(kind, state, criteria)
             record = self.cached_record(node, kind, print_, pass_)
+            if not record and not compact:
+                # an earlier run answered this card only in its compact form (see the provider fallback below)
+                record = self.cached_record(node, kind, fingerprint(kind, compact_state(state), criteria), pass_)
+                record = record if record and record.get("compact") else None
             if record:
                 self.cached += 1
                 self.records.append(record)
@@ -628,10 +644,23 @@ class Session:
         try:
             result = evaluate_with_backoff(self.evaluate, payload)
         except jev_client.Error as exc:
-            # One card the provider keeps failing on (502/503 after the backoff) is skipped and re-asked on the
-            # next run; a second failure in a row looks like an outage and stops the run.
+            # One card the provider keeps failing on (502/503 after the backoff) is retried once in its compact form,
+            # which the provider has evaluated where the full card failed; failing that, it is skipped and re-asked on
+            # the next run. A second failure in a row looks like an outage and stops the run.
             if self.streak or not any(f"HTTP {code}" in str(exc) for code in (502, 503)):
                 raise
+            self.last_call = time.monotonic()
+            if not compact and compact_state(state) != state:
+                failed, streak = list(self.failed), self.streak
+                try:
+                    retried = self.ask(node, compact_state(state), {k: c for k, (c, _) in pending.items()}, pass_, compact=True)
+                except jev_client.Error:
+                    retried = {}
+                self.failed, self.streak = failed, streak  # the retry's own failure is this same failure
+                if len(retried) == len(pending):
+                    self.compacted.append(node)
+                    answers.update(retried)
+                    return answers
             self.streak += 1
             self.last_call = time.monotonic()
             self.failed.append({"node": node, "error": str(exc)})
@@ -655,6 +684,8 @@ class Session:
             }
             if pass_ != 1:
                 record["pass"] = pass_
+            if compact:
+                record["compact"] = True
             self.records.append(record)
             answers[kind] = answer
         return answers
@@ -859,6 +890,7 @@ def _decide(session, skeleton, draft, dry_run):
             "findings": findings,
             "total_cost_usd": round(session.cost, 8), "total_elapsed_seconds": round(session.elapsed, 3),
             "unresolved_nodes": unresolved, "uncertain_nodes": uncertain, "provider_failures": session.failed,
+            "compacted": session.compacted,
         },
     }
     if dry_run:
