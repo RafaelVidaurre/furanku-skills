@@ -1356,7 +1356,8 @@ function draw(L) {
   drawPills(L, lines);
 }
 // mechanism pills: a pill sits on its arrow at a spot where it covers no node and no other pill; failing that it shortens to its
-// first clause (full text in the tooltip) and, as a last resort, takes the least-covered spot. Deterministic: edges in layout order.
+// first clause (full text in the tooltip) and, as a last resort, takes the least-covered spot, or none when that spot mostly
+// covers another pill (the arrow's tooltip and the flow list still name it). Deterministic: edges in layout order.
 function drawPills(L, lines) {
   const obstacles = L.nodes.filter((n) => n.kind !== 'area' || n.chip).map((n) => ({ x: n.x - n.w / 2, y: n.y - n.h / 2, w: n.w, h: n.h })), placed = [];
   const overlap = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
@@ -1366,7 +1367,7 @@ function drawPills(L, lines) {
     if (!e.label || e.pill === false || e.quiet) continue;
     const { line, cls } = lines.get(e.id), len = line.getTotalLength(), doc = e.fkind === 'file';
     const peers = plain(e) ? L.edges.filter((x) => plain(x) && x.to === e.to).map((x) => x.id).sort() : [e.id], k = peers.indexOf(e.id), base = e.labelX != null ? 0.5 : [0.5, 0.64, 0.36, 0.76, 0.24][k % 5];
-    const ts = [base, ...[0.1, -0.1, 0.2, -0.2, 0.3, -0.3].map((d) => clamp(base + d, 0.12, 0.88))];
+    const ts = [base, ...[0.1, -0.1, 0.2, -0.2, 0.3, -0.3, 0.05, -0.05, 0.15, -0.15, 0.25, -0.25, 0.35, -0.35].map((d) => clamp(base + d, 0.1, 0.9))];
     const first = e.label.split(/[:;,(]/)[0].trim(), variants = [e.label.length <= 32 ? e.label : trunc(e.label, L.labelMax || 180, 5.6)];
     for (const v of [trunc(e.label, 110, 5.6), first.length >= 10 ? first : null]) if (v && v.length < variants[variants.length - 1].length - 3) variants.push(v);
     let best = null;
@@ -1380,6 +1381,8 @@ function drawPills(L, lines) {
       }
       if (best && best.c === 0) break;
     }
+    // two pills stacked on each other read as neither: leave this one to the tooltip and the flow list
+    if (placed.reduce((s, o) => s + overlap(best.r, o), 0) > best.r.w * best.r.h * 0.4) continue;
     placed.push(best.r);
     const lg = sv('g', { class: 'flabel edge ' + cls.replace(/^edge\s*/, ''), 'data-edge': e.id, transform: `translate(${best.r.x},${best.r.y})` }, sv('rect', { width: best.r.w, height: 18, rx: 9 }));
     if (doc) lg.append(iconG('doc', 7, 3, 12));
