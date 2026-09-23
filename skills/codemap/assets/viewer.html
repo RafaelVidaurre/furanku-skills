@@ -44,9 +44,10 @@ a { color: var(--sel); }
 #crumbs .crumb { border: 0; background: none; padding: 5px 8px; border-radius: 6px; color: var(--muted); cursor: pointer; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
 #crumbs .crumb:hover { background: var(--chrome); color: var(--text); }
 #crumbs .crumb.current { color: var(--text); font-weight: 650; cursor: default; flex: none; }
+#crumbs .crumb:not(.current) { display: inline-block; flex: 0 1 auto; min-width: 3em; overflow: hidden; text-overflow: ellipsis; }
 #crumbs .crumb.current:hover { background: none; }
-#crumbs .sep { color: var(--faint); }
-#crumbs .hint { color: var(--faint); margin-left: 8px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+#crumbs .sep { color: var(--faint); flex: none; }
+#crumbs .hint { color: var(--faint); margin-left: 8px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; flex: 0 1000 auto; min-width: 0; }
 #lens { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; padding: 2px; background: var(--bg); margin-left: 6px; flex: none; }
 #lens[hidden] { display: none; }
 #lens button { border: 0; background: none; border-radius: 6px; padding: 3px 10px; cursor: pointer; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
@@ -1560,7 +1561,7 @@ function renderCrumbs() {
   crumbs.forEach((cr, i) => {
     if (i) c.append(h('span', { class: 'sep' }, '›'));
     const last = i === crumbs.length - 1;
-    c.append(h('button', { class: 'crumb' + (last ? ' current' : ''), onclick: () => { if (!last) go(cr.route, { dir: 'out', backTo: backToId(r), select: null }); } }, cr.hue != null ? swatch(cr.hue) : null, cr.rt ? icon(cr.rt) : null, cr.label));
+    c.append(h('button', { class: 'crumb' + (last ? ' current' : ''), title: cr.label, onclick: () => { if (!last) go(cr.route, { dir: 'out', backTo: backToId(r), select: null }); } }, cr.hue != null ? swatch(cr.hue) : null, cr.rt ? icon(cr.rt) : null, cr.label));
   });
   const on = r.view || state.layout.lens === 'landscape' ? null : r.level === 0 ? 'purpose' : r.level === 1 && !r.id ? r.lens : null;
   for (const b of $('#lens').querySelectorAll('button')) { b.hidden = !availableLenses(M).some((l) => l.id === b.dataset.lens); b.style.display = b.hidden ? 'none' : ''; b.classList.toggle('on', b.dataset.lens === on); b.setAttribute('aria-selected', String(b.dataset.lens === on)); }
