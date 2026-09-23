@@ -602,6 +602,14 @@
                 "test": {
                   "type": "boolean",
                   "description": "Whether the scan classified this file as test code."
+                },
+                "provenance": {
+                  "type": "string",
+                  "enum": [
+                    "generated",
+                    "data"
+                  ],
+                  "description": "Present when the file is tool-generated or a literal data table."
                 }
               }
             }
@@ -983,6 +991,10 @@
         "changes": {
           "type": "integer",
           "description": "Commits touching the node's files in the activity window before the scanned commit, summed per file."
+        },
+        "authored_loc": {
+          "type": "integer",
+          "description": "Lines in files people write: excludes generated files and literal data tables."
         }
       }
     },
