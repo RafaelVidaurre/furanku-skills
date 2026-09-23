@@ -424,6 +424,7 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
             "name": name,
             "path": mod.get("path", ""),
             "test": bool(mod.get("test", False)),
+            "merged": list(mod.get("merged", [])),
             "responsibility": str(text) if text else f"Holds the {name} files of {name_of.get(mod['component'], mod['component'])}.",
             "responsibility_source": "draft" if text else "generated",
             "files": [dict(f) for f in mod.get("files", [])],
