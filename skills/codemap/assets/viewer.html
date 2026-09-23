@@ -761,10 +761,10 @@ function layoutSystem(M) {
   const aEdges = []; for (const f of shownFlows) { const fa = runnableArea(f.from), fb = runnableArea(f.to); if (fa && fb && fa !== fb && picIds.has(fa) && picIds.has(fb)) aEdges.push({ from: fa, to: fb }); }
   const rank = rankByLongestPath(pic.map((a) => a.id), aEdges), ranks = pic.length ? Math.max(...rank.values()) + 1 : 0;
   const byRank = Array.from({ length: ranks }, () => []); for (const a of pic) byRank[rank.get(a.id)].push(a); byRank.forEach((c) => c.sort(byId));
-  // a rank holding many areas wraps into side-by-side columns of at most MAX_STACK, so the picture keeps a screen's
-  // proportions instead of one tall column whose text shrinks to nothing when fitted
-  const MAX_STACK = 3, cols = byRank.flatMap((c) => Array.from({ length: Math.ceil(c.length / MAX_STACK) || 1 }, (_, i) => c.slice(i * MAX_STACK, (i + 1) * MAX_STACK))).filter((c) => c.length);
-  const depth = cols.length;
+  // a rank holding many areas wraps into side-by-side columns; how many stack in one column is chosen below so the
+  // picture keeps the screen's proportions instead of fitting a tall or wide shape whose text shrinks to nothing
+  const pack = (stack) => byRank.flatMap((c) => Array.from({ length: Math.ceil(c.length / stack) || 1 }, (_, i) => c.slice(i * stack, (i + 1) * stack))).filter((c) => c.length);
+  let cols = pack(3), depth = cols.length;
   const info = new Map(), hasExt = M.externals.some((x) => M.extKind(x) !== 'devtool');
   const measure = () => {
     for (const a of pic) {
@@ -778,10 +778,23 @@ function layoutSystem(M) {
     }
     return cols.reduce((s, col) => s + Math.max(...col.map((a) => info.get(a.id).w)), 0) + Math.max(0, depth - 1) * COLGAP;
   };
+  measure();
+  let fitTarget = TARGET_W;
+  {
+    let vw = 1090, vh = 850; try { vw = svg.clientWidth || vw; vh = svg.clientHeight || vh; } catch { /* no canvas outside the page */ }
+    vw -= 96; vh -= 190;  // fit padding, then the legend and Build & verify below the areas
+    const scaleOf = (stack) => { const cs = pack(stack), w = PW + PGAP + cs.reduce((s, col) => s + Math.max(...col.map((a) => info.get(a.id).w)), 0) + Math.max(0, cs.length - 1) * COLGAP + (hasExt ? XGAP + XW : 0);
+      return Math.min(vw / w, vh / Math.max(...cs.map((col) => col.reduce((s, a) => s + info.get(a.id).h, 0) + AGAP * (col.length - 1)), 1)); };
+    const best = [2, 3, 4, 5].reduce((b, k) => scaleOf(k) > scaleOf(b) + 0.01 ? k : b, 3);
+    cols = pack(best); depth = cols.length;
+    // widen for flow labels only up to the width the screen shows at the height-bound scale
+    const tallest = Math.max(...cols.map((col) => col.reduce((s, a) => s + info.get(a.id).h, 0) + AGAP * (col.length - 1)), 1);
+    fitTarget = Math.min(TARGET_W, Math.max(tallest * vw / vh, 900));
+  }
   // with few columns the middle can take more room: wider runnables first, then wider gaps (longer flow labels)
   let natural = PW + PGAP + measure() + (hasExt ? XGAP + XW : 0);
-  if (depth && depth <= 5 && natural < TARGET_W) {
-    const extra = TARGET_W - natural, dRW = clamp(Math.floor(extra * 0.4 / depth), 0, 80); RW += dRW;
+  if (depth && depth <= 5 && natural < fitTarget) {
+    const extra = fitTarget - natural, dRW = clamp(Math.floor(extra * 0.4 / depth), 0, 80); RW += dRW;
     COLGAP += clamp(Math.floor((extra - dRW * depth) / Math.max(1, depth - 1)), 0, 140);
     natural = PW + PGAP + measure() + (hasExt ? XGAP + XW : 0);
   }
