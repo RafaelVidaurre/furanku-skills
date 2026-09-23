@@ -111,8 +111,8 @@ def test_unresolved_components_fall_back_flagged_without_crashing(trio):
     resolution["store"]["runtime"] = {"value": None, "status": "unresolved", "confidence": 0.3, "reason": "low confidence (0.30)"}
     del resolution["lab"]["nature"]
     result = build.build(sk, draft, decisions)
-    # cli and web are unsorted, so operating and reviewing hold no runnable: that is a validation error, not a crash.
-    assert build.validate(result) == ["area operating: holds no runnable component", "area reviewing: holds no runnable component"]
+    # cli and web are unsorted, so operating and reviewing hold no components: that is a validation error, not a crash.
+    assert build.validate(result) == ["area operating: holds no components", "area reviewing: holds no components"]
     unsorted = result["areas"][-1]
     assert unsorted["id"] == "unsorted" and unsorted["hue"] is None and unsorted["components"] == ["cli", "web"]
     assert unsorted["counts"]["product"] == 2 and unsorted["runnables"] == ["cli", "web"]
@@ -270,7 +270,7 @@ def test_semantic_validation_failures(valid_map, mutate, expected):
     assert any(expected in error for error in build.validate(broken)), build.validate(broken)
 
 
-def test_area_count_and_runnable_rules(trio):
+def test_small_and_library_areas_preserve_runnable_flow_rules(trio):
     sk, draft, decisions = trio
     draft = copy.deepcopy(draft)
     draft["areas"] = draft["areas"][:2]
@@ -279,17 +279,17 @@ def test_area_count_and_runnable_rules(trio):
         if entry["area"]["value"] not in ("operating", "reviewing", "build_verify"):
             entry["area"]["value"] = "operating"
     result = build.build(sk, draft, decisions)
-    assert build.validate(result) == ["areas: 2 areas, expected 3-7"]
+    assert build.validate(result) == []
     sk, draft, decisions = trio
     decisions = copy.deepcopy(decisions)
     decisions["resolution"]["api"]["area"]["value"] = "operating"
     result = build.build(sk, draft, decisions)
-    assert build.validate(result) == ["area processing: holds no runnable component"]
+    assert build.validate(result) == []
     # A core library with an executable hint does not count as the area's runnable, and flows can no longer end at it.
     decisions = copy.deepcopy(trio[2])
     decisions["resolution"]["api"]["role"]["value"] = "core"
     errors = build.validate(build.build(sk, draft, decisions))
-    assert "area processing: holds no runnable component" in errors
+    assert not any(e.startswith("area processing") for e in errors)
     assert [e for e in errors if e.startswith("flow")] == [f"flow {f}: endpoint 'api' is not a runnable component, an actor, or an external"
                                                             for f in ("cli->api", "web->api", "api->sqlite")]
     # Actors may use an area, and flows may end at an actor or an external.

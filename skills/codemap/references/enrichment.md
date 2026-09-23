@@ -18,11 +18,15 @@ Higher sources override lower ones when they disagree; record which one you used
 - `purpose`: one paragraph a new hire could repeat: what it is for, who uses it, what shape it takes (monorepo of services and editors, a library, a CLI).
 - `actors`: the kinds of people who use it (≤ 6), counting coding and QA agents as people whenever the repository gives them surfaces of their own (MCP or WebMCP tools, headless CLIs written for agents, agent docs such as `AGENTS.md` or `docs/agents/`), each with a `role` sentence and `uses`: up to two runnable component ids or area ids they touch first ("Players" use `web-client`; "Operators" use `world-server` and `observability`).
 - `externals`: systems it depends on and does not own, each with a `kind` (`datastore`, `service`, `runtime`, `devtool`) and `used_by` component ids. Databases, collectors, browsers, embedded engines are what the running product touches; Blender, Playwright, and package managers are `devtool`.
-- `flows`: runtime connections written from the docs, not from imports: `{from, to, label, detail, kind}` between runnables, people, and externals. `label` is the mechanism in at most 32 characters, drawn on the arrow in full ("WebSocket/TLS", "HTTPS", "writes content/worlds"); `detail` is what travels, in one clause ("intents up, filtered world deltas down"); kind is `network`, `file`, or `process`. The panel reads the flows in order as the system's story, so together they should answer "how does a request get from a person to the data and back". Eight to twelve flows tell the story; more is clutter.
+- `flows`: runtime connections written from the docs, not from imports: `{from, to, label, detail, kind}` between runnables, people, and externals. `label` is the mechanism in at most 32 characters, drawn on the arrow in full ("WebSocket/TLS", "HTTPS", "writes content/worlds"); `detail` is what travels, in one clause ("intents up, filtered world deltas down"); kind is `network`, `file`, or `process`. Keep only evidenced runtime connections; an empty list is valid for libraries and repositories without scanned runnables. Concept-level control flow belongs in a behavior view.
 
 ## Areas
 
-Write 3–7 areas, each a group of parts one kind of person uses for one purpose, following the people you listed: what players run, what designers use, what operators rely on, what serves the world, and what agents drive the product through when they have runnables of their own (headless CLIs) rather than only tools inside human surfaces. Each area has an `id`, a `name` in the repository's vocabulary, a `definition` sentence that distinguishes it from its neighbors ("What runs a World: the authoritative server, the gateway, checkpoints, and the pure crates they are built on"), and the product `components` you expect in it. Every area needs at least one runnable (an app, service, or CLI). Supporting code needs no listing: Jev places tooling, tests, docs, and experiments with the area they serve or in Build & verify.
+Propose areas with `id`, `name`, `definition`, and expected `components`: one purpose for one kind of user, using repository vocabulary. Supporting code needs no listing: Jev places it with the area it serves or in Build & verify. Area bounds, library-only areas and unparsed repositories follow [project types](project-types.md#propose-projects).
+
+## Projects and behavior
+
+For each new repository or changed project boundary, follow [project types](project-types.md) to read the inventory, propose independently meaningful projects, and author only useful, evidence-backed views. Put decisive facts in summary/detail as well as their paths; Jev cannot establish ordering from filenames.
 
 ## Component cards
 
@@ -45,5 +49,5 @@ Only when a directory name is opaque (`core`, `lib`, `misc`, an abbreviation) su
 
 - A reader who knows the field but not this repository could pick the right area for each component from its card alone.
 - No two components share a responsibility sentence.
-- Every product component appears in exactly one area, every area has a runnable, and there are 3–7 areas.
+- Every product component has an expected area; all project and graph references pass `draft-template` validation.
 - Every sentence names something concrete: a path, a term from the glossary, a type, a protocol, a user.

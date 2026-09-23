@@ -44,6 +44,9 @@ from pathlib import Path
 import re
 import sys
 
+import project_types
+import decide as decisions_mod
+
 SKILL_VERSION = "1.0.0"
 DEFAULT_MODEL = "typesafe-ai/jev"
 RUNTIMES = ("client", "shared", "server", "cli", "build", "none")
@@ -74,7 +77,7 @@ NON_ANSWERS = {None, "", "abstain", "new_area"}
 EXTERNAL_KINDS = ("datastore", "service", "runtime", "devtool")
 FLOW_KINDS = ("network", "file", "process")
 RUNNABLE_RUNTIMES = ("client", "server", "cli")
-BOUNDS = {"actors": 6, "externals": 8, "uses": 2, "areas": (3, 7), "components_per_area": 12, "modules_per_component": 16}
+BOUNDS = {"actors": 6, "externals": 8, "uses": 2, "areas": (1, 7), "components_per_area": 12, "modules_per_component": 16}
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "references" / "map-schema.json"
 PLACEHOLDER = "/*__CODEMAP_JSON__*/"
 
@@ -303,6 +306,11 @@ def is_runnable(component: dict) -> bool:
 
 
 def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None) -> dict:
+    if isinstance(decisions, dict) and decisions.get("partial"):
+        raise BuildError("decisions cache is partial; rerun decide before build")
+    errors = project_types.validate(draft, {c["id"] for c in skeleton.get("components", [])}, project_types.inventory_paths(skeleton))
+    if errors:
+        raise BuildError("Invalid repository proposals: " + "; ".join(errors))
     index = index_decisions(decisions)
     meta_in = dict(decisions.get("meta") or {}) if isinstance(decisions, dict) else {}
     if isinstance(decisions, dict):
@@ -508,12 +516,17 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
     scanned_at = skeleton.get("meta", {}).get("scanned_at", "")
     return {
         "schema": "codemap.map/1",
+        **repository_map(skeleton, draft, decisions),
         "meta": {
             "repo": dict(skeleton.get("meta", {}).get("repo", {})),
             "built_at": built_at or scanned_at,
             "scanned_at": scanned_at,
             "activity": skeleton.get("meta", {}).get("activity"),
             "unowned_contracts": list(skeleton.get("meta", {}).get("unowned_contracts") or []),
+            "import_coverage": {"languages": skeleton.get("inventory", {}).get("import_coverage", {}).get("languages", []),
+                                "parsed_files": len(skeleton.get("inventory", {}).get("import_coverage", {}).get("parsed_paths", [])),
+                                "unparsed_files": len(skeleton.get("inventory", {}).get("import_coverage", {}).get("unparsed_paths", [])),
+                                "inventory_available": "inventory" in skeleton},
             "skill_version": SKILL_VERSION,
             "jev_model": str(meta_in.get("model") or DEFAULT_MODEL),
             "instructions_version": int(meta_in.get("instructions_version") or 1),
@@ -539,6 +552,120 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
         "health": health,
         "unresolved": unresolved,
     }
+
+
+def repository_map(skeleton, draft, decisions):
+    """Mechanically publish only judgments for the exact current proposals."""
+    if not any(draft.get(key) for key in ("projects", "views", "project_relations")):
+        return {}
+    records = {(r.get("node"), r.get("question")): r for r in _records(decisions)}
+    resolved = {}
+    for node, kind, state, criteria in project_types.questions(skeleton, draft):
+        record = records.get((node, kind), {})
+        current = (record.get("fingerprint") == decisions_mod.fingerprint(kind, state, criteria)
+                   and record.get("instructions_version") == decisions_mod.INSTRUCTIONS_VERSION)
+        entry = decisions_mod.resolve_repository_answer(kind, decisions_mod.record_answer(record) if current else None)
+        if not current:
+            entry["reason"] = "This proposal has not been assessed against the current evidence."
+        resolved[node] = entry
+    shape = resolved["repository"]
+    projects = []
+    for proposed in draft.get("projects", []):
+        pid = proposed["id"]
+        decision = resolved[f"project:{pid}"]
+        memberships = [{"component": cid, "decision": resolved[f"membership:{len(pid)}:{pid}:{cid}"]}
+                       for cid in proposed["components"]]
+        projects.append(dict(proposed, components=[m["component"] for m in memberships
+                                                   if m["decision"]["status"] == "accepted" and m["decision"]["value"] is True],
+                             kind=decision["value"] if decision["status"] == "accepted" else "other",
+                             decision=decision, membership_decisions=memberships))
+    enabled = shape["status"] == "accepted" and shape["value"] == "landscape" and len(projects) > 1
+    by_project = {p["id"]: p for p in projects}
+    views, diagnostics = [], []
+    for proposed in draft.get("views", []):
+        decision = dict(resolved[f"view:{proposed['id']}"])
+        accepted = decision["status"] == "accepted" and decision["value"] is True
+        members = set(by_project[proposed["project"]]["components"])
+        if accepted and any(n.get("component") not in members for n in proposed["nodes"] if "component" in n):
+            decision = {"value": None, "status": "unresolved", "confidence": None,
+                        "reason": "view references a component without accepted membership in this project"}
+            accepted = False
+        diagnostics.append({"id": proposed["id"], "project": proposed["project"], "kind": proposed["kind"], "decision": decision})
+        if accepted:
+            views.append(dict(proposed, decision=decision))
+    return {"landscape": {"enabled": enabled, "decision": shape}, "projects": projects,
+            "project_relations": draft.get("project_relations", []) if enabled else [],
+            "views": views, "view_decisions": diagnostics}
+
+
+def validate_project_bounds(map_obj):
+    """Readability bounds use the same membership/uses/flow scope as the viewer."""
+    errors = []
+    product = {c["id"] for c in map_obj["components"] if c["nature"] == "product"}
+    for project in map_obj.get("projects", []):
+        members = set(project["components"])
+        areas = [a for a in map_obj["areas"] if members.intersection(a["components"])]
+        area_ids = {a["id"] for a in areas}
+        touching = {f["to"] for f in map_obj["flows"] if f["from"] in members} | {f["from"] for f in map_obj["flows"] if f["to"] in members}
+        actors = [a for a in map_obj["system"]["actors"] if set(a["uses"]) & (members | area_ids) or a["id"] in touching]
+        externals = [e for e in map_obj["system"]["externals"] if e["kind"] != "devtool" and (set(e["used_by"]) & members or e["id"] in touching)]
+        where = f"project {project['id']}"
+        if len(actors) > BOUNDS["actors"]:
+            errors.append(f"{where}: {len(actors)} actors exceeds {BOUNDS['actors']}")
+        if len(externals) > BOUNDS["externals"]:
+            errors.append(f"{where}: {len(externals)} non-devtool externals exceeds {BOUNDS['externals']}")
+        for actor in actors:
+            if len(set(actor["uses"]) & (members | area_ids)) > BOUNDS["uses"]:
+                errors.append(f"{where}: actor {actor['id']} uses more than {BOUNDS['uses']} targets")
+        for area in areas:
+            count = len(set(area["components"]) & members & product)
+            if count > BOUNDS["components_per_area"]:
+                errors.append(f"{where}: area {area['id']} has {count} product components, exceeds {BOUNDS['components_per_area']}")
+    return errors
+
+
+def validate_repository_map(map_obj):
+    errors = project_types.validate(map_obj, {c["id"] for c in map_obj["components"]})
+    projects = {p["id"]: p for p in map_obj.get("projects", [])}
+    landscape = map_obj.get("landscape")
+    if landscape:
+        decision = landscape["decision"]
+        expected = decision["status"] == "accepted" and decision["value"] == "landscape" and len(projects) > 1
+        if landscape["enabled"] != expected:
+            errors.append("landscape: enabled disagrees with decision or project count")
+    if map_obj.get("project_relations") and not (landscape and landscape["enabled"]):
+        errors.append("project relations require an accepted landscape decision")
+    for pid, project in projects.items():
+        memberships = project["membership_decisions"]
+        ids = [m["component"] for m in memberships]
+        if len(set(ids)) != len(ids) or any(cid not in {c["id"] for c in map_obj["components"]} for cid in ids):
+            errors.append(f"project {pid}: invalid membership diagnostics")
+        accepted = [m["component"] for m in memberships if m["decision"]["status"] == "accepted" and m["decision"]["value"] is True]
+        if accepted != project["components"]:
+            errors.append(f"project {pid}: components disagree with accepted memberships")
+        decision = project["decision"]
+        if project["kind"] != (decision["value"] if decision["status"] == "accepted" else "other"):
+            errors.append(f"project {pid}: kind disagrees with decision")
+    diagnostics = {v["id"]: v for v in map_obj.get("view_decisions", [])}
+    if len(diagnostics) != len(map_obj.get("view_decisions", [])):
+        errors.append("view_decisions: duplicate ids")
+    for diag in diagnostics.values():
+        if diag["project"] not in projects:
+            errors.append("view_decisions: dangling project")
+    for view in map_obj.get("views", []):
+        decision = view["decision"]
+        if decision["status"] != "accepted" or decision["value"] is not True:
+            errors.append(f"view {view['id']}: lacks accepted Jev decision")
+        diag = diagnostics.get(view["id"], {})
+        if any(diag.get(k) != view[k] for k in ("decision", "project", "kind")):
+            errors.append(f"view {view['id']}: diagnostic disagrees")
+        members = projects.get(view["project"], {}).get("components", [])
+        if any(n["component"] not in members for n in view["nodes"] if "component" in n):
+            errors.append(f"view {view['id']}: node outside project membership")
+    accepted_ids = {v["id"] for v in diagnostics.values() if v["decision"]["status"] == "accepted" and v["decision"]["value"] is True}
+    if accepted_ids != {v["id"] for v in map_obj.get("views", [])}:
+        errors.append("view_decisions: accepted views disagree with published views")
+    return errors
 
 
 # --- validation ------------------------------------------------------------
@@ -594,6 +721,10 @@ def validate(map_obj: dict) -> list[str]:
     errors = check_schema(map_obj, load_schema())
     if errors:
         return errors
+    errors.extend(validate_repository_map(map_obj))
+    landscape = map_obj.get("landscape", {}).get("enabled", False)
+    if landscape:
+        errors.extend(validate_project_bounds(map_obj))
     system = map_obj["system"]
     areas = map_obj["areas"]
     components = map_obj["components"]
@@ -610,7 +741,7 @@ def validate(map_obj: dict) -> list[str]:
         errors.append("system: missing name")
     if not system["purpose"]:
         errors.append("system: missing purpose")
-    if len(system["actors"]) > BOUNDS["actors"]:
+    if not landscape and len(system["actors"]) > BOUNDS["actors"]:
         errors.append(f"system: {len(system['actors'])} actors exceeds {BOUNDS['actors']}")
     actor_ids = {a["id"] for a in system["actors"]}
     external_ids = {e["id"] for e in system["externals"]}
@@ -620,13 +751,13 @@ def validate(map_obj: dict) -> list[str]:
         errors.append("system: duplicate external ids")
     explicit_areas = [a["id"] for a in areas if a["id"] not in IMPLICIT_AREAS]
     for actor in system["actors"]:
-        if len(actor["uses"]) > BOUNDS["uses"]:
+        if not landscape and len(actor["uses"]) > BOUNDS["uses"]:
             errors.append(f"system.actors[{actor['id']}]: uses {len(actor['uses'])} targets, at most {BOUNDS['uses']}")
         for target in actor["uses"]:
             if target not in runnables and target not in explicit_areas and target != "build-verify":
                 errors.append(f"system.actors[{actor['id']}]: uses {target!r}, which is neither a runnable component nor an area")
     drawn = [e for e in system["externals"] if e["kind"] != "devtool"]
-    if len(drawn) > BOUNDS["externals"]:
+    if not landscape and len(drawn) > BOUNDS["externals"]:
         errors.append(f"system: {len(drawn)} non-devtool externals exceeds {BOUNDS['externals']}")
     for external in system["externals"]:
         for cid in external["used_by"]:
@@ -644,7 +775,16 @@ def validate(map_obj: dict) -> list[str]:
             errors.append(f"{label}: missing label")
 
     low, high = BOUNDS["areas"]
-    if not low <= len(explicit_areas) <= high:
+    if not components:
+        low = 0
+    landscape = map_obj.get("landscape", {}).get("enabled", False)
+    if landscape:
+        for project in map_obj.get("projects", []):
+            members = set(project["components"])
+            count = sum(bool(members.intersection(a["components"])) for a in areas if a["id"] not in IMPLICIT_AREAS)
+            if count > high:
+                errors.append(f"project {project['id']}: {count} areas, expected at most {high}")
+    if not landscape and not low <= len(explicit_areas) <= high:
         errors.append(f"areas: {len(explicit_areas)} areas, expected {low}-{high}")
     if len(area_ids) != len(areas):
         errors.append("areas: duplicate ids")
@@ -663,12 +803,12 @@ def validate(map_obj: dict) -> list[str]:
         else:
             if area["hue"] is None or not 0 <= area["hue"] < 360:
                 errors.append(f"area {aid}: hue must be 0-359")
-            if not area["runnables"]:
-                errors.append(f"area {aid}: holds no runnable component")
+            if not area["components"]:
+                errors.append(f"area {aid}: holds no components")
         if area["runnables"] != [cid for cid in area["components"] if cid in runnables]:
             errors.append(f"area {aid}: runnables disagree with its components")
         product_members = [cid for cid in area["components"] if component_nature.get(cid) == "product"]
-        if len(product_members) > BOUNDS["components_per_area"]:
+        if not landscape and len(product_members) > BOUNDS["components_per_area"]:
             errors.append(f"area {aid}: {len(product_members)} product components exceeds {BOUNDS['components_per_area']}")
         if area["counts"]["product"] != len(product_members) or area["counts"]["supporting"] != len(area["components"]) - len(product_members):
             errors.append(f"area {aid}: counts disagree with its components")

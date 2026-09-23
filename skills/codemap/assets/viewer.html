@@ -185,8 +185,10 @@ svg.focus .node.area:not(.self):not(.out):not(.in), svg.focus .node.bv { opacity
 .edge.quiet.out, .edge.quiet.in, .edge.quiet.selected, .edge.quiet.hl { opacity: 1; }
 /* system-picture edges */
 .edge.flow .line { stroke: var(--flow); marker-end: url(#arrow-flow); }
-.edge.flow.k-file .line { stroke-dasharray: 7 4; }
-.edge.flow.k-process .line { stroke-dasharray: 1.5 4; stroke-linecap: round; }
+.edge.behavior.k-data .line { stroke-dasharray: 8 3 2 3; }
+.edge.behavior.k-network .line { stroke-dasharray: 12 3; }
+.edge.behavior.k-file .line, .edge.flow.k-file .line { stroke-dasharray: 7 4; }
+.edge.behavior.k-process .line, .edge.flow.k-process .line { stroke-dasharray: 1.5 4; stroke-linecap: round; }
 .edge.use .line { stroke: var(--edge); }
 .edge.conn .line { stroke: var(--faint); stroke-dasharray: 3 3; marker-end: none; }
 .edge.conn:hover .line, .edge.conn.out .line, .edge.conn.in .line { marker-end: none; }
@@ -409,6 +411,9 @@ const SUPPORT = NATURES.slice(1);
 const CHECKS = ['cycle', 'core-uses-adapter', 'crosses-the-wire', 'product-uses-support'];
 const EXT_KINDS = ['datastore', 'service', 'runtime', 'devtool'];
 const FLOW_KINDS = ['network', 'file', 'process'];
+const PROJECT_KIND = { 'web-service': 'Web service / API', game: 'Game / simulation', library: 'Library / SDK', cli: 'Command-line tool', 'data-pipeline': 'Data pipeline', application: 'Interactive application', compiler: 'Compiler / interpreter', ml: 'Machine learning', embedded: 'Embedded / firmware', infrastructure: 'Infrastructure', other: 'Other / mixed' };
+const VIEW_KIND = { request: 'Request path', 'game-loop': 'Game loop', ecs: 'Entities, data & systems', 'library-api': 'Library API', command: 'Command path', 'data-pipeline': 'Data pipeline', 'app-lifecycle': 'App lifecycle', compiler: 'Compiler stages', 'ml-lifecycle': 'ML lifecycle', 'device-lifecycle': 'Device lifecycle', infrastructure: 'Declared infrastructure' };
+const GRAPH_EDGE = { control: { label: 'control flow', dash: null }, data: { label: 'data flow', dash: '8 3 2 3' }, network: { label: 'network traffic', dash: '12 3' }, file: { label: 'file handoff', dash: '7 4' }, process: { label: 'starts or hosts', dash: '1.5 4' } };
 const RT_DESC = { client: 'a page or desktop app a person uses', shared: 'a library compiled into more than one runtime', server: 'a long-lived service process', cli: 'a command run by a person or a script', build: 'runs only while building or developing', none: 'not executable: content or documentation' };
 const ROLE_DESC = { surface: 'what a person or another system touches: UI, API handlers, CLI entry points, editor hosts', adapter: 'I/O and engines: persistence, transport, rendering, filesystem, OS and browser APIs', core: "the system's own rules, models, sessions, workflows", kernel: 'types, schemas, utilities every role shares', none: 'not product code, so no hexagonal role' };
 const NATURE_DESC = { product: 'runs as part of what users use, including the authoring tools designers operate', tooling: 'build, dev stack, quality gates, asset pipelines', test: 'harnesses, acceptance lanes, test support', content: 'data and scripts the product loads', docs: 'documentation and review evidence', experiment: 'prototypes and spikes' };
@@ -555,7 +560,47 @@ function buildModel(map) {
     for (const q of ['area', 'runtime', 'nature', 'role']) if (dec[q] && dec[q].flag) return { kind: dec[q].flag, question: q, confidence: dec[q].confidence };
     return null;
   };
+  M.projects = Array.isArray(map.projects) ? map.projects : [];
+  M.byProject = new Map(M.projects.map((p) => [p.id, p]));
+  M.views = (map.views || []).filter((v) => M.byProject.has(v.project) && VIEW_KIND[v.kind] && (!v.decision || (v.decision.status === 'accepted' && v.decision.value !== false)));
+  M.byView = new Map(M.views.map((v) => [v.id, v]));
+  M.landscape = !!(map.landscape && map.landscape.enabled && M.projects.length);
   return M;
+}
+
+// Filter all existing lenses through one model; shared components keep their real IDs.
+function projectModel(base, projectId) {
+  const project = base.byProject.get(projectId); if (!project) return base;
+  const ids = new Set(project.components), components = base.map.components.filter((c) => ids.has(c.id));
+  const areaIds = new Set(components.map(base.areaOf));
+  const areas = base.areas.filter((a) => areaIds.has(a.id)).map((a) => ({ ...a, counts: null, components: a.components.filter((id) => ids.has(id)), runnables: (a.runnables || []).filter((id) => ids.has(id)) }));
+  const modules = base.map.modules.filter((m) => ids.has(m.component)), modIds = new Set(modules.map((m) => m.id));
+  const touching = (id) => base.flows.some((f) => (f.from === id && ids.has(f.to)) || (f.to === id && ids.has(f.from)));
+  const actors = base.actors.map((a) => ({ ...a, uses: (a.uses || []).filter((id) => ids.has(id) || areaIds.has(id)) })).filter((a) => a.uses.length || touching(a.id));
+  const externals = base.externals.map((x) => ({ ...x, used_by: (x.used_by || []).filter((id) => ids.has(id)) })).filter((x) => x.used_by.length || touching(x.id));
+  const endpoints = new Set([...ids, ...actors.map((a) => a.id), ...externals.map((x) => x.id)]);
+  const within = (set) => (e) => set.has(e.from) && set.has(e.to);
+  const componentEdges = base.edgesOf.component.filter(within(ids));
+  // Area totals from the whole repository would include imports from other projects.
+  const areaEdges = [];
+  for (const e of componentEdges) {
+    const from = base.areaOf(base.byComp.get(e.from)), to = base.areaOf(base.byComp.get(e.to)); if (from === to) continue;
+    let a = areaEdges.find((x) => x.from === from && x.to === to);
+    if (!a) { a = { from, to, count: 0, test_count: 0, reason: '', test_only: true }; areaEdges.push(a); }
+    a.count += e.count || 0; a.test_count += e.test_count || 0; a.test_only = a.test_only && !!e.test_only;
+  }
+  const model = buildModel({ ...base.map, meta: { ...base.map.meta, unowned_contracts: [] }, areas, components, modules,
+    system: { ...base.system, ...project, actors, externals, runtime_counts: null },
+    edges: { components: componentEdges, modules: base.edgesOf.module.filter(within(modIds)), areas: areaEdges },
+    flows: base.flows.filter(within(endpoints)), unresolved: (base.map.unresolved || []).filter((u) => ids.has(u.component)),
+    health: base.health.filter((f) => (f.nodes || []).length && f.nodes.every((id) => ((f.level || 'components') === 'modules' ? modIds : ids).has(id))),
+    views: base.views.filter((v) => v.project === projectId) });
+  model.project = project; return model;
+}
+function availableLenses(model) {
+  if (!model.project && !Array.isArray(model.map.projects)) return LENSES;
+  const cs = model.map.components, libs = cs.filter((c) => model.isProduct(c) && !model.isRunnable(c));
+  return LENSES.filter((l) => l.id === 'purpose' || (l.id === 'layers' ? cs.some(model.isProduct) : l.id === 'ships' ? libs.length && cs.some(model.isRunnable) : l.id === 'contracts' ? libs.some(model.isContract) : cs.some((c) => model.locOf(c) > 0)));
 }
 
 /* ================================================================== layout helpers */
@@ -1017,30 +1062,90 @@ function layoutSize(M) {
   return { level: 1, lens: 'size', nodes: [...regions, ...nodes], edges: [], bounds: { x: 0, y: 0, w: W, h: H }, title: 'Size & activity', frame: { kind: 'system', id: 'system' } };
 }
 
+// One bounded graph renderer: explicit edges carry semantics, including branches and repeats.
+function layoutGraph(nodes, relations, frame, title, lens) {
+  const rank = rankByLongestPath(nodes.map((n) => n.id), relations), columns = new Map();
+  for (const n of nodes) { const r = rank.get(n.id) || 0; if (!columns.has(r)) columns.set(r, []); columns.get(r).push(n); }
+  for (const [r, col] of columns) col.forEach((n, i) => { n.x = r * 340; n.y = (i - (col.length - 1) / 2) * 150; });
+  const byId = new Map(nodes.map((n) => [n.id, n])), edges = [], rects = [];
+  const top = bounds(nodes).y; let lane = 0;
+  relations.forEach((e, i) => {
+    const a = byId.get(e.from), b = byId.get(e.to); if (!a || !b) return;
+    const edge = { id: 'graph:' + i, from: e.from, to: e.to, kind: lens === 'landscape' ? 'relation' : 'behavior', fkind: e.kind, label: e.label, data: e };
+    if (a === b || b.x <= a.x || b.x - a.x > 340) {
+      const y = top - 60 - lane++ * 30, x1 = a.x + a.w / 2 - 18, x2 = b.x - b.w / 2 + 18;
+      edge.d = `M${x1},${a.y - a.h / 2} V${y} H${x2} V${b.y - b.h / 2}`;
+      rects.push({ x: Math.min(x1, x2), y, w: Math.abs(x2 - x1), h: 1 });
+    } else {
+      const peers = relations.filter((r) => r.from === e.from && r.to === e.to), offset = (peers.indexOf(e) - (peers.length - 1) / 2) * 12;
+      edge.d = pathBetween(a, b, 'h', { from: offset, to: offset });
+    }
+    edges.push(edge);
+  });
+  return { level: lens === 'landscape' ? 0 : 1, lens, nodes, edges, bounds: bounds(nodes, rects), title, frame };
+}
+function layoutLandscape(model) {
+  const nodes = model.projects.map((p) => ({ id: p.id, kind: 'project', label: p.name, sub: PROJECT_KIND[p.kind] || PROJECT_KIND.other, title: p.summary || p.purpose, w: 240, h: 76, hue: null, data: p }));
+  return layoutGraph(nodes, model.map.project_relations || [], { kind: 'landscape', id: 'landscape' }, model.system.name, 'landscape');
+}
+function layoutProject(model) {
+  const L = layoutSystem(model); L.frame = { kind: 'project', id: model.project.id }; return L;
+}
+function layoutView(model, view) {
+  const nodes = view.nodes.map((n) => { const c = model.byComp.get(n.component); return { id: n.id, kind: 'concept', label: n.label, sub: n.kind, title: n.detail, hue: c ? model.hueOf(c) : null, w: 230, h: 62, data: n }; });
+  return layoutGraph(nodes, view.edges, { kind: 'view', id: view.id }, view.title, 'behavior');
+}
+
 /* ================================================================== state */
-const M = (() => { try { return buildModel(loadMap()); } catch (e) { console.error(e); banner(`This map file is incomplete, so it can't be shown. Ask your agent to rebuild the map. (${e.message || e})`); throw e; } })();
+const repositoryModel = (() => { try { return buildModel(loadMap()); } catch (e) { console.error(e); banner(`This map file is incomplete, so it can't be shown. Ask your agent to rebuild the map. (${e.message || e})`); throw e; } })();
+let M = repositoryModel;
+const projectModels = new Map();
+function modelFor(project) { if (!project) return repositoryModel; if (!projectModels.has(project)) projectModels.set(project, projectModel(repositoryModel, project)); return projectModels.get(project); }
 const state = { route: null, layout: null, sel: null, hover: null, hl: null, health: false, view: { x: 0, y: 0, k: 1 }, pending: null, file: null };
 const tip = $('#tip'), svg = $('#canvas'), scene = $('#scene'), gBands = $('#bands'), gRegions = $('#regions'), gEdges = $('#edges'), gNodes = $('#nodes'), gLabels = $('#labels'), stage = $('#stage'), panel = $('#panel');
 const cache = new Map();
-function parseHash() {
-  const h = (location.hash || '').replace(/^#\/?/, '');
-  if (!h || h === 'domains') return { level: 0, lens: 'purpose' };
-  if (h === 'layers' || h === 'runtime') return { level: 1, lens: 'layers' };
-  if (h === 'ships' || h === 'size' || h === 'contracts') return { level: 1, lens: h };
-  let m = h.match(/^(?:area|domain)\/(.+)$/); if (m && M.byArea.has(decodeURIComponent(m[1]))) return { level: 1, id: decodeURIComponent(m[1]) };
-  m = h.match(/^component\/(.+)$/); if (m && M.byComp.has(decodeURIComponent(m[1]))) return { level: 2, id: decodeURIComponent(m[1]) };
-  console.warn('codemap: unknown route', h); return { level: 0, lens: 'purpose' };
+function parseHash(hash = location.hash) {
+  let h = (hash || '').replace(/^#\/?/, ''), project = null;
+  const root = { level: 0, lens: 'purpose' };
+  try {
+    let m = h.match(/^view\/(.+)$/);
+    if (m) { const v = repositoryModel.byView.get(decodeURIComponent(m[1])); return v ? { level: 1, view: v.id, project: v.project } : root; }
+    m = h.match(/^project\/([^/]+)(?:\/(.*))?$/);
+    if (m) { project = decodeURIComponent(m[1]); if (!repositoryModel.byProject.has(project)) return root; h = m[2] || ''; }
+    const scoped = modelFor(project), withProject = (r) => project ? { ...r, project } : r;
+    if (!h || h === 'domains') return withProject(root);
+    if (h === 'system' && !project) return { ...root, system: true };
+    if (h === 'layers' || h === 'runtime') return withProject({ level: 1, lens: 'layers' });
+    if (h === 'ships' || h === 'size' || h === 'contracts') return withProject({ level: 1, lens: h });
+    m = h.match(/^(?:area|domain)\/(.+)$/); if (m && scoped.byArea.has(decodeURIComponent(m[1]))) return withProject({ level: 1, id: decodeURIComponent(m[1]) });
+    m = h.match(/^component\/(.+)$/); if (m && scoped.byComp.has(decodeURIComponent(m[1]))) return withProject({ level: 2, id: decodeURIComponent(m[1]) });
+    return withProject(root);
+  } catch (_) { return root; }
 }
-function hashFor(route) { return route.level === 0 ? '#/' : route.level === 1 ? (route.id ? '#/area/' + encodeURIComponent(route.id) : '#/' + (route.lens || 'layers')) : '#/component/' + encodeURIComponent(route.id); }
+function hashFor(route) {
+  if (route.system) return '#/system';
+  if (route.view) return '#/view/' + encodeURIComponent(route.view);
+  const path = route.level === 0 ? '#/' : route.level === 1 ? (route.id ? '#/area/' + encodeURIComponent(route.id) : '#/' + (route.lens || 'layers')) : '#/component/' + encodeURIComponent(route.id);
+  return route.project ? '#/project/' + encodeURIComponent(route.project) + (path === '#/' ? '' : '/' + path.slice(2)) : path;
+}
 function layoutFor(route) {
-  const key = route.level + ':' + (route.lens || '') + ':' + (route.id || ''); if (cache.has(key)) return cache.get(key);
-  const l = route.level === 0 ? layoutSystem(M) : route.lens === 'ships' ? layoutShips(M) : route.lens === 'contracts' ? layoutShips(M, true) : route.lens === 'size' ? layoutSize(M) : route.level === 1 ? layoutMatrix(M, route.id || null) : layoutModules(M, route.id);
+  const key = JSON.stringify(route); if (cache.has(key)) return cache.get(key);
+  const model = modelFor(route.project);
+  const l = route.view ? layoutView(model, repositoryModel.byView.get(route.view))
+    : route.level === 0 ? (route.project ? layoutProject(model) : model.landscape && !route.system ? layoutLandscape(model) : layoutSystem(model))
+    : route.lens === 'ships' ? layoutShips(model) : route.lens === 'contracts' ? layoutShips(model, true) : route.lens === 'size' ? layoutSize(model) : route.level === 1 ? layoutMatrix(model, route.id || null) : layoutModules(model, route.id);
   cache.set(key, l); return l;
 }
-function parentRoute(route) { if (route.level === 2) { const c = M.byComp.get(route.id); return { level: 1, id: M.areaOf(c) }; } return { level: 0, lens: 'purpose' }; }
+function parentRoute(route) {
+  if (route.view) return { level: 0, lens: 'purpose', project: route.project };
+  if (route.level === 2) { const model = modelFor(route.project); return { level: 1, id: model.areaOf(model.byComp.get(route.id)), project: route.project }; }
+  return { level: 0, lens: 'purpose', project: route.level === 0 ? undefined : route.project };
+}
 function routeInto(node) {
-  if (node.kind === 'area' || node.kind === 'libs') return { level: 1, id: node.data.id };
-  if (node.kind === 'component') return { level: 2, id: node.data.id };
+  const project = state.route.project;
+  if (node.kind === 'project') return { level: 0, project: node.data.id };
+  if (node.kind === 'area' || node.kind === 'libs') return { level: 1, id: node.data.id, project };
+  if (node.kind === 'component') return { level: 2, id: node.data.id, project };
   return null;
 }
 
@@ -1115,6 +1220,9 @@ function drawNode(n) {
     const two = n.sub && n.h >= 40, tx = 28;
     g.append(sv('text', { class: 'name', x: tx, y: two ? n.h / 2 - 3 : n.h / 2 + 4 }, trunc(n.label, n.w - tx - 10, cw)));
     if (two) g.append(sv('text', { class: 'sub', x: tx, y: n.h / 2 + 13 }, trunc(n.sub, n.w - tx - 8, 6)));
+  }
+  if (n.kind === 'project' || n.kind === 'concept') {
+    g.append(sv('text', { class: 'name', x: 12, y: n.h / 2 - 4 }, trunc(n.label, n.w - 24, 7.2)), sv('text', { class: 'sub', x: 12, y: n.h / 2 + 15 }, trunc(n.sub, n.w - 24, 6)));
   }
   if (n.flag) {
     const unres = n.flag.kind === 'unresolved' || n.flag.kind === 'unsorted';
@@ -1295,31 +1403,34 @@ function fly(from, to, hue) {
 function go(route, opts) { state.pending = opts || null; const hsh = hashFor(route); if (location.hash === hsh || (!location.hash && hsh === '#/')) render(); else location.hash = hsh; }
 function openNode(node) { const r = routeInto(node); if (!r) return; const from = nodeScreenRect(node.id); go(r, { from, hue: node.hue, dir: 'in' }); }
 function backToId(r) { return r.level === 2 ? r.id : r.level === 1 && r.id ? 'area:' + r.id : null; }
-function up() { const r = state.route; if (r.level === 0) return; const parent = parentRoute(r), backTo = backToId(r); go(parent, { dir: 'out', backTo, hue: state.layout.nodes[0] && state.layout.nodes[0].hue, select: backTo }); }
+function up() { const r = state.route; if (r.level === 0 && !r.project && !r.system) return; const parent = parentRoute(r), backTo = backToId(r); go(parent, { dir: 'out', backTo, hue: state.layout.nodes[0] && state.layout.nodes[0].hue, select: backTo }); }
 function setLens(lens) {
+  if (!availableLenses(M).some((l) => l.id === lens)) return;
   const r = state.route, selId = state.sel && state.sel.kind === 'node' ? state.sel.id : null;
   const comp = selId && M.byComp.has(selId) ? selId : r.level === 2 ? r.id : null, area = !comp && r.level === 1 && r.id ? r.id : selId && selId.startsWith('area:') ? selId.slice(5) : null;
   let select = comp;
-  if (lens === 'purpose') { const c = comp && M.byComp.get(comp); select = c ? (M.isRunnable(c) && M.areaOf(c) !== 'build-verify' ? comp : 'area:' + M.areaOf(c)) : area ? 'area:' + area : null; go({ level: 0, lens: 'purpose' }, { select }); return; }
+  if (lens === 'purpose') { const c = comp && M.byComp.get(comp); select = c ? (M.isRunnable(c) && M.areaOf(c) !== 'build-verify' ? comp : 'area:' + M.areaOf(c)) : area ? 'area:' + area : null; go({ level: 0, lens: 'purpose', project: r.project, system: !r.project && repositoryModel.landscape }, { select }); return; }
   if (lens === 'size' && !comp && area) select = 'area:' + area;
-  go({ level: 1, lens }, { select });
+  go({ level: 1, lens, project: r.project }, { select });
 }
 function navigateTo(kind, id, extra) {
-  if (kind === 'area') go({ level: 1, id }, { dir: 'in' });
-  else if (kind === 'component') { const c = M.byComp.get(id); if (c) go({ level: 1, id: M.areaOf(c) }, { select: id }); }
-  else if (kind === 'module') { const m = M.byMod.get(id); if (m) go({ level: 2, id: m.component }, { select: id, file: extra || null }); }
-  else if (kind === 'system') go({ level: 0 });
-  else if (kind === 'actor' || kind === 'external') go({ level: 0 }, { select: kind + ':' + id });
+  const navigate = (route, opts) => go({ ...route, project: state.route.project, system: route.level === 0 && !state.route.project && repositoryModel.landscape }, opts);
+  if (kind === 'area') navigate({ level: 1, id }, { dir: 'in' });
+  else if (kind === 'component') { const c = M.byComp.get(id); if (c) navigate({ level: 1, id: M.areaOf(c) }, { select: id }); }
+  else if (kind === 'module') { const m = M.byMod.get(id); if (m) navigate({ level: 2, id: m.component }, { select: id, file: extra || null }); }
+  else if (kind === 'system') navigate({ level: 0 });
+  else if (kind === 'actor' || kind === 'external') navigate({ level: 0 }, { select: kind + ':' + id });
 }
 function routeForFinding(f) {
   if ((f.level || 'components') === 'modules') { const m = M.byMod.get((f.nodes || [])[0]); return m ? { level: 2, id: m.component } : null; }
   const areas = new Set((f.nodes || []).map((id) => M.byComp.get(id)).filter(Boolean).map((c) => M.areaOf(c)));
   return areas.size === 1 ? { level: 1, id: [...areas][0] } : { level: 1, lens: 'layers' };
 }
-function showFinding(f) { const r = routeForFinding(f); if (!r) return; state.health = true; go(r, { hl: f }); }
+function showFinding(f) { const r = routeForFinding(f); if (!r) return; state.health = true; go({ ...r, project: state.route.project }, { hl: f }); }
 
 function render() {
-  const route = parseHash(), L = layoutFor(route), p = state.pending; state.pending = null;
+  const route = parseHash(); M = modelFor(route.project);
+  const L = layoutFor(route), p = state.pending; state.pending = null;
   const prevLevel = state.route ? state.route.level : null, prevFrame = state.layout ? state.layout.frame : null, prevLens = state.layout ? state.layout.lens : null;
   state.route = route; state.layout = L; state.hover = null; state.sel = null; state.hl = null; state.file = p && p.file || null;
   draw(L); tip.classList.remove('show');
@@ -1334,7 +1445,7 @@ function render() {
     const to = p.backTo && nodeScreenRect(p.backTo); if (to) fly({ x: stageRect.w * 0.08, y: stageRect.h * 0.08, w: stageRect.w * 0.84, h: stageRect.h * 0.84 }, to, p.hue);
     scene.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' });
   } else { tweenView(target, prevLevel == null ? 0 : 220); if (prevLevel != null && (prevLevel !== route.level || (prevFrame && prevFrame.id !== L.frame.id) || prevLens !== L.lens)) scene.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease-out' }); }
-  renderCrumbs(); renderLegend(); syncHistory();
+  renderCrumbs(); renderLegend(); renderHealthButton(); syncHistory();
   if (p && p.select && L.nodes.some((n) => n.id === p.select)) select({ kind: 'node', id: p.select });
   else if (p && p.selectEdge && L.edges.some((e) => e.id === p.selectEdge)) select({ kind: 'edge', id: p.selectEdge });
   else select(null);
@@ -1342,19 +1453,22 @@ function render() {
 }
 function renderCrumbs() {
   const r = state.route, c = $('#crumbs'); c.replaceChildren();
-  const crumbs = [{ label: M.system.name || 'System', route: { level: 0, lens: 'purpose' } }];
-  if (r.level === 1 && !r.id) crumbs.push({ label: LENS[r.lens].name, route: { level: 1, lens: r.lens } });
-  if (r.level === 1 && r.id || r.level === 2) { const a = M.byArea.get(r.level === 1 ? r.id : M.areaOf(M.byComp.get(r.id))); crumbs.push({ label: a.name, route: { level: 1, id: a.id }, hue: a.hue }); }
-  if (r.level === 2) { const comp = M.byComp.get(r.id); crumbs.push({ label: comp.name || comp.id, route: { level: 2, id: comp.id }, hue: M.hueOf(comp), rt: M.rtOf(comp) }); }
+  const crumbs = [{ label: repositoryModel.system.name || 'System', route: { level: 0, lens: 'purpose' } }];
+  if (r.system) crumbs.push({ label: 'All code and system', route: r });
+  if (r.project) crumbs.push({ label: M.project.name, route: { level: 0, project: r.project } });
+  if (r.view) crumbs.push({ label: repositoryModel.byView.get(r.view).title, route: r });
+  if (r.level === 1 && !r.id && !r.view) crumbs.push({ label: LENS[r.lens].name, route: { level: 1, lens: r.lens, project: r.project } });
+  if (r.level === 1 && r.id || r.level === 2) { const a = M.byArea.get(r.level === 1 ? r.id : M.areaOf(M.byComp.get(r.id))); crumbs.push({ label: a.name, route: { level: 1, id: a.id, project: r.project }, hue: a.hue }); }
+  if (r.level === 2) { const comp = M.byComp.get(r.id); crumbs.push({ label: comp.name || comp.id, route: { level: 2, id: comp.id, project: r.project }, hue: M.hueOf(comp), rt: M.rtOf(comp) }); }
   crumbs.forEach((cr, i) => {
     if (i) c.append(h('span', { class: 'sep' }, '›'));
     const last = i === crumbs.length - 1;
     c.append(h('button', { class: 'crumb' + (last ? ' current' : ''), onclick: () => { if (!last) go(cr.route, { dir: 'out', backTo: backToId(r), select: null }); } }, cr.hue != null ? swatch(cr.hue) : null, cr.rt ? icon(cr.rt) : null, cr.label));
   });
-  const on = r.level === 0 ? 'purpose' : r.level === 1 && !r.id ? r.lens : null;
-  for (const b of $('#lens').querySelectorAll('button')) { b.classList.toggle('on', b.dataset.lens === on); b.setAttribute('aria-selected', String(b.dataset.lens === on)); }
+  const on = r.view || state.layout.lens === 'landscape' ? null : r.level === 0 ? 'purpose' : r.level === 1 && !r.id ? r.lens : null;
+  for (const b of $('#lens').querySelectorAll('button')) { b.hidden = !availableLenses(M).some((l) => l.id === b.dataset.lens); b.style.display = b.hidden ? 'none' : ''; b.classList.toggle('on', b.dataset.lens === on); b.setAttribute('aria-selected', String(b.dataset.lens === on)); }
   const L = state.layout, real = L.nodes.filter((n) => !n.ghost), ghosts = L.nodes.length - real.length, sup = real.filter((n) => n.support).length, prod = real.filter((n) => n.kind === 'component' && !n.support).length;
-  const what = on ? LENS[on].q
+  const what = r.view ? repositoryModel.byView.get(r.view).question : L.lens === 'landscape' ? 'Projects in this repository and how they relate' : on ? LENS[on].q
     : r.level === 1 ? `${prod} product part${prod === 1 ? '' : 's'} by where they run and their layer${sup ? ` · ${sup} supporting beneath` : ''}${ghosts ? ` · ${ghosts} faded from other areas` : ''}`
     : `${real.length} module${real.length === 1 ? '' : 's'}, ordered so imports point down${L.dense ? ' · too many imports to draw at once: hover a module to see its own' : ghosts ? ' · other components at the sides' : ''}`;
   c.append(h('span', { class: 'hint' }, what));
@@ -1375,6 +1489,7 @@ function edgeGlyph(color, dash, noHead) { const s = sv('svg', { class: 'glyph', 
 // the legend explains only what the current screen draws
 function renderLegend() {
   const l1 = $('#legend-1'), l2 = $('#legend-2'); l1.replaceChildren(); l2.replaceChildren();
+  if (renderGraphLegend(state.layout, l1, l2)) return;
   const L = state.layout, ns = L.nodes, es = L.edges, lbl = (t, title) => h('span', { class: 'lbl', title: title || null }, t), row = (title, ...kids) => h('span', { class: 'row', title }, ...kids), gap = () => h('span', { class: 'gap' });
   const hues = new Set(ns.map((n) => n.hue).filter((x) => x != null)), areas = M.areas.filter((a) => a.hue != null && hues.has(a.hue));
   if (areas.length) { l1.append(lbl('colour · area', 'Every component keeps its area\'s colour on every screen')); for (const a of areas) l1.append(h('span', { class: 'row link', title: a.definition || '', onclick: () => go({ level: 1, id: a.id }, { dir: 'in' }) }, swatch(a.hue), a.name)); }
@@ -1441,7 +1556,7 @@ function compItem(id, e, onEdge, countText) {
   return h('li', { class: 'item', onclick: () => navigateOrSelect('component', id) }, swatch(M.hueOf(c)), h('span', { class: 'name' }, icon(M.rtOf(c)), c.name || c.id), e ? h('span', { class: 'count', title: label + ' · show this edge', onclick: (ev) => { ev.stopPropagation(); onEdge && onEdge(); } }, t.testOnly ? 'tests' : String(e.count)) : h('span', { class: 'count', title: M.isRunnable(c) ? 'runs as its own process or page' : M.isProduct(c) ? 'a library' : NATURE_DESC[M.natureOf(c)] }, countText || (M.isRunnable(c) ? M.runsAs(c) : M.isProduct(c) ? 'library' : M.natureOf(c))), e && e.reason ? h('span', { class: 'reason' + (bad ? ' bad' : ''), title: bad ? CHECK_LABEL[f.check] : null }, e.reason, t.testCount ? h('span', { class: 'conf' }, t.testOnly ? ` · test-only (${t.testCount})` : ` · ${t.testCount} from tests`) : null) : null);
 }
 function areaItem(id, extra) { const a = M.byArea.get(id); if (!a) return null; return h('li', { class: 'item', onclick: () => navigateOrSelect('area', id) }, swatch(a.hue), h('span', { class: 'name' }, a.name), h('span', { class: 'count' }, extra && extra.count != null ? String(extra.count) : String(M.runnablesOf(id).length)), h('span', { class: 'reason' }, (extra && extra.reason) || a.definition || '')); }
-function navigateOrSelect(kind, id) { const nid = kind === 'area' ? 'area:' + id : kind === 'actor' || kind === 'external' ? kind + ':' + id : id; const inView = state.layout.nodes.find((n) => n.id === nid); if (inView && !inView.ghost) select({ kind: 'node', id: nid }); else navigateTo(kind, id); }
+function navigateOrSelect(kind, id) { const nid = kind === 'area' ? 'area:' + id : kind === 'actor' || kind === 'external' ? kind + ':' + id : id; const inView = state.layout.nodes.find((n) => n.id === nid && n.kind === kind); if (inView && !inView.ghost) select({ kind: 'node', id: nid }); else navigateTo(kind, id); }
 function selectEdgeOrGo(from, to) {
   const id = from + '>' + to, e = state.layout.edges.find((x) => x.id === id);
   if (e) { select({ kind: 'edge', id }); return; }
@@ -1472,8 +1587,73 @@ function renderPanel() {
   else parts.push(frameCard());
   panel.append(...parts.filter(Boolean));
 }
+function importCoverage() {
+  const coverage = repositoryModel.map.meta && repositoryModel.map.meta.import_coverage;
+  if (!coverage || !coverage.inventory_available) return null;
+  return h('p', { class: 'conf' }, `Repository import coverage: ${coverage.parsed_files} files parsed${coverage.languages.length ? ' (' + coverage.languages.join(', ') + ')' : ''}; ${coverage.unparsed_files} tracked files outside import parsing. Behavior evidence can include those files.`);
+}
+function projectCoverage(project) {
+  if (!project) return importCoverage();
+  const views = (repositoryModel.map.view_decisions || []).filter((v) => v.project === project.id && !repositoryModel.byView.has(v.id));
+  const memberships = (project.membership_decisions || []).filter((m) => m.decision && ['uncertain', 'unresolved', 'abstain'].includes(m.decision.status));
+  return h('div', {}, !project.components.length ? h('p', { class: 'conf' }, 'No code components are mapped to this project yet. Its evidence and behavior views may describe code or infrastructure outside the source scan.') : null,
+    importCoverage(), memberships.length ? [h('p', { class: 'conf' }, `${memberships.length} component membership${memberships.length === 1 ? ' is' : 's are'} still uncertain.`), ...memberships.map((m) => h('p', { class: 'why' }, `${repositoryModel.nameOf(m.component)}: ${m.decision.reason || 'Its relationship to this project is not established.'}`))] : null,
+    views.length ? [h('h3', {}, 'Views not shown'), ...views.map((v) => h('p', { class: 'why' }, `${VIEW_KIND[v.kind] || v.kind}: ${(v.decision && v.decision.reason) || 'The available evidence did not establish a useful view.'}`))] : null);
+}
+function evidenceCard(paths) {
+  return paths && paths.length ? h('div', {}, h('h3', {}, 'Evidence'), paths.map(pathRow)) : null;
+}
+function viewLinks(projectId = M.project && M.project.id) {
+  const views = repositoryModel.views.filter((v) => !projectId || v.project === projectId);
+  return views.length ? [h('h3', {}, 'Explore behavior'), h('ul', { class: 'list' }, views.map((v) => h('li', { class: 'item', onclick: () => go({ level: 1, view: v.id, project: v.project }) }, h('span'), h('span', { class: 'name' }, v.title), h('span', { class: 'count' }, VIEW_KIND[v.kind]), h('span', { class: 'reason' }, v.question))))] : null;
+}
+function landscapeCard() {
+  return h('div', {}, h('div', { class: 'kind' }, 'Repository landscape'), h('h2', {}, repositoryModel.system.name || 'Projects'), h('p', { class: 'lead' }, 'Choose a project to see its purpose, parts, and behavior.'),
+    h('ul', { class: 'list' }, repositoryModel.projects.map((p) => h('li', { class: 'item', onclick: () => select({ kind: 'node', id: p.id }) }, h('span'), h('span', { class: 'name' }, p.name), h('span', { class: 'count' }, PROJECT_KIND[p.kind] || PROJECT_KIND.other), h('span', { class: 'reason' }, p.summary || p.purpose)))),
+    h('h3', {}, 'Across the repository'), h('button', { class: 'btn', onclick: () => go({ level: 0, system: true }) }, 'All code and system'), lensList('purpose'));
+}
+function projectCard(project, node) {
+  const shared = project.components.filter((id) => repositoryModel.projects.some((p) => p.id !== project.id && p.components.includes(id)));
+  const relations = state.layout.edges.filter((e) => e.from === project.id || e.to === project.id);
+  return h('div', {}, h('div', { class: 'kind' }, PROJECT_KIND[project.kind] || PROJECT_KIND.other), h('h2', {}, project.name), h('p', { class: 'lead' }, project.summary || ''), h('p', {}, project.purpose),
+    node ? openBtn('Open ' + project.name, node) : null, projectCoverage(project),
+    shared.length ? [h('h3', {}, 'Shared components'), compList(shared), h('p', { class: 'why' }, 'These same components also belong to other projects.')] : null,
+    relations.length ? [h('h3', {}, 'Relationships'), h('ul', { class: 'list' }, relations.map((e) => h('li', { class: 'item', onclick: () => select({ kind: 'edge', id: e.id }) }, h('span'), h('span', { class: 'name' }, repositoryModel.byProject.get(e.from).name + ' → ' + repositoryModel.byProject.get(e.to).name), h('span', { class: 'count' }, e.label), h('span', { class: 'reason' }, e.data.detail))))] : null,
+    viewLinks(project.id), evidenceCard(project.evidence));
+}
+function viewCard(view) {
+  return h('div', {}, h('div', { class: 'kind' }, VIEW_KIND[view.kind]), h('h2', {}, view.title), h('p', { class: 'lead' }, view.question), h('h3', {}, view.kind === 'infrastructure' ? 'Declared environment' : 'Scope'), h('p', {}, view.scope), h('p', {}, view.summary),
+    view.kind === 'infrastructure' ? h('p', { class: 'conf' }, 'Repository declarations describe this environment; they do not establish what is deployed now.') : null,
+    h('p', { class: 'why' }, 'Arrows show the recorded relationships. Select a part or an arrow for its explanation and evidence.'), evidenceCard(view.evidence), projectCoverage(M.project), viewLinks(view.project));
+}
+function conceptCard(node) {
+  const c = M.byComp.get(node.component);
+  return h('div', {}, h('div', { class: 'kind' }, node.kind), h('h2', {}, node.label), h('p', { class: 'lead' }, node.detail),
+    c ? [h('h3', {}, 'Code component'), compList([c.id])] : null, evidenceCard(node.evidence));
+}
+function graphEdgeCard(edge) {
+  const nodes = state.layout.nodes, from = nodes.find((n) => n.id === edge.from), to = nodes.find((n) => n.id === edge.to);
+  return h('div', {}, h('div', { class: 'kind' }, edge.kind === 'relation' ? 'Project relationship' : (GRAPH_EDGE[edge.fkind] || {}).label || edge.fkind), h('h2', {}, edge.label),
+    h('p', {}, h('button', { class: 'btn', onclick: () => select({ kind: 'node', id: from.id }) }, from.label), ' → ', h('button', { class: 'btn', onclick: () => select({ kind: 'node', id: to.id }) }, to.label)),
+    h('p', {}, edge.data.detail), evidenceCard(edge.data.evidence));
+}
+function renderGraphLegend(L, l1, l2) {
+  if (L.lens !== 'landscape' && L.lens !== 'behavior') return false;
+  const row = (...children) => h('span', { class: 'row' }, ...children);
+  const areaIds = new Set(L.nodes.map((n) => n.data.component).filter(Boolean).map((id) => M.byComp.get(id)).filter(Boolean).map(M.areaOf));
+  for (const id of areaIds) { const a = M.byArea.get(id); l1.append(row(swatch(a.hue), a.name)); }
+  if (L.nodes.some((n) => n.hue == null)) l1.append(row(swatch(null), L.lens === 'landscape' ? 'project' : 'concept without a code owner'));
+  if (L.lens === 'behavior') {
+    l1.append(h('span', { class: 'lbl' }, 'label · role'));
+    for (const kind of new Set(L.nodes.map((n) => n.sub))) l1.append(row(kind));
+    for (const kind of new Set(L.edges.map((e) => e.fkind))) { const g = GRAPH_EDGE[kind]; if (g) l2.append(row(edgeGlyph('var(--edge)', g.dash), g.label)); }
+  } else if (L.edges.length) l2.append(row(edgeGlyph('var(--edge)'), 'project relationship'));
+  return true;
+}
 function frameCard() {
   const r = state.route;
+  if (r.view) return viewCard(repositoryModel.byView.get(r.view));
+  if (state.layout.lens === 'landscape') return landscapeCard();
   if (r.level === 0) return systemCard();
   if (r.level === 1 && !r.id) return lensCard(r.lens);
   if (r.level === 1) return areaCard(M.byArea.get(r.id));
@@ -1481,6 +1661,8 @@ function frameCard() {
 }
 function nodeCard(n) {
   if (!n) return null;
+  if (n.kind === 'project') return projectCard(n.data, n);
+  if (n.kind === 'concept') return conceptCard(n.data);
   if (n.kind === 'libs') return libsCard(n.data, n);
   if (n.kind === 'area') return areaCard(n.data, n);
   if (n.kind === 'component') return componentCard(n.data, n);
@@ -1490,11 +1672,11 @@ function nodeCard(n) {
   return null;
 }
 function flowItem(f) {
-  const onclick = () => { const e = state.layout.edges.find((x) => x.kind === 'flow' && x.data === f); if (e) select({ kind: 'edge', id: e.id }); else go({ level: 0, lens: 'purpose' }, { selectEdge: 'flow:' + M.flows.indexOf(f) }); };
+  const onclick = () => { const e = state.layout.edges.find((x) => x.kind === 'flow' && x.data === f); if (e) select({ kind: 'edge', id: e.id }); else go({ level: 0, lens: 'purpose', project: state.route.project }, { selectEdge: 'flow:' + M.flows.indexOf(f) }); };
   return h('li', { class: 'item', onclick }, h('span'), h('span', { class: 'name' }, `${M.nameOf(f.from)} → ${M.nameOf(f.to)}`), h('span', { class: 'count', title: FLOW_DESC[f.kind] || '' }, f.label || f.kind), f.detail ? h('span', { class: 'reason' }, f.detail) : null);
 }
 function lensList(current) {
-  return h('ul', { class: 'list' }, LENSES.filter((l) => l.id !== current).map((l) => h('li', { class: 'item', onclick: () => setLens(l.id) }, h('span'), h('span', { class: 'name' }, l.name), h('span', { class: 'count' }, l.key), h('span', { class: 'reason' }, l.q))));
+  return h('ul', { class: 'list' }, availableLenses(M).filter((l) => l.id !== current).map((l) => h('li', { class: 'item', onclick: () => setLens(l.id) }, h('span'), h('span', { class: 'name' }, l.name), h('span', { class: 'count' }, l.key), h('span', { class: 'reason' }, l.q))));
 }
 function firstSentence(t) { const m = (t || '').match(/^.*?[.!?](\s|$)/); return m ? m[0].trim() : t || ''; }
 function builtLine() {
@@ -1502,11 +1684,12 @@ function builtLine() {
   return h('p', { class: 'why' }, [repo.branch && repo.sha ? `${repo.branch} @ ${repo.sha.slice(0, 8)}` : repo.sha ? repo.sha.slice(0, 8) : null, when].filter(Boolean).join(' · ') || '—', h('br'), 'Structure from the code; descriptions from the repository\'s docs; groupings decided by ', h('span', { title: `${meta.jev_model || 'Jev'}, instructions v${meta.instructions_version || '?'}` }, 'Jev'), '.');
 }
 function systemCard() {
-  const S = M.system, rc = M.runtimeCounts(), lead = S.summary || firstSentence(S.purpose), flows = M.flowsInOrder();
+  const S = M.system, rc = M.runtimeCounts(), lead = S.summary || firstSentence(S.purpose), flows = M.flowsInOrder(), project = M.project || (!M.landscape && M.projects.length === 1 ? M.projects[0] : null);
   return h('div', {}, h('div', { class: 'kind' }, 'Start here'), h('h2', {}, S.name || 'System'), h('p', { class: 'lead' }, lead),
     h('div', { class: 'strip', style: 'margin-top: 4px' }, RUNTIMES.filter((r) => rc[r]).map((r) => h('span', { class: 'row', title: RT_DESC[r] }, icon(r), h('b', {}, String(rc[r])), r))),
     flows.length ? [h('h3', {}, 'How it fits together'), h('ul', { class: 'list' }, flows.map(flowItem))] : null,
-    h('h3', {}, 'Look at it through'), lensList('purpose'),
+    project ? h('p', { class: 'kind' }, PROJECT_KIND[project.kind] || PROJECT_KIND.other) : null,
+    projectCoverage(project), viewLinks(), h('h3', {}, 'Look at it through'), lensList('purpose'),
     h('h3', {}, 'People'), h('ul', { class: 'list' }, M.actors.map((a) => h('li', { class: 'item', onclick: () => navigateOrSelect('actor', a.id) }, h('span'), h('span', { class: 'name' }, icon('person'), a.name), h('span'), h('span', { class: 'reason' }, a.role)))),
     h('h3', {}, 'Areas'), h('ul', { class: 'list' }, M.areas.map((a) => { const cnt = M.areaCounts(a); return h('li', { class: 'item', onclick: () => navigateOrSelect('area', a.id) }, swatch(a.hue), h('span', { class: 'name' }, a.name), h('span', { class: 'count', title: `${cnt.product} product · ${cnt.supporting} supporting` }, String(cnt.product + cnt.supporting)), h('span', { class: 'reason' }, a.definition)); })),
     h('h3', {}, 'External systems'), h('ul', { class: 'list' }, M.externals.map((x) => h('li', { class: 'item', onclick: () => navigateOrSelect('external', x.id) }, h('span'), h('span', { class: 'name' }, x.name), h('span', { class: 'count', title: EXT_DESC[M.extKind(x)] }, M.extKind(x)), h('span', { class: 'reason' }, x.role)))),
@@ -1621,6 +1804,7 @@ function moduleCard(m, n) {
 }
 function verdict(f) { const acc = !!f.accepted; return { label: acc ? 'fine by design' : 'worth a look', ok: acc, byJev: f.confidence != null, title: f.confidence != null ? `judged ${acc ? 'acceptable by design' : 'a real problem'} with ${pct(acc ? f.confidence : 1 - f.confidence)} confidence` : 'found directly in the imports' }; }
 function edgeCard(e) {
+  if (e && (e.kind === 'behavior' || e.kind === 'relation')) return graphEdgeCard(e);
   if (!e) return null; const d = e.data || {}, L = state.layout, a = L.nodes.find((n) => n.id === e.from), b = L.nodes.find((n) => n.id === e.to), f = e.health || null;
   const chip = (n) => h('span', { class: 'chip', onclick: () => select({ kind: 'node', id: n.id }) }, n.label);
   const head = (label) => [h('div', { class: 'kind' }, label), h('div', { class: 'edgehead', style: 'margin: 4px 0 8px; font-size: 15px' }, a ? chip(a) : e.from, h('span', { class: 'arrow' }, e.kind === 'conn' ? '⇢' : '→'), b ? chip(b) : e.to)];
@@ -1663,6 +1847,7 @@ scene.addEventListener('dblclick', (e) => { const g = e.target.closest('.node');
 gEdges.addEventListener('click', (e) => { const g = e.target.closest('.edge'); if (!g) return; e.stopPropagation(); select({ kind: 'edge', id: g.dataset.id }); });
 function edgeTip(ed) {
   const a = state.layout.nodes.find((n) => n.id === ed.from), b = state.layout.nodes.find((n) => n.id === ed.to), an = a ? a.label : ed.from, bn = b ? b.label : ed.to;
+  if (ed.kind === 'behavior' || ed.kind === 'relation') return `${an} → ${bn} · ${ed.label}: ${ed.data.detail || ''}`;
   if (ed.kind === 'flow') return `${an} → ${bn} · ${ed.label || ed.fkind}${ed.data && ed.data.detail ? ': ' + ed.data.detail : ''}`;
   if (ed.kind === 'use') return `${an} uses ${bn}`;
   if (ed.kind === 'conn') return `${an} uses ${bn}`;
@@ -1676,7 +1861,7 @@ svg.addEventListener('dblclick', (e) => { if (e.target === svg || e.target.close
 
 /* ================================================================== search */
 const q = $('#q'), results = $('#results');
-const INDEX = (() => {
+function searchIndex() {
   const out = [];
   for (const a of M.areas) out.push({ kind: 'area', id: a.id, label: a.name, sub: `${M.compsOf.get(a.id).length} components`, keys: [a.name, a.id], hue: a.hue, w: 3 });
   for (const c of M.map.components) out.push({ kind: 'component', id: c.id, label: c.name || c.id, sub: c.path || '', keys: [c.name || '', c.id, c.path || '', M.natureOf(c), M.rtOf(c), M.runsAs(c)], hue: M.hueOf(c), rt: M.rtOf(c), w: 2 });
@@ -1684,7 +1869,7 @@ const INDEX = (() => {
   for (const a of M.actors) out.push({ kind: 'actor', id: a.id, label: a.name, sub: a.role || '', keys: [a.name, a.id], w: 1 });
   for (const x of M.externals) out.push({ kind: 'external', id: x.id, label: x.name, sub: `${M.extKind(x)} · ${x.role || ''}`, keys: [x.name, x.id, M.extKind(x)], w: 1 });
   return out;
-})();
+}
 function score(entry, qs) {
   let best = 0;
   for (const k0 of entry.keys) { const k = k0.toLowerCase(); if (!k) continue; let s = 0; if (k === qs) s = 100; else if (k.startsWith(qs)) s = 80; else if (k.includes(qs)) s = 60 - Math.min(20, k.indexOf(qs)); else { let i = 0; for (const ch of k) if (ch === qs[i]) i++; if (i === qs.length) s = 25; } best = Math.max(best, s); }
@@ -1694,7 +1879,7 @@ let active = 0, hits = [];
 function runSearch() {
   const qs = q.value.trim().toLowerCase(); results.replaceChildren(); active = 0;
   if (!qs) { results.hidden = true; hits = []; return; }
-  hits = INDEX.map((e) => [score(e, qs), e]).filter((x) => x[0] > 0).sort((a, b) => (b[0] - a[0]) || byId(a[1], b[1]) || ((a[1].file || '') < (b[1].file || '') ? -1 : 1)).slice(0, 14).map((x) => x[1]);
+  hits = searchIndex().map((e) => [score(e, qs), e]).filter((x) => x[0] > 0).sort((a, b) => (b[0] - a[0]) || byId(a[1], b[1]) || ((a[1].file || '') < (b[1].file || '') ? -1 : 1)).slice(0, 14).map((x) => x[1]);
   results.hidden = false;
   if (!hits.length) { results.append(h('li', { class: 'empty' }, 'No matches')); return; }
   hits.forEach((e, i) => results.append(h('li', { class: i === active ? 'active' : '', role: 'option', onmousedown: (ev) => { ev.preventDefault(); choose(i); } }, h('span', { class: 'kind' }, e.kind === 'actor' ? 'person' : e.kind), e.hue != null ? swatch(e.hue) : null, e.rt ? icon(e.rt) : null, h('span', { class: 'label' }, e.label), h('span', { class: 'sub' }, e.sub))));
@@ -1743,7 +1928,7 @@ if (location.hash === '') history.replaceState(null, '', '#/');
 renderGrammar(); renderHealthButton();
 window.addEventListener('hashchange', render);
 render();
-window.codemap = { M, state, layoutSystem, layoutMatrix, layoutModules, rankByLongestPath, orderBands };
+window.codemap = { get M() { return M; }, repositoryModel, state, buildModel, projectModel, availableLenses, layoutLandscape, layoutProject, layoutView, parseHash, hashFor, parentRoute, layoutSystem, layoutMatrix, layoutModules, rankByLongestPath, orderBands };
 })();
 </script>
 </body>
