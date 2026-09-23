@@ -451,3 +451,10 @@ def test_full_stack_apps_never_raise_client_and_server_share_code(trio):
     result = build.build(sk, draft, decisions)
     assert not any(h["check"] == "crosses-the-wire" and "web" in h["nodes"] for h in result["health"])
     assert {c["id"]: c["runtime"] for c in result["components"]}["web"] == "fullstack"
+
+
+def test_an_external_may_not_share_a_component_id(trio):
+    skel, draft, decisions = copy.deepcopy(trio)
+    draft["system"]["externals"].append({"id": "store", "name": "Store engine", "role": "x", "kind": "service", "used_by": ["api"]})
+    errors = build.validate(build.build(skel, draft, decisions))
+    assert any("externals[store]: shares its id with a component" in e for e in errors)

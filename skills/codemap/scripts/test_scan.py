@@ -523,3 +523,8 @@ def test_a_build_config_importing_a_library_scans(tmp_path):
     roles = {f["path"]: f["role"] for f in doc["files"]}
     assert roles["web/vite.config.ts"] == "build"
     assert "vite" in {x["name"] for x in doc["externals"]}
+
+
+def test_workspace_manifests_are_reading_leads():
+    inv = scan.repository_inventory(["apps/web/project.json", "nx.json", "game/project.godot", "src/a.ts"], ["src/a.ts"])
+    assert {"apps/web/project.json", "nx.json", "game/project.godot"} <= set(inv["manifests"])

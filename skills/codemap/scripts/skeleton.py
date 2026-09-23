@@ -234,6 +234,29 @@ def _metrics(node_ids, files_of, loc_of, edges, changes_of, authored_of=None):
     return metrics, cycles
 
 
+def _genuine_cycles(cycles, file_edges, role_of, premerge_of, module_of, metrics):
+    """Keep module cycles that exist before merging to the module cap.
+
+    Merging a barrel folder (components/index.ts) into one of the folders it re-exports manufactures a cycle
+    the code does not have; advice to break it would be wrong. A cycle is real when files from two of its
+    modules already formed a cycle between their original groups.
+    """
+    edges = [e for e in _aggregate(file_edges, premerge_of, role_of) if not e["test_only"]]
+    out = {}
+    for e in edges:
+        out.setdefault(e["from"], set()).add(e["to"])
+        out.setdefault(e["to"], set())
+    final_of = {}
+    for path, group in premerge_of.items():
+        final_of[group] = module_of[path]
+    before = [{final_of[g] for g in scc} for scc in _tarjan(sorted(out), out)]
+    kept = [cycle for cycle in cycles if any(len(spans & set(cycle)) >= 2 for spans in before)]
+    cyclic = {n for cycle in kept for n in cycle}
+    for n, m in metrics.items():
+        m["in_cycle"] = n in cyclic
+    return kept
+
+
 def _aggregate(file_edges, owner: dict, role_of: dict) -> list[dict]:
     buckets = {}
     for edge in file_edges:
@@ -277,6 +300,7 @@ def skeleton(scan: dict) -> dict:
             unit_edges.setdefault(u, []).append((e["from"], e["to"]))
     modules = []
     module_of = {}
+    premerge_of = {}
     components = []
     for unit_id in sorted(units):
         unit = units[unit_id]
@@ -306,6 +330,9 @@ def skeleton(scan: dict) -> dict:
             if not keep:
                 groups.pop("root")
         _split_large(groups)
+        for key, group in groups.items():
+            for f in group["files"]:
+                premerge_of[f["path"]] = f"{unit_id}/{key}"
         _merge_to_cap(groups, unit_edges.get(unit_id, []))
         module_ids = []
         for key in sorted(groups):
@@ -362,6 +389,7 @@ def skeleton(scan: dict) -> dict:
         {m["id"]: sum(changes_of.get(f["path"], 0) for f in m["files"]) for m in modules},
         {m["id"]: sum(f["loc"] for f in m["files"] if f.get("provenance") is None) for m in modules},
     )
+    module_cycles = _genuine_cycles(module_cycles, file_edges, role_of, premerge_of, module_of, module_metrics)
     component_ids = [c["id"] for c in components]
     component_metrics, component_cycles = _metrics(
         component_ids,
