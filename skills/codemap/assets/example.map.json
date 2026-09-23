@@ -11,7 +11,11 @@
    "counts": {
     "product": 5,
     "runtimes": {
+     "build": 0,
+     "cli": 0,
      "client": 3,
+     "none": 0,
+     "server": 0,
      "shared": 2
     },
     "supporting": 0
@@ -42,7 +46,14 @@
    ],
    "counts": {
     "product": 0,
-    "runtimes": {},
+    "runtimes": {
+     "build": 0,
+     "cli": 0,
+     "client": 0,
+     "none": 0,
+     "server": 0,
+     "shared": 0
+    },
     "supporting": 12
    },
    "definition": "Tooling, tests, content packages, docs, and experiments that support the product without shipping in it.",
@@ -59,7 +70,12 @@
    "counts": {
     "product": 2,
     "runtimes": {
-     "server": 2
+     "build": 0,
+     "cli": 0,
+     "client": 0,
+     "none": 0,
+     "server": 2,
+     "shared": 0
     },
     "supporting": 0
    },
@@ -89,7 +105,11 @@
    "counts": {
     "product": 12,
     "runtimes": {
+     "build": 0,
+     "cli": 0,
      "client": 10,
+     "none": 0,
+     "server": 0,
      "shared": 2
     },
     "supporting": 0
@@ -121,6 +141,10 @@
    "counts": {
     "product": 12,
     "runtimes": {
+     "build": 0,
+     "cli": 0,
+     "client": 0,
+     "none": 0,
      "server": 11,
      "shared": 1
     },
@@ -143,7 +167,12 @@
    "counts": {
     "product": 1,
     "runtimes": {
-     "server": 1
+     "build": 0,
+     "cli": 0,
+     "client": 0,
+     "none": 0,
+     "server": 1,
+     "shared": 0
     },
     "supporting": 0
    },
@@ -2295,7 +2324,7 @@
    "nature": "product",
    "path": "packages/ui-kit",
    "responsibility": "Owns the React components (windows, buttons, tooltips) styled like the classic client.",
-   "role": "surface",
+   "role": "core",
    "runnable": false,
    "runtime": "client",
    "why": "Without it every screen and editor would style its own windows and the look would fragment."
@@ -2517,7 +2546,7 @@
    "nature": "product",
    "path": "crates/world-server",
    "responsibility": "Owns a running world: drives the simulation tick, applies player intents, and broadcasts state deltas.",
-   "role": "core",
+   "role": "surface",
    "runnable": true,
    "runtime": "server",
    "why": "Without it the simulation has no process to run in and no players to serve."
@@ -6602,12 +6631,14 @@
     "crates/sim-scripting/src/bindings/mod.rs -> crates/sim-core/src/events/kinds.rs",
     "crates/sim-scripting/src/scheduler/timers.rs -> crates/sim-core/src/tick/mod.rs"
    ],
+   "headline": "Parts depend on each other",
    "level": "components",
    "meaning": "These components import each other, directly or through others, so neither can change alone.",
    "nodes": [
     "sim-core",
     "sim-scripting"
-   ]
+   ],
+   "suggestion": null
   },
   {
    "accepted": false,
@@ -6619,12 +6650,14 @@
     "packages/client-state/src/store/select.ts -> packages/client-core/src/intents/attack.ts",
     "packages/client-state/src/entities/tiles.ts -> packages/client-core/src/predict/index.ts"
    ],
+   "headline": "Parts depend on each other",
    "level": "components",
    "meaning": "These components import each other, directly or through others, so neither can change alone.",
    "nodes": [
     "client-core",
     "client-state"
-   ]
+   ],
+   "suggestion": "Move the shared contract into one lower component or reverse one import."
   },
   {
    "accepted": false,
@@ -6634,12 +6667,14 @@
     "crates/sim-scripting/src/host/vm.rs -> crates/sim-scripting/src/scheduler/queue.rs",
     "crates/sim-scripting/src/scheduler/mod.rs -> crates/sim-scripting/src/host/vm.rs"
    ],
+   "headline": "Parts depend on each other",
    "level": "modules",
    "meaning": "These modules import each other, so neither can change alone.",
    "nodes": [
     "sim-scripting/host",
     "sim-scripting/scheduler"
-   ]
+   ],
+   "suggestion": "Move the shared contract into one lower component or reverse one import."
   },
   {
    "accepted": true,
@@ -6649,12 +6684,14 @@
     "packages/client-core/src/reconcile/apply.ts -> packages/net-client/src/socket/heartbeat.ts",
     "packages/client-core/src/intents/index.ts -> packages/net-client/src/frames/decrypt.ts"
    ],
+   "headline": "Core rules import an I/O detail",
    "level": "components",
    "meaning": "A core component imports an adapter, so its rules are tied to one storage, transport, or engine.",
    "nodes": [
     "client-core",
     "net-client"
-   ]
+   ],
+   "suggestion": null
   },
   {
    "accepted": false,
@@ -6664,12 +6701,14 @@
     "packages/renderer/src/scene/outfits.ts -> packages/content-loader/src/watch/watch.ts",
     "packages/renderer/src/scene/outfits.ts -> packages/content-loader/src/index/resolve.ts"
    ],
+   "headline": "Core rules import an I/O detail",
    "level": "components",
    "meaning": "A core component imports an adapter, so its rules are tied to one storage, transport, or engine.",
    "nodes": [
     "renderer",
     "content-loader"
-   ]
+   ],
+   "suggestion": "Put a port near the core rules and make the adapter depend on it."
   },
   {
    "accepted": false,
@@ -6678,12 +6717,14 @@
    "evidence": [
     "apps/map-editor/src/documents/save.ts -> crates/persistence/src/houses/repo.rs"
    ],
+   "headline": "Client and server are directly coupled",
    "level": "components",
    "meaning": "Client code imports server code (or the reverse) directly instead of a shared contract.",
    "nodes": [
     "map-editor",
     "persistence"
-   ]
+   ],
+   "suggestion": "Move the shared interface into a contract component used by both sides."
   },
   {
    "accepted": false,
@@ -6692,12 +6733,14 @@
    "evidence": [
     "apps/web-client/src/routes/settings.tsx -> prototypes/voxel-renderer/src/index.ts"
    ],
+   "headline": "Product code imports support code",
    "level": "components",
    "meaning": "Product code imports tooling, test, or experiment code, which can ship or break the build.",
    "nodes": [
     "web-client",
     "voxel-prototype"
-   ]
+   ],
+   "suggestion": "Move the imported behavior into product code or keep it in the build path."
   },
   {
    "accepted": false,
@@ -6706,12 +6749,14 @@
    "evidence": [
     "crates/world-server/src/runtime/seed.rs -> crates/sim-testkit/src/worlds.rs"
    ],
+   "headline": "Product code imports support code",
    "level": "components",
    "meaning": "Product code imports tooling, test, or experiment code, which can ship or break the build.",
    "nodes": [
     "world-server",
     "sim-testkit"
-   ]
+   ],
+   "suggestion": "Move the imported behavior into product code or keep it in the build path."
   }
  ],
  "meta": {
@@ -6740,17 +6785,20 @@
     {
      "exports": [],
      "loc": 260,
-     "path": "tests/acceptance/lanes/login.spec.ts"
+     "path": "tests/acceptance/lanes/login.spec.ts",
+     "test": true
     },
     {
      "exports": [],
      "loc": 310,
-     "path": "tests/acceptance/lanes/walk.spec.ts"
+     "path": "tests/acceptance/lanes/walk.spec.ts",
+     "test": true
     },
     {
      "exports": [],
      "loc": 340,
-     "path": "tests/acceptance/lanes/trade.spec.ts"
+     "path": "tests/acceptance/lanes/trade.spec.ts",
+     "test": true
     }
    ],
    "id": "acceptance/lanes",
@@ -6776,14 +6824,16 @@
       "bootWorld"
      ],
      "loc": 250,
-     "path": "tests/acceptance/support/world.ts"
+     "path": "tests/acceptance/support/world.ts",
+     "test": true
     },
     {
      "exports": [
       "ScriptedClient"
      ],
      "loc": 200,
-     "path": "tests/acceptance/support/client.ts"
+     "path": "tests/acceptance/support/client.ts",
+     "test": true
     }
    ],
    "id": "acceptance/support",
@@ -6807,14 +6857,16 @@
     {
      "exports": [],
      "loc": 229,
-     "path": "crates/admin-api/src/auth/mod.rs"
+     "path": "crates/admin-api/src/auth/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "token"
      ],
      "loc": 65,
-     "path": "crates/admin-api/src/auth/token.rs"
+     "path": "crates/admin-api/src/auth/token.rs",
+     "test": false
     },
     {
      "exports": [
@@ -6822,7 +6874,8 @@
       "new"
      ],
      "loc": 163,
-     "path": "crates/admin-api/src/auth/roles.rs"
+     "path": "crates/admin-api/src/auth/roles.rs",
+     "test": false
     }
    ],
    "id": "admin-api/auth",
@@ -6846,7 +6899,8 @@
     {
      "exports": [],
      "loc": 196,
-     "path": "crates/admin-api/src/routes/mod.rs"
+     "path": "crates/admin-api/src/routes/mod.rs",
+     "test": false
     },
     {
      "exports": [
@@ -6854,7 +6908,8 @@
       "new"
      ],
      "loc": 65,
-     "path": "crates/admin-api/src/routes/players.rs"
+     "path": "crates/admin-api/src/routes/players.rs",
+     "test": false
     },
     {
      "exports": [
@@ -6862,14 +6917,16 @@
       "new"
      ],
      "loc": 196,
-     "path": "crates/admin-api/src/routes/worlds.rs"
+     "path": "crates/admin-api/src/routes/worlds.rs",
+     "test": false
     },
     {
      "exports": [
       "metrics"
      ],
      "loc": 65,
-     "path": "crates/admin-api/src/routes/metrics.rs"
+     "path": "crates/admin-api/src/routes/metrics.rs",
+     "test": false
     }
    ],
    "id": "admin-api/routes",
@@ -6893,21 +6950,24 @@
     {
      "exports": [],
      "loc": 568,
-     "path": "tools/asset-pipeline/src/compress/index.ts"
+     "path": "tools/asset-pipeline/src/compress/index.ts",
+     "test": false
     },
     {
      "exports": [
       "rle"
      ],
      "loc": 243,
-     "path": "tools/asset-pipeline/src/compress/rle.ts"
+     "path": "tools/asset-pipeline/src/compress/rle.ts",
+     "test": false
     },
     {
      "exports": [
       "chunks"
      ],
      "loc": 324,
-     "path": "tools/asset-pipeline/src/compress/chunks.ts"
+     "path": "tools/asset-pipeline/src/compress/chunks.ts",
+     "test": false
     }
    ],
    "id": "asset-pipeline/compress",
@@ -6931,14 +6991,16 @@
     {
      "exports": [],
      "loc": 81,
-     "path": "tools/asset-pipeline/src/pack/index.ts"
+     "path": "tools/asset-pipeline/src/pack/index.ts",
+     "test": false
     },
     {
      "exports": [
       "packer"
      ],
      "loc": 162,
-     "path": "tools/asset-pipeline/src/pack/packer.ts"
+     "path": "tools/asset-pipeline/src/pack/packer.ts",
+     "test": false
     },
     {
      "exports": [
@@ -6946,7 +7008,8 @@
       "Config"
      ],
      "loc": 81,
-     "path": "tools/asset-pipeline/src/pack/manifest.ts"
+     "path": "tools/asset-pipeline/src/pack/manifest.ts",
+     "test": false
     }
    ],
    "id": "asset-pipeline/pack",
@@ -6970,21 +7033,24 @@
     {
      "exports": [],
      "loc": 115,
-     "path": "packages/audio/src/bank/index.ts"
+     "path": "packages/audio/src/bank/index.ts",
+     "test": false
     },
     {
      "exports": [
       "bank"
      ],
      "loc": 201,
-     "path": "packages/audio/src/bank/bank.ts"
+     "path": "packages/audio/src/bank/bank.ts",
+     "test": false
     },
     {
      "exports": [
       "loader"
      ],
      "loc": 115,
-     "path": "packages/audio/src/bank/loader.ts"
+     "path": "packages/audio/src/bank/loader.ts",
+     "test": false
     }
    ],
    "id": "audio/bank",
@@ -7008,7 +7074,8 @@
     {
      "exports": [],
      "loc": 144,
-     "path": "packages/audio/src/engine/index.ts"
+     "path": "packages/audio/src/engine/index.ts",
+     "test": false
     },
     {
      "exports": [
@@ -7016,7 +7083,8 @@
       "Config"
      ],
      "loc": 172,
-     "path": "packages/audio/src/engine/context.ts"
+     "path": "packages/audio/src/engine/context.ts",
+     "test": false
     },
     {
      "exports": [
@@ -7024,7 +7092,8 @@
       "Config"
      ],
      "loc": 144,
-     "path": "packages/audio/src/engine/buses.ts"
+     "path": "packages/audio/src/engine/buses.ts",
+     "test": false
     }
    ],
    "id": "audio/engine",
@@ -7048,14 +7117,16 @@
     {
      "exports": [],
      "loc": 813,
-     "path": "packages/client-core/src/intents/index.ts"
+     "path": "packages/client-core/src/intents/index.ts",
+     "test": false
     },
     {
      "exports": [
       "walk"
      ],
      "loc": 813,
-     "path": "packages/client-core/src/intents/walk.ts"
+     "path": "packages/client-core/src/intents/walk.ts",
+     "test": false
     },
     {
      "exports": [
@@ -7063,21 +7134,24 @@
       "Config"
      ],
      "loc": 581,
-     "path": "packages/client-core/src/intents/attack.ts"
+     "path": "packages/client-core/src/intents/attack.ts",
+     "test": false
     },
     {
      "exports": [
       "use"
      ],
      "loc": 232,
-     "path": "packages/client-core/src/intents/use.ts"
+     "path": "packages/client-core/src/intents/use.ts",
+     "test": false
     },
     {
      "exports": [
       "chat"
      ],
      "loc": 349,
-     "path": "packages/client-core/src/intents/chat.ts"
+     "path": "packages/client-core/src/intents/chat.ts",
+     "test": false
     }
    ],
    "id": "client-core/intents",
@@ -7101,7 +7175,8 @@
     {
      "exports": [],
      "loc": 232,
-     "path": "packages/client-core/src/loop/index.ts"
+     "path": "packages/client-core/src/loop/index.ts",
+     "test": false
     },
     {
      "exports": [
@@ -7109,7 +7184,8 @@
       "Config"
      ],
      "loc": 349,
-     "path": "packages/client-core/src/loop/loop.ts"
+     "path": "packages/client-core/src/loop/loop.ts",
+     "test": false
     },
     {
      "exports": [
@@ -7117,7 +7193,8 @@
       "Config"
      ],
      "loc": 232,
-     "path": "packages/client-core/src/loop/clock.ts"
+     "path": "packages/client-core/src/loop/clock.ts",
+     "test": false
     },
     {
      "exports": [
@@ -7125,7 +7202,8 @@
       "Config"
      ],
      "loc": 232,
-     "path": "packages/client-core/src/loop/interpolate.ts"
+     "path": "packages/client-core/src/loop/interpolate.ts",
+     "test": false
     }
    ],
    "id": "client-core/loop",
@@ -7149,14 +7227,16 @@
     {
      "exports": [],
      "loc": 349,
-     "path": "packages/client-core/src/predict/index.ts"
+     "path": "packages/client-core/src/predict/index.ts",
+     "test": false
     },
     {
      "exports": [
       "walk"
      ],
      "loc": 349,
-     "path": "packages/client-core/src/predict/walk.ts"
+     "path": "packages/client-core/src/predict/walk.ts",
+     "test": false
     },
     {
      "exports": [
@@ -7164,7 +7244,8 @@
       "Config"
      ],
      "loc": 232,
-     "path": "packages/client-core/src/predict/rollback.ts"
+     "path": "packages/client-core/src/predict/rollback.ts",
+     "test": false
     }
    ],
    "id": "client-core/predict",
@@ -7188,14 +7269,16 @@
     {
      "exports": [],
      "loc": 349,
-     "path": "packages/client-core/src/reconcile/index.ts"
+     "path": "packages/client-core/src/reconcile/index.ts",
+     "test": false
     },
     {
      "exports": [
       "apply"
      ],
      "loc": 116,
-     "path": "packages/client-core/src/reconcile/apply.ts"
+     "path": "packages/client-core/src/reconcile/apply.ts",
+     "test": false
     },
     {
      "exports": [
@@ -7203,7 +7286,8 @@
       "Config"
      ],
      "loc": 232,
-     "path": "packages/client-core/src/reconcile/resolve.ts"
+     "path": "packages/client-core/src/reconcile/resolve.ts",
+     "test": false
     },
     {
      "exports": [
@@ -7211,7 +7295,8 @@
       "Config"
      ],
      "loc": 349,
-     "path": "packages/client-core/src/reconcile/diff.ts"
+     "path": "packages/client-core/src/reconcile/diff.ts",
+     "test": false
     }
    ],
    "id": "client-core/reconcile",
@@ -7235,28 +7320,32 @@
     {
      "exports": [],
      "loc": 79,
-     "path": "packages/client-state/src/entities/index.ts"
+     "path": "packages/client-state/src/entities/index.ts",
+     "test": false
     },
     {
      "exports": [
       "creatures"
      ],
      "loc": 317,
-     "path": "packages/client-state/src/entities/creatures.ts"
+     "path": "packages/client-state/src/entities/creatures.ts",
+     "test": false
     },
     {
      "exports": [
       "tiles"
      ],
      "loc": 317,
-     "path": "packages/client-state/src/entities/tiles.ts"
+     "path": "packages/client-state/src/entities/tiles.ts",
+     "test": false
     },
     {
      "exports": [
       "view"
      ],
      "loc": 238,
-     "path": "packages/client-state/src/entities/view.ts"
+     "path": "packages/client-state/src/entities/view.ts",
+     "test": false
     }
    ],
    "id": "client-state/entities",
@@ -7280,28 +7369,32 @@
     {
      "exports": [],
      "loc": 317,
-     "path": "packages/client-state/src/inventory/index.ts"
+     "path": "packages/client-state/src/inventory/index.ts",
+     "test": false
     },
     {
      "exports": [
       "equipment"
      ],
      "loc": 475,
-     "path": "packages/client-state/src/inventory/equipment.ts"
+     "path": "packages/client-state/src/inventory/equipment.ts",
+     "test": false
     },
     {
      "exports": [
       "containers"
      ],
      "loc": 158,
-     "path": "packages/client-state/src/inventory/containers.ts"
+     "path": "packages/client-state/src/inventory/containers.ts",
+     "test": false
     },
     {
      "exports": [
       "gold"
      ],
      "loc": 158,
-     "path": "packages/client-state/src/inventory/gold.ts"
+     "path": "packages/client-state/src/inventory/gold.ts",
+     "test": false
     }
    ],
    "id": "client-state/inventory",
@@ -7325,28 +7418,32 @@
     {
      "exports": [],
      "loc": 158,
-     "path": "packages/client-state/src/store/index.ts"
+     "path": "packages/client-state/src/store/index.ts",
+     "test": false
     },
     {
      "exports": [
       "store"
      ],
      "loc": 396,
-     "path": "packages/client-state/src/store/store.ts"
+     "path": "packages/client-state/src/store/store.ts",
+     "test": false
     },
     {
      "exports": [
       "observe"
      ],
      "loc": 158,
-     "path": "packages/client-state/src/store/observe.ts"
+     "path": "packages/client-state/src/store/observe.ts",
+     "test": false
     },
     {
      "exports": [
       "select"
      ],
      "loc": 158,
-     "path": "packages/client-state/src/store/select.ts"
+     "path": "packages/client-state/src/store/select.ts",
+     "test": false
     }
    ],
    "id": "client-state/store",
@@ -7370,27 +7467,32 @@
     {
      "exports": [],
      "loc": 51,
-     "path": "content/items/armor/helmets.json"
+     "path": "content/items/armor/helmets.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 102,
-     "path": "content/items/armor/armors.json"
+     "path": "content/items/armor/armors.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 102,
-     "path": "content/items/armor/legs.json"
+     "path": "content/items/armor/legs.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 305,
-     "path": "content/items/armor/boots.json"
+     "path": "content/items/armor/boots.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 203,
-     "path": "content/items/armor/shields.json"
+     "path": "content/items/armor/shields.json",
+     "test": false
     }
    ],
    "id": "content-items/armor",
@@ -7414,17 +7516,20 @@
     {
      "exports": [],
      "loc": 102,
-     "path": "content/items/consumables/potions.json"
+     "path": "content/items/consumables/potions.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 356,
-     "path": "content/items/consumables/runes.json"
+     "path": "content/items/consumables/runes.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 356,
-     "path": "content/items/consumables/food.json"
+     "path": "content/items/consumables/food.json",
+     "test": false
     }
    ],
    "id": "content-items/consumables",
@@ -7448,27 +7553,32 @@
     {
      "exports": [],
      "loc": 203,
-     "path": "content/items/weapons/swords.json"
+     "path": "content/items/weapons/swords.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 102,
-     "path": "content/items/weapons/axes.json"
+     "path": "content/items/weapons/axes.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 305,
-     "path": "content/items/weapons/clubs.json"
+     "path": "content/items/weapons/clubs.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 203,
-     "path": "content/items/weapons/distance.json"
+     "path": "content/items/weapons/distance.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 51,
-     "path": "content/items/weapons/wands.json"
+     "path": "content/items/weapons/wands.json",
+     "test": false
     }
    ],
    "id": "content-items/weapons",
@@ -7492,21 +7602,24 @@
     {
      "exports": [],
      "loc": 382,
-     "path": "packages/content-loader/src/index/index.ts"
+     "path": "packages/content-loader/src/index/index.ts",
+     "test": false
     },
     {
      "exports": [
       "resolve"
      ],
      "loc": 382,
-     "path": "packages/content-loader/src/index/resolve.ts"
+     "path": "packages/content-loader/src/index/resolve.ts",
+     "test": false
     },
     {
      "exports": [
       "errors"
      ],
      "loc": 109,
-     "path": "packages/content-loader/src/index/errors.ts"
+     "path": "packages/content-loader/src/index/errors.ts",
+     "test": false
     }
    ],
    "id": "content-loader/index",
@@ -7530,14 +7643,16 @@
     {
      "exports": [],
      "loc": 164,
-     "path": "packages/content-loader/src/watch/index.ts"
+     "path": "packages/content-loader/src/watch/index.ts",
+     "test": false
     },
     {
      "exports": [
       "watch"
      ],
      "loc": 109,
-     "path": "packages/content-loader/src/watch/watch.ts"
+     "path": "packages/content-loader/src/watch/watch.ts",
+     "test": false
     },
     {
      "exports": [
@@ -7545,7 +7660,8 @@
       "Config"
      ],
      "loc": 164,
-     "path": "packages/content-loader/src/watch/diff.ts"
+     "path": "packages/content-loader/src/watch/diff.ts",
+     "test": false
     }
    ],
    "id": "content-loader/watch",
@@ -7569,12 +7685,14 @@
     {
      "exports": [],
      "loc": 843,
-     "path": "content/maps/spawns/rookgaard.spawns.json"
+     "path": "content/maps/spawns/rookgaard.spawns.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 1180,
-     "path": "content/maps/spawns/mainland.spawns.json"
+     "path": "content/maps/spawns/mainland.spawns.json",
+     "test": false
     }
    ],
    "id": "content-maps/spawns",
@@ -7598,22 +7716,26 @@
     {
      "exports": [],
      "loc": 337,
-     "path": "content/maps/towns/rookgaard.map.json"
+     "path": "content/maps/towns/rookgaard.map.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 506,
-     "path": "content/maps/towns/thais.map.json"
+     "path": "content/maps/towns/thais.map.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 506,
-     "path": "content/maps/towns/venore.map.json"
+     "path": "content/maps/towns/venore.map.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 506,
-     "path": "content/maps/towns/carlin.map.json"
+     "path": "content/maps/towns/carlin.map.json",
+     "test": false
     }
    ],
    "id": "content-maps/towns",
@@ -7637,17 +7759,20 @@
     {
      "exports": [],
      "loc": 506,
-     "path": "content/maps/wilds/sewers.map.json"
+     "path": "content/maps/wilds/sewers.map.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 506,
-     "path": "content/maps/wilds/cyclopolis.map.json"
+     "path": "content/maps/wilds/cyclopolis.map.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 1011,
-     "path": "content/maps/wilds/dragon-lair.map.json"
+     "path": "content/maps/wilds/dragon-lair.map.json",
+     "test": false
     }
    ],
    "id": "content-maps/wilds",
@@ -7671,22 +7796,26 @@
     {
      "exports": [],
      "loc": 565,
-     "path": "content/monsters/behaviors/aggressive.lua"
+     "path": "content/monsters/behaviors/aggressive.lua",
+     "test": false
     },
     {
      "exports": [],
      "loc": 162,
-     "path": "content/monsters/behaviors/flee.lua"
+     "path": "content/monsters/behaviors/flee.lua",
+     "test": false
     },
     {
      "exports": [],
      "loc": 162,
-     "path": "content/monsters/behaviors/caster.lua"
+     "path": "content/monsters/behaviors/caster.lua",
+     "test": false
     },
     {
      "exports": [],
      "loc": 242,
-     "path": "content/monsters/behaviors/boss.lua"
+     "path": "content/monsters/behaviors/boss.lua",
+     "test": false
     }
    ],
    "id": "content-monsters/behaviors",
@@ -7710,22 +7839,26 @@
     {
      "exports": [],
      "loc": 81,
-     "path": "content/monsters/creatures/rookgaard.json"
+     "path": "content/monsters/creatures/rookgaard.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 485,
-     "path": "content/monsters/creatures/thais.json"
+     "path": "content/monsters/creatures/thais.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 162,
-     "path": "content/monsters/creatures/venore.json"
+     "path": "content/monsters/creatures/venore.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 565,
-     "path": "content/monsters/creatures/dragons.json"
+     "path": "content/monsters/creatures/dragons.json",
+     "test": false
     }
    ],
    "id": "content-monsters/creatures",
@@ -7749,17 +7882,20 @@
     {
      "exports": [],
      "loc": 81,
-     "path": "content/monsters/loot/common.json"
+     "path": "content/monsters/loot/common.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 81,
-     "path": "content/monsters/loot/rare.json"
+     "path": "content/monsters/loot/rare.json",
+     "test": false
     },
     {
      "exports": [],
      "loc": 565,
-     "path": "content/monsters/loot/bosses.json"
+     "path": "content/monsters/loot/bosses.json",
+     "test": false
     }
    ],
    "id": "content-monsters/loot",
@@ -7783,7 +7919,8 @@
     {
      "exports": [],
      "loc": 135,
-     "path": "packages/content-schema/schema/items/item.schema.json"
+     "path": "packages/content-schema/schema/items/item.schema.json",
+     "test": false
     },
     {
      "exports": [
@@ -7791,14 +7928,16 @@
       "Config"
      ],
      "loc": 34,
-     "path": "packages/content-schema/schema/items/item.ts"
+     "path": "packages/content-schema/schema/items/item.ts",
+     "test": false
     },
     {
      "exports": [
       "item"
      ],
      "loc": 169,
-     "path": "packages/content-schema/schema/items/item.rs"
+     "path": "packages/content-schema/schema/items/item.rs",
+     "test": false
     }
    ],
    "id": "content-schema/items",
@@ -7822,14 +7961,16 @@
     {
      "exports": [],
      "loc": 67,
-     "path": "packages/content-schema/schema/maps/map.schema.json"
+     "path": "packages/content-schema/schema/maps/map.schema.json",
+     "test": false
     },
     {
      "exports": [
       "map"
      ],
      "loc": 169,
-     "path": "packages/content-schema/schema/maps/map.ts"
+     "path": "packages/content-schema/schema/maps/map.ts",
+     "test": false
     },
     {
      "exports": [
@@ -7837,7 +7978,8 @@
       "new"
      ],
      "loc": 236,
-     "path": "packages/content-schema/schema/maps/map.rs"
+     "path": "packages/content-schema/schema/maps/map.rs",
+     "test": false
     }
    ],
    "id": "content-schema/maps",
@@ -7861,21 +8003,24 @@
     {
      "exports": [],
      "loc": 135,
-     "path": "packages/content-schema/schema/monsters/monster.schema.json"
+     "path": "packages/content-schema/schema/monsters/monster.schema.json",
+     "test": false
     },
     {
      "exports": [
       "monster"
      ],
      "loc": 135,
-     "path": "packages/content-schema/schema/monsters/monster.ts"
+     "path": "packages/content-schema/schema/monsters/monster.ts",
+     "test": false
     },
     {
      "exports": [
       "monster"
      ],
      "loc": 135,
-     "path": "packages/content-schema/schema/monsters/monster.rs"
+     "path": "packages/content-schema/schema/monsters/monster.rs",
+     "test": false
     }
    ],
    "id": "content-schema/monsters",
@@ -7899,21 +8044,24 @@
     {
      "exports": [],
      "loc": 236,
-     "path": "packages/content-schema/schema/spells/spell.schema.json"
+     "path": "packages/content-schema/schema/spells/spell.schema.json",
+     "test": false
     },
     {
      "exports": [
       "spell"
      ],
      "loc": 135,
-     "path": "packages/content-schema/schema/spells/spell.ts"
+     "path": "packages/content-schema/schema/spells/spell.ts",
+     "test": false
     },
     {
      "exports": [
       "spell"
      ],
      "loc": 135,
-     "path": "packages/content-schema/schema/spells/spell.rs"
+     "path": "packages/content-schema/schema/spells/spell.rs",
+     "test": false
     }
    ],
    "id": "content-schema/spells",
@@ -7937,14 +8085,16 @@
     {
      "exports": [],
      "loc": 270,
-     "path": "tools/content-validate/src/cli/index.ts"
+     "path": "tools/content-validate/src/cli/index.ts",
+     "test": false
     },
     {
      "exports": [
       "cli"
      ],
      "loc": 225,
-     "path": "tools/content-validate/src/cli/cli.ts"
+     "path": "tools/content-validate/src/cli/cli.ts",
+     "test": false
     },
     {
      "exports": [
@@ -7952,7 +8102,8 @@
       "Config"
      ],
      "loc": 45,
-     "path": "tools/content-validate/src/cli/report.ts"
+     "path": "tools/content-validate/src/cli/report.ts",
+     "test": false
     }
    ],
    "id": "content-validate/cli",
@@ -7976,7 +8127,8 @@
     {
      "exports": [],
      "loc": 298,
-     "path": "apps/desktop-shell/src/main/index.ts"
+     "path": "apps/desktop-shell/src/main/index.ts",
+     "test": false
     },
     {
      "exports": [
@@ -7984,21 +8136,24 @@
       "Config"
      ],
      "loc": 179,
-     "path": "apps/desktop-shell/src/main/window.ts"
+     "path": "apps/desktop-shell/src/main/window.ts",
+     "test": false
     },
     {
      "exports": [
       "menu"
      ],
      "loc": 357,
-     "path": "apps/desktop-shell/src/main/menu.ts"
+     "path": "apps/desktop-shell/src/main/menu.ts",
+     "test": false
     },
     {
      "exports": [
       "updater"
      ],
      "loc": 238,
-     "path": "apps/desktop-shell/src/main/updater.ts"
+     "path": "apps/desktop-shell/src/main/updater.ts",
+     "test": false
     }
    ],
    "id": "desktop-shell/main",
@@ -8022,14 +8177,16 @@
     {
      "exports": [],
      "loc": 179,
-     "path": "apps/desktop-shell/src/preload/index.ts"
+     "path": "apps/desktop-shell/src/preload/index.ts",
+     "test": false
     },
     {
      "exports": [
       "bridge"
      ],
      "loc": 119,
-     "path": "apps/desktop-shell/src/preload/bridge.ts"
+     "path": "apps/desktop-shell/src/preload/bridge.ts",
+     "test": false
     }
    ],
    "id": "desktop-shell/preload",
@@ -8053,14 +8210,16 @@
     {
      "exports": [],
      "loc": 189,
-     "path": "tools/devtools-cli/src/commands/index.ts"
+     "path": "tools/devtools-cli/src/commands/index.ts",
+     "test": false
     },
     {
      "exports": [
       "world"
      ],
      "loc": 162,
-     "path": "tools/devtools-cli/src/commands/world.ts"
+     "path": "tools/devtools-cli/src/commands/world.ts",
+     "test": false
     },
     {
      "exports": [
@@ -8068,7 +8227,8 @@
       "Config"
      ],
      "loc": 162,
-     "path": "tools/devtools-cli/src/commands/seed.ts"
+     "path": "tools/devtools-cli/src/commands/seed.ts",
+     "test": false
     },
     {
      "exports": [
@@ -8076,7 +8236,8 @@
       "Config"
      ],
      "loc": 108,
-     "path": "tools/devtools-cli/src/commands/migrate.ts"
+     "path": "tools/devtools-cli/src/commands/migrate.ts",
+     "test": false
     },
     {
      "exports": [
@@ -8084,7 +8245,8 @@
       "Config"
      ],
      "loc": 108,
-     "path": "tools/devtools-cli/src/commands/doctor.ts"
+     "path": "tools/devtools-cli/src/commands/doctor.ts",
+     "test": false
     }
    ],
    "id": "devtools-cli/commands",
@@ -8108,14 +8270,16 @@
     {
      "exports": [],
      "loc": 353,
-     "path": "packages/editor-core/src/document/index.ts"
+     "path": "packages/editor-core/src/document/index.ts",
+     "test": false
     },
     {
      "exports": [
       "document"
      ],
      "loc": 494,
-     "path": "packages/editor-core/src/document/document.ts"
+     "path": "packages/editor-core/src/document/document.ts",
+     "test": false
     },
     {
      "exports": [
@@ -8123,14 +8287,16 @@
       "Config"
      ],
      "loc": 141,
-     "path": "packages/editor-core/src/document/records.ts"
+     "path": "packages/editor-core/src/document/records.ts",
+     "test": false
     },
     {
      "exports": [
       "dirty"
      ],
      "loc": 141,
-     "path": "packages/editor-core/src/document/dirty.ts"
+     "path": "packages/editor-core/src/document/dirty.ts",
+     "test": false
     }
    ],
    "id": "editor-core/document",
@@ -8154,21 +8320,24 @@
     {
      "exports": [],
      "loc": 212,
-     "path": "packages/editor-core/src/export/index.ts"
+     "path": "packages/editor-core/src/export/index.ts",
+     "test": false
     },
     {
      "exports": [
       "save"
      ],
      "loc": 282,
-     "path": "packages/editor-core/src/export/save.ts"
+     "path": "packages/editor-core/src/export/save.ts",
+     "test": false
     },
     {
      "exports": [
       "export"
      ],
      "loc": 71,
-     "path": "packages/editor-core/src/export/export.ts"
+     "path": "packages/editor-core/src/export/export.ts",
+     "test": false
     }
    ],
    "id": "editor-core/export",
@@ -8192,21 +8361,24 @@
     {
      "exports": [],
      "loc": 212,
-     "path": "packages/editor-core/src/history/index.ts"
+     "path": "packages/editor-core/src/history/index.ts",
+     "test": false
     },
     {
      "exports": [
       "stack"
      ],
      "loc": 282,
-     "path": "packages/editor-core/src/history/stack.ts"
+     "path": "packages/editor-core/src/history/stack.ts",
+     "test": false
     },
     {
      "exports": [
       "commands"
      ],
      "loc": 423,
-     "path": "packages/editor-core/src/history/commands.ts"
+     "path": "packages/editor-core/src/history/commands.ts",
+     "test": false
     }
    ],
    "id": "editor-core/history",
@@ -8230,21 +8402,24 @@
     {
      "exports": [],
      "loc": 86,
-     "path": "crates/event-bus/src/publish/mod.rs"
+     "path": "crates/event-bus/src/publish/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "publisher"
      ],
      "loc": 259,
-     "path": "crates/event-bus/src/publish/publisher.rs"
+     "path": "crates/event-bus/src/publish/publisher.rs",
+     "test": false
     },
     {
      "exports": [
       "subjects"
      ],
      "loc": 302,
-     "path": "crates/event-bus/src/publish/subjects.rs"
+     "path": "crates/event-bus/src/publish/subjects.rs",
+     "test": false
     }
    ],
    "id": "event-bus/publish",
@@ -8268,14 +8443,16 @@
     {
      "exports": [],
      "loc": 216,
-     "path": "crates/event-bus/src/subscribe/mod.rs"
+     "path": "crates/event-bus/src/subscribe/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "subscriber"
      ],
      "loc": 259,
-     "path": "crates/event-bus/src/subscribe/subscriber.rs"
+     "path": "crates/event-bus/src/subscribe/subscriber.rs",
+     "test": false
     },
     {
      "exports": [
@@ -8283,7 +8460,8 @@
       "new"
      ],
      "loc": 86,
-     "path": "crates/event-bus/src/subscribe/reconnect.rs"
+     "path": "crates/event-bus/src/subscribe/reconnect.rs",
+     "test": false
     }
    ],
    "id": "event-bus/subscribe",
@@ -8307,7 +8485,8 @@
     {
      "exports": [],
      "loc": 141,
-     "path": "crates/gateway/src/listener/mod.rs"
+     "path": "crates/gateway/src/listener/mod.rs",
+     "test": false
     },
     {
      "exports": [
@@ -8315,7 +8494,8 @@
       "new"
      ],
      "loc": 493,
-     "path": "crates/gateway/src/listener/tcp.rs"
+     "path": "crates/gateway/src/listener/tcp.rs",
+     "test": false
     },
     {
      "exports": [
@@ -8323,14 +8503,16 @@
       "new"
      ],
      "loc": 423,
-     "path": "crates/gateway/src/listener/ws.rs"
+     "path": "crates/gateway/src/listener/ws.rs",
+     "test": false
     },
     {
      "exports": [
       "limits"
      ],
      "loc": 352,
-     "path": "crates/gateway/src/listener/limits.rs"
+     "path": "crates/gateway/src/listener/limits.rs",
+     "test": false
     }
    ],
    "id": "gateway/listener",
@@ -8354,7 +8536,8 @@
     {
      "exports": [],
      "loc": 352,
-     "path": "crates/gateway/src/router/mod.rs"
+     "path": "crates/gateway/src/router/mod.rs",
+     "test": false
     },
     {
      "exports": [
@@ -8362,7 +8545,8 @@
       "new"
      ],
      "loc": 141,
-     "path": "crates/gateway/src/router/route.rs"
+     "path": "crates/gateway/src/router/route.rs",
+     "test": false
     },
     {
      "exports": [
@@ -8370,7 +8554,8 @@
       "new"
      ],
      "loc": 141,
-     "path": "crates/gateway/src/router/table.rs"
+     "path": "crates/gateway/src/router/table.rs",
+     "test": false
     }
    ],
    "id": "gateway/router",
@@ -8394,7 +8579,8 @@
     {
      "exports": [],
      "loc": 211,
-     "path": "crates/gateway/src/session/mod.rs"
+     "path": "crates/gateway/src/session/mod.rs",
+     "test": false
     },
     {
      "exports": [
@@ -8402,21 +8588,24 @@
       "new"
      ],
      "loc": 493,
-     "path": "crates/gateway/src/session/token.rs"
+     "path": "crates/gateway/src/session/token.rs",
+     "test": false
     },
     {
      "exports": [
       "handshake"
      ],
      "loc": 493,
-     "path": "crates/gateway/src/session/handshake.rs"
+     "path": "crates/gateway/src/session/handshake.rs",
+     "test": false
     },
     {
      "exports": [
       "state"
      ],
      "loc": 70,
-     "path": "crates/gateway/src/session/state.rs"
+     "path": "crates/gateway/src/session/state.rs",
+     "test": false
     }
    ],
    "id": "gateway/session",
@@ -8440,7 +8629,8 @@
     {
      "exports": [],
      "loc": 152,
-     "path": "packages/input/src/bindings/index.ts"
+     "path": "packages/input/src/bindings/index.ts",
+     "test": false
     },
     {
      "exports": [
@@ -8448,14 +8638,16 @@
       "Config"
      ],
      "loc": 152,
-     "path": "packages/input/src/bindings/defaults.ts"
+     "path": "packages/input/src/bindings/defaults.ts",
+     "test": false
     },
     {
      "exports": [
       "rebind"
      ],
      "loc": 87,
-     "path": "packages/input/src/bindings/rebind.ts"
+     "path": "packages/input/src/bindings/rebind.ts",
+     "test": false
     }
    ],
    "id": "input/bindings",
@@ -8479,14 +8671,16 @@
     {
      "exports": [],
      "loc": 109,
-     "path": "packages/input/src/capture/index.ts"
+     "path": "packages/input/src/capture/index.ts",
+     "test": false
     },
     {
      "exports": [
       "keyboard"
      ],
      "loc": 130,
-     "path": "packages/input/src/capture/keyboard.ts"
+     "path": "packages/input/src/capture/keyboard.ts",
+     "test": false
     },
     {
      "exports": [
@@ -8494,7 +8688,8 @@
       "Config"
      ],
      "loc": 22,
-     "path": "packages/input/src/capture/pointer.ts"
+     "path": "packages/input/src/capture/pointer.ts",
+     "test": false
     },
     {
      "exports": [
@@ -8502,7 +8697,8 @@
       "Config"
      ],
      "loc": 109,
-     "path": "packages/input/src/capture/touch.ts"
+     "path": "packages/input/src/capture/touch.ts",
+     "test": false
     }
    ],
    "id": "input/capture",
@@ -8526,7 +8722,8 @@
     {
      "exports": [],
      "loc": 320,
-     "path": "crates/legacy-bridge/src/otclient/mod.rs"
+     "path": "crates/legacy-bridge/src/otclient/mod.rs",
+     "test": false
     },
     {
      "exports": [
@@ -8534,7 +8731,8 @@
       "new"
      ],
      "loc": 80,
-     "path": "crates/legacy-bridge/src/otclient/framing.rs"
+     "path": "crates/legacy-bridge/src/otclient/framing.rs",
+     "test": false
     },
     {
      "exports": [
@@ -8542,7 +8740,8 @@
       "new"
      ],
      "loc": 400,
-     "path": "crates/legacy-bridge/src/otclient/cipher.rs"
+     "path": "crates/legacy-bridge/src/otclient/cipher.rs",
+     "test": false
     }
    ],
    "id": "legacy-bridge/otclient",
@@ -8566,28 +8765,32 @@
     {
      "exports": [],
      "loc": 320,
-     "path": "crates/legacy-bridge/src/translate/mod.rs"
+     "path": "crates/legacy-bridge/src/translate/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "inbound"
      ],
      "loc": 320,
-     "path": "crates/legacy-bridge/src/translate/inbound.rs"
+     "path": "crates/legacy-bridge/src/translate/inbound.rs",
+     "test": false
     },
     {
      "exports": [
       "outbound"
      ],
      "loc": 240,
-     "path": "crates/legacy-bridge/src/translate/outbound.rs"
+     "path": "crates/legacy-bridge/src/translate/outbound.rs",
+     "test": false
     },
     {
      "exports": [
       "table"
      ],
      "loc": 400,
-     "path": "crates/legacy-bridge/src/translate/table.rs"
+     "path": "crates/legacy-bridge/src/translate/table.rs",
+     "test": false
     }
    ],
    "id": "legacy-bridge/translate",
@@ -8611,7 +8814,8 @@
     {
      "exports": [],
      "loc": 123,
-     "path": "crates/login-server/src/accounts/mod.rs"
+     "path": "crates/login-server/src/accounts/mod.rs",
+     "test": false
     },
     {
      "exports": [
@@ -8619,7 +8823,8 @@
       "new"
      ],
      "loc": 308,
-     "path": "crates/login-server/src/accounts/verify.rs"
+     "path": "crates/login-server/src/accounts/verify.rs",
+     "test": false
     },
     {
      "exports": [
@@ -8627,14 +8832,16 @@
       "new"
      ],
      "loc": 370,
-     "path": "crates/login-server/src/accounts/lockout.rs"
+     "path": "crates/login-server/src/accounts/lockout.rs",
+     "test": false
     },
     {
      "exports": [
       "premium"
      ],
      "loc": 123,
-     "path": "crates/login-server/src/accounts/premium.rs"
+     "path": "crates/login-server/src/accounts/premium.rs",
+     "test": false
     }
    ],
    "id": "login-server/accounts",
@@ -8658,14 +8865,16 @@
     {
      "exports": [],
      "loc": 123,
-     "path": "crates/login-server/src/http/mod.rs"
+     "path": "crates/login-server/src/http/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "login"
      ],
      "loc": 308,
-     "path": "crates/login-server/src/http/login.rs"
+     "path": "crates/login-server/src/http/login.rs",
+     "test": false
     },
     {
      "exports": [
@@ -8673,14 +8882,16 @@
       "new"
      ],
      "loc": 123,
-     "path": "crates/login-server/src/http/characters.rs"
+     "path": "crates/login-server/src/http/characters.rs",
+     "test": false
     },
     {
      "exports": [
       "worlds"
      ],
      "loc": 62,
-     "path": "crates/login-server/src/http/worlds.rs"
+     "path": "crates/login-server/src/http/worlds.rs",
+     "test": false
     }
    ],
    "id": "login-server/http",
@@ -8704,7 +8915,8 @@
     {
      "exports": [],
      "loc": 451,
-     "path": "apps/map-editor/src/app/index.ts"
+     "path": "apps/map-editor/src/app/index.ts",
+     "test": false
     },
     {
      "exports": [
@@ -8712,21 +8924,24 @@
       "Default"
      ],
      "loc": 193,
-     "path": "apps/map-editor/src/app/App.tsx"
+     "path": "apps/map-editor/src/app/App.tsx",
+     "test": false
     },
     {
      "exports": [
       "menus"
      ],
      "loc": 193,
-     "path": "apps/map-editor/src/app/menus.tsx"
+     "path": "apps/map-editor/src/app/menus.tsx",
+     "test": false
     },
     {
      "exports": [
       "tabs"
      ],
      "loc": 451,
-     "path": "apps/map-editor/src/app/tabs.tsx"
+     "path": "apps/map-editor/src/app/tabs.tsx",
+     "test": false
     }
    ],
    "id": "map-editor/app",
@@ -8750,35 +8965,40 @@
     {
      "exports": [],
      "loc": 451,
-     "path": "apps/map-editor/src/brushes/index.ts"
+     "path": "apps/map-editor/src/brushes/index.ts",
+     "test": false
     },
     {
      "exports": [
       "tile"
      ],
      "loc": 258,
-     "path": "apps/map-editor/src/brushes/tile.ts"
+     "path": "apps/map-editor/src/brushes/tile.ts",
+     "test": false
     },
     {
      "exports": [
       "border"
      ],
      "loc": 322,
-     "path": "apps/map-editor/src/brushes/border.ts"
+     "path": "apps/map-editor/src/brushes/border.ts",
+     "test": false
     },
     {
      "exports": [
       "doodad"
      ],
      "loc": 129,
-     "path": "apps/map-editor/src/brushes/doodad.ts"
+     "path": "apps/map-editor/src/brushes/doodad.ts",
+     "test": false
     },
     {
      "exports": [
       "autoborder"
      ],
      "loc": 64,
-     "path": "apps/map-editor/src/brushes/autoborder.ts"
+     "path": "apps/map-editor/src/brushes/autoborder.ts",
+     "test": false
     }
    ],
    "id": "map-editor/brushes",
@@ -8802,14 +9022,16 @@
     {
      "exports": [],
      "loc": 451,
-     "path": "apps/map-editor/src/panels/index.ts"
+     "path": "apps/map-editor/src/panels/index.ts",
+     "test": false
     },
     {
      "exports": [
       "Palette"
      ],
      "loc": 193,
-     "path": "apps/map-editor/src/panels/Palette.tsx"
+     "path": "apps/map-editor/src/panels/Palette.tsx",
+     "test": false
     },
     {
      "exports": [
@@ -8817,7 +9039,8 @@
       "Default"
      ],
      "loc": 451,
-     "path": "apps/map-editor/src/panels/Minimap.tsx"
+     "path": "apps/map-editor/src/panels/Minimap.tsx",
+     "test": false
     },
     {
      "exports": [
@@ -8825,7 +9048,8 @@
       "Default"
      ],
      "loc": 451,
-     "path": "apps/map-editor/src/panels/Spawns.tsx"
+     "path": "apps/map-editor/src/panels/Spawns.tsx",
+     "test": false
     },
     {
      "exports": [
@@ -8833,7 +9057,8 @@
       "Default"
      ],
      "loc": 64,
-     "path": "apps/map-editor/src/panels/Houses.tsx"
+     "path": "apps/map-editor/src/panels/Houses.tsx",
+     "test": false
     }
    ],
    "id": "map-editor/panels",
@@ -8857,7 +9082,8 @@
     {
      "exports": [],
      "loc": 410,
-     "path": "packages/net-client/src/frames/index.ts"
+     "path": "packages/net-client/src/frames/index.ts",
+     "test": false
     },
     {
      "exports": [
@@ -8865,7 +9091,8 @@
       "Config"
      ],
      "loc": 234,
-     "path": "packages/net-client/src/frames/split.ts"
+     "path": "packages/net-client/src/frames/split.ts",
+     "test": false
     },
     {
      "exports": [
@@ -8873,7 +9100,8 @@
       "Config"
      ],
      "loc": 293,
-     "path": "packages/net-client/src/frames/decrypt.ts"
+     "path": "packages/net-client/src/frames/decrypt.ts",
+     "test": false
     }
    ],
    "id": "net-client/frames",
@@ -8897,28 +9125,32 @@
     {
      "exports": [],
      "loc": 176,
-     "path": "packages/net-client/src/socket/index.ts"
+     "path": "packages/net-client/src/socket/index.ts",
+     "test": false
     },
     {
      "exports": [
       "socket"
      ],
      "loc": 117,
-     "path": "packages/net-client/src/socket/socket.ts"
+     "path": "packages/net-client/src/socket/socket.ts",
+     "test": false
     },
     {
      "exports": [
       "heartbeat"
      ],
      "loc": 59,
-     "path": "packages/net-client/src/socket/heartbeat.ts"
+     "path": "packages/net-client/src/socket/heartbeat.ts",
+     "test": false
     },
     {
      "exports": [
       "backoff"
      ],
      "loc": 351,
-     "path": "packages/net-client/src/socket/backoff.ts"
+     "path": "packages/net-client/src/socket/backoff.ts",
+     "test": false
     }
    ],
    "id": "net-client/socket",
@@ -8942,14 +9174,16 @@
     {
      "exports": [],
      "loc": 358,
-     "path": "crates/persistence/src/migrations/mod.rs"
+     "path": "crates/persistence/src/migrations/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "runner"
      ],
      "loc": 255,
-     "path": "crates/persistence/src/migrations/runner.rs"
+     "path": "crates/persistence/src/migrations/runner.rs",
+     "test": false
     },
     {
      "exports": [
@@ -8957,7 +9191,8 @@
       "new"
      ],
      "loc": 255,
-     "path": "crates/persistence/src/migrations/list.rs"
+     "path": "crates/persistence/src/migrations/list.rs",
+     "test": false
     }
    ],
    "id": "persistence/migrations",
@@ -8981,21 +9216,24 @@
     {
      "exports": [],
      "loc": 358,
-     "path": "crates/persistence/src/pool/mod.rs"
+     "path": "crates/persistence/src/pool/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "pool"
      ],
      "loc": 153,
-     "path": "crates/persistence/src/pool/pool.rs"
+     "path": "crates/persistence/src/pool/pool.rs",
+     "test": false
     },
     {
      "exports": [
       "health"
      ],
      "loc": 358,
-     "path": "crates/persistence/src/pool/health.rs"
+     "path": "crates/persistence/src/pool/health.rs",
+     "test": false
     }
    ],
    "id": "persistence/pool",
@@ -9019,28 +9257,32 @@
     {
      "exports": [],
      "loc": 255,
-     "path": "crates/persistence/src/repos/mod.rs"
+     "path": "crates/persistence/src/repos/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "accounts"
      ],
      "loc": 306,
-     "path": "crates/persistence/src/repos/accounts.rs"
+     "path": "crates/persistence/src/repos/accounts.rs",
+     "test": false
     },
     {
      "exports": [
       "characters"
      ],
      "loc": 102,
-     "path": "crates/persistence/src/repos/characters.rs"
+     "path": "crates/persistence/src/repos/characters.rs",
+     "test": false
     },
     {
      "exports": [
       "houses"
      ],
      "loc": 306,
-     "path": "crates/persistence/src/repos/houses.rs"
+     "path": "crates/persistence/src/repos/houses.rs",
+     "test": false
     },
     {
      "exports": [
@@ -9048,7 +9290,8 @@
       "new"
      ],
      "loc": 153,
-     "path": "crates/persistence/src/repos/market.rs"
+     "path": "crates/persistence/src/repos/market.rs",
+     "test": false
     }
    ],
    "id": "persistence/repos",
@@ -9072,7 +9315,8 @@
     {
      "exports": [],
      "loc": 48,
-     "path": "tools/protocol-codegen/src/emit/index.ts"
+     "path": "tools/protocol-codegen/src/emit/index.ts",
+     "test": false
     },
     {
      "exports": [
@@ -9080,7 +9324,8 @@
       "Config"
      ],
      "loc": 48,
-     "path": "tools/protocol-codegen/src/emit/types.ts"
+     "path": "tools/protocol-codegen/src/emit/types.ts",
+     "test": false
     },
     {
      "exports": [
@@ -9088,14 +9333,16 @@
       "Config"
      ],
      "loc": 97,
-     "path": "tools/protocol-codegen/src/emit/codec.ts"
+     "path": "tools/protocol-codegen/src/emit/codec.ts",
+     "test": false
     },
     {
      "exports": [
       "format"
      ],
      "loc": 242,
-     "path": "tools/protocol-codegen/src/emit/format.ts"
+     "path": "tools/protocol-codegen/src/emit/format.ts",
+     "test": false
     }
    ],
    "id": "protocol-codegen/emit",
@@ -9119,21 +9366,24 @@
     {
      "exports": [],
      "loc": 48,
-     "path": "tools/protocol-codegen/src/parse/index.ts"
+     "path": "tools/protocol-codegen/src/parse/index.ts",
+     "test": false
     },
     {
      "exports": [
       "rust"
      ],
      "loc": 193,
-     "path": "tools/protocol-codegen/src/parse/rust.ts"
+     "path": "tools/protocol-codegen/src/parse/rust.ts",
+     "test": false
     },
     {
      "exports": [
       "attrs"
      ],
      "loc": 193,
-     "path": "tools/protocol-codegen/src/parse/attrs.ts"
+     "path": "tools/protocol-codegen/src/parse/attrs.ts",
+     "test": false
     }
    ],
    "id": "protocol-codegen/parse",
@@ -9157,17 +9407,20 @@
     {
      "exports": [],
      "loc": 140,
-     "path": "docs/protocol/README.md"
+     "path": "docs/protocol/README.md",
+     "test": false
     },
     {
      "exports": [],
      "loc": 610,
-     "path": "docs/protocol/opcodes.md"
+     "path": "docs/protocol/opcodes.md",
+     "test": false
     },
     {
      "exports": [],
      "loc": 270,
-     "path": "docs/protocol/handshake.md"
+     "path": "docs/protocol/handshake.md",
+     "test": false
     }
    ],
    "id": "protocol-docs/reference",
@@ -9191,12 +9444,14 @@
     {
      "exports": [],
      "loc": 210,
-     "path": "docs/protocol/reviews/v12.md"
+     "path": "docs/protocol/reviews/v12.md",
+     "test": false
     },
     {
      "exports": [],
      "loc": 190,
-     "path": "docs/protocol/reviews/v13.md"
+     "path": "docs/protocol/reviews/v13.md",
+     "test": false
     }
    ],
    "id": "protocol-docs/reviews",
@@ -9220,21 +9475,24 @@
     {
      "exports": [],
      "loc": 248,
-     "path": "packages/protocol-ts/src/codec/index.ts"
+     "path": "packages/protocol-ts/src/codec/index.ts",
+     "test": false
     },
     {
      "exports": [
       "reader"
      ],
      "loc": 297,
-     "path": "packages/protocol-ts/src/codec/reader.ts"
+     "path": "packages/protocol-ts/src/codec/reader.ts",
+     "test": false
     },
     {
      "exports": [
       "writer"
      ],
      "loc": 198,
-     "path": "packages/protocol-ts/src/codec/writer.ts"
+     "path": "packages/protocol-ts/src/codec/writer.ts",
+     "test": false
     },
     {
      "exports": [
@@ -9242,7 +9500,8 @@
       "Config"
      ],
      "loc": 99,
-     "path": "packages/protocol-ts/src/codec/errors.ts"
+     "path": "packages/protocol-ts/src/codec/errors.ts",
+     "test": false
     }
    ],
    "id": "protocol-ts/codec",
@@ -9266,7 +9525,8 @@
     {
      "exports": [],
      "loc": 346,
-     "path": "packages/protocol-ts/src/generated/index.ts"
+     "path": "packages/protocol-ts/src/generated/index.ts",
+     "test": false
     },
     {
      "exports": [
@@ -9274,7 +9534,8 @@
       "Config"
      ],
      "loc": 346,
-     "path": "packages/protocol-ts/src/generated/messages.ts"
+     "path": "packages/protocol-ts/src/generated/messages.ts",
+     "test": false
     },
     {
      "exports": [
@@ -9282,14 +9543,16 @@
       "Config"
      ],
      "loc": 346,
-     "path": "packages/protocol-ts/src/generated/opcodes.ts"
+     "path": "packages/protocol-ts/src/generated/opcodes.ts",
+     "test": false
     },
     {
      "exports": [
       "version"
      ],
      "loc": 99,
-     "path": "packages/protocol-ts/src/generated/version.ts"
+     "path": "packages/protocol-ts/src/generated/version.ts",
+     "test": false
     }
    ],
    "id": "protocol-ts/generated",
@@ -9313,7 +9576,8 @@
     {
      "exports": [],
      "loc": 254,
-     "path": "crates/protocol/src/messages/mod.rs"
+     "path": "crates/protocol/src/messages/mod.rs",
+     "test": false
     },
     {
      "exports": [
@@ -9321,14 +9585,16 @@
       "new"
      ],
      "loc": 51,
-     "path": "crates/protocol/src/messages/login.rs"
+     "path": "crates/protocol/src/messages/login.rs",
+     "test": false
     },
     {
      "exports": [
       "world"
      ],
      "loc": 355,
-     "path": "crates/protocol/src/messages/world.rs"
+     "path": "crates/protocol/src/messages/world.rs",
+     "test": false
     },
     {
      "exports": [
@@ -9336,21 +9602,24 @@
       "new"
      ],
      "loc": 101,
-     "path": "crates/protocol/src/messages/delta.rs"
+     "path": "crates/protocol/src/messages/delta.rs",
+     "test": false
     },
     {
      "exports": [
       "chat"
      ],
      "loc": 304,
-     "path": "crates/protocol/src/messages/chat.rs"
+     "path": "crates/protocol/src/messages/chat.rs",
+     "test": false
     },
     {
      "exports": [
       "market"
      ],
      "loc": 203,
-     "path": "crates/protocol/src/messages/market.rs"
+     "path": "crates/protocol/src/messages/market.rs",
+     "test": false
     }
    ],
    "id": "protocol/messages",
@@ -9374,7 +9643,8 @@
     {
      "exports": [],
      "loc": 355,
-     "path": "crates/protocol/src/opcodes/mod.rs"
+     "path": "crates/protocol/src/opcodes/mod.rs",
+     "test": false
     },
     {
      "exports": [
@@ -9382,14 +9652,16 @@
       "new"
      ],
      "loc": 152,
-     "path": "crates/protocol/src/opcodes/client.rs"
+     "path": "crates/protocol/src/opcodes/client.rs",
+     "test": false
     },
     {
      "exports": [
       "server"
      ],
      "loc": 304,
-     "path": "crates/protocol/src/opcodes/server.rs"
+     "path": "crates/protocol/src/opcodes/server.rs",
+     "test": false
     },
     {
      "exports": [
@@ -9397,7 +9669,8 @@
       "new"
      ],
      "loc": 254,
-     "path": "crates/protocol/src/opcodes/registry.rs"
+     "path": "crates/protocol/src/opcodes/registry.rs",
+     "test": false
     }
    ],
    "id": "protocol/opcodes",
@@ -9421,21 +9694,24 @@
     {
      "exports": [],
      "loc": 152,
-     "path": "crates/protocol/src/version/mod.rs"
+     "path": "crates/protocol/src/version/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "negotiate"
      ],
      "loc": 152,
-     "path": "crates/protocol/src/version/negotiate.rs"
+     "path": "crates/protocol/src/version/negotiate.rs",
+     "test": false
     },
     {
      "exports": [
       "table"
      ],
      "loc": 101,
-     "path": "crates/protocol/src/version/table.rs"
+     "path": "crates/protocol/src/version/table.rs",
+     "test": false
     }
    ],
    "id": "protocol/version",
@@ -9459,7 +9735,8 @@
     {
      "exports": [],
      "loc": 176,
-     "path": "packages/renderer-webgl/src/backend/index.ts"
+     "path": "packages/renderer-webgl/src/backend/index.ts",
+     "test": false
     },
     {
      "exports": [
@@ -9467,21 +9744,24 @@
       "Config"
      ],
      "loc": 235,
-     "path": "packages/renderer-webgl/src/backend/context.ts"
+     "path": "packages/renderer-webgl/src/backend/context.ts",
+     "test": false
     },
     {
      "exports": [
       "caps"
      ],
      "loc": 59,
-     "path": "packages/renderer-webgl/src/backend/caps.ts"
+     "path": "packages/renderer-webgl/src/backend/caps.ts",
+     "test": false
     },
     {
      "exports": [
       "frame"
      ],
      "loc": 117,
-     "path": "packages/renderer-webgl/src/backend/frame.ts"
+     "path": "packages/renderer-webgl/src/backend/frame.ts",
+     "test": false
     }
    ],
    "id": "renderer-webgl/backend",
@@ -9505,7 +9785,8 @@
     {
      "exports": [],
      "loc": 411,
-     "path": "packages/renderer-webgl/src/batch/index.ts"
+     "path": "packages/renderer-webgl/src/batch/index.ts",
+     "test": false
     },
     {
      "exports": [
@@ -9513,7 +9794,8 @@
       "Config"
      ],
      "loc": 411,
-     "path": "packages/renderer-webgl/src/batch/batcher.ts"
+     "path": "packages/renderer-webgl/src/batch/batcher.ts",
+     "test": false
     },
     {
      "exports": [
@@ -9521,7 +9803,8 @@
       "Config"
      ],
      "loc": 235,
-     "path": "packages/renderer-webgl/src/batch/upload.ts"
+     "path": "packages/renderer-webgl/src/batch/upload.ts",
+     "test": false
     }
    ],
    "id": "renderer-webgl/batch",
@@ -9545,22 +9828,26 @@
     {
      "exports": [],
      "loc": 411,
-     "path": "packages/renderer-webgl/src/shaders/index.ts"
+     "path": "packages/renderer-webgl/src/shaders/index.ts",
+     "test": false
     },
     {
      "exports": [],
      "loc": 176,
-     "path": "packages/renderer-webgl/src/shaders/sprite.vert.glsl"
+     "path": "packages/renderer-webgl/src/shaders/sprite.vert.glsl",
+     "test": false
     },
     {
      "exports": [],
      "loc": 176,
-     "path": "packages/renderer-webgl/src/shaders/sprite.frag.glsl"
+     "path": "packages/renderer-webgl/src/shaders/sprite.frag.glsl",
+     "test": false
     },
     {
      "exports": [],
      "loc": 235,
-     "path": "packages/renderer-webgl/src/shaders/light.frag.glsl"
+     "path": "packages/renderer-webgl/src/shaders/light.frag.glsl",
+     "test": false
     },
     {
      "exports": [
@@ -9568,7 +9855,8 @@
       "Config"
      ],
      "loc": 117,
-     "path": "packages/renderer-webgl/src/shaders/programs.ts"
+     "path": "packages/renderer-webgl/src/shaders/programs.ts",
+     "test": false
     }
    ],
    "id": "renderer-webgl/shaders",
@@ -9592,21 +9880,24 @@
     {
      "exports": [],
      "loc": 556,
-     "path": "packages/renderer/src/lighting/index.ts"
+     "path": "packages/renderer/src/lighting/index.ts",
+     "test": false
     },
     {
      "exports": [
       "lightmap"
      ],
      "loc": 476,
-     "path": "packages/renderer/src/lighting/lightmap.ts"
+     "path": "packages/renderer/src/lighting/lightmap.ts",
+     "test": false
     },
     {
      "exports": [
       "daynight"
      ],
      "loc": 79,
-     "path": "packages/renderer/src/lighting/daynight.ts"
+     "path": "packages/renderer/src/lighting/daynight.ts",
+     "test": false
     }
    ],
    "id": "renderer/lighting",
@@ -9630,21 +9921,24 @@
     {
      "exports": [],
      "loc": 397,
-     "path": "packages/renderer/src/scene/index.ts"
+     "path": "packages/renderer/src/scene/index.ts",
+     "test": false
     },
     {
      "exports": [
       "build"
      ],
      "loc": 238,
-     "path": "packages/renderer/src/scene/build.ts"
+     "path": "packages/renderer/src/scene/build.ts",
+     "test": false
     },
     {
      "exports": [
       "layers"
      ],
      "loc": 79,
-     "path": "packages/renderer/src/scene/layers.ts"
+     "path": "packages/renderer/src/scene/layers.ts",
+     "test": false
     },
     {
      "exports": [
@@ -9652,14 +9946,16 @@
       "Config"
      ],
      "loc": 556,
-     "path": "packages/renderer/src/scene/outfits.ts"
+     "path": "packages/renderer/src/scene/outfits.ts",
+     "test": false
     },
     {
      "exports": [
       "effects"
      ],
      "loc": 159,
-     "path": "packages/renderer/src/scene/effects.ts"
+     "path": "packages/renderer/src/scene/effects.ts",
+     "test": false
     }
    ],
    "id": "renderer/scene",
@@ -9683,21 +9979,24 @@
     {
      "exports": [],
      "loc": 318,
-     "path": "packages/renderer/src/sort/index.ts"
+     "path": "packages/renderer/src/sort/index.ts",
+     "test": false
     },
     {
      "exports": [
       "depth"
      ],
      "loc": 556,
-     "path": "packages/renderer/src/sort/depth.ts"
+     "path": "packages/renderer/src/sort/depth.ts",
+     "test": false
     },
     {
      "exports": [
       "elevation"
      ],
      "loc": 556,
-     "path": "packages/renderer/src/sort/elevation.ts"
+     "path": "packages/renderer/src/sort/elevation.ts",
+     "test": false
     }
    ],
    "id": "renderer/sort",
@@ -9721,28 +10020,32 @@
     {
      "exports": [],
      "loc": 34,
-     "path": "crates/server-config/src/load/mod.rs"
+     "path": "crates/server-config/src/load/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "file"
      ],
      "loc": 117,
-     "path": "crates/server-config/src/load/file.rs"
+     "path": "crates/server-config/src/load/file.rs",
+     "test": false
     },
     {
      "exports": [
       "env"
      ],
      "loc": 117,
-     "path": "crates/server-config/src/load/env.rs"
+     "path": "crates/server-config/src/load/env.rs",
+     "test": false
     },
     {
      "exports": [
       "validate"
      ],
      "loc": 117,
-     "path": "crates/server-config/src/load/validate.rs"
+     "path": "crates/server-config/src/load/validate.rs",
+     "test": false
     }
    ],
    "id": "server-config/load",
@@ -9766,21 +10069,24 @@
     {
      "exports": [],
      "loc": 67,
-     "path": "crates/server-config/src/schema/mod.rs"
+     "path": "crates/server-config/src/schema/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "world"
      ],
      "loc": 34,
-     "path": "crates/server-config/src/schema/world.rs"
+     "path": "crates/server-config/src/schema/world.rs",
+     "test": false
     },
     {
      "exports": [
       "gateway"
      ],
      "loc": 34,
-     "path": "crates/server-config/src/schema/gateway.rs"
+     "path": "crates/server-config/src/schema/gateway.rs",
+     "test": false
     },
     {
      "exports": [
@@ -9788,7 +10094,8 @@
       "new"
      ],
      "loc": 101,
-     "path": "crates/server-config/src/schema/database.rs"
+     "path": "crates/server-config/src/schema/database.rs",
+     "test": false
     }
    ],
    "id": "server-config/schema",
@@ -9815,21 +10122,24 @@
       "new"
      ],
      "loc": 197,
-     "path": "crates/sim-bench/benches/tick.rs"
+     "path": "crates/sim-bench/benches/tick.rs",
+     "test": true
     },
     {
      "exports": [
       "pathing"
      ],
      "loc": 246,
-     "path": "crates/sim-bench/benches/pathing.rs"
+     "path": "crates/sim-bench/benches/pathing.rs",
+     "test": true
     },
     {
      "exports": [
       "combat"
      ],
      "loc": 197,
-     "path": "crates/sim-bench/benches/combat.rs"
+     "path": "crates/sim-bench/benches/combat.rs",
+     "test": true
     }
    ],
    "id": "sim-bench/benches",
@@ -9853,7 +10163,8 @@
     {
      "exports": [],
      "loc": 155,
-     "path": "crates/sim-combat/src/conditions/mod.rs"
+     "path": "crates/sim-combat/src/conditions/mod.rs",
+     "test": false
     },
     {
      "exports": [
@@ -9861,7 +10172,8 @@
       "new"
      ],
      "loc": 155,
-     "path": "crates/sim-combat/src/conditions/timed.rs"
+     "path": "crates/sim-combat/src/conditions/timed.rs",
+     "test": false
     },
     {
      "exports": [
@@ -9869,7 +10181,8 @@
       "new"
      ],
      "loc": 232,
-     "path": "crates/sim-combat/src/conditions/apply.rs"
+     "path": "crates/sim-combat/src/conditions/apply.rs",
+     "test": false
     }
    ],
    "id": "sim-combat/conditions",
@@ -9893,28 +10206,32 @@
     {
      "exports": [],
      "loc": 77,
-     "path": "crates/sim-combat/src/formulas/mod.rs"
+     "path": "crates/sim-combat/src/formulas/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "melee"
      ],
      "loc": 387,
-     "path": "crates/sim-combat/src/formulas/melee.rs"
+     "path": "crates/sim-combat/src/formulas/melee.rs",
+     "test": false
     },
     {
      "exports": [
       "distance"
      ],
      "loc": 541,
-     "path": "crates/sim-combat/src/formulas/distance.rs"
+     "path": "crates/sim-combat/src/formulas/distance.rs",
+     "test": false
     },
     {
      "exports": [
       "magic"
      ],
      "loc": 155,
-     "path": "crates/sim-combat/src/formulas/magic.rs"
+     "path": "crates/sim-combat/src/formulas/magic.rs",
+     "test": false
     }
    ],
    "id": "sim-combat/formulas",
@@ -9938,7 +10255,8 @@
     {
      "exports": [],
      "loc": 464,
-     "path": "crates/sim-combat/src/resolve/mod.rs"
+     "path": "crates/sim-combat/src/resolve/mod.rs",
+     "test": false
     },
     {
      "exports": [
@@ -9946,21 +10264,24 @@
       "new"
      ],
      "loc": 541,
-     "path": "crates/sim-combat/src/resolve/attack.rs"
+     "path": "crates/sim-combat/src/resolve/attack.rs",
+     "test": false
     },
     {
      "exports": [
       "death"
      ],
      "loc": 541,
-     "path": "crates/sim-combat/src/resolve/death.rs"
+     "path": "crates/sim-combat/src/resolve/death.rs",
+     "test": false
     },
     {
      "exports": [
       "block"
      ],
      "loc": 232,
-     "path": "crates/sim-combat/src/resolve/block.rs"
+     "path": "crates/sim-combat/src/resolve/block.rs",
+     "test": false
     }
    ],
    "id": "sim-combat/resolve",
@@ -9984,21 +10305,24 @@
     {
      "exports": [],
      "loc": 278,
-     "path": "crates/sim-core/src/entity/mod.rs"
+     "path": "crates/sim-core/src/entity/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "creature"
      ],
      "loc": 93,
-     "path": "crates/sim-core/src/entity/creature.rs"
+     "path": "crates/sim-core/src/entity/creature.rs",
+     "test": false
     },
     {
      "exports": [
       "item"
      ],
      "loc": 278,
-     "path": "crates/sim-core/src/entity/item.rs"
+     "path": "crates/sim-core/src/entity/item.rs",
+     "test": false
     },
     {
      "exports": [
@@ -10006,14 +10330,16 @@
       "new"
      ],
      "loc": 371,
-     "path": "crates/sim-core/src/entity/player.rs"
+     "path": "crates/sim-core/src/entity/player.rs",
+     "test": false
     },
     {
      "exports": [
       "ids"
      ],
      "loc": 649,
-     "path": "crates/sim-core/src/entity/ids.rs"
+     "path": "crates/sim-core/src/entity/ids.rs",
+     "test": false
     }
    ],
    "id": "sim-core/entity",
@@ -10037,14 +10363,16 @@
     {
      "exports": [],
      "loc": 185,
-     "path": "crates/sim-core/src/events/mod.rs"
+     "path": "crates/sim-core/src/events/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "queue"
      ],
      "loc": 93,
-     "path": "crates/sim-core/src/events/queue.rs"
+     "path": "crates/sim-core/src/events/queue.rs",
+     "test": false
     },
     {
      "exports": [
@@ -10052,7 +10380,8 @@
       "new"
      ],
      "loc": 556,
-     "path": "crates/sim-core/src/events/kinds.rs"
+     "path": "crates/sim-core/src/events/kinds.rs",
+     "test": false
     }
    ],
    "id": "sim-core/events",
@@ -10076,21 +10405,24 @@
     {
      "exports": [],
      "loc": 649,
-     "path": "crates/sim-core/src/tick/mod.rs"
+     "path": "crates/sim-core/src/tick/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "step"
      ],
      "loc": 93,
-     "path": "crates/sim-core/src/tick/step.rs"
+     "path": "crates/sim-core/src/tick/step.rs",
+     "test": false
     },
     {
      "exports": [
       "phases"
      ],
      "loc": 464,
-     "path": "crates/sim-core/src/tick/phases.rs"
+     "path": "crates/sim-core/src/tick/phases.rs",
+     "test": false
     },
     {
      "exports": [
@@ -10098,7 +10430,8 @@
       "new"
      ],
      "loc": 371,
-     "path": "crates/sim-core/src/tick/rng.rs"
+     "path": "crates/sim-core/src/tick/rng.rs",
+     "test": false
     }
    ],
    "id": "sim-core/tick",
@@ -10122,21 +10455,24 @@
     {
      "exports": [],
      "loc": 556,
-     "path": "crates/sim-core/src/world/mod.rs"
+     "path": "crates/sim-core/src/world/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "map"
      ],
      "loc": 371,
-     "path": "crates/sim-core/src/world/map.rs"
+     "path": "crates/sim-core/src/world/map.rs",
+     "test": false
     },
     {
      "exports": [
       "spatial"
      ],
      "loc": 371,
-     "path": "crates/sim-core/src/world/spatial.rs"
+     "path": "crates/sim-core/src/world/spatial.rs",
+     "test": false
     },
     {
      "exports": [
@@ -10144,7 +10480,8 @@
       "new"
      ],
      "loc": 649,
-     "path": "crates/sim-core/src/world/tiles.rs"
+     "path": "crates/sim-core/src/world/tiles.rs",
+     "test": false
     },
     {
      "exports": [
@@ -10152,7 +10489,8 @@
       "new"
      ],
      "loc": 93,
-     "path": "crates/sim-core/src/world/snapshot.rs"
+     "path": "crates/sim-core/src/world/snapshot.rs",
+     "test": false
     }
    ],
    "id": "sim-core/world",
@@ -10176,7 +10514,8 @@
     {
      "exports": [],
      "loc": 199,
-     "path": "crates/sim-economy/src/loot/mod.rs"
+     "path": "crates/sim-economy/src/loot/mod.rs",
+     "test": false
     },
     {
      "exports": [
@@ -10184,14 +10523,16 @@
       "new"
      ],
      "loc": 249,
-     "path": "crates/sim-economy/src/loot/roll.rs"
+     "path": "crates/sim-economy/src/loot/roll.rs",
+     "test": false
     },
     {
      "exports": [
       "tables"
      ],
      "loc": 149,
-     "path": "crates/sim-economy/src/loot/tables.rs"
+     "path": "crates/sim-economy/src/loot/tables.rs",
+     "test": false
     }
    ],
    "id": "sim-economy/loot",
@@ -10215,14 +10556,16 @@
     {
      "exports": [],
      "loc": 99,
-     "path": "crates/sim-economy/src/sinks/mod.rs"
+     "path": "crates/sim-economy/src/sinks/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "rent"
      ],
      "loc": 149,
-     "path": "crates/sim-economy/src/sinks/rent.rs"
+     "path": "crates/sim-economy/src/sinks/rent.rs",
+     "test": false
     },
     {
      "exports": [
@@ -10230,7 +10573,8 @@
       "new"
      ],
      "loc": 249,
-     "path": "crates/sim-economy/src/sinks/blessings.rs"
+     "path": "crates/sim-economy/src/sinks/blessings.rs",
+     "test": false
     }
    ],
    "id": "sim-economy/sinks",
@@ -10254,21 +10598,24 @@
     {
      "exports": [],
      "loc": 348,
-     "path": "crates/sim-economy/src/vendors/mod.rs"
+     "path": "crates/sim-economy/src/vendors/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "pricing"
      ],
      "loc": 149,
-     "path": "crates/sim-economy/src/vendors/pricing.rs"
+     "path": "crates/sim-economy/src/vendors/pricing.rs",
+     "test": false
     },
     {
      "exports": [
       "trade"
      ],
      "loc": 298,
-     "path": "crates/sim-economy/src/vendors/trade.rs"
+     "path": "crates/sim-economy/src/vendors/trade.rs",
+     "test": false
     }
    ],
    "id": "sim-economy/vendors",
@@ -10292,28 +10639,32 @@
     {
      "exports": [],
      "loc": 123,
-     "path": "crates/sim-pathing/src/astar/mod.rs"
+     "path": "crates/sim-pathing/src/astar/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "search"
      ],
      "loc": 123,
-     "path": "crates/sim-pathing/src/astar/search.rs"
+     "path": "crates/sim-pathing/src/astar/search.rs",
+     "test": false
     },
     {
      "exports": [
       "heap"
      ],
      "loc": 184,
-     "path": "crates/sim-pathing/src/astar/heap.rs"
+     "path": "crates/sim-pathing/src/astar/heap.rs",
+     "test": false
     },
     {
      "exports": [
       "cost"
      ],
      "loc": 123,
-     "path": "crates/sim-pathing/src/astar/cost.rs"
+     "path": "crates/sim-pathing/src/astar/cost.rs",
+     "test": false
     }
    ],
    "id": "sim-pathing/astar",
@@ -10337,7 +10688,8 @@
     {
      "exports": [],
      "loc": 307,
-     "path": "crates/sim-pathing/src/flowfield/mod.rs"
+     "path": "crates/sim-pathing/src/flowfield/mod.rs",
+     "test": false
     },
     {
      "exports": [
@@ -10345,14 +10697,16 @@
       "new"
      ],
      "loc": 246,
-     "path": "crates/sim-pathing/src/flowfield/field.rs"
+     "path": "crates/sim-pathing/src/flowfield/field.rs",
+     "test": false
     },
     {
      "exports": [
       "cache"
      ],
      "loc": 368,
-     "path": "crates/sim-pathing/src/flowfield/cache.rs"
+     "path": "crates/sim-pathing/src/flowfield/cache.rs",
+     "test": false
     }
    ],
    "id": "sim-pathing/flowfield",
@@ -10376,7 +10730,8 @@
     {
      "exports": [],
      "loc": 61,
-     "path": "crates/sim-pathing/src/grid/mod.rs"
+     "path": "crates/sim-pathing/src/grid/mod.rs",
+     "test": false
     },
     {
      "exports": [
@@ -10384,7 +10739,8 @@
       "new"
      ],
      "loc": 368,
-     "path": "crates/sim-pathing/src/grid/grid.rs"
+     "path": "crates/sim-pathing/src/grid/grid.rs",
+     "test": false
     },
     {
      "exports": [
@@ -10392,7 +10748,8 @@
       "new"
      ],
      "loc": 307,
-     "path": "crates/sim-pathing/src/grid/update.rs"
+     "path": "crates/sim-pathing/src/grid/update.rs",
+     "test": false
     }
    ],
    "id": "sim-pathing/grid",
@@ -10416,35 +10773,40 @@
     {
      "exports": [],
      "loc": 560,
-     "path": "crates/sim-scripting/src/bindings/mod.rs"
+     "path": "crates/sim-scripting/src/bindings/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "creature"
      ],
      "loc": 224,
-     "path": "crates/sim-scripting/src/bindings/creature.rs"
+     "path": "crates/sim-scripting/src/bindings/creature.rs",
+     "test": false
     },
     {
      "exports": [
       "item"
      ],
      "loc": 336,
-     "path": "crates/sim-scripting/src/bindings/item.rs"
+     "path": "crates/sim-scripting/src/bindings/item.rs",
+     "test": false
     },
     {
      "exports": [
       "combat"
      ],
      "loc": 448,
-     "path": "crates/sim-scripting/src/bindings/combat.rs"
+     "path": "crates/sim-scripting/src/bindings/combat.rs",
+     "test": false
     },
     {
      "exports": [
       "content"
      ],
      "loc": 112,
-     "path": "crates/sim-scripting/src/bindings/content.rs"
+     "path": "crates/sim-scripting/src/bindings/content.rs",
+     "test": false
     }
    ],
    "id": "sim-scripting/bindings",
@@ -10468,28 +10830,32 @@
     {
      "exports": [],
      "loc": 224,
-     "path": "crates/sim-scripting/src/host/mod.rs"
+     "path": "crates/sim-scripting/src/host/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "vm"
      ],
      "loc": 336,
-     "path": "crates/sim-scripting/src/host/vm.rs"
+     "path": "crates/sim-scripting/src/host/vm.rs",
+     "test": false
     },
     {
      "exports": [
       "sandbox"
      ],
      "loc": 784,
-     "path": "crates/sim-scripting/src/host/sandbox.rs"
+     "path": "crates/sim-scripting/src/host/sandbox.rs",
+     "test": false
     },
     {
      "exports": [
       "errors"
      ],
      "loc": 224,
-     "path": "crates/sim-scripting/src/host/errors.rs"
+     "path": "crates/sim-scripting/src/host/errors.rs",
+     "test": false
     }
    ],
    "id": "sim-scripting/host",
@@ -10513,21 +10879,24 @@
     {
      "exports": [],
      "loc": 112,
-     "path": "crates/sim-scripting/src/scheduler/mod.rs"
+     "path": "crates/sim-scripting/src/scheduler/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "queue"
      ],
      "loc": 112,
-     "path": "crates/sim-scripting/src/scheduler/queue.rs"
+     "path": "crates/sim-scripting/src/scheduler/queue.rs",
+     "test": false
     },
     {
      "exports": [
       "timers"
      ],
      "loc": 560,
-     "path": "crates/sim-scripting/src/scheduler/timers.rs"
+     "path": "crates/sim-scripting/src/scheduler/timers.rs",
+     "test": false
     }
    ],
    "id": "sim-scripting/scheduler",
@@ -10551,14 +10920,16 @@
     {
      "exports": [],
      "loc": 195,
-     "path": "crates/sim-testkit/src/fixtures/mod.rs"
+     "path": "crates/sim-testkit/src/fixtures/mod.rs",
+     "test": true
     },
     {
      "exports": [
       "worlds"
      ],
      "loc": 49,
-     "path": "crates/sim-testkit/src/fixtures/worlds.rs"
+     "path": "crates/sim-testkit/src/fixtures/worlds.rs",
+     "test": true
     },
     {
      "exports": [
@@ -10566,7 +10937,8 @@
       "new"
      ],
      "loc": 49,
-     "path": "crates/sim-testkit/src/fixtures/creatures.rs"
+     "path": "crates/sim-testkit/src/fixtures/creatures.rs",
+     "test": true
     },
     {
      "exports": [
@@ -10574,7 +10946,8 @@
       "new"
      ],
      "loc": 49,
-     "path": "crates/sim-testkit/src/fixtures/items.rs"
+     "path": "crates/sim-testkit/src/fixtures/items.rs",
+     "test": true
     }
    ],
    "id": "sim-testkit/fixtures",
@@ -10598,7 +10971,8 @@
     {
      "exports": [],
      "loc": 243,
-     "path": "crates/sim-testkit/src/scenario/mod.rs"
+     "path": "crates/sim-testkit/src/scenario/mod.rs",
+     "test": false
     },
     {
      "exports": [
@@ -10606,14 +10980,16 @@
       "new"
      ],
      "loc": 341,
-     "path": "crates/sim-testkit/src/scenario/builder.rs"
+     "path": "crates/sim-testkit/src/scenario/builder.rs",
+     "test": false
     },
     {
      "exports": [
       "assert"
      ],
      "loc": 195,
-     "path": "crates/sim-testkit/src/scenario/assert.rs"
+     "path": "crates/sim-testkit/src/scenario/assert.rs",
+     "test": false
     }
    ],
    "id": "sim-testkit/scenario",
@@ -10637,21 +11013,24 @@
     {
      "exports": [],
      "loc": 216,
-     "path": "packages/sprite-atlas/src/atlas/index.ts"
+     "path": "packages/sprite-atlas/src/atlas/index.ts",
+     "test": false
     },
     {
      "exports": [
       "manifest"
      ],
      "loc": 72,
-     "path": "packages/sprite-atlas/src/atlas/manifest.ts"
+     "path": "packages/sprite-atlas/src/atlas/manifest.ts",
+     "test": false
     },
     {
      "exports": [
       "parse"
      ],
      "loc": 72,
-     "path": "packages/sprite-atlas/src/atlas/parse.ts"
+     "path": "packages/sprite-atlas/src/atlas/parse.ts",
+     "test": false
     }
    ],
    "id": "sprite-atlas/atlas",
@@ -10675,21 +11054,24 @@
     {
      "exports": [],
      "loc": 216,
-     "path": "packages/sprite-atlas/src/lookup/index.ts"
+     "path": "packages/sprite-atlas/src/lookup/index.ts",
+     "test": false
     },
     {
      "exports": [
       "regions"
      ],
      "loc": 288,
-     "path": "packages/sprite-atlas/src/lookup/regions.ts"
+     "path": "packages/sprite-atlas/src/lookup/regions.ts",
+     "test": false
     },
     {
      "exports": [
       "frames"
      ],
      "loc": 288,
-     "path": "packages/sprite-atlas/src/lookup/frames.ts"
+     "path": "packages/sprite-atlas/src/lookup/frames.ts",
+     "test": false
     }
    ],
    "id": "sprite-atlas/lookup",
@@ -10713,14 +11095,16 @@
     {
      "exports": [],
      "loc": 134,
-     "path": "apps/sprite-editor/src/app/index.ts"
+     "path": "apps/sprite-editor/src/app/index.ts",
+     "test": false
     },
     {
      "exports": [
       "App"
      ],
      "loc": 470,
-     "path": "apps/sprite-editor/src/app/App.tsx"
+     "path": "apps/sprite-editor/src/app/App.tsx",
+     "test": false
     },
     {
      "exports": [
@@ -10728,7 +11112,8 @@
       "Default"
      ],
      "loc": 336,
-     "path": "apps/sprite-editor/src/app/Preview.tsx"
+     "path": "apps/sprite-editor/src/app/Preview.tsx",
+     "test": false
     }
    ],
    "id": "sprite-editor/app",
@@ -10752,14 +11137,16 @@
     {
      "exports": [],
      "loc": 403,
-     "path": "apps/sprite-editor/src/timeline/index.ts"
+     "path": "apps/sprite-editor/src/timeline/index.ts",
+     "test": false
     },
     {
      "exports": [
       "Timeline"
      ],
      "loc": 269,
-     "path": "apps/sprite-editor/src/timeline/Timeline.tsx"
+     "path": "apps/sprite-editor/src/timeline/Timeline.tsx",
+     "test": false
     },
     {
      "exports": [
@@ -10767,7 +11154,8 @@
       "Default"
      ],
      "loc": 269,
-     "path": "apps/sprite-editor/src/timeline/onion.tsx"
+     "path": "apps/sprite-editor/src/timeline/onion.tsx",
+     "test": false
     }
    ],
    "id": "sprite-editor/timeline",
@@ -10791,7 +11179,8 @@
     {
      "exports": [],
      "loc": 369,
-     "path": "packages/ui-kit/src/components/index.ts"
+     "path": "packages/ui-kit/src/components/index.ts",
+     "test": false
     },
     {
      "exports": [
@@ -10799,7 +11188,8 @@
       "Default"
      ],
      "loc": 62,
-     "path": "packages/ui-kit/src/components/Window.tsx"
+     "path": "packages/ui-kit/src/components/Window.tsx",
+     "test": false
     },
     {
      "exports": [
@@ -10807,21 +11197,24 @@
       "Default"
      ],
      "loc": 246,
-     "path": "packages/ui-kit/src/components/Button.tsx"
+     "path": "packages/ui-kit/src/components/Button.tsx",
+     "test": false
     },
     {
      "exports": [
       "List"
      ],
      "loc": 369,
-     "path": "packages/ui-kit/src/components/List.tsx"
+     "path": "packages/ui-kit/src/components/List.tsx",
+     "test": false
     },
     {
      "exports": [
       "Tooltip"
      ],
      "loc": 369,
-     "path": "packages/ui-kit/src/components/Tooltip.tsx"
+     "path": "packages/ui-kit/src/components/Tooltip.tsx",
+     "test": false
     },
     {
      "exports": [
@@ -10829,7 +11222,8 @@
       "Default"
      ],
      "loc": 369,
-     "path": "packages/ui-kit/src/components/DragLayer.tsx"
+     "path": "packages/ui-kit/src/components/DragLayer.tsx",
+     "test": false
     }
    ],
    "id": "ui-kit/components",
@@ -10853,21 +11247,24 @@
     {
      "exports": [],
      "loc": 123,
-     "path": "packages/ui-kit/src/theme/index.ts"
+     "path": "packages/ui-kit/src/theme/index.ts",
+     "test": false
     },
     {
      "exports": [
       "tokens"
      ],
      "loc": 123,
-     "path": "packages/ui-kit/src/theme/tokens.ts"
+     "path": "packages/ui-kit/src/theme/tokens.ts",
+     "test": false
     },
     {
      "exports": [
       "classic"
      ],
      "loc": 308,
-     "path": "packages/ui-kit/src/theme/classic.ts"
+     "path": "packages/ui-kit/src/theme/classic.ts",
+     "test": false
     }
    ],
    "id": "ui-kit/theme",
@@ -10893,21 +11290,24 @@
       "mountVoxelView"
      ],
      "loc": 120,
-     "path": "prototypes/voxel-renderer/src/index.ts"
+     "path": "prototypes/voxel-renderer/src/index.ts",
+     "test": false
     },
     {
      "exports": [
       "meshColumn"
      ],
      "loc": 470,
-     "path": "prototypes/voxel-renderer/src/mesh.ts"
+     "path": "prototypes/voxel-renderer/src/mesh.ts",
+     "test": false
     },
     {
      "exports": [
       "orbit"
      ],
      "loc": 320,
-     "path": "prototypes/voxel-renderer/src/camera.ts"
+     "path": "prototypes/voxel-renderer/src/camera.ts",
+     "test": false
     }
    ],
    "id": "voxel-prototype/src",
@@ -10931,14 +11331,16 @@
     {
      "exports": [],
      "loc": 535,
-     "path": "apps/web-client/src/app/index.ts"
+     "path": "apps/web-client/src/app/index.ts",
+     "test": false
     },
     {
      "exports": [
       "App"
      ],
      "loc": 268,
-     "path": "apps/web-client/src/app/App.tsx"
+     "path": "apps/web-client/src/app/App.tsx",
+     "test": false
     },
     {
      "exports": [
@@ -10946,14 +11348,16 @@
       "Default"
      ],
      "loc": 178,
-     "path": "apps/web-client/src/app/providers.tsx"
+     "path": "apps/web-client/src/app/providers.tsx",
+     "test": false
     },
     {
      "exports": [
       "boot"
      ],
      "loc": 178,
-     "path": "apps/web-client/src/app/boot.tsx"
+     "path": "apps/web-client/src/app/boot.tsx",
+     "test": false
     }
    ],
    "id": "web-client/app",
@@ -10977,21 +11381,24 @@
     {
      "exports": [],
      "loc": 446,
-     "path": "apps/web-client/src/canvas/index.ts"
+     "path": "apps/web-client/src/canvas/index.ts",
+     "test": false
     },
     {
      "exports": [
       "CanvasHost"
      ],
      "loc": 624,
-     "path": "apps/web-client/src/canvas/CanvasHost.tsx"
+     "path": "apps/web-client/src/canvas/CanvasHost.tsx",
+     "test": false
     },
     {
      "exports": [
       "resize"
      ],
      "loc": 268,
-     "path": "apps/web-client/src/canvas/resize.tsx"
+     "path": "apps/web-client/src/canvas/resize.tsx",
+     "test": false
     }
    ],
    "id": "web-client/canvas",
@@ -11015,28 +11422,32 @@
     {
      "exports": [],
      "loc": 446,
-     "path": "apps/web-client/src/routes/index.ts"
+     "path": "apps/web-client/src/routes/index.ts",
+     "test": false
     },
     {
      "exports": [
       "Login"
      ],
      "loc": 446,
-     "path": "apps/web-client/src/routes/Login.tsx"
+     "path": "apps/web-client/src/routes/Login.tsx",
+     "test": false
     },
     {
      "exports": [
       "Characters"
      ],
      "loc": 357,
-     "path": "apps/web-client/src/routes/Characters.tsx"
+     "path": "apps/web-client/src/routes/Characters.tsx",
+     "test": false
     },
     {
      "exports": [
       "Game"
      ],
      "loc": 89,
-     "path": "apps/web-client/src/routes/Game.tsx"
+     "path": "apps/web-client/src/routes/Game.tsx",
+     "test": false
     },
     {
      "exports": [
@@ -11044,7 +11455,8 @@
       "Default"
      ],
      "loc": 624,
-     "path": "apps/web-client/src/routes/Settings.tsx"
+     "path": "apps/web-client/src/routes/Settings.tsx",
+     "test": false
     }
    ],
    "id": "web-client/routes",
@@ -11068,21 +11480,24 @@
     {
      "exports": [],
      "loc": 51,
-     "path": "crates/wire/src/cipher/mod.rs"
+     "path": "crates/wire/src/cipher/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "xtea"
      ],
      "loc": 102,
-     "path": "crates/wire/src/cipher/xtea.rs"
+     "path": "crates/wire/src/cipher/xtea.rs",
+     "test": false
     },
     {
      "exports": [
       "handshake"
      ],
      "loc": 306,
-     "path": "crates/wire/src/cipher/handshake.rs"
+     "path": "crates/wire/src/cipher/handshake.rs",
+     "test": false
     }
    ],
    "id": "wire/cipher",
@@ -11106,14 +11521,16 @@
     {
      "exports": [],
      "loc": 255,
-     "path": "crates/wire/src/compress/mod.rs"
+     "path": "crates/wire/src/compress/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "zlib"
      ],
      "loc": 255,
-     "path": "crates/wire/src/compress/zlib.rs"
+     "path": "crates/wire/src/compress/zlib.rs",
+     "test": false
     }
    ],
    "id": "wire/compress",
@@ -11137,21 +11554,24 @@
     {
      "exports": [],
      "loc": 153,
-     "path": "crates/wire/src/framing/mod.rs"
+     "path": "crates/wire/src/framing/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "frame"
      ],
      "loc": 51,
-     "path": "crates/wire/src/framing/frame.rs"
+     "path": "crates/wire/src/framing/frame.rs",
+     "test": false
     },
     {
      "exports": [
       "checksum"
      ],
      "loc": 255,
-     "path": "crates/wire/src/framing/checksum.rs"
+     "path": "crates/wire/src/framing/checksum.rs",
+     "test": false
     }
    ],
    "id": "wire/framing",
@@ -11175,7 +11595,8 @@
     {
      "exports": [],
      "loc": 260,
-     "path": "crates/world-server/src/admin/mod.rs"
+     "path": "crates/world-server/src/admin/mod.rs",
+     "test": false
     },
     {
      "exports": [
@@ -11183,7 +11604,8 @@
       "new"
      ],
      "loc": 260,
-     "path": "crates/world-server/src/admin/handlers.rs"
+     "path": "crates/world-server/src/admin/handlers.rs",
+     "test": false
     }
    ],
    "id": "world-server/admin",
@@ -11207,21 +11629,24 @@
     {
      "exports": [],
      "loc": 260,
-     "path": "crates/world-server/src/broadcast/mod.rs"
+     "path": "crates/world-server/src/broadcast/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "visibility"
      ],
      "loc": 87,
-     "path": "crates/world-server/src/broadcast/visibility.rs"
+     "path": "crates/world-server/src/broadcast/visibility.rs",
+     "test": false
     },
     {
      "exports": [
       "fanout"
      ],
      "loc": 433,
-     "path": "crates/world-server/src/broadcast/fanout.rs"
+     "path": "crates/world-server/src/broadcast/fanout.rs",
+     "test": false
     },
     {
      "exports": [
@@ -11229,7 +11654,8 @@
       "new"
      ],
      "loc": 607,
-     "path": "crates/world-server/src/broadcast/delta.rs"
+     "path": "crates/world-server/src/broadcast/delta.rs",
+     "test": false
     }
    ],
    "id": "world-server/broadcast",
@@ -11253,35 +11679,40 @@
     {
      "exports": [],
      "loc": 433,
-     "path": "crates/world-server/src/intents/mod.rs"
+     "path": "crates/world-server/src/intents/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "walk"
      ],
      "loc": 520,
-     "path": "crates/world-server/src/intents/walk.rs"
+     "path": "crates/world-server/src/intents/walk.rs",
+     "test": false
     },
     {
      "exports": [
       "attack"
      ],
      "loc": 347,
-     "path": "crates/world-server/src/intents/attack.rs"
+     "path": "crates/world-server/src/intents/attack.rs",
+     "test": false
     },
     {
      "exports": [
       "use"
      ],
      "loc": 520,
-     "path": "crates/world-server/src/intents/use.rs"
+     "path": "crates/world-server/src/intents/use.rs",
+     "test": false
     },
     {
      "exports": [
       "say"
      ],
      "loc": 433,
-     "path": "crates/world-server/src/intents/say.rs"
+     "path": "crates/world-server/src/intents/say.rs",
+     "test": false
     }
    ],
    "id": "world-server/intents",
@@ -11305,21 +11736,24 @@
     {
      "exports": [],
      "loc": 520,
-     "path": "crates/world-server/src/runtime/mod.rs"
+     "path": "crates/world-server/src/runtime/mod.rs",
+     "test": false
     },
     {
      "exports": [
       "boot"
      ],
      "loc": 87,
-     "path": "crates/world-server/src/runtime/boot.rs"
+     "path": "crates/world-server/src/runtime/boot.rs",
+     "test": false
     },
     {
      "exports": [
       "driver"
      ],
      "loc": 173,
-     "path": "crates/world-server/src/runtime/driver.rs"
+     "path": "crates/world-server/src/runtime/driver.rs",
+     "test": false
     },
     {
      "exports": [
@@ -11327,7 +11761,8 @@
       "new"
      ],
      "loc": 260,
-     "path": "crates/world-server/src/runtime/shutdown.rs"
+     "path": "crates/world-server/src/runtime/shutdown.rs",
+     "test": false
     }
    ],
    "id": "world-server/runtime",
@@ -11388,7 +11823,7 @@
     "name": "Veteran player",
     "role": "Still plays with the old 8.6 client, which connects through the legacy bridge.",
     "uses": [
-     "unsorted"
+     "playing"
     ]
    }
   ],
@@ -11495,11 +11930,12 @@
   "name": "Rookgaard Online",
   "purpose": "A classic top-down MMORPG in the spirit of early Tibia: a Rust simulation and server fleet, a TypeScript web and desktop client, data-driven content packages, and the editors designers use to build the world.",
   "runtime_counts": {
-   "build": 2,
-   "cli": 4,
-   "client": 14,
+   "build": 0,
+   "cli": 0,
+   "client": 13,
+   "none": 0,
    "server": 14,
-   "shared": 6
+   "shared": 5
   },
   "summary": "A classic Tibia-style MMORPG: a Rust server fleet streaming Worlds to a TypeScript client, plus the editors designers build content with."
  },

@@ -167,6 +167,8 @@ def test_test_only_edges_are_kept_but_do_not_form_cycles():
         ],
     }
     doc = skeleton.skeleton(scan_doc)
+    file_roles = {f["path"]: f["test"] for module in doc["modules"] for f in module["files"]}
+    assert file_roles == {"a/src/x.ts": False, "a/test/x.test.ts": True, "b/src/y.ts": False}
     edges = {(e["from"], e["to"]): e for e in doc["edges"]["components"]}
     assert edges[("a", "b")]["count"] == 1 and edges[("a", "b")]["test_count"] == 1
     assert edges[("a", "b")]["test_only"] is False

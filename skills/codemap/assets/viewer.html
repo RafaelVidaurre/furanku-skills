@@ -70,6 +70,8 @@ a { color: var(--sel); }
 .btn.on { color: var(--bad); border-color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, var(--surface)); }
 .btn.ok { color: var(--ok); }
 .btn.ok.on { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 8%, var(--surface)); }
+.btn.pref.on { color: var(--text); border-color: var(--sel); background: color-mix(in srgb, var(--sel) 9%, var(--surface)); }
+.btn.pref:not(.on) { color: var(--muted); }
 .btn.icon { width: 32px; padding: 0; justify-content: center; }
 .kbd { font-family: var(--mono); font-size: 10px; color: var(--faint); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; line-height: 16px; background: var(--surface); }
 
@@ -118,6 +120,7 @@ a { color: var(--sel); }
 .node.in .box { stroke: var(--in); stroke-width: 2.25; }
 .node.out.in .box { stroke: var(--warm); }
 .node .badge { fill: var(--warm); stroke: var(--surface); stroke-width: 1.5; }
+.node .quality-mark { fill: var(--bad); stroke: var(--surface); stroke-width: 1.5; }
 .node text.badge { fill: #fff; font-size: 10px; font-weight: 700; stroke: none; }
 .node.shiprow .box, .node.shipcol .box { fill: transparent; stroke: none; filter: none; }
 .node.shiprow:hover .box, .node.shipcol:hover .box, .node.shiprow.self .box, .node.shipcol.self .box, .node.shiprow.selected .box, .node.shipcol.selected .box { fill: var(--chrome); stroke: none; }
@@ -236,6 +239,7 @@ svg.hl .edge.quiet:not(.hl) { opacity: 0; }
 #legend .gap { width: 1px; height: 14px; background: var(--line); flex: none; }
 #legend .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warm); flex: none; }
 #legend .q { width: 13px; height: 13px; border-radius: 50%; background: var(--warm); color: #fff; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+#legend .quality-swatch { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); flex: none; }
 /* ---------- panel */
 #panel { width: 350px; flex: none; background: var(--surface); border-left: 1px solid var(--line); overflow: auto; padding: 16px 18px 40px; }
 #panel h2 { margin: 2px 0 2px; font-size: 16px; line-height: 1.3; word-break: break-word; }
@@ -287,22 +291,16 @@ svg.hl .edge.quiet:not(.hl) { opacity: 0; }
 #panel .edgehead { display: flex; align-items: center; gap: 8px; font-weight: 600; flex-wrap: wrap; }
 #panel .edgehead .arrow { color: var(--faint); }
 #panel .conf { color: var(--muted); font-size: 12px; }
-#panel .health { margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
-#panel .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 8px 0 10px; }
-#panel .check { background: var(--bg); border-radius: 6px; padding: 5px 8px; font-size: 11.5px; display: flex; justify-content: space-between; gap: 6px; }
-#panel .check b { font-weight: 600; }
-#panel .check .n { color: var(--faint); }
-#panel .check .n.bad { color: var(--bad); font-weight: 650; }
-#panel .finding { padding: 8px 9px; border-radius: 6px; border: 1px solid var(--line); margin-bottom: 6px; cursor: pointer; transition: border-color .15s; }
-#panel .finding:hover, #panel .finding.active { border-color: var(--warm); }
-#panel .finding.active { background: color-mix(in srgb, var(--warm) 7%, var(--surface)); }
-#panel .finding .head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-#panel .finding .head b { font-size: 12px; }
-#panel .finding .verdict { margin-left: auto; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; color: #fff; background: var(--bad); text-transform: uppercase; letter-spacing: .03em; }
-#panel .finding .verdict.ok { background: var(--ok); }
-#panel .finding .nodes { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; align-items: center; }
-#panel .finding .meaning { color: var(--muted); font-size: 12px; margin-top: 5px; }
-#panel .finding .ev { font-family: var(--mono); font-size: 10.5px; color: var(--faint); margin-top: 3px; word-break: break-all; }
+#panel .quality-group { margin-top: 18px; }
+#panel .quality-group h3 { display: flex; justify-content: space-between; gap: 8px; }
+#panel .quality-group h3 span { color: var(--bad); }
+#panel .finding { padding: 11px; border-radius: 8px; border: 1px solid var(--line); border-left: 3px solid var(--bad); margin: 8px 0; }
+#panel .finding h4 { font-size: 13px; margin: 0 0 5px; line-height: 1.35; }
+#panel .finding .nodes { display: flex; gap: 6px; flex-wrap: wrap; margin: 7px 0; align-items: center; }
+#panel .finding .meaning { color: var(--muted); font-size: 12px; }
+#panel .finding .detail-label { margin: 9px 0 3px; color: var(--faint); font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; }
+#panel .finding .ev { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin: 3px 0; word-break: break-all; }
+#panel .finding .show-map { width: 100%; justify-content: center; margin-top: 10px; }
 
 #help { position: absolute; inset: 0; background: rgba(0, 0, 0, .35); display: flex; align-items: center; justify-content: center; z-index: 20; }
 #help[hidden] { display: none; }
@@ -321,6 +319,14 @@ svg.hl .edge.quiet:not(.hl) { opacity: 0; }
 #help .shape.solid rect { fill: var(--muted); fill-opacity: .55; }
 #help .foot { grid-column: 1 / 3; color: var(--faint); font-size: 11.5px; margin-top: 8px; }
 @media (max-width: 900px) { #panel { width: 280px; } #search { width: 200px; } }
+@media (max-width: 1200px) {
+  #bar { gap: 5px; padding: 0 7px; overflow-x: auto; }
+  #lens button { padding: 3px 5px; font-size: 11px; }
+  #lens .kbd { display: none; }
+  #search { width: 145px; }
+  .actions { gap: 3px; }
+  .actions .btn:not(.icon) { padding: 0 6px; font-size: 11px; }
+}
 </style>
 </head>
 <body>
@@ -338,7 +344,9 @@ svg.hl .edge.quiet:not(.hl) { opacity: 0; }
     <ul id="results" hidden role="listbox"></ul>
   </div>
   <div class="actions">
-    <button class="btn" id="health-btn" title="Health checks (h)">Health</button>
+    <button class="btn" id="health-btn" title="Code quality (h)" aria-controls="panel">Code quality</button>
+    <button class="btn pref" id="marks-btn" title="Show or hide quality marks" aria-pressed="true">Marks on</button>
+    <button class="btn pref" id="tests-btn" title="Show or hide tests" aria-pressed="false">Tests off</button>
     <button class="btn icon" id="theme-btn" title="Toggle theme (t)">◐</button>
     <button class="btn icon" id="help-btn" title="How to read this map (?)">?</button>
   </div>
@@ -385,7 +393,8 @@ svg.hl .edge.quiet:not(.hl) { opacity: 0; }
         <tr><td><span class="kbd">Enter</span></td><td>open the selected node (or click it again)</td></tr>
         <tr><td><span class="kbd">Esc</span></td><td>close, clear the highlight or selection, then go up a level</td></tr>
         <tr><td><span class="kbd">← → ↑ ↓</span></td><td>move the selection among siblings</td></tr>
-        <tr><td><span class="kbd">h</span></td><td>health checks</td></tr>
+        <tr><td><span class="kbd">h</span></td><td>code quality findings</td></tr>
+        <tr><td>Marks · Tests</td><td>show quality marks or test code</td></tr>
         <tr><td><span class="kbd">t</span></td><td>light / dark theme</td></tr>
         <tr><td><span class="kbd">0</span> <span class="kbd">+</span> <span class="kbd">−</span></td><td>fit to screen · zoom</td></tr>
         <tr><td>scroll · drag</td><td>pan (Shift + scroll pans sideways)</td></tr>
@@ -406,7 +415,7 @@ const RUNTIMES = ['client', 'shared', 'server', 'cli', 'build'];
 const ROLES = ['surface', 'adapter', 'core', 'kernel'];
 const NATURES = ['product', 'tooling', 'test', 'content', 'docs', 'experiment'];
 const SUPPORT = NATURES.slice(1);
-const CHECKS = ['cycle', 'core-uses-adapter', 'crosses-the-wire', 'product-uses-support'];
+const CHECKS = ['mixed-responsibility', 'cycle', 'core-uses-adapter', 'crosses-the-wire', 'product-uses-support', 'upward-dependency', 'stability-inversion', 'hub-coupling'];
 const EXT_KINDS = ['datastore', 'service', 'runtime', 'devtool'];
 const FLOW_KINDS = ['network', 'file', 'process'];
 const RT_DESC = { client: 'a page or desktop app a person uses', shared: 'a library compiled into more than one runtime', server: 'a long-lived service process', cli: 'a command run by a person or a script', build: 'runs only while building or developing', none: 'not executable: content or documentation' };
@@ -415,7 +424,7 @@ const NATURE_DESC = { product: 'runs as part of what users use, including the au
 const EXT_DESC = { datastore: 'a database or store the product keeps state in', service: 'a running service the product talks to over the network', runtime: 'a device or engine the product runs inside: browser, desktop wrapper, embedded VM', devtool: 'used only while building, testing, or authoring: never at run time' };
 const FLOW_DESC = { network: 'talks over the network: sockets, HTTP, a message bus', file: 'hands over files: one side writes what the other reads', process: 'starts or hosts the other as a process' };
 // the headline a person reads for each check; the check id stays in tooltips so it can be looked up
-const CHECK_LABEL = { cycle: 'Import each other', 'core-uses-adapter': 'Rules tied to an engine', 'crosses-the-wire': 'Client and server share code', 'product-uses-support': 'Shipped code uses tooling' };
+const CHECK_LABEL = { 'mixed-responsibility': 'More than one job', cycle: 'Import each other', 'core-uses-adapter': 'Rules tied to an engine', 'crosses-the-wire': 'Client and server share code', 'product-uses-support': 'Shipped code uses tooling', 'upward-dependency': 'Depends on a higher layer', 'stability-inversion': 'Widely used code depends on less stable code', 'hub-coupling': 'A widely used part needs review' };
 const ROLE_GLOSS = { surface: 'what people touch', adapter: 'I/O and engines', core: 'the rules', kernel: 'shared types', none: '' };
 // each lens answers one question over the same components, colours, and selection
 const LENSES = [
@@ -458,7 +467,7 @@ function loadMap() {
 function buildModel(map) {
   const M = { map, areas: [], byArea: new Map(), byComp: new Map(), byMod: new Map(), compsOf: new Map(), modsOf: new Map(),
     edgesOf: { area: Array.isArray(map.edges.areas) ? map.edges.areas : [], component: map.edges.components, module: map.edges.modules },
-    health: Array.isArray(map.health) ? map.health : [], unresolved: new Map(), cycle: new Set(), cycleMod: new Set(),
+    health: Array.isArray(map.health) ? map.health : [], unresolved: new Map(),
     system: map.system || { id: 'system', name: 'System', purpose: '', actors: [], externals: [] }, flows: Array.isArray(map.flows) ? map.flows : [] };
   M.actors = M.system.actors || []; M.externals = M.system.externals || [];
   const SPECIAL = { 'build-verify': { name: 'Build & verify', definition: 'Tooling, tests, content packages, docs, and experiments that support the product without shipping in it.' }, unsorted: { name: 'Not placed yet', definition: 'Parts the map could not place in an area yet; each card says what was left open.' } };
@@ -479,17 +488,15 @@ function buildModel(map) {
   for (const k of ['build-verify', 'unsorted']) if (stray[k].length) { synth(k, stray[k]); M.compsOf.set(k, stray[k]); }
   for (const list of M.compsOf.values()) list.sort((a, b) => (a.id < b.id ? -1 : 1));
   for (const m of map.modules) { M.byMod.set(m.id, m); if (M.modsOf.has(m.component)) M.modsOf.get(m.component).push(m); }
-  for (const f of M.health) if (f.check === 'cycle') for (const n of f.nodes || []) ((f.level || 'components') === 'modules' ? M.cycleMod : M.cycle).add(n);
   M.findings = M.health.filter((f) => !f.accepted);
-  // the health entry behind an edge: cycles match either direction, the others match from → to
-  M.healthOf = (level, a, b, check) => M.health.find((f) => (f.level || 'components') === level && (!check || f.check === check) && f.nodes && (f.check === 'cycle' ? f.nodes.includes(a) && f.nodes.includes(b) : f.nodes[0] === a && f.nodes[1] === b)) || null;
-  M.edgeFinding = (level, e) => { if (e.test_only) return null; const f = e.finding ? M.healthOf(level, e.from, e.to, e.finding) : M.healthOf(level, e.from, e.to, 'cycle'); if (f) return f; return e.finding ? { check: e.finding, accepted: !!e.accepted, confidence: null, meaning: '', nodes: [e.from, e.to], level } : null; };
+  // A marked edge always traces back to an embedded health result. Node-only results are marked on their node.
+  M.healthOnEdge = (level, a, b) => M.health.filter((f) => (f.level || 'components') === level && (f.nodes || []).length > 1 && (f.check === 'cycle' ? f.nodes.includes(a) && f.nodes.includes(b) : f.nodes[0] === a && f.nodes[1] === b));
+  M.edgeFinding = (level, e) => { if (e.test_only) return null; const fs = M.healthOnEdge(level, e.from, e.to); return fs.find((f) => !f.accepted) || fs[0] || null; };
   M.testOf = (e) => ({ testCount: e.test_count || 0, testOnly: !!e.test_only });
   M.importsLabel = (count, testCount, testOnly) => testOnly ? `test-only · ${testCount} import${testCount === 1 ? '' : 's'} from tests` : `${count} import${count === 1 ? '' : 's'}${testCount ? ` · ${testCount} from tests` : ''}`;
   M.areaOf = (c) => c._area || c.area;
   M.hueOf = (c) => { const a = M.byArea.get(M.areaOf(c)); return a ? a.hue : null; };
   M.locOf = (c) => (c.metrics && c.metrics.loc) || 0;
-  M.areaLoc = (a) => (M.compsOf.get(a.id) || []).reduce((s, c) => s + M.locOf(c), 0);
   M.rtOf = (c) => (RUNTIMES.includes(c.runtime) ? c.runtime : 'none');
   M.roleOf = (c) => (M.isProduct(c) && ROLES.includes(c.role) ? c.role : 'none');
   // runnable: the pipeline's flag; for older maps, a surface that runs as its own page, service, or command
@@ -694,20 +701,20 @@ function stackOrder(rs, intra) {
 function layoutSystem(M) {
   const PW = 172, PH = 38, RH = 50, XW = 156, XH = 52, GX = 12, GY = 10, HEAD = 34, PAD = 12, CHIPH = 22, AGAP = 48, PGAP = 60, XGAP = 150, BVGAP = 30, TARGET_W = 1290;
   let RW = 190, COLGAP = 100;
-  const regions = [], nodes = [], edges = [], nodeMap = new Map(), colOf = new Map();
-  const runnableArea = (id) => { const c = M.byComp.get(id); return c && M.isRunnable(c) ? M.areaOf(c) : null; };
-  const pic = M.areas.filter((a) => a.id !== 'build-verify' && a.id !== 'unsorted' && (M.compsOf.get(a.id) || []).length), picIds = new Set(pic.map((a) => a.id));
+  const regions = [], nodes = [], edges = [], nodeMap = new Map(), colOf = new Map(), shownFlows = visibleFlows(), shownFlowSet = new Set(shownFlows);
+  const runnableArea = (id) => { const c = M.byComp.get(id); return visibleComp(c) && M.isRunnable(c) ? M.areaOf(c) : null; };
+  const pic = M.areas.filter((a) => a.id !== 'build-verify' && a.id !== 'unsorted' && visibleCompsOf(a.id).length), picIds = new Set(pic.map((a) => a.id));
   // columns are the topological order of flows aggregated by area; areas of equal rank stack top to bottom by id
-  const aEdges = []; for (const f of M.flows) { const fa = runnableArea(f.from), fb = runnableArea(f.to); if (fa && fb && fa !== fb && picIds.has(fa) && picIds.has(fb)) aEdges.push({ from: fa, to: fb }); }
+  const aEdges = []; for (const f of shownFlows) { const fa = runnableArea(f.from), fb = runnableArea(f.to); if (fa && fb && fa !== fb && picIds.has(fa) && picIds.has(fb)) aEdges.push({ from: fa, to: fb }); }
   const rank = rankByLongestPath(pic.map((a) => a.id), aEdges), depth = pic.length ? Math.max(...rank.values()) + 1 : 0;
   const cols = Array.from({ length: depth }, () => []); for (const a of pic) cols[rank.get(a.id)].push(a); cols.forEach((c) => c.sort(byId));
   const info = new Map(), hasExt = M.externals.some((x) => M.extKind(x) !== 'devtool');
   const measure = () => {
     for (const a of pic) {
-      const rs = M.runnablesOf(a.id), ids = rs.map((c) => c.id), intra = M.flows.filter((f) => ids.includes(f.from) && ids.includes(f.to)), rr = rankByLongestPath(ids, intra);
+      const rs = M.runnablesOf(a.id).filter(visibleComp), ids = rs.map((c) => c.id), intra = shownFlows.filter((f) => ids.includes(f.from) && ids.includes(f.to)), rr = rankByLongestPath(ids, intra);
       rs.sort((p, q) => (rr.get(p.id) - rr.get(q.id)) || byId(p, q));
       stackOrder(rs, intra);
-      const nc = rs.length > 4 ? 2 : 1, nr = Math.ceil(rs.length / nc), libs = M.libsOf(a.id).length, sup = (M.compsOf.get(a.id) || []).length - M.areaCounts(a).product, gy = intra.length ? 36 : GY;
+      const nc = rs.length > 4 ? 2 : 1, nr = Math.ceil(rs.length / nc), libs = M.libsOf(a.id).filter(visibleComp).length, sup = visibleAreaCounts(a).supporting, gy = intra.length ? 36 : GY;
       const chip = libs || sup ? [libs ? `+${libs} librar${libs === 1 ? 'y' : 'ies'}` : null, sup ? `${sup} supporting` : null].filter(Boolean).join(' · ') : null;
       const w = Math.max(PAD * 2 + nc * RW + (nc - 1) * GX, Math.min(300, a.name.length * 8.5 + 40)), h = HEAD + (nr ? nr * RH + (nr - 1) * gy : 0) + (chip ? GY + CHIPH : 0) + PAD;
       info.set(a.id, { rs, nc, nr, libs, sup, chip, w, h, gy });
@@ -728,7 +735,7 @@ function layoutSystem(M) {
   cols.forEach((col, i) => {
     let y = (H - colH[i]) / 2;
     for (const a of col) {
-      const I = info.get(a.id), id = 'area:' + a.id, cnt = M.areaCounts(a); I.w = colW[i]; const rx = colX[i];
+      const I = info.get(a.id), id = 'area:' + a.id, cnt = visibleAreaCounts(a); I.w = colW[i]; const rx = colX[i];
       const region = { id, kind: 'area', label: a.name, sub: `${I.rs.length} runnable${I.rs.length === 1 ? '' : 's'} · ${cnt.product} product`, hue: a.hue, x: rx + I.w / 2, y: y + I.h / 2, w: I.w, h: I.h, data: a, col: i, title: a.definition || '' };
       regions.push(region); nodeMap.set(id, region); colOf.set(id, i);
       I.rs.forEach((c, k) => { const n = compNode(M, c, { w: RW, h: RH }); n.x = rx + (I.w - (I.nc * RW + (I.nc - 1) * GX)) / 2 + (k % I.nc) * (RW + GX) + RW / 2; n.y = y + HEAD + Math.floor(k / I.nc) * (RH + I.gy) + RH / 2; n.area = a.id; n.col = i; nodes.push(n); nodeMap.set(n.id, n); colOf.set(n.id, i); });
@@ -738,13 +745,13 @@ function layoutSystem(M) {
   });
   // Unsorted is a small dashed chip under the areas, never a region competing with them
   const unsorted = M.byArea.get('unsorted'); let unsortedH = 0;
-  if (unsorted && (M.compsOf.get('unsorted') || []).length) {
-    const cs = M.compsOf.get('unsorted'), rs = cs.filter(M.isRunnable), libs = cs.length - rs.length;
+  if (unsorted && visibleCompsOf('unsorted').length) {
+    const cs = visibleCompsOf('unsorted');
     const label = `Not placed yet · ${cs.length} part${cs.length === 1 ? '' : 's'}`;
     const w = label.length * 6.6 + 40, n = { id: 'area:unsorted', kind: 'area', chip: true, label, hue: null, x: X0 + w / 2, y: H + 16 + 12, w, h: 24, data: unsorted, col: 0, title: unsorted.definition || '', flag: { kind: 'unresolved', question: 'area' } };
     regions.push(n); nodeMap.set(n.id, n); unsortedH = 40;
   }
-  const inUnsorted = (id) => { const c = M.byComp.get(id); return c && M.areaOf(c) === 'unsorted' && nodeMap.has('area:unsorted') ? 'area:unsorted' : null; };
+  const inUnsorted = (id) => { const c = M.byComp.get(id); return visibleComp(c) && M.areaOf(c) === 'unsorted' && nodeMap.has('area:unsorted') ? 'area:unsorted' : null; };
   // people on the left, ordered by where their arrows land
   const target = (id) => (nodeMap.has(id) && nodeMap.get(id).kind === 'component' ? id : nodeMap.has('area:' + id) ? 'area:' + id : inUnsorted(id));
   const people = M.actors.map((a) => { const ts = [...new Set((a.uses || []).map(target).filter(Boolean))]; const ys = ts.map((t) => nodeMap.get(t).y); return { a, ts, bary: ys.length ? ys.reduce((s, v) => s + v, 0) / ys.length : Infinity }; });
@@ -752,13 +759,13 @@ function layoutSystem(M) {
   const pstep = PH + 20, py0 = H / 2 - ((people.length - 1) * pstep) / 2;
   people.forEach((p, i) => {
     const n = { id: 'actor:' + p.a.id, kind: 'actor', label: p.a.name, x: PW / 2, y: py0 + i * pstep, w: PW, h: PH, data: p.a, title: p.a.role || '', col: -1 }; nodes.push(n); nodeMap.set(n.id, n);
-    for (const t of p.ts) if (!M.flows.some((f) => (f.from === p.a.id && f.to === t) || (f.to === p.a.id && f.from === t))) edges.push({ id: `use:${p.a.id}>${t}`, from: n.id, to: t, kind: 'use', mode: 'h', data: { reason: p.a.role } });
+    for (const t of p.ts) if (!shownFlows.some((f) => (f.from === p.a.id && f.to === t) || (f.to === p.a.id && f.from === t))) edges.push({ id: `use:${p.a.id}>${t}`, from: n.id, to: t, kind: 'use', mode: 'h', data: { reason: p.a.role } });
   });
   // externals on the right, beside the runnables that use them; devtools go to Build & verify
   const XX = areasRight + XGAP + XW / 2;
-  const flowBetween = (a, b) => M.flows.some((f) => (f.from === a && f.to === b) || (f.from === b && f.to === a));
+  const flowBetween = (a, b) => shownFlows.some((f) => (f.from === a && f.to === b) || (f.from === b && f.to === a));
   const badges = [], hostsOf = new Map();
-  const asBadge = (x) => M.extKind(x) === 'runtime' && !M.flows.some((f) => f.from === x.id || f.to === x.id) && M.anchorsOf(x).some((id) => nodeMap.has(id) && nodeMap.get(id).kind === 'component');
+  const asBadge = (x) => M.extKind(x) === 'runtime' && !shownFlows.some((f) => f.from === x.id || f.to === x.id) && M.anchorsOf(x).some((id) => nodeMap.has(id) && nodeMap.get(id).kind === 'component');
   for (const x of M.externals.filter(asBadge)) {
     const short = trunc(x.name.replace(/\s*\(.*$/, ''), 84, 5.6);
     M.anchorsOf(x).filter((id) => nodeMap.has(id) && nodeMap.get(id).kind === 'component').forEach((id, i) => {
@@ -791,6 +798,7 @@ function layoutSystem(M) {
   // flows: the arrows of the picture; a person's flow carries no pill (its label lives in the card and tooltip)
   const endpoint = (id) => (nodeMap.has(id) && nodeMap.get(id).kind === 'component' ? id : nodeMap.has('actor:' + id) ? 'actor:' + id : nodeMap.has('external:' + id) && !nodeMap.get('external:' + id).badge ? 'external:' + id : inUnsorted(id));
   M.flows.forEach((f, i) => {
+    if (!shownFlowSet.has(f)) return;
     const a = endpoint(f.from), b = endpoint(f.to); if (!a || !b) { console.warn('codemap: flow endpoint not drawn', f); return; }
     const A = nodeMap.get(a), B = nodeMap.get(b); let mode = 'h';
     if (A.area && A.area === B.area) mode = Math.abs(A.y - B.y) < 1 ? 'h' : Math.abs(A.x - B.x) < 1 ? (A.y < B.y ? 'down' : 'up') : 'generic';
@@ -802,16 +810,16 @@ function layoutSystem(M) {
   const areaEdge = (a, b) => M.edgesOf.area.find((e) => e.from === a && e.to === b) || null;
   for (const n of nodes.filter((z) => z.kind === 'component')) {
     const agg = new Map();
-    for (const e of M.edgesOf.component) { if (e.from !== n.id || !(e.count > 0)) continue; const oc = M.byComp.get(e.to); if (!oc) continue; const oa = M.areaOf(oc); if (oa !== n.area && (picIds.has(oa) || oa === 'build-verify')) agg.set(oa, (agg.get(oa) || 0) + e.count); }
+    for (const e of M.edgesOf.component) { if (e.from !== n.id || !(e.count > 0) || !visibleEdge(e, 'components')) continue; const oc = M.byComp.get(e.to), oa = M.areaOf(oc); if (oa !== n.area && (picIds.has(oa) || (oa === 'build-verify' && visibleCompsOf(oa).length))) agg.set(oa, (agg.get(oa) || 0) + e.count); }
     for (const [oa, count] of [...agg].sort()) edges.push({ id: `imp:${n.id}>${oa}`, from: n.id, to: 'area:' + oa, kind: 'imp', count, mode: 'generic', quiet: true, label: `${count} import${count === 1 ? '' : 's'}`, data: areaEdge(n.area, oa) || { count } });
   }
   // Build & verify: supporting components as chips grouped by nature, devtool externals as gray chips
   const bv = M.byArea.get('build-verify'); let bvLayout = null;
   const right = extNodes.length ? XX + XW / 2 : areasRight;
-  if (bv) {
+  if (bv && (visibleCompsOf(bv.id).length || M.externals.some((x) => M.extKind(x) === 'devtool'))) {
     const bx = X0, bw = Math.max(right - X0, 480), by = H + BVGAP + unsortedH, CH = 24, inner = bw - PAD * 2; let cx = bx + PAD, cy = by + HEAD, rows = 1;
     const groups = [], chips = [];
-    const groupItems = SUPPORT.map((nat) => [nat, (M.compsOf.get(bv.id) || []).filter((c) => M.natureOf(c) === nat).map((c) => ({ comp: c }))]);
+    const groupItems = SUPPORT.map((nat) => [nat, visibleCompsOf(bv.id).filter((c) => M.natureOf(c) === nat).map((c) => ({ comp: c }))]);
     groupItems.push(['devtools', M.externals.filter((x) => M.extKind(x) === 'devtool').map((x) => ({ ext: x }))]);
     for (const [label, items] of groupItems) {
       if (!items.length) continue;
@@ -826,7 +834,7 @@ function layoutSystem(M) {
       });
       cx += 16;
     }
-    const bh = cy + CH + PAD - by, region = { id: 'area:' + bv.id, kind: 'area', bv: true, label: bv.name, sub: `${(M.compsOf.get(bv.id) || []).length} supporting components`, hue: null, x: bx + bw / 2, y: by + bh / 2, w: bw, h: bh, data: bv, title: bv.definition || '' };
+    const bh = cy + CH + PAD - by, region = { id: 'area:' + bv.id, kind: 'area', bv: true, label: bv.name, sub: `${visibleCompsOf(bv.id).length} supporting components`, hue: null, x: bx + bw / 2, y: by + bh / 2, w: bw, h: bh, data: bv, title: bv.definition || '' };
     regions.push(region); nodeMap.set(region.id, region); nodes.push(...chips); bvLayout = { groups, rows };
   }
   // paths: vertical flows fan and detour inside their own region; everything else is a curve between facing edges
@@ -863,8 +871,8 @@ function layoutSystem(M) {
 // areaId null = every product component (the lens); an area = its components plus ghosts of the components they touch (L1)
 function layoutMatrix(M, areaId) {
   const a = areaId ? M.byArea.get(areaId) : null; if (areaId && !a) return null;
-  const own = areaId ? M.compsOf.get(areaId) : M.map.components.filter(M.isProduct), ownIds = new Set(own.map((c) => c.id));
-  const E = M.edgesOf.component.filter((e) => ownIds.has(e.from) || ownIds.has(e.to));
+  const own = areaId ? visibleCompsOf(areaId) : M.map.components.filter((c) => M.isProduct(c) && visibleComp(c)), ownIds = new Set(own.map((c) => c.id));
+  const E = M.edgesOf.component.filter((e) => visibleEdge(e, 'components') && (ownIds.has(e.from) || ownIds.has(e.to)));
   const whole = !areaId, NW = whole ? 152 : 164, NH = whole ? 46 : 50, GW = 136, GH = 38;
   const nodes = own.map((c) => compNode(M, c, { w: NW, h: NH }));
   if (areaId) {
@@ -921,9 +929,9 @@ function layoutMatrix(M, areaId) {
 
 function layoutModules(M, compId) {
   const c = M.byComp.get(compId); if (!c) return null;
-  const mods = M.modsOf.get(compId), ids = new Set(mods.map((m) => m.id)), hue = M.hueOf(c), rt = M.rtOf(c), nature = M.natureOf(c);
-  const E = M.edgesOf.module.filter((e) => ids.has(e.from) || ids.has(e.to));
-  const nodes = mods.map((m) => { const s = sizeFor((m.metrics && m.metrics.loc) || 0, { w: 150, h: 50 }); const label = m.name || m.id.split('/').pop(); s.w = Math.max(s.w, Math.min(320, label.length * 7.6 + 44)); const nf = (m.files || []).length; return { id: m.id, kind: 'module', label, sub: `${nf} file${nf === 1 ? '' : 's'} · ${fmtLoc((m.metrics && m.metrics.loc) || 0)} lines`, hue, rt, nature: m.test ? 'test' : nature, test: !!m.test, x: 0, y: 0, w: s.w, h: s.h, data: m, title: m.responsibility_source !== 'generated' ? m.responsibility || '' : '' }; });
+  const mods = visibleModsOf(compId), ids = new Set(mods.map((m) => m.id)), hue = M.hueOf(c), rt = M.rtOf(c), nature = M.natureOf(c);
+  const E = M.edgesOf.module.filter((e) => visibleEdge(e, 'modules') && (ids.has(e.from) || ids.has(e.to)));
+  const nodes = mods.map((m) => { const s = sizeFor((m.metrics && m.metrics.loc) || 0, { w: 150, h: 50 }); const label = m.name || m.id.split('/').pop(); s.w = Math.max(s.w, Math.min(320, label.length * 7.6 + 44)); const nf = (m.files || []).filter((f) => visibleFile(f, m)).length; return { id: m.id, kind: 'module', label, sub: `${nf} file${nf === 1 ? '' : 's'} · ${fmtLoc((m.metrics && m.metrics.loc) || 0)} lines`, hue, rt, nature: m.test ? 'test' : nature, test: !!m.test, x: 0, y: 0, w: s.w, h: s.h, data: m, title: m.responsibility_source !== 'generated' ? m.responsibility || '' : '' }; });
   const gOut = new Map(), gIn = new Map(), Ein = [];
   for (const e of E) {
     const t = M.testOf(e);
@@ -948,7 +956,7 @@ function layoutModules(M, compId) {
   const all = [...nodes, ...outs, ...ins], byIdMap = new Map(all.map((n) => [n.id, n]));
   const merged = new Map();
   for (const e of Ein) { const k = e.from + '>' + e.to, m = merged.get(k); if (m) { m.count += e.count; m.testCount += e.testCount; m.testOnly = m.testOnly && e.testOnly; m.data = { from: e.data.from, to: e.data.to, count: m.count, test_count: m.testCount, test_only: m.testOnly, examples: [...(m.data.examples || []), ...(e.data.examples || [])].slice(0, 4) }; } else merged.set(k, { ...e }); }
-  const edges = [...merged.values()].map((e) => { const p = byIdMap.get(e.from), q = byIdMap.get(e.to); const m = e.ghost ? 'generic' : p.band === q.band ? 'side' : p.band < q.band ? 'down' : 'up'; const f = !e.ghost && !e.testOnly ? M.healthOf('modules', e.from, e.to, 'cycle') : null; return { id: e.from + '>' + e.to, from: e.from, to: e.to, count: e.count, testCount: e.testCount, testOnly: e.testOnly, finding: f && !f.accepted ? 'cycle' : null, health: f, mode: m, data: e.data }; });
+  const edges = [...merged.values()].map((e) => { const p = byIdMap.get(e.from), q = byIdMap.get(e.to); const m = e.ghost ? 'generic' : p.band === q.band ? 'side' : p.band < q.band ? 'down' : 'up'; const f = !e.ghost && !e.testOnly ? M.edgeFinding('modules', e) : null; return { id: e.from + '>' + e.to, from: e.from, to: e.to, count: e.count, testCount: e.testCount, testOnly: e.testOnly, finding: f && !f.accepted ? f.check : null, health: f, mode: m, data: e.data }; });
   const dense = edges.length > 2.5 * nodes.length;
   if (dense) for (const e of edges) if (!e.finding) e.quiet = true;
   routeVertical(edges, byIdMap);
@@ -999,8 +1007,8 @@ function squarify(items, r) {
 // "Size & activity": every component as a tile sized by its lines of code, grouped by area; colour is how often it changed recently
 function layoutSize(M) {
   const W = 1400, H = 840, HEAD = 24, PAD = 4, nodes = [], regions = [];
-  const areas = M.areas.map((a) => ({ a, comps: (M.compsOf.get(a.id) || []).filter((c) => M.locOf(c) > 0) })).filter((x) => x.comps.length).map((x) => ({ ...x, v: x.comps.reduce((s, c) => s + M.locOf(c), 0), id: x.a.id })).sort((p, q) => (q.v - p.v) || byId(p, q));
-  const changed = [...new Set(M.map.components.map(M.changesOf).filter((v) => v > 0))].sort((a, b) => a - b);
+  const areas = M.areas.map((a) => ({ a, comps: visibleCompsOf(a.id).filter((c) => M.locOf(c) > 0) })).filter((x) => x.comps.length).map((x) => ({ ...x, v: x.comps.reduce((s, c) => s + M.locOf(c), 0), id: x.a.id })).sort((p, q) => (q.v - p.v) || byId(p, q));
+  const changed = [...new Set(M.map.components.filter(visibleComp).map(M.changesOf).filter((v) => v > 0))].sort((a, b) => a - b);
   const heatOf = (v) => (v > 0 ? (changed.length > 1 ? changed.indexOf(v) / (changed.length - 1) : 1) : 0);
   for (const box of squarify(areas, { x: 0, y: 0, w: W, h: H })) {
     const a = box.item.a, inner = { x: box.x + PAD, y: box.y + HEAD, w: Math.max(1, box.w - PAD * 2), h: Math.max(1, box.h - HEAD - PAD) };
@@ -1014,9 +1022,26 @@ function layoutSize(M) {
   return { level: 1, lens: 'size', nodes: [...regions, ...nodes], edges: [], bounds: { x: 0, y: 0, w: W, h: H }, title: 'Size & activity', frame: { kind: 'system', id: 'system' } };
 }
 
+/* ================================================================== visible map */
+function readPref(key, fallback) { try { const v = localStorage.getItem(key); return v === 'true' ? true : v === 'false' ? false : fallback; } catch (e) { return fallback; } }
+function writePref(key, value) { try { localStorage.setItem(key, String(value)); } catch (e) { /* private mode */ } }
+function visibleComp(c) { return !!c && (state.tests || M.natureOf(c) !== 'test'); }
+function visibleMod(m) { return !!m && visibleComp(M.byComp.get(m.component)) && (state.tests || !m.test); }
+function visibleFile(f, m) { return state.tests || !(f.test === true || (f.test == null && (m.test || /(^|\/)(?:tests?|__tests__)\/|(?:^|[._-])(?:test|spec)\.[^/]+$/i.test(f.path || '')))); }
+function visibleEdge(e, level) { return (state.tests || !e.test_only) && (level === 'modules' ? visibleMod(M.byMod.get(e.from)) && visibleMod(M.byMod.get(e.to)) : visibleComp(M.byComp.get(e.from)) && visibleComp(M.byComp.get(e.to))); }
+function visibleCompsOf(areaId) { return (M.compsOf.get(areaId) || []).filter(visibleComp); }
+function visibleModsOf(compId) { return (M.modsOf.get(compId) || []).filter(visibleMod); }
+function visibleFlows() { return M.flows.filter((f) => [f.from, f.to].every((id) => !M.byComp.has(id) || visibleComp(M.byComp.get(id)))); }
+function visibleAreaCounts(a) {
+  if (state.tests) return M.areaCounts(a);
+  const cs = visibleCompsOf(a.id), product = cs.filter(M.isProduct).length, runtimes = {};
+  for (const c of cs.filter(M.isProduct)) { const rt = M.rtOf(c); runtimes[rt] = (runtimes[rt] || 0) + 1; }
+  return { product, supporting: cs.length - product, runtimes };
+}
+
 /* ================================================================== state */
 const M = (() => { try { return buildModel(loadMap()); } catch (e) { console.error(e); banner(`This map file is incomplete, so it can't be shown. Ask your agent to rebuild the map. (${e.message || e})`); throw e; } })();
-const state = { route: null, layout: null, sel: null, hover: null, hl: null, health: false, view: { x: 0, y: 0, k: 1 }, pending: null, file: null };
+const state = { route: null, layout: null, sel: null, hover: null, hl: null, qualityPanel: false, qualityMarks: readPref('codemap.qualityMarks', true), tests: readPref('codemap.tests', false), view: { x: 0, y: 0, k: 1 }, pending: null, file: null };
 const tip = $('#tip'), svg = $('#canvas'), scene = $('#scene'), gBands = $('#bands'), gRegions = $('#regions'), gEdges = $('#edges'), gNodes = $('#nodes'), gLabels = $('#labels'), stage = $('#stage'), panel = $('#panel');
 const cache = new Map();
 function parseHash() {
@@ -1119,6 +1144,9 @@ function drawNode(n) {
     else g.append(sv('circle', { class: 'badge', cx: n.w - 2, cy: 2, r: 5 }));
     g.append(sv('title', {}, flagText(n.flag)));
   }
+  if (state.qualityMarks && (n.kind === 'component' || n.kind === 'module') && M.findings.some((f) => (f.level || 'components') === (n.kind === 'module' ? 'modules' : 'components') && (f.nodes || []).includes(n.id))) {
+    g.append(sv('circle', { class: 'quality-mark', cx: 3, cy: 3, r: 5 }));
+  }
   return g;
 }
 function draw(L) {
@@ -1157,7 +1185,7 @@ function draw(L) {
   for (const n of L.nodes) if (n.kind === 'area') gRegions.append(drawNode(n));
   const lines = new Map();
   for (const e of L.edges) {
-    const cls = ['edge', e.kind || '', e.fkind ? 'k-' + e.fkind : '', e.finding ? 'finding' : '', e.testOnly ? 'testonly' : '', e.quiet ? 'quiet' : ''].filter(Boolean).join(' ');
+    const cls = ['edge', e.kind || '', e.fkind ? 'k-' + e.fkind : '', state.qualityMarks && e.finding ? 'finding' : '', e.testOnly ? 'testonly' : '', e.quiet ? 'quiet' : ''].filter(Boolean).join(' ');
     const width = e.kind === 'flow' ? '1.6' : e.kind === 'use' ? '1.3' : e.kind === 'conn' ? '1.2' : e.kind === 'imp' ? '1' : e.testOnly ? '1' : edgeWidth(e.count).toFixed(2);
     const line = sv('path', { class: 'line', d: e.d, 'stroke-width': width }), g = sv('g', { class: cls, 'data-id': e.id }, sv('path', { class: 'hit', d: e.d }), line);
     gEdges.append(g); lines.set(e.id, { line, cls });
@@ -1234,9 +1262,9 @@ function applyFocus() {
 }
 function syncLabels() { for (const l of gLabels.children) { const e = edgeEl(l.dataset.edge); if (!e) continue; for (const c of ['out', 'in', 'selected', 'hl']) l.classList.toggle(c, e.classList.contains(c)); } }
 function highlight(f) {
-  if (!f) { state.hl = null; applyFocus(); if (state.health) renderPanel(); return; }
+  if (!f) { state.hl = null; applyFocus(); renderPanel(); return; }
   const nodes = new Set(f.nodes || []), edges = new Set(state.layout.edges.filter((e) => nodes.has(e.from) && nodes.has(e.to)).map((e) => e.id));
-  state.hl = { nodes, edges, finding: f }; applyFocus(); if (state.health) renderPanel();
+  state.hl = { nodes, edges, finding: f }; applyFocus(); renderPanel();
 }
 
 /* ================================================================== view (pan / zoom) */
@@ -1310,10 +1338,21 @@ function navigateTo(kind, id, extra) {
 }
 function routeForFinding(f) {
   if ((f.level || 'components') === 'modules') { const m = M.byMod.get((f.nodes || [])[0]); return m ? { level: 2, id: m.component } : null; }
-  const areas = new Set((f.nodes || []).map((id) => M.byComp.get(id)).filter(Boolean).map((c) => M.areaOf(c)));
-  return areas.size === 1 ? { level: 1, id: [...areas][0] } : { level: 1, lens: 'layers' };
+  const first = M.byComp.get((f.nodes || [])[0]); if (!first) return null;
+  const area = { level: 1, id: M.areaOf(first) }, drawn = new Set(layoutFor(area).nodes.map((n) => n.id));
+  return (f.nodes || []).every((id) => drawn.has(id)) ? area : { level: 1, lens: 'layers' };
 }
-function showFinding(f) { const r = routeForFinding(f); if (!r) return; state.health = true; go(r, { hl: f }); }
+function showFinding(f) {
+  if (!state.tests && (f.nodes || []).some((id) => (M.byComp.has(id) && !visibleComp(M.byComp.get(id))) || (M.byMod.has(id) && !visibleMod(M.byMod.get(id))))) {
+    state.tests = true; writePref('codemap.tests', true); cache.clear(); renderPrefButtons();
+  }
+  const r = routeForFinding(f); if (!r) return;
+  const L = layoutFor(r), ids = new Set(f.nodes || []), level = f.level || 'components';
+  const edge = L.edges.find((e) => ids.has(e.from) && ids.has(e.to) && M.healthOnEdge(level, e.from, e.to).includes(f));
+  const node = L.nodes.find((n) => ids.has(n.id));
+  state.qualityPanel = false; renderQualityButton();
+  go(r, { hl: f, selectEdge: edge && edge.id, select: !edge && node && node.id });
+}
 
 function render() {
   const route = parseHash(), L = layoutFor(route), p = state.pending; state.pending = null;
@@ -1331,7 +1370,7 @@ function render() {
     const to = p.backTo && nodeScreenRect(p.backTo); if (to) fly({ x: stageRect.w * 0.08, y: stageRect.h * 0.08, w: stageRect.w * 0.84, h: stageRect.h * 0.84 }, to, p.hue);
     scene.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' });
   } else { tweenView(target, prevLevel == null ? 0 : 220); if (prevLevel != null && (prevLevel !== route.level || (prevFrame && prevFrame.id !== L.frame.id) || prevLens !== L.lens)) scene.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease-out' }); }
-  renderCrumbs(); renderLegend(); syncHistory();
+  renderCrumbs(); renderLegend(); renderQualityButton(); syncHistory();
   if (p && p.select && L.nodes.some((n) => n.id === p.select)) select({ kind: 'node', id: p.select });
   else if (p && p.selectEdge && L.edges.some((e) => e.id === p.selectEdge)) select({ kind: 'edge', id: p.selectEdge });
   else select(null);
@@ -1377,16 +1416,17 @@ function renderLegend() {
   if (areas.length) { l1.append(lbl('colour · area', 'Every component keeps its area\'s colour on every screen')); for (const a of areas) l1.append(h('span', { class: 'row link', title: a.definition || '', onclick: () => go({ level: 1, id: a.id }, { dir: 'in' }) }, swatch(a.hue), a.name)); }
   const rts = RUNTIMES.filter((r) => ns.some((n) => n.rt === r && n.kind !== 'area'));
   if (rts.length && L.lens !== 'size') { l1.append(gap(), lbl('icon · runs on')); for (const r of rts) l1.append(row(RT_DESC[r], icon(r), r)); }
-  const flagged = ns.some((n) => n.flag), badge = () => { if (!flagged) return; l2.append(gap(), lbl('badge'), row('the classifier was 40–60% sure', h('span', { class: 'dot' }), 'unsure'), row('the classifier could not decide; see the card', h('span', { class: 'q' }, '?'), 'undecided')); };
+  const badge = () => { const unsure = ns.some((n) => n.flag && n.flag.kind === 'uncertain'), undecided = ns.some((n) => n.flag && n.flag.kind !== 'uncertain'); if (!unsure && !undecided) return; l2.append(gap(), lbl('badge')); if (unsure) l2.append(row('the classifier was 40–60% sure', h('span', { class: 'dot' }), 'unsure')); if (undecided) l2.append(row('the classifier could not decide; see the card', h('span', { class: 'q' }, '?'), 'undecided')); };
+  const qualityLegend = () => { if (!state.qualityMarks) return; const marks = ns.some((n) => (n.kind === 'component' || n.kind === 'module') && M.findings.some((f) => (f.level || 'components') === (n.kind === 'module' ? 'modules' : 'components') && (f.nodes || []).includes(n.id))); const arrows = es.some((e) => e.finding); if (!marks && !arrows) return; l2.append(gap(), lbl('red · worth a look')); if (marks) l2.append(row('a code quality finding involves this part', h('span', { class: 'quality-swatch' }), 'part')); if (arrows) l2.append(row('a code quality finding involves this import', edgeGlyph('var(--bad)', '5 3'), 'import')); };
   if (L.lens === 'ships' || L.lens === 'contracts') {
     const dot = (cls) => { const s2 = sv('svg', { class: 'shape', viewBox: '0 0 24 15' }); s2.append(sv('circle', { class: 'dot ' + cls, cx: 12, cy: 7.5, r: 5, style: '--h: 220' })); return s2; };
     l2.append(lbl('dot'), row('the runnable imports this library itself', dot('direct'), 'imports it'), row('it arrives through another library', dot('via'), 'through another library'));
-    badge(); return;
+    qualityLegend(); badge(); return;
   }
   if (L.lens === 'size') {
     if (M.hasActivity) { l2.append(lbl('shade · recent changes')); for (const t of [0, 0.35, 0.7, 1]) l2.append(h('span', { class: 'sw', style: `background: color-mix(in srgb, var(--warm) ${Math.round(4 + t * t * 80)}%, var(--surface))` })); l2.append(h('span', {}, 'quiet → busy')); }
     l2.append(gap(), lbl('size'), h('span', {}, 'lines of code'));
-    badge(); return;
+    qualityLegend(); badge(); return;
   }
   if (L.level === 0) {
     const kinds = [['person', 'person', 'someone who uses the system', ns.some((n) => n.kind === 'actor')], ['runnable', 'runs on its own', 'a part that starts as its own process, page, or command', ns.some((n) => n.runnable)], ['library', '+N libraries', 'the area\'s other product code; open the area to see it', ns.some((n) => n.kind === 'libs')], ['datastore', 'datastore', EXT_DESC.datastore, ns.some((n) => n.ext === 'datastore' && !n.chip)], ['service', 'service', EXT_DESC.service, ns.some((n) => n.ext === 'service' && !n.chip)], ['runtime', 'runs inside', EXT_DESC.runtime, ns.some((n) => n.ext === 'runtime')]].filter((k) => k[3]);
@@ -1394,15 +1434,14 @@ function renderLegend() {
     const fk = FLOW_KINDS.filter((k) => es.some((e) => e.kind === 'flow' && e.fkind === k));
     if (fk.length) l2.append(gap(), lbl('arrow · talks to', 'Flows come from the repository\'s docs: running things talking, not code importing code'), ...fk.map((k) => row(FLOW_DESC[k], edgeGlyph('var(--flow)', k === 'file' ? '5 3' : k === 'process' ? '1.5 3.5' : null), k === 'network' ? 'over the network' : k === 'file' ? 'through files' : 'starts or hosts')));
     if (es.some((e) => e.kind === 'imp')) l2.append(row('imports into another area; shown while you hover a runnable', edgeGlyph('var(--edge)', '2 3'), 'imports (on hover)'));
-    badge(); return;
+    qualityLegend(); badge(); return;
   }
   const kinds = [['runnable', 'runs on its own', (n) => n.runnable], ['product', 'library', (n) => !n.runnable && !n.support && n.nature === 'product' && n.kind === 'component'], ['product', 'module', (n) => n.kind === 'module' && !n.test], ['test', 'tests', (n) => n.nature === 'test'], ['tooling', 'tooling', (n) => n.nature === 'tooling'], ['content', 'content · docs', (n) => n.nature === 'content' || n.nature === 'docs'], ['experiment', 'experiment', (n) => n.nature === 'experiment']].filter((k) => ns.some(k[2]));
   l2.append(lbl('shape'), ...kinds.map(([k, label]) => row(k === 'runnable' ? 'starts as its own process, page, or command' : NATURE_DESC[k] || '', shapeGlyph(k), label)));
-  l2.append(gap(), lbl('arrow · imports'), row('production imports; thicker means more. Hover a node: blue is what it uses, magenta what uses it', edgeGlyph('var(--edge)'), 'imports'));
-  if (es.some((e) => e.testOnly)) l2.append(row('imports made only from tests', edgeGlyph('var(--edge)', '1.5 3.5'), 'only from tests'));
-  if (es.some((e) => e.finding)) l2.append(row('Health asks you to look at this; open Health for why', edgeGlyph('var(--bad)', '5 3'), 'worth a look'));
+  if (es.some((e) => !e.testOnly)) l2.append(gap(), lbl('arrow · imports'), row('production imports; thicker means more. Hover a node: blue is what it uses, magenta what uses it', edgeGlyph('var(--edge)'), 'imports'));
+  if (state.tests && es.some((e) => e.testOnly)) l2.append(row('imports made only from tests', edgeGlyph('var(--edge)', '1.5 3.5'), 'only from tests'));
   if (ns.some((n) => n.ghost)) l2.append(row('parts of other areas or components this one touches', h('span', { class: 'sw', style: 'background: var(--ghost-fill); border: 1px solid var(--line)' }), 'faded: elsewhere'));
-  badge();
+  qualityLegend(); badge();
 }
 function renderGrammar() {
   const ul = $('#grammar'); ul.replaceChildren();
@@ -1412,11 +1451,11 @@ function renderGrammar() {
   li('Colour is the area', 'on every screen, so a part keeps its colour wherever it appears. The legend at the bottom explains only what the current screen draws.');
   li('Arrows mean two different things.', 'On Purpose, dark arrows are running things talking (from the repository\'s docs). Everywhere else, gray arrows are code importing code.');
   li('Go deeper', 'by clicking a part to read its card, then clicking it again (or Enter) to open what is inside: an area opens its parts, a part opens its modules, a module lists its files.');
-  li('Badges mark doubt.', 'An amber dot means the classifier was unsure; a ? means it could not decide. Health lists what is worth a look, each with the imports behind it.');
+  li('Badges mark doubt.', 'An amber dot means the classifier was unsure; a ? means it could not decide. Code quality lists findings worth a look. Use Marks and Tests to control what the map draws.');
 }
 
 /* ================================================================== selection & panel */
-function select(sel) { state.sel = sel; applyFocus(); renderPanel(); }
+function select(sel) { state.sel = sel; if (sel && state.qualityPanel) { state.qualityPanel = false; renderQualityButton(); } applyFocus(); renderPanel(); }
 function siblings() { return state.layout.nodes.filter((n) => !n.ghost && n.kind !== 'area').slice().sort((a, b) => (a.y - b.y) || (a.x - b.x)); }
 function moveSelection(dx, dy) {
   const list = siblings(); if (!list.length) return;
@@ -1433,7 +1472,7 @@ function metrics(m) {
   return h('div', { class: 'metrics' }, keys.map(([k, l, t]) => h('div', { class: 'metric', title: t }, h('b', {}, k === 'loc' ? fmtLoc(m[k]) : String(m[k])), h('span', {}, l))), m.in_cycle ? h('div', { class: 'metric', title: 'part of a group that imports itself in a loop' }, h('b', { style: 'color: var(--bad)' }, '↻'), h('span', {}, 'in a loop')) : null);
 }
 function compItem(id, e, onEdge, countText) {
-  const c = M.byComp.get(id); if (!c) return null;
+  const c = M.byComp.get(id); if (!visibleComp(c) || (e && !visibleEdge(e, 'components'))) return null;
   const t = e ? M.testOf(e) : null, label = e ? M.importsLabel(e.count, t.testCount, t.testOnly) : '', f = e ? M.edgeFinding('components', e) : null, bad = f && !f.accepted;
   return h('li', { class: 'item', onclick: () => navigateOrSelect('component', id) }, swatch(M.hueOf(c)), h('span', { class: 'name' }, icon(M.rtOf(c)), c.name || c.id), e ? h('span', { class: 'count', title: label + ' · show this edge', onclick: (ev) => { ev.stopPropagation(); onEdge && onEdge(); } }, t.testOnly ? 'tests' : String(e.count)) : h('span', { class: 'count', title: M.isRunnable(c) ? 'runs as its own process or page' : M.isProduct(c) ? 'a library' : NATURE_DESC[M.natureOf(c)] }, countText || (M.isRunnable(c) ? M.runsAs(c) : M.isProduct(c) ? 'library' : M.natureOf(c))), e && e.reason ? h('span', { class: 'reason' + (bad ? ' bad' : ''), title: bad ? CHECK_LABEL[f.check] : null }, e.reason, t.testCount ? h('span', { class: 'conf' }, t.testOnly ? ` · test-only (${t.testCount})` : ` · ${t.testCount} from tests`) : null) : null);
 }
@@ -1462,19 +1501,21 @@ function usesOf(x) { return (x.uses || []).map((id) => (M.byComp.has(id) ? compI
 
 function renderPanel() {
   panel.replaceChildren();
+  if (state.qualityPanel) { panel.append(qualitySection()); panel.scrollTop = 0; return; }
   const L = state.layout, sel = state.sel, parts = [];
-  if (state.health) parts.push(healthSection());
   if (sel && sel.kind === 'edge') parts.push(edgeCard(L.edges.find((e) => e.id === sel.id)));
   else if (sel) { const n = L.nodes.find((x) => x.id === sel.id); parts.push(nodeCard(n)); }
   else parts.push(frameCard());
   panel.append(...parts.filter(Boolean));
+  panel.scrollTop = 0;
 }
 function frameCard() {
   const r = state.route;
   if (r.level === 0) return systemCard();
   if (r.level === 1 && !r.id) return lensCard(r.lens);
   if (r.level === 1) return areaCard(M.byArea.get(r.id));
-  return componentCard(M.byComp.get(r.id), null);
+  const c = M.byComp.get(r.id);
+  return visibleComp(c) ? componentCard(c, null) : h('div', {}, h('div', { class: 'kind' }, 'Tests'), h('h2', {}, 'Tests are hidden'), h('button', { class: 'btn open', onclick: toggleTests }, 'Show tests'));
 }
 function nodeCard(n) {
   if (!n) return null;
@@ -1499,13 +1540,13 @@ function builtLine() {
   return h('p', { class: 'why' }, [repo.branch && repo.sha ? `${repo.branch} @ ${repo.sha.slice(0, 8)}` : repo.sha ? repo.sha.slice(0, 8) : null, when].filter(Boolean).join(' · ') || '—', h('br'), 'Structure from the code; descriptions from the repository\'s docs; groupings decided by ', h('span', { title: `${meta.jev_model || 'Jev'}, instructions v${meta.instructions_version || '?'}` }, 'Jev'), '.');
 }
 function systemCard() {
-  const S = M.system, rc = M.runtimeCounts(), lead = S.summary || firstSentence(S.purpose), flows = M.flowsInOrder();
+  const S = M.system, rc = M.runtimeCounts(), lead = S.summary || firstSentence(S.purpose), shown = new Set(visibleFlows()), flows = M.flowsInOrder().filter((f) => shown.has(f));
   return h('div', {}, h('div', { class: 'kind' }, 'Start here'), h('h2', {}, S.name || 'System'), h('p', { class: 'lead' }, lead),
     h('div', { class: 'strip', style: 'margin-top: 4px' }, RUNTIMES.filter((r) => rc[r]).map((r) => h('span', { class: 'row', title: RT_DESC[r] }, icon(r), h('b', {}, String(rc[r])), r))),
     flows.length ? [h('h3', {}, 'How it fits together'), h('ul', { class: 'list' }, flows.map(flowItem))] : null,
     h('h3', {}, 'Look at it through'), lensList('purpose'),
     h('h3', {}, 'People'), h('ul', { class: 'list' }, M.actors.map((a) => h('li', { class: 'item', onclick: () => navigateOrSelect('actor', a.id) }, h('span'), h('span', { class: 'name' }, icon('person'), a.name), h('span'), h('span', { class: 'reason' }, a.role)))),
-    h('h3', {}, 'Areas'), h('ul', { class: 'list' }, M.areas.map((a) => { const cnt = M.areaCounts(a); return h('li', { class: 'item', onclick: () => navigateOrSelect('area', a.id) }, swatch(a.hue), h('span', { class: 'name' }, a.name), h('span', { class: 'count', title: `${cnt.product} product · ${cnt.supporting} supporting` }, String(cnt.product + cnt.supporting)), h('span', { class: 'reason' }, a.definition)); })),
+    h('h3', {}, 'Areas'), h('ul', { class: 'list' }, M.areas.filter((a) => visibleCompsOf(a.id).length || (a.id === 'build-verify' && M.externals.some((x) => M.extKind(x) === 'devtool'))).map((a) => { const cnt = visibleAreaCounts(a); return h('li', { class: 'item', onclick: () => navigateOrSelect('area', a.id) }, swatch(a.hue), h('span', { class: 'name' }, a.name), h('span', { class: 'count', title: `${cnt.product} product · ${cnt.supporting} supporting` }, String(cnt.product + cnt.supporting)), h('span', { class: 'reason' }, a.definition)); })),
     h('h3', {}, 'External systems'), h('ul', { class: 'list' }, M.externals.map((x) => h('li', { class: 'item', onclick: () => navigateOrSelect('external', x.id) }, h('span'), h('span', { class: 'name' }, x.name), h('span', { class: 'count', title: EXT_DESC[M.extKind(x)] }, M.extKind(x)), h('span', { class: 'reason' }, x.role)))),
     S.purpose && S.purpose !== lead ? [h('h3', {}, 'About'), h('p', { class: 'why' }, S.purpose)] : null,
     h('h3', {}, 'Map of'), (M.map.meta && M.map.meta.repo && M.map.meta.repo.root) ? pathRow(M.map.meta.repo.root) : null, builtLine());
@@ -1514,9 +1555,9 @@ function compList(ids, extra) { return h('ul', { class: 'list' }, ids.map((id) =
 function lensCard(lens) {
   const L = LENS[lens], head = [h('div', { class: 'kind' }, 'Lens'), h('h2', {}, L.name), h('p', { class: 'lead' }, L.q + '.')];
   if (lens === 'layers') {
-    const sup = M.map.components.filter((c) => !M.isProduct(c)).length, rc = M.runtimeCounts();
+    const sup = M.map.components.filter((c) => visibleComp(c) && !M.isProduct(c)).length, rc = M.runtimeCounts();
     return h('div', {}, ...head,
-      h('p', {}, 'Columns say where code runs; rows are layers, from what people touch at the top down to the types everything shares. Healthy imports point down. A red dashed arrow is something Health asks you to look at.'),
+      h('p', {}, 'Columns say where code runs; rows are layers, from what people touch at the top down to the types everything shares. Healthy imports point down. Red marks show Code quality findings when marks are on.'),
       h('div', { class: 'strip' }, RUNTIMES.filter((r) => rc[r]).map((r) => h('span', { class: 'row', title: RT_DESC[r] }, icon(r), h('b', {}, String(rc[r])), r))),
       h('h3', {}, 'Layers'), h('ul', { class: 'list' }, ROLES.map((r) => h('li', { class: 'item' }, h('span'), h('span', { class: 'name' }, r), h('span', { class: 'count' }, ROLE_GLOSS[r]), h('span', { class: 'reason' }, ROLE_DESC[r])))),
       sup ? h('p', { class: 'conf', style: 'margin-top: 10px' }, `Only product code is drawn. The ${sup} supporting components (tooling, tests, content, docs, experiments) sit beneath each area and in Build & verify.`) : null,
@@ -1539,7 +1580,7 @@ function lensCard(lens) {
       loose.length ? [h('h3', {}, `Interface files outside any part (${loose.length})`), loose.map((x) => h('div', { class: 'path', title: x.kind }, x.path))] : null,
       h('h3', {}, 'Also look through'), lensList(lens));
   }
-  const act = M.activity, top = (key) => M.map.components.slice().sort((p, q) => (key(q) - key(p)) || byId(p, q)).filter((c) => key(c) > 0).slice(0, 6).map((c) => c.id);
+  const act = M.activity, top = (key) => M.map.components.filter(visibleComp).sort((p, q) => (key(q) - key(p)) || byId(p, q)).filter((c) => key(c) > 0).slice(0, 6).map((c) => c.id);
   return h('div', {}, ...head,
     h('p', {}, `Each tile is a component, sized by its lines of code and grouped by area. ${M.hasActivity ? `Colour is how often its files changed in the ${(act && act.window_days) || 90} days before this commit: the darker, the busier.` : 'This map has no git activity, so tiles take their area\'s colour.'}`),
     M.hasActivity ? [h('h3', {}, 'Busiest'), compList(top(M.changesOf), (id) => `${M.changesOf(M.byComp.get(id))} changes`)] : null,
@@ -1547,7 +1588,7 @@ function lensCard(lens) {
     h('h3', {}, 'Also look through'), lensList(lens));
 }
 function actorCard(a) {
-  const flows = M.flows.filter((f) => f.from === a.id || f.to === a.id), nameOf = (id) => (M.byComp.get(id) || {}).name || (M.actors.find((z) => z.id === id) || {}).name || (M.externals.find((z) => z.id === id) || {}).name || id;
+  const flows = visibleFlows().filter((f) => f.from === a.id || f.to === a.id), nameOf = (id) => (M.byComp.get(id) || {}).name || (M.actors.find((z) => z.id === id) || {}).name || (M.externals.find((z) => z.id === id) || {}).name || id;
   return h('div', {}, h('div', { class: 'kind' }, icon('person'), 'Person'), h('h2', {}, a.name), h('p', {}, a.role || ''),
     h('h3', {}, 'Uses'), (a.uses || []).length ? h('ul', { class: 'list' }, usesOf(a)) : h('p', { class: 'empty' }, 'nothing recorded'),
     flows.length ? [h('h3', {}, `Flows (${flows.length})`), h('ul', { class: 'list' }, flows.map(flowItem))] : null);
@@ -1557,15 +1598,16 @@ function externalCard(x) {
   return h('div', {}, h('div', { class: 'kind' }, 'External system'), h('h2', {}, x.name),
     h('div', { class: 'facts' }, h('span', { class: 'fact', title: EXT_DESC[k] }, h('span', { class: 'lbl' }, 'kind'), k)),
     h('p', {}, x.role || ''),
-    h('h3', {}, 'Used by'), (x.used_by || []).length ? h('ul', { class: 'list' }, (x.used_by || []).map((id) => compItem(id))) : h('p', { class: 'empty' }, 'nothing recorded'));
+    h('h3', {}, 'Used by'), (x.used_by || []).some((id) => visibleComp(M.byComp.get(id))) ? h('ul', { class: 'list' }, (x.used_by || []).map((id) => compItem(id))) : h('p', { class: 'empty' }, 'nothing shown'));
 }
 function areaCard(a, n) {
-  const comps = M.compsOf.get(a.id), out = M.edgesOf.area.filter((e) => e.from === a.id), inn = M.edgesOf.area.filter((e) => e.to === a.id), cnt = M.areaCounts(a), rs = M.runnablesOf(a.id), libs = M.libsOf(a.id);
+  const comps = visibleCompsOf(a.id), hasImports = (from, to) => M.edgesOf.component.some((e) => e.count > 0 && visibleEdge(e, 'components') && M.areaOf(M.byComp.get(e.from)) === from && M.areaOf(M.byComp.get(e.to)) === to);
+  const out = M.edgesOf.area.filter((e) => e.from === a.id && (state.tests || hasImports(e.from, e.to))), inn = M.edgesOf.area.filter((e) => e.to === a.id && (state.tests || hasImports(e.from, e.to))), cnt = visibleAreaCounts(a), rs = M.runnablesOf(a.id).filter(visibleComp), libs = M.libsOf(a.id).filter(visibleComp);
   const byNature = SUPPORT.map((nat) => [nat, comps.filter((c) => M.natureOf(c) === nat)]).filter(([, l]) => l.length);
-  const flows = M.flows.filter((f) => rs.some((c) => c.id === f.from || c.id === f.to));
+  const flows = visibleFlows().filter((f) => rs.some((c) => c.id === f.from || c.id === f.to));
   const nameOf = (id) => (M.byComp.get(id) || {}).name || (M.actors.find((z) => z.id === id) || {}).name || (M.externals.find((z) => z.id === id) || {}).name || id;
   return h('div', {}, h('div', { class: 'kind' }, swatch(a.hue), 'Area'), h('h2', {}, a.name, a.id === 'unsorted' ? h('span', { class: 'badge' }, 'not placed') : null), h('p', {}, a.definition || ''),
-    h('div', { class: 'metrics', style: 'margin-top: 8px' }, h('div', { class: 'metric' }, h('b', {}, String(rs.length)), h('span', {}, 'runnable')), h('div', { class: 'metric' }, h('b', {}, String(cnt.product)), h('span', {}, 'product')), h('div', { class: 'metric' }, h('b', {}, String(cnt.supporting)), h('span', {}, 'supporting')), h('div', { class: 'metric' }, h('b', {}, fmtLoc(M.areaLoc(a))), h('span', {}, 'lines'))),
+    h('div', { class: 'metrics', style: 'margin-top: 8px' }, h('div', { class: 'metric' }, h('b', {}, String(rs.length)), h('span', {}, 'runnable')), h('div', { class: 'metric' }, h('b', {}, String(cnt.product)), h('span', {}, 'product')), h('div', { class: 'metric' }, h('b', {}, String(cnt.supporting)), h('span', {}, 'supporting')), h('div', { class: 'metric' }, h('b', {}, fmtLoc(comps.reduce((sum, c) => sum + M.locOf(c), 0))), h('span', {}, 'lines'))),
     stripRow(cnt),
     rs.length ? [h('h3', {}, `Runs as (${rs.length})`), h('ul', { class: 'list' }, rs.map((c) => compItem(c.id)))] : null,
     flows.length ? [h('h3', {}, `Flows (${flows.length})`), h('ul', { class: 'list' }, flows.map(flowItem))] : null,
@@ -1577,7 +1619,7 @@ function areaCard(a, n) {
 }
 // what the "+N libraries · M supporting" chip stands for: exactly those parts, and a way into the area that draws them
 function libsCard(a, n) {
-  const libs = M.libsOf(a.id), sup = (M.compsOf.get(a.id) || []).filter((c) => !M.isProduct(c));
+  const libs = M.libsOf(a.id).filter(visibleComp), sup = visibleCompsOf(a.id).filter((c) => !M.isProduct(c));
   return h('div', {}, h('div', { class: 'kind' }, swatch(a.hue), a.name), h('h2', {}, [libs.length ? `${libs.length} librar${libs.length === 1 ? 'y' : 'ies'}` : null, sup.length ? `${sup.length} supporting` : null].filter(Boolean).join(' · ')),
     h('p', { class: 'why' }, 'The parts of this area that do not run on their own, so the overview folds them into one chip.'),
     libs.length ? [h('h3', {}, `Libraries (${libs.length})`), h('ul', { class: 'list' }, libs.map((c) => compItem(c.id)))] : null,
@@ -1585,8 +1627,8 @@ function libsCard(a, n) {
     openBtn(`Show them in ${a.name}`, n));
 }
 function componentCard(c, n) {
-  const out = M.edgesOf.component.filter((e) => e.from === c.id), inn = M.edgesOf.component.filter((e) => e.to === c.id), flag = M.flagOf(c), u = M.unresolved.get(c.id), a = M.byArea.get(M.areaOf(c));
-  const exts = M.externals.filter((x) => (x.used_by || []).includes(c.id)), flows = M.flows.filter((f) => f.from === c.id || f.to === c.id);
+  const out = M.edgesOf.component.filter((e) => e.from === c.id && visibleEdge(e, 'components')), inn = M.edgesOf.component.filter((e) => e.to === c.id && visibleEdge(e, 'components')), flag = M.flagOf(c), u = M.unresolved.get(c.id), a = M.byArea.get(M.areaOf(c));
+  const exts = M.externals.filter((x) => (x.used_by || []).includes(c.id)), flows = visibleFlows().filter((f) => f.from === c.id || f.to === c.id);
   const nameOf = (id) => (M.byComp.get(id) || {}).name || (M.actors.find((z) => z.id === id) || {}).name || (M.externals.find((z) => z.id === id) || {}).name || id;
   return h('div', {}, h('div', { class: 'kind' }, swatch(M.hueOf(c)), `${c.kind || 'component'} · ${a ? a.name : '?'}`), h('h2', {}, c.name || c.id, flagBadge(flag)), pathRow(c.path || c.id),
     facts(c),
@@ -1598,25 +1640,27 @@ function componentCard(c, n) {
     exts.length ? [h('h3', {}, 'Uses externals'), h('ul', { class: 'list' }, exts.map((x) => h('li', { class: 'item', onclick: () => navigateOrSelect('external', x.id) }, h('span'), h('span', { class: 'name' }, x.name), h('span', { class: 'count' }, M.extKind(x)), h('span', { class: 'reason' }, x.role || ''))))] : null,
     h('h3', {}, `Depends on (${out.length})`), out.length ? h('ul', { class: 'list' }, out.map((e) => compItem(e.to, e, () => selectEdgeOrGo(e.from, e.to)))) : h('p', { class: 'empty' }, 'nothing'),
     h('h3', {}, `Depended by (${inn.length})`), inn.length ? h('ul', { class: 'list' }, inn.map((e) => compItem(e.from, e, () => selectEdgeOrGo(e.from, e.to)))) : h('p', { class: 'empty' }, 'nothing'),
-    h('h3', {}, 'Modules'), h('ul', { class: 'list' }, (M.modsOf.get(c.id) || []).map((m) => h('li', { class: 'item', onclick: () => navigateOrSelect('module', m.id) }, h('span'), h('span', { class: 'name' }, m.name || m.id), h('span', { class: 'count' }, fmtLoc((m.metrics && m.metrics.loc) || 0)), h('span', { class: 'reason' }, m.responsibility || '')))),
+    h('h3', {}, 'Modules'), h('ul', { class: 'list' }, visibleModsOf(c.id).map((m) => h('li', { class: 'item', onclick: () => navigateOrSelect('module', m.id) }, h('span'), h('span', { class: 'name' }, m.name || m.id), h('span', { class: 'count' }, fmtLoc((m.metrics && m.metrics.loc) || 0)), h('span', { class: 'reason' }, m.responsibility || '')))),
     (c.contracts || []).length ? [h('h3', {}, `Contract files (${c.contracts.length})`), c.contracts.map((x) => h('div', { class: 'path', title: 'Click to copy' }, h('span', { class: 'conf' }, x.kind + ' '), x.path))] : null,
     (c.entry_points || []).length ? [h('h3', {}, 'Entry points'), c.entry_points.map(pathRow)] : null,
     (c.evidence || []).length ? [h('h3', {}, 'Evidence'), c.evidence.map(pathRow)] : null,
     n && (state.route.level <= 1 || n.ghost) ? openBtn('Open its modules', n) : null);
 }
 function moduleCard(m, n) {
-  const c = M.byComp.get(m.component), out = M.edgesOf.module.filter((e) => e.from === m.id), inn = M.edgesOf.module.filter((e) => e.to === m.id);
+  const c = M.byComp.get(m.component), out = M.edgesOf.module.filter((e) => e.from === m.id && visibleEdge(e, 'modules')), inn = M.edgesOf.module.filter((e) => e.to === m.id && visibleEdge(e, 'modules')), files = (m.files || []).filter((f) => visibleFile(f, m));
   const modItem = (id, e) => { const x = M.byMod.get(id); if (!x) return null; const oc = M.byComp.get(x.component); const foreign = x.component !== m.component; return h('li', { class: 'item', onclick: () => navigateOrSelect('module', id) }, swatch(oc ? M.hueOf(oc) : null), h('span', { class: 'name' }, foreign ? `${oc ? oc.name : x.component} / ${x.name || id}` : (x.name || id)), h('span', { class: 'count', title: M.importsLabel(e.count, e.test_count || 0, !!e.test_only), onclick: (ev) => { ev.stopPropagation(); const eid = state.layout.edges.find((y) => y.data === e || (y.from === e.from && y.to === e.to)); if (eid) select({ kind: 'edge', id: eid.id }); } }, e.test_only ? 'tests' : String(e.count)), (e.examples || [])[0] ? h('span', { class: 'reason mono' }, e.examples[0]) : null); };
   void n;
   return h('div', {}, h('div', { class: 'kind' }, swatch(c ? M.hueOf(c) : null), `module · ${c ? c.name || c.id : m.component}`), h('h2', {}, m.name || m.id, m.test ? h('span', { class: 'badge muted' }, 'tests') : null), pathRow(m.path || m.id), m.responsibility_source !== 'generated' && m.responsibility ? h('p', { style: 'margin-top: 8px' }, m.responsibility) : null,
     h('h3', {}, 'Metrics'), metrics(m.metrics),
-    h('h3', {}, `Files (${(m.files || []).length})`), h('ul', { class: 'list' }, (m.files || []).map((f) => h('li', { class: 'item file' + (state.file === f.path ? ' hl' : ''), title: 'Click to copy path', onclick: () => copyText(f.path) }, h('span', { class: 'name' }, f.path.startsWith(m.path + '/') ? f.path.slice(m.path.length + 1) : f.path), h('span', { class: 'count' }, fmtLoc(f.loc || 0)), (f.exports || []).length ? h('span', { class: 'exp' }, 'exports ' + f.exports.join(', ')) : null))),
+    h('h3', {}, `Files (${files.length})`), h('ul', { class: 'list' }, files.map((f) => h('li', { class: 'item file' + (state.file === f.path ? ' hl' : ''), title: 'Click to copy path', onclick: () => copyText(f.path) }, h('span', { class: 'name' }, f.path.startsWith(m.path + '/') ? f.path.slice(m.path.length + 1) : f.path), h('span', { class: 'count' }, fmtLoc(f.loc || 0)), (f.exports || []).length ? h('span', { class: 'exp' }, 'exports ' + f.exports.join(', ')) : null))),
     h('h3', {}, `Depends on (${out.length})`), out.length ? h('ul', { class: 'list' }, out.map((e) => modItem(e.to, e))) : h('p', { class: 'empty' }, 'nothing'),
     h('h3', {}, `Depended by (${inn.length})`), inn.length ? h('ul', { class: 'list' }, inn.map((e) => modItem(e.from, e))) : h('p', { class: 'empty' }, 'nothing'));
 }
 function verdict(f) { const acc = !!f.accepted; return { label: acc ? 'fine by design' : 'worth a look', ok: acc, byJev: f.confidence != null, title: f.confidence != null ? `judged ${acc ? 'acceptable by design' : 'a real problem'} with ${pct(acc ? f.confidence : 1 - f.confidence)} confidence` : 'found directly in the imports' }; }
 function edgeCard(e) {
-  if (!e) return null; const d = e.data || {}, L = state.layout, a = L.nodes.find((n) => n.id === e.from), b = L.nodes.find((n) => n.id === e.to), f = e.health || null;
+  if (!e) return null; const d = e.data || {}, L = state.layout, a = L.nodes.find((n) => n.id === e.from), b = L.nodes.find((n) => n.id === e.to);
+  const chosen = state.hl && state.hl.finding, level = L.level === 2 ? 'modules' : 'components';
+  const f = chosen && M.healthOnEdge(level, e.from, e.to).includes(chosen) ? chosen : e.health || null;
   const chip = (n) => h('span', { class: 'chip', onclick: () => select({ kind: 'node', id: n.id }) }, n.label);
   const head = (label) => [h('div', { class: 'kind' }, label), h('div', { class: 'edgehead', style: 'margin: 4px 0 8px; font-size: 15px' }, a ? chip(a) : e.from, h('span', { class: 'arrow' }, e.kind === 'conn' ? '⇢' : '→'), b ? chip(b) : e.to)];
   if (e.kind === 'flow') return h('div', {}, ...head('flow'), h('p', {}, h('b', {}, e.label || '—')), d.detail ? h('p', {}, d.detail) : null, h('div', { class: 'facts' }, h('span', { class: 'fact', title: FLOW_DESC[e.fkind] }, h('span', { class: 'lbl' }, 'kind'), e.fkind)), h('p', { class: 'why' }, FLOW_DESC[e.fkind]), h('p', { class: 'conf' }, 'Flows come from the repository\'s own documentation, not from imports.'));
@@ -1625,25 +1669,31 @@ function edgeCard(e) {
   if (e.kind === 'imp') return h('div', {}, ...head('imports across areas'), h('p', {}, `${e.count} production import${e.count === 1 ? '' : 's'} from ${a ? a.label : e.from} into ${b ? b.label : e.to}.`), d.reason ? h('p', { class: 'why' }, d.reason) : null);
   const v = f ? verdict(f) : null;
   return h('div', {}, ...head(`${L.level === 1 ? 'component' : 'module'} edge`),
+    f && f.headline ? h('h2', {}, f.headline) : null,
     h('p', {}, M.importsLabel(e.count, e.testCount || 0, !!e.testOnly), f ? h('span', { class: 'badge' + (v.ok ? ' ok' : ' bad') }, CHECK_LABEL[f.check] || f.check) : e.testOnly ? h('span', { class: 'badge muted' }, 'test-only') : null),
     f ? [h('p', { class: 'why' }, f.meaning || ''), h('p', { class: 'conf', title: v.title }, v.ok ? 'Judged fine by design.' : 'Worth a look.')] : null,
+    f && f.suggestion ? [h('h3', {}, 'Suggested change'), h('p', {}, f.suggestion)] : null,
     d.reason ? [h('h3', {}, 'Reason'), h('p', {}, d.reason)] : null,
     (d.examples || []).length ? [h('h3', {}, 'Examples'), d.examples.map((x) => h('div', { class: 'mono ex' }, x))] : null);
 }
-function healthSection() {
-  const list = M.health, open = M.findings.length;
-  const nameOf = (f, id) => ((f.level || 'components') === 'modules' ? ((M.byMod.get(id) || {}).name || id) : ((M.byComp.get(id) || { name: id }).name || id));
-  const item = (f) => { const v = verdict(f); return h('div', { class: 'finding' + (state.hl && state.hl.finding === f ? ' active' : ''), title: 'Click to show where this is', onclick: () => showFinding(f) },
-    h('div', { class: 'head' }, h('b', { title: f.check }, CHECK_LABEL[f.check] || f.check), h('span', { class: 'conf' }, (f.level || 'components') === 'modules' ? 'inside a component' : ''), h('span', { class: 'verdict' + (v.ok ? ' ok' : ''), title: v.title }, v.label)),
-    h('div', { class: 'nodes' }, (f.nodes || []).map((id, i) => [i ? h('span', { style: 'color: var(--faint)' }, f.check === 'cycle' ? '↔' : '→') : null, h('span', { class: 'chip' }, nameOf(f, id))])),
-    h('div', { class: 'meaning' }, f.meaning || ''), (f.evidence || []).slice(0, 3).map((x) => h('div', { class: 'ev' }, x))); };
-  const groups = CHECKS.map((c) => [c, list.filter((f) => f.check === c)]);
-  for (const f of list) if (!CHECKS.includes(f.check)) { const g = groups.find((x) => x[0] === f.check); if (g) g[1].push(f); else groups.push([f.check, [f]]); }
-  return h('div', { class: 'health' }, h('div', { class: 'kind', style: open ? 'color: var(--bad)' : 'color: var(--ok)' }, open ? `Health · ${open} worth a look` : 'Health · all clear'),
-    h('p', { class: 'conf' }, 'Four checks on how the code depends on itself. Each result names the imports behind it.'),
-    h('div', { class: 'checks' }, groups.map(([c, fs]) => { const n = fs.filter((f) => !f.accepted).length; return h('div', { class: 'check', title: (fs[0] && fs[0].meaning) || '' }, h('b', { title: c }, CHECK_LABEL[c] || c), h('span', { class: 'n' + (n ? ' bad' : '') }, n ? `${n}${fs.length > n ? ` (+${fs.length - n} accepted)` : ''}` : fs.length ? `0 (${fs.length} accepted)` : '0')); })),
-    list.length ? [...list.filter((f) => !f.accepted), ...list.filter((f) => f.accepted)].map(item) : h('p', { class: 'empty' }, 'every check passed'),
-    h('p', { class: 'conf', style: 'margin-top: 8px' }, 'Test-only imports never produce findings. Click a finding to see it on the map.'));
+function qualitySection() {
+  const nameOf = (f, id) => ((f.level || 'components') === 'modules' ? ((M.byMod.get(id) || {}).name || id) : ((M.byComp.get(id) || {}).name || id));
+  const jobs = (f) => Array.isArray(f.jobs) && f.jobs.length ? [h('div', { class: 'detail-label' }, 'Jobs in this part'), ...f.jobs.map((j) => h('div', {}, h('b', {}, j.name || j.title || String(j)), ...(j.paths || []).map((p) => h('div', { class: 'ev' }, p))))] : null;
+  const item = (f) => h('article', { class: 'finding' },
+    h('h4', { title: f.check }, f.headline || CHECK_LABEL[f.check] || f.check),
+    h('p', { class: 'conf', title: verdict(f).title }, (f.level || 'components') === 'modules' ? 'Modules · worth a look' : 'Components · worth a look'),
+    h('div', { class: 'nodes' }, (f.nodes || []).map((id) => h('span', { class: 'chip' }, nameOf(f, id)))),
+    f.meaning ? h('p', { class: 'meaning' }, f.meaning) : null,
+    jobs(f),
+    (f.evidence || []).length ? [h('div', { class: 'detail-label' }, 'Evidence'), f.evidence.map((x) => h('div', { class: 'ev' }, x))] : null,
+    f.suggestion ? [h('div', { class: 'detail-label' }, 'Suggested change'), h('p', {}, f.suggestion)] : null,
+    h('button', { class: 'btn show-map', onclick: () => showFinding(f) }, 'Show on map'));
+  const groups = new Map();
+  for (const f of M.findings) { if (!groups.has(f.check)) groups.set(f.check, []); groups.get(f.check).push(f); }
+  const ordered = [...groups].sort(([a], [b]) => (CHECKS.indexOf(a) < 0 ? Infinity : CHECKS.indexOf(a)) - (CHECKS.indexOf(b) < 0 ? Infinity : CHECKS.indexOf(b)) || a.localeCompare(b));
+  return h('div', {}, h('div', { class: 'kind' }, 'Findings'), h('h2', {}, 'Code quality'),
+    h('p', { class: 'lead' }, M.findings.length ? `${M.findings.length} finding${M.findings.length === 1 ? '' : 's'} worth a look.` : 'No open findings.'),
+    ordered.map(([check, fs]) => h('section', { class: 'quality-group' }, h('h3', { title: check }, CHECK_LABEL[check] || check.replaceAll('-', ' '), h('span', {}, String(fs.length))), fs.map(item))));
 }
 
 /* ================================================================== events on the canvas */
@@ -1673,9 +1723,9 @@ svg.addEventListener('dblclick', (e) => { if (e.target === svg || e.target.close
 const q = $('#q'), results = $('#results');
 const INDEX = (() => {
   const out = [];
-  for (const a of M.areas) out.push({ kind: 'area', id: a.id, label: a.name, sub: `${M.compsOf.get(a.id).length} components`, keys: [a.name, a.id], hue: a.hue, w: 3 });
+  for (const a of M.areas) out.push({ kind: 'area', id: a.id, label: a.name, sub: '', keys: [a.name, a.id], hue: a.hue, w: 3 });
   for (const c of M.map.components) out.push({ kind: 'component', id: c.id, label: c.name || c.id, sub: c.path || '', keys: [c.name || '', c.id, c.path || '', M.natureOf(c), M.rtOf(c), M.runsAs(c)], hue: M.hueOf(c), rt: M.rtOf(c), w: 2 });
-  for (const m of M.map.modules) { const c = M.byComp.get(m.component); out.push({ kind: 'module', id: m.id, label: m.name || m.id, sub: m.path || m.id, keys: [m.name || '', m.id, m.path || ''], hue: c ? M.hueOf(c) : null, w: 1 }); for (const f of m.files || []) out.push({ kind: 'file', id: m.id, file: f.path, label: f.path.split('/').pop(), sub: f.path, keys: [f.path, ...(f.exports || [])], hue: c ? M.hueOf(c) : null, w: 0 }); }
+  for (const m of M.map.modules) { const c = M.byComp.get(m.component); out.push({ kind: 'module', id: m.id, label: m.name || m.id, sub: m.path || m.id, keys: [m.name || '', m.id, m.path || ''], hue: c ? M.hueOf(c) : null, w: 1 }); for (const f of m.files || []) out.push({ kind: 'file', id: m.id, file: f.path, fileData: f, label: f.path.split('/').pop(), sub: f.path, keys: [f.path, ...(f.exports || [])], hue: c ? M.hueOf(c) : null, w: 0 }); }
   for (const a of M.actors) out.push({ kind: 'actor', id: a.id, label: a.name, sub: a.role || '', keys: [a.name, a.id], w: 1 });
   for (const x of M.externals) out.push({ kind: 'external', id: x.id, label: x.name, sub: `${M.extKind(x)} · ${x.role || ''}`, keys: [x.name, x.id, M.extKind(x)], w: 1 });
   return out;
@@ -1686,13 +1736,14 @@ function score(entry, qs) {
   return best ? best + entry.w * 2 : 0;
 }
 let active = 0, hits = [];
+function visibleSearchEntry(e) { if (e.kind === 'area') return visibleCompsOf(e.id).length > 0 || (e.id === 'build-verify' && M.externals.some((x) => M.extKind(x) === 'devtool')); if (e.kind === 'component') return visibleComp(M.byComp.get(e.id)); if (e.kind === 'module') return visibleMod(M.byMod.get(e.id)); if (e.kind === 'file') { const m = M.byMod.get(e.id); return visibleMod(m) && visibleFile(e.fileData, m); } return true; }
 function runSearch() {
   const qs = q.value.trim().toLowerCase(); results.replaceChildren(); active = 0;
   if (!qs) { results.hidden = true; hits = []; return; }
-  hits = INDEX.map((e) => [score(e, qs), e]).filter((x) => x[0] > 0).sort((a, b) => (b[0] - a[0]) || byId(a[1], b[1]) || ((a[1].file || '') < (b[1].file || '') ? -1 : 1)).slice(0, 14).map((x) => x[1]);
+  hits = INDEX.filter(visibleSearchEntry).map((e) => [score(e, qs), e]).filter((x) => x[0] > 0).sort((a, b) => (b[0] - a[0]) || byId(a[1], b[1]) || ((a[1].file || '') < (b[1].file || '') ? -1 : 1)).slice(0, 14).map((x) => x[1]);
   results.hidden = false;
   if (!hits.length) { results.append(h('li', { class: 'empty' }, 'No matches')); return; }
-  hits.forEach((e, i) => results.append(h('li', { class: i === active ? 'active' : '', role: 'option', onmousedown: (ev) => { ev.preventDefault(); choose(i); } }, h('span', { class: 'kind' }, e.kind === 'actor' ? 'person' : e.kind), e.hue != null ? swatch(e.hue) : null, e.rt ? icon(e.rt) : null, h('span', { class: 'label' }, e.label), h('span', { class: 'sub' }, e.sub))));
+  hits.forEach((e, i) => results.append(h('li', { class: i === active ? 'active' : '', role: 'option', onmousedown: (ev) => { ev.preventDefault(); choose(i); } }, h('span', { class: 'kind' }, e.kind === 'actor' ? 'person' : e.kind), e.hue != null ? swatch(e.hue) : null, e.rt ? icon(e.rt) : null, h('span', { class: 'label' }, e.label), h('span', { class: 'sub' }, e.kind === 'area' ? `${visibleCompsOf(e.id).length} components` : e.sub))));
 }
 function choose(i) { const e = hits[i]; if (!e) return; q.value = ''; results.hidden = true; q.blur(); if (e.kind === 'file') navigateTo('module', e.id, e.file); else navigateTo(e.kind, e.id); }
 q.addEventListener('input', runSearch);
@@ -1711,11 +1762,14 @@ function setTheme(t, persist) { root.dataset.theme = t; if (persist) try { local
 (() => { let t = null; try { t = localStorage.getItem('codemap.theme'); } catch (e) { /* */ } setTheme(t || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'), false); })();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => { let t = null; try { t = localStorage.getItem('codemap.theme'); } catch (x) { /* */ } if (!t) setTheme(e.matches ? 'dark' : 'light', false); });
 const toggleTheme = () => setTheme(root.dataset.theme === 'dark' ? 'light' : 'dark', true);
-function renderHealthButton() { const b = $('#health-btn'), n = M.findings.length; b.replaceChildren(n ? `Health · ${n} to look at` : 'Health ✓', ' ', h('span', { class: 'kbd' }, 'h')); b.classList.toggle('ok', !n); b.classList.toggle('on', state.health); b.title = `${M.health.length} recorded check result${M.health.length === 1 ? '' : 's'} · ${n} open finding${n === 1 ? '' : 's'} (h)`; }
-const toggleHealth = () => { state.health = !state.health; if (!state.health) highlight(null); renderHealthButton(); renderPanel(); };
+function renderQualityButton() { const b = $('#health-btn'), n = M.findings.length; b.replaceChildren(n ? `Code quality · ${n}` : 'Code quality ✓', ' ', h('span', { class: 'kbd' }, 'h')); b.classList.toggle('ok', !n); b.classList.toggle('on', state.qualityPanel); b.setAttribute('aria-expanded', String(state.qualityPanel)); b.title = `${n} open finding${n === 1 ? '' : 's'} (h)`; }
+function renderPrefButtons() { for (const [id, on, word] of [['#marks-btn', state.qualityMarks, 'Marks'], ['#tests-btn', state.tests, 'Tests']]) { const b = $(id); b.textContent = word + (on ? ' on' : ' off'); b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); } }
+const toggleQuality = () => { state.qualityPanel = !state.qualityPanel; renderQualityButton(); renderPanel(); };
+const toggleMarks = () => { state.qualityMarks = !state.qualityMarks; writePref('codemap.qualityMarks', state.qualityMarks); renderPrefButtons(); draw(state.layout); applyFocus(); renderLegend(); };
+const toggleTests = () => { const selected = state.sel; state.tests = !state.tests; writePref('codemap.tests', state.tests); cache.clear(); renderPrefButtons(); state.pending = selected && { [selected.kind === 'edge' ? 'selectEdge' : 'select']: selected.id }; render(); runSearch(); };
 const toggleLegend = () => { $('#legend').classList.toggle('closed'); fit(); };
 const toggleHelp = (force) => { const el = $('#help'); el.hidden = force == null ? !el.hidden : !force; };
-$('#theme-btn').addEventListener('click', toggleTheme); $('#health-btn').addEventListener('click', toggleHealth); $('#help-btn').addEventListener('click', () => toggleHelp());
+$('#theme-btn').addEventListener('click', toggleTheme); $('#health-btn').addEventListener('click', toggleQuality); $('#marks-btn').addEventListener('click', toggleMarks); $('#tests-btn').addEventListener('click', toggleTests); $('#help-btn').addEventListener('click', () => toggleHelp());
 $('#help').addEventListener('click', (e) => { if (e.target === $('#help')) toggleHelp(false); });
 for (const l of LENSES) $('#lens').append(h('button', { 'data-lens': l.id, role: 'tab', title: `${l.q} (${l.key})`, onclick: () => setLens(l.id) }, l.name, ' ', h('span', { class: 'kbd' }, l.key)));
 $('#zoom-in').addEventListener('click', () => zoomBy(1.3)); $('#zoom-out').addEventListener('click', () => zoomBy(1 / 1.3)); $('#zoom-fit').addEventListener('click', () => fit());
@@ -1723,8 +1777,8 @@ document.addEventListener('keydown', (e) => {
   if (e.target === q || e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key;
   if (k === '/') { e.preventDefault(); q.focus(); q.select(); }
-  else if (k === 'Escape') { if (!$('#help').hidden) toggleHelp(false); else if (state.hl) highlight(null); else if (state.sel) select(null); else up(); }
-  else if (k === 't') toggleTheme(); else if (k === 'h') toggleHealth(); else if (k === '0') fit(); else if (k === 'l') toggleLegend(); else if (k === '?') toggleHelp();
+  else if (k === 'Escape') { if (!$('#help').hidden) toggleHelp(false); else if (state.qualityPanel) toggleQuality(); else if (state.hl) highlight(null); else if (state.sel) select(null); else up(); }
+  else if (k === 't') toggleTheme(); else if (k === 'h') toggleQuality(); else if (k === '0') fit(); else if (k === 'l') toggleLegend(); else if (k === '?') toggleHelp();
   else if (LENSES.some((l) => l.key === k)) setLens(LENSES.find((l) => l.key === k).id);
   else if (k === '+' || k === '=') zoomBy(1.3); else if (k === '-' || k === '_') zoomBy(1 / 1.3);
   else if (k === 'ArrowLeft') { e.preventDefault(); moveSelection(-1, 0); } else if (k === 'ArrowRight') { e.preventDefault(); moveSelection(1, 0); }
@@ -1735,7 +1789,7 @@ document.addEventListener('keydown', (e) => {
 
 /* ================================================================== boot */
 if (location.hash === '') history.replaceState(null, '', '#/');
-renderGrammar(); renderHealthButton();
+renderGrammar(); renderPrefButtons(); renderQualityButton();
 window.addEventListener('hashchange', render);
 render();
 window.codemap = { M, state, layoutSystem, layoutMatrix, layoutModules, rankByLongestPath, orderBands };
