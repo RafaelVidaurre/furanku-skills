@@ -205,7 +205,7 @@ def test_test_only_edges_are_kept_but_do_not_form_cycles():
 
 
 def test_display_name_drops_package_scope():
-    assert skeleton.display_name({"id": "world-renderer", "name": "@ue-mmo/world-renderer"}) == "world-renderer"
+    assert skeleton.display_name({"id": "world-renderer", "name": "@acme/world-renderer"}) == "world-renderer"
     assert skeleton.display_name({"id": "sim-core", "name": "sim-core"}) == "sim-core"
     assert skeleton.display_name({"id": "tools", "name": ""}) == "tools"
 

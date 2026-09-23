@@ -51,6 +51,7 @@ def progress(phase, done, total, **extra):
     line = {"progress": phase, "done": done, "total": total, "elapsed_seconds": round(time.monotonic() - _started[0], 1), **extra}
     print(json.dumps(line), file=_progress_stream, flush=True)
 MIN_INTERVAL = 0.3
+CHECKPOINT_EVERY = 20  # live calls between saved progress in a long run
 _sleep = time.sleep
 
 
@@ -604,12 +605,13 @@ def answer_value(answer):
 class Session:
     """One decide run: cache lookups, batched requests, and the records they produce."""
 
-    def __init__(self, cache, evaluate, *, zdr=False, dry_run=False, changes=None):
+    def __init__(self, cache, evaluate, *, zdr=False, dry_run=False, changes=None, checkpoint=None):
         self.previous = {}
         for record in (cache or {}).get("records") or []:
             if isinstance(record, dict) and record.get("node") and record.get("question"):
                 self.previous[(record["node"], record["question"], record.get("pass", 1))] = record
         self.evaluate, self.zdr, self.dry_run, self.changes = evaluate, zdr, dry_run, changes or {}
+        self.checkpoint = checkpoint  # called with the resumable records every CHECKPOINT_EVERY live calls
         self.records, self.requests = [], []
         self.failed, self.streak = [], 0  # nodes the provider could not evaluate; consecutive failed calls
         self.compacted = []  # nodes answered from their compact card after the full card failed
@@ -707,6 +709,8 @@ class Session:
                 record["compact"] = True
             self.records.append(record)
             answers[kind] = answer
+        if self.checkpoint and self.calls % CHECKPOINT_EVERY == 0:
+            self.checkpoint(self.partial_records())
         return answers
 
     def torn_between(self, node, kind):
@@ -738,22 +742,30 @@ def record_answer(record):
     return answer
 
 
-def decide(skeleton, draft, cache, *, evaluate=None, changes=None, require_zdr=False, dry_run=False):
-    """Run every question against the cache and Jev; `evaluate` defaults to jev_client.evaluate at call time."""
+def decide(skeleton, draft, cache, *, evaluate=None, changes=None, require_zdr=False, dry_run=False, checkpoint=None):
+    """Run every question against the cache and Jev; `evaluate` defaults to jev_client.evaluate at call time.
+
+    `checkpoint(records)` persists progress during long runs; a stopped run (Ctrl-C, or SIGTERM mapped to it by the
+    CLI) still returns its answers as Interrupted, so a harness timeout never throws away paid calls.
+    """
     load_inputs(skeleton, draft)
-    session = Session(cache, evaluate or jev_client.evaluate, zdr=require_zdr, dry_run=dry_run, changes=changes)
+    session = Session(cache, evaluate or jev_client.evaluate, zdr=require_zdr, dry_run=dry_run, changes=changes,
+                      checkpoint=checkpoint)
     try:
         return _decide(session, skeleton, draft, dry_run)
     except Interrupted:
         raise
+    except KeyboardInterrupt:
+        raise Interrupted("decide was stopped before it finished.", session.partial_records()) from None
     except jev_client.Error as exc:
         raise Interrupted(str(exc), session.partial_records()) from None
 
 
-def partial_cache(interrupted):
+def partial_cache(interrupted, records=None):
     """A resumable decisions cache: records only, marked partial so build refuses it."""
     return {"schema": SCHEMA, "instructions_version": INSTRUCTIONS_VERSION, "model": jev_client.MODEL,
-            "partial": True, "error": str(interrupted), "decided_at": now(), "records": interrupted.records}
+            "partial": True, "error": str(interrupted), "decided_at": now(),
+            "records": interrupted.records if records is None else records}
 
 
 def _decide(session, skeleton, draft, dry_run):

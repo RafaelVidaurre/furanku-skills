@@ -51,6 +51,9 @@ import sys
 from pathlib import Path
 
 SCHEMA = "codemap.scan/1"
+# Bump whenever a change alters what a scan finds (languages, units, roles, provenance): status then reports
+# existing maps as outdated so they are rescanned instead of silently keeping the old structure.
+SCANNER_VERSION = 1
 MAX_FILE_BYTES = 2 * 1024 * 1024
 
 LANG_BY_EXT = {
@@ -77,7 +80,21 @@ NODE_BUILTINS = {
     "trace_events", "tty", "url", "util", "v8", "vm", "wasi", "worker_threads",
     "zlib",
 }
-PY_STDLIB = set(getattr(sys, "stdlib_module_names", ())) | {"__future__", "typing", "dataclasses"}
+def _python_stdlib() -> set:
+    """Standard-library module names; Python before 3.10 has no list, so read the running interpreter's library."""
+    names = set(getattr(sys, "stdlib_module_names", ()))
+    if not names:
+        import sysconfig
+        names = set(sys.builtin_module_names)
+        stdlib = Path(sysconfig.get_paths()["stdlib"])
+        for folder in (stdlib, stdlib / "lib-dynload"):
+            if folder.is_dir():
+                names |= {entry.name.split(".", 1)[0] for entry in folder.iterdir()
+                          if entry.name != "site-packages" and (entry.is_dir() or entry.suffix in (".py", ".so", ".pyd"))}
+    return names | {"__future__", "typing", "dataclasses"}
+
+
+PY_STDLIB = _python_stdlib()
 
 
 class ScanError(Exception):
@@ -168,7 +185,7 @@ def _activity(root: Path, sha: str | None) -> tuple[dict, dict[str, int]]:
     until = (_git(root, "show", "-s", "--format=%cI", sha, check=False) or "").strip()
     if not until:
         return {"window_days": ACTIVITY_DAYS, "since": None, "until": None, "commits": 0}, {}
-    end = _dt.datetime.fromisoformat(until)
+    end = _dt.datetime.fromisoformat(until.replace("Z", "+00:00"))  # Python before 3.11 rejects a trailing Z
     since = (end - _dt.timedelta(days=ACTIVITY_DAYS)).isoformat()
     log = _git(root, "log", "--no-renames", "--format=%x00%H", "--name-only",
                "--since=%s" % since, "--until=%s" % until, sha, check=False) or ""
@@ -1615,6 +1632,7 @@ def scan(repo_root: Path, ref: str = "HEAD", now: str | None = None) -> dict:
         now = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     return {
         "schema": SCHEMA,
+        "scanner": SCANNER_VERSION,
         "repo": {
             "root": str(root),
             "remote": remote.strip() if remote else None,

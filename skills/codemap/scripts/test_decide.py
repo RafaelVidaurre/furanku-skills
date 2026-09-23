@@ -463,6 +463,22 @@ class DecideTest(unittest.TestCase):
         self.assertEqual(written["summary"]["calls_made"], 5)
         self.assertEqual(written["summary"]["calls_cached"], 8)
 
+    def test_a_stopped_run_keeps_its_answers_and_long_runs_checkpoint(self):
+        calls, saved = [], []
+
+        def stopped(payload):
+            calls.append(payload)
+            if len(calls) == 3:
+                raise KeyboardInterrupt  # Ctrl-C, or the SIGTERM a harness timeout sends, mapped by the CLI
+            return FakeJev()(payload)
+
+        with mock.patch.object(dc, "_sleep"), mock.patch.object(dc, "CHECKPOINT_EVERY", 1):
+            with self.assertRaises(dc.Interrupted) as caught:
+                dc.decide(SKELETON, DRAFT, None, evaluate=stopped, checkpoint=saved.append)
+        self.assertEqual(len(caught.exception.records), 8)  # the two answered components survive
+        self.assertEqual([len(records) for records in saved], [4, 8])
+
+
     def test_rate_limits_are_retried_with_backoff_and_other_errors_are_not(self):
         attempts = []
 

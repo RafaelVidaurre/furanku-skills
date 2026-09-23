@@ -7,7 +7,7 @@ description: Build and maintain an architecture map of a codebase as a standalon
 
 `<skill-dir>` is the directory containing this file; `<root>` is the target repository's root. The map lives outside the repository under `~/.furanku-skills/codemap/<repo-key>/`; `python3 <skill-dir>/scripts/codemap.py path --repo <root>` prints the directory.
 
-Scripts do everything mechanical. You write the prose from repository evidence. Jev decides grouping and context-dependent architectural judgments; the scanner reports structural facts such as cycles. Read [levels](references/levels.md) once per session before the first map so the vocabulary below (system picture, area, runnable, flow, component, module, the three facts, code-quality findings) means the same thing to you as to the scripts.
+Scripts do everything mechanical; they need only Python 3.9 or later and git. You write the prose from repository evidence. Jev decides grouping and context-dependent architectural judgments; the scanner reports structural facts such as cycles. Read [levels](references/levels.md) once per session before the first map so the vocabulary below (system picture, area, runnable, flow, component, module, the three facts, code-quality findings) means the same thing to you as to the scripts.
 
 ## 1. Preflight
 
@@ -15,7 +15,7 @@ Scripts do everything mechanical. You write the prose from repository evidence. 
 python3 <skill-dir>/scripts/codemap.py status --repo <root>
 ```
 
-The status reports which artifacts exist, whether the map is stale against the current commit (or against the uncommitted changes it was read from; the scan reads the working tree and records a fingerprint of any such changes), and whether a Gateway key is available. Jev is required: without a key, stop and hand the user the model-routing skill's `jev.py setup` command (a hidden terminal prompt for their Vercel AI Gateway key), then resume here. A map that already exists for this repository sends you to step 7.
+The status reports which artifacts exist, whether the map is stale, and whether a Gateway key is available. A map is stale when the commit or the uncommitted changes it was read from differ from the checkout's now, or when `outdated` names `scan` or `skeleton`: an upgraded skill reads repositories differently, so the map needs step 7 even at the same commit. Jev is required: without a key, stop and hand the user the model-routing skill's `jev.py setup` command (a hidden terminal prompt for their Vercel AI Gateway key); when model-routing is not installed, give them `npx skills add rafaelvidaurre/furanku-skills --skill model-routing` first, or let them export `AI_GATEWAY_API_KEY` for the session. Then resume here. A map that already exists for this repository sends you to step 7.
 
 **Complete when:** status shows the key configured and you know whether this is a first build or an update.
 
@@ -46,7 +46,7 @@ This writes `draft.json` with every field you must fill, in a fixed shape, and o
 python3 <skill-dir>/scripts/codemap.py decide --repo <root>
 ```
 
-Jev decides the area, runtime, nature, and role of each component, then judges candidate quality concerns that need architectural context; [jev-decisions](references/jev-decisions.md) lists the questions, thresholds, and the error-to-action table. Decisions are cached by the exact state they were asked about, so re-running only asks about what changed. Components with a shaky runtime, nature, or role get a second pass with their neighbors' answers. The summary then lists what Jev still doubts: `unresolved_nodes` (no answer) and `uncertain_nodes` (an answer under 60%), each with `torn_between`, the two options it could not separate. Treat both lists, and each contradiction `build` reports, as work. A doubt has one of three causes; find which before changing anything:
+Jev decides the area, runtime, nature, and role of each component, then judges candidate quality concerns that need architectural context; [jev-decisions](references/jev-decisions.md) lists the questions, thresholds, and the error-to-action table. Decisions are cached by the exact state they were asked about, so re-running only asks about what changed. A first run on a large repository asks hundreds of questions and can take many minutes; it prints progress lines to stderr, so run it where a long command may finish (in the background, or with your longest timeout) and wait for it. A stopped run keeps the answers it already has; running `decide` again continues from them. Components with a shaky runtime, nature, or role get a second pass with their neighbors' answers. The summary then lists what Jev still doubts: `unresolved_nodes` (no answer) and `uncertain_nodes` (an answer under 60%), each with `torn_between`, the two options it could not separate. Treat both lists, and each contradiction `build` reports, as work. A doubt has one of three causes; find which before changing anything:
 
 - **Missing information:** the card lacks the fact that separates the two `torn_between` options (who runs it and when for `cli` or `build`; whether the product loads it for `product` or `tooling`; which outside API it calls for `adapter` or `kernel`; which people use it for two areas). Write that fact into its `runs` or `responsibility` and run `decide` once more.
 - **Weak criteria:** the card already states the deciding fact, but the options or rubric do not say which way it points. Do not reword the card to steer Jev; name the gap in your final summary as a skill limitation, with the component and both options.
@@ -68,7 +68,7 @@ Build validates the map (every file in a module, every module in a component, ev
 
 ## 6. Review and report
 
-Open up to five component cards at random in `map.json` and compare each responsibility and its strongest edge reason against the code they point at; correct the draft and rebuild when one is wrong.
+Open up to five component cards at random in `map.json` and compare each responsibility and its strongest edge reason against the code they point at; correct the draft and rebuild when one is wrong. When you can render web pages, open `index.html` on the lens that answers the user's question: overlapping or cut-off text there is a viewer defect to report, not something to work around in prose.
 
 Then answer the user in this order, in plain words, the way the map's start-here panel reads:
 
