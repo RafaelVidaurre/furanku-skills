@@ -120,9 +120,12 @@ class DecideTest(unittest.TestCase):
         nodes = [(node_of(r["state"]), sorted(r["questions"])) for r in fake.requests]
         self.assertEqual(nodes[:4], [(c, ALL) for c in ("core", "devtools", "store", "ui")])
         # core (core) -> store (adapter) is core-uses-adapter; store (server) -> ui (client) crosses the wire;
-        # ui (client) -> core (shared) and devtools (tooling) -> ui are never asked.
-        self.assertEqual(nodes[4:], [("edge", ["core_uses_adapter"]), ("edge", ["crosses_the_wire"])])
-        self.assertEqual([(r["state"]["from"]["id"], r["state"]["to"]["id"]) for r in fake.requests[4:]], [("core", "store"), ("store", "ui")])
+        # store (adapter) -> ui (surface) also has an upward-role candidate.
+        # ui (client) -> core (shared) and devtools (tooling) -> ui need no new question.
+        self.assertEqual(nodes[4:], [("edge", ["core_uses_adapter"]), ("edge", ["crosses_the_wire"]),
+                                      ("edge", ["upward_dependency"])])
+        self.assertEqual([(r["state"]["from"]["id"], r["state"]["to"]["id"]) for r in fake.requests[4:]],
+                         [("core", "store"), ("store", "ui"), ("store", "ui")])
         self.assertEqual(fake.requests[4]["state"]["from"]["role"], "core")
         self.assertEqual(fake.requests[5]["state"]["to"]["runtime"], "client")
         self.assertEqual(fake.requests[5]["state"]["reason"], "store notifies UI")
@@ -135,16 +138,18 @@ class DecideTest(unittest.TestCase):
         # build_verify is an accepted value like any area, not an unresolved answer.
         self.assertEqual(result["resolution"]["devtools"]["area"], {"value": "build_verify", "status": "accepted", "confidence": 0.9, "reason": None})
         self.assertEqual({c: r["role_applies"] for c, r in result["resolution"].items()}, {"ui": True, "core": True, "store": True, "devtools": False})
-        self.assertEqual(result["summary"]["calls_made"], 6)
+        self.assertEqual(result["summary"]["calls_made"], 7)
         self.assertEqual(result["summary"]["calls_cached"], 0)
         self.assertEqual(result["summary"]["unresolved_nodes"], [])
         self.assertEqual(result["summary"]["areas"], 2)
         self.assertEqual(result["summary"]["areas_assigned"], {"build_verify": 1, "records": 2, "viewing": 1})
         self.assertEqual(result["summary"]["runtimes"], {"build": 1, "client": 1, "server": 1, "shared": 1})
         self.assertEqual(result["summary"]["natures"], {"product": 3, "tooling": 1})
-        self.assertEqual(result["summary"]["findings"], {"core-uses-adapter": 0, "crosses-the-wire": 0})
-        self.assertAlmostEqual(result["summary"]["total_cost_usd"], 6 * 0.0002)
-        self.assertEqual(len(result["records"]), 18)
+        self.assertEqual(result["summary"]["findings"], {"core-uses-adapter": 0, "crosses-the-wire": 0,
+                                                           "hub-coupling": 0, "mixed-responsibility": 0,
+                                                           "stability-inversion": 0, "upward-dependency": 0})
+        self.assertAlmostEqual(result["summary"]["total_cost_usd"], 7 * 0.0002)
+        self.assertEqual(len(result["records"]), 19)
         record = next(r for r in result["records"] if r["node"] == "ui" and r["question"] == "area")
         self.assertEqual(set(record), {"node", "question", "fingerprint", "answer", "probabilities", "confidence", "model",
                                        "elapsed_seconds", "cost_usd", "instructions_version", "decided_at"})
@@ -226,7 +231,9 @@ class DecideTest(unittest.TestCase):
         result = dc.decide(SKELETON, DRAFT, None, evaluate=rejected)
         self.assertEqual(result["edges"]["store->ui"]["accepted"], False)
         self.assertIsNone(result["edges"]["store->ui"]["flag"])
-        self.assertEqual(result["summary"]["findings"], {"core-uses-adapter": 1, "crosses-the-wire": 1})
+        self.assertEqual(result["summary"]["findings"], {"core-uses-adapter": 1, "crosses-the-wire": 1,
+                                                           "hub-coupling": 0, "mixed-responsibility": 0,
+                                                           "stability-inversion": 0, "upward-dependency": 0})
 
     def test_second_pass_reasks_shaky_attributes_with_neighbor_facts_and_keeps_the_better_answer(self):
         fake = FakeJev(overrides={("store", "runtime"): ("client", 0.5), ("store", "nature"): ("abstain", 0.9), ("ui", "role"): ("adapter", 0.3)},
@@ -263,13 +270,96 @@ class DecideTest(unittest.TestCase):
         self.assertEqual(result["edges"], {})
         self.assertEqual(result["summary"]["natures"], {"experiment": 1, "product": 2, "tooling": 1})
 
+    def test_mixed_jobs_need_path_evidence_and_a_clear_jev_verdict(self):
+        skeleton = deepcopy(SKELETON)
+        skeleton["modules"][1]["files"].append({"path": "packages/core/src/notifications.ts", "loc": 20})
+        draft = deepcopy(DRAFT)
+        draft["components"]["core"]["mixed_jobs"] = [
+            {"name": "rules", "paths": ["packages/core/src/index.ts"]},
+            {"name": "notifications", "paths": ["packages/core/src/notifications.ts"]},
+        ]
+        weak = FakeJev(overrides={("core", "mixed_responsibility"): 0.5})
+        first = dc.decide(skeleton, draft, None, evaluate=weak)
+        self.assertNotIn("mixed-responsibility|core", first["quality"])
+        mixed_record = next(r for r in first["records"] if r["node"] == "core" and r["question"] == "mixed_responsibility")
+        self.assertEqual(mixed_record["instructions_version"], dc.INSTRUCTIONS_VERSION)
+        cached = FakeJev(overrides={("core", "mixed_responsibility"): 0.9})
+        second = dc.decide(skeleton, draft, first, evaluate=cached)
+        self.assertEqual(cached.requests, [])
+        self.assertNotIn("mixed-responsibility|core", second["quality"])
+        draft["components"]["core"]["mixed_jobs"][1]["name"] = "delivery notifications"
+        confirmed = FakeJev(overrides={("core", "mixed_responsibility"): 0.9})
+        third = dc.decide(skeleton, draft, second, evaluate=confirmed)
+        self.assertTrue(any("mixed_responsibility" in request["questions"] for request in confirmed.requests))
+        self.assertEqual(third["quality"]["mixed-responsibility|core"],
+                         {"check": "mixed-responsibility", "nodes": ["core"], "accepted": False,
+                          "flag": None, "probability": 0.1})
+        changed_record = next(r for r in third["records"] if r["node"] == "core" and r["question"] == "mixed_responsibility")
+        self.assertNotEqual(changed_record["fingerprint"], mixed_record["fingerprint"])
+        with mock.patch.object(dc, "INSTRUCTIONS_VERSION", dc.INSTRUCTIONS_VERSION + 1):
+            versioned = FakeJev(overrides={("core", "mixed_responsibility"): 0.9})
+            fourth = dc.decide(skeleton, draft, third, evaluate=versioned)
+            self.assertTrue(any("mixed_responsibility" in request["questions"] for request in versioned.requests))
+            self.assertEqual(next(r for r in fourth["records"] if r["question"] == "mixed_responsibility")["instructions_version"],
+                             dc.INSTRUCTIONS_VERSION)
+        invalid = deepcopy(draft)
+        invalid["components"]["core"]["mixed_jobs"][1]["paths"] = ["outside/core.ts"]
+        with self.assertRaisesRegex(jc.Error, "path is not in component core"):
+            dc.decide(skeleton, invalid, None, evaluate=FakeJev())
+
+    def test_topology_candidates_judgment_and_test_only_exclusion(self):
+        skeleton = deepcopy(SKELETON)
+        for component in skeleton["components"]:
+            component["metrics"]["instability"] = {"core": 0.2, "store": 0.8, "ui": 0.2, "devtools": 0.5}[component["id"]]
+        fake = FakeJev(overrides={("edge", "upward_dependency"): 0.2,
+                                  ("edge", "stability_inversion"): 0.8})
+        decided = dc.decide(skeleton, DRAFT, None, evaluate=fake)
+        self.assertEqual(decided["quality"]["upward-dependency|store->ui"],
+                         {"check": "upward-dependency", "nodes": ["store", "ui"], "accepted": False,
+                          "flag": None, "probability": 0.2})
+        self.assertEqual(decided["quality"]["stability-inversion|core->store"]["accepted"], True)
+        state = next(r["state"] for r in fake.requests if "stability_inversion" in r["questions"])
+        self.assertEqual((state["from"]["metrics"]["instability"], state["to"]["metrics"]["instability"]), (0.2, 0.8))
+        self.assertNotIn("changes", state["from"]["metrics"])
+        weak = FakeJev(overrides={("edge", "upward_dependency"): 0.5,
+                                  ("edge", "stability_inversion"): 0.5})
+        self.assertEqual(dc.decide(skeleton, DRAFT, None, evaluate=weak)["quality"], {})
+        for edge in skeleton["edges"]["components"]:
+            if (edge["from"], edge["to"]) in {("core", "store"), ("store", "ui")}:
+                edge["test_only"] = True
+        test_only = FakeJev()
+        self.assertEqual(dc.decide(skeleton, DRAFT, None, evaluate=test_only)["quality"], {})
+        self.assertFalse(any("upward_dependency" in r["questions"] or "stability_inversion" in r["questions"]
+                             for r in test_only.requests))
+
+    def test_hub_degree_is_a_candidate_and_coherent_hub_can_be_accepted(self):
+        skeleton = deepcopy(SKELETON)
+        core = next(c for c in skeleton["components"] if c["id"] == "core")
+        core["metrics"].update(fan_in=3, fan_out=3, instability=0.5)
+        skeleton["edges"]["components"].extend([
+            {"from": "core", "to": "ui", "count": 1, "examples": ["core → ui"]},
+            {"from": "core", "to": "devtools", "count": 1, "examples": ["core → devtools"]},
+            {"from": "devtools", "to": "core", "count": 1, "examples": ["devtools → core"]},
+            {"from": "store", "to": "core", "count": 1, "examples": ["store → core"]},
+        ])
+        bad = dc.decide(skeleton, DRAFT, None, evaluate=FakeJev(overrides={("core", "hub_coupling"): 0.2}))
+        self.assertEqual(bad["quality"]["hub-coupling|core"],
+                         {"check": "hub-coupling", "nodes": ["core"], "accepted": False,
+                          "flag": None, "probability": 0.2})
+        good = dc.decide(skeleton, DRAFT, None, evaluate=FakeJev(overrides={("core", "hub_coupling"): 0.8}))
+        self.assertTrue(good["quality"]["hub-coupling|core"]["accepted"])
+        core["metrics"]["fan_out"] = 2
+        no_candidate = FakeJev()
+        dc.decide(skeleton, DRAFT, None, evaluate=no_candidate)
+        self.assertFalse(any("hub_coupling" in r["questions"] for r in no_candidate.requests))
+
     def test_second_run_reuses_cache_and_partial_change_reasks_only_the_changed_component(self):
         first = dc.decide(SKELETON, DRAFT, None, evaluate=FakeJev())
         again = FakeJev()
         second = dc.decide(SKELETON, DRAFT, first, evaluate=again)
         self.assertEqual(again.requests, [])
         self.assertEqual(second["summary"]["calls_made"], 0)
-        self.assertEqual(second["summary"]["calls_cached"], 18)
+        self.assertEqual(second["summary"]["calls_cached"], 19)
         self.assertEqual(second["resolution"], first["resolution"])
         self.assertEqual(sorted(r["fingerprint"] for r in second["records"]), sorted(r["fingerprint"] for r in first["records"]))
         changed = deepcopy(DRAFT)
@@ -281,7 +371,7 @@ class DecideTest(unittest.TestCase):
         self.assertEqual([(node_of(r["state"]), sorted(r["questions"])) for r in third_fake.requests],
                          [("core", ALL), ("store", ALL), ("ui", ALL), ("edge", ["core_uses_adapter"])])
         self.assertEqual(third_fake.requests[3]["state"]["from"]["id"], "core")
-        self.assertEqual(third["summary"]["calls_cached"], 5)  # devtools x4, store->ui
+        self.assertEqual(third["summary"]["calls_cached"], 6)  # devtools x4, store->ui verdicts x2
 
     def test_area_edits_reask_only_area_and_dropped_nodes_are_forgotten(self):
         first = dc.decide(SKELETON, DRAFT, None, evaluate=FakeJev())
@@ -304,7 +394,7 @@ class DecideTest(unittest.TestCase):
         # component while every runtime, nature, and role answer stays cached.
         self.assertEqual([list(r["questions"]) for r in fake.requests], [["area"]] * 4)
         self.assertEqual(third["summary"]["calls_made"], 4)
-        self.assertEqual(third["summary"]["calls_cached"], 12 + 2)
+        self.assertEqual(third["summary"]["calls_cached"], 12 + 3)
 
     def test_holds_question_carries_or_reasks_after_changes(self):
         first = dc.decide(SKELETON, DRAFT, None, evaluate=FakeJev())
@@ -322,7 +412,7 @@ class DecideTest(unittest.TestCase):
         self.assertEqual(second["summary"]["calls_made"], 1)
         fake = FakeJev(overrides={("core", "holds"): 0.2, ("core", "role"): ("kernel", 0.9)})
         third = dc.decide(skeleton, DRAFT, first, evaluate=fake, changes=changes)
-        self.assertEqual([sorted(r["questions"]) for r in fake.requests], [["holds"], ALL])
+        self.assertEqual([sorted(r["questions"]) for r in fake.requests], [["holds"], ALL, ["upward_dependency"]])
         self.assertEqual(third["resolution"]["core"]["role"]["value"], "kernel")
         unchanged = FakeJev()
         dc.decide(SKELETON, DRAFT, first, evaluate=unchanged, changes={"ui": "touched"})
@@ -370,7 +460,7 @@ class DecideTest(unittest.TestCase):
         written = json.loads(decisions.read_text())
         self.assertEqual(written["schema"], dc.SCHEMA)
         self.assertNotIn("partial", written)
-        self.assertEqual(written["summary"]["calls_made"], 4)
+        self.assertEqual(written["summary"]["calls_made"], 5)
         self.assertEqual(written["summary"]["calls_cached"], 8)
 
     def test_rate_limits_are_retried_with_backoff_and_other_errors_are_not(self):
@@ -384,7 +474,7 @@ class DecideTest(unittest.TestCase):
 
         with mock.patch.object(dc, "_sleep") as sleep:
             result = dc.decide(SKELETON, DRAFT, None, evaluate=flaky)
-        self.assertEqual(result["summary"]["calls_made"], 6)
+        self.assertEqual(result["summary"]["calls_made"], 7)
         self.assertEqual([c.args[0] for c in sleep.call_args_list if c.args[0] >= 1], [2, 4])
 
         def broken(payload):

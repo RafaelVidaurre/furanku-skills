@@ -1,13 +1,13 @@
 ---
 name: codemap
-description: Build and maintain an architecture map of a codebase as a standalone HTML explorer with five lenses (Purpose: people, areas, runnables, flows; Layers: runtime by layer; Ships in: which libraries each app, service, and CLI contains; Size & activity: lines and recent changes; Contracts: shared schemas and interface files) that drill down to modules and files, with Jev deciding every grouping so the map stays consistent across runs. Use when the user asks for a code map or architecture map, asks how a codebase is structured, what depends on what, what a change to a library would reach, or where work is happening, asks to update the map after changes, or asks to open the map.
+description: Build and maintain an architecture map of a codebase as a standalone HTML explorer with five lenses (Purpose: people, areas, runnables, flows; Layers: runtime by layer; Ships in: which libraries each app, service, and CLI contains; Size & activity: lines and recent changes; Contracts: shared schemas and interface files) and a Code quality panel. Use when the user asks for a code map or architecture map, asks how a codebase is structured, what depends on what, what a change to a library would reach, where work is happening, or which code-quality findings deserve attention, asks to update the map after changes, or asks to open the map.
 ---
 
 # Codemap
 
 `<skill-dir>` is the directory containing this file; `<root>` is the target repository's root. The map lives outside the repository under `~/.furanku-skills/codemap/<repo-key>/`; `python3 <skill-dir>/scripts/codemap.py path --repo <root>` prints the directory.
 
-Scripts do everything mechanical. You write the prose from repository evidence. Jev decides every grouping. Read [levels](references/levels.md) once per session before the first map so the vocabulary below (system picture, area, runnable, flow, component, module, the three facts, health checks) means the same thing to you as to the scripts.
+Scripts do everything mechanical. You write the prose from repository evidence. Jev decides grouping and context-dependent architectural judgments; the scanner reports structural facts such as cycles. Read [levels](references/levels.md) once per session before the first map so the vocabulary below (system picture, area, runnable, flow, component, module, the three facts, code-quality findings) means the same thing to you as to the scripts.
 
 ## 1. Preflight
 
@@ -46,15 +46,15 @@ This writes `draft.json` with every field you must fill, in a fixed shape, and o
 python3 <skill-dir>/scripts/codemap.py decide --repo <root>
 ```
 
-Jev decides the area, runtime, nature, and role of each component, and rules on each core-uses-adapter and crosses-the-wire dependency; [jev-decisions](references/jev-decisions.md) lists the questions, thresholds, and the error-to-action table. Decisions are cached by the exact state they were asked about, so re-running only asks about what changed. Components with a shaky runtime, nature, or role get a second pass with their neighbors' answers before anything is called unresolved. The summary then lists what Jev still doubts: `unresolved_nodes` (no answer) and `uncertain_nodes` (an answer under 60%), each with `torn_between`, the two options it could not separate. Treat both lists, and each contradiction `build` reports, as work. A doubt has one of three causes; find which before changing anything:
+Jev decides the area, runtime, nature, and role of each component, then judges candidate quality concerns that need architectural context; [jev-decisions](references/jev-decisions.md) lists the questions, thresholds, and the error-to-action table. Decisions are cached by the exact state they were asked about, so re-running only asks about what changed. Components with a shaky runtime, nature, or role get a second pass with their neighbors' answers. The summary then lists what Jev still doubts: `unresolved_nodes` (no answer) and `uncertain_nodes` (an answer under 60%), each with `torn_between`, the two options it could not separate. Treat both lists, and each contradiction `build` reports, as work. A doubt has one of three causes; find which before changing anything:
 
 - **Missing information:** the card lacks the fact that separates the two `torn_between` options (who runs it and when for `cli` or `build`; whether the product loads it for `product` or `tooling`; which outside API it calls for `adapter` or `kernel`; which people use it for two areas). Write that fact into its `runs` or `responsibility` and run `decide` once more.
 - **Weak criteria:** the card already states the deciding fact, but the options or rubric do not say which way it points. Do not reword the card to steer Jev; name the gap in your final summary as a skill limitation, with the component and both options.
-- **Genuine ambiguity:** the component really does both things (a generator that is also a runtime library, a package serving two groups of people). That is a design signal, not a labeling problem: name the two jobs and where each lives in the code in your final summary.
+- **Genuine ambiguity:** the component really does both things (a generator that is also a runtime library, a package serving two groups of people). In its draft card, write `mixed_jobs` with exactly two `{name, paths}` entries, each naming one job and the files that implement it. Run `decide` again so Jev can confirm whether the jobs warrant a code-quality finding; report a confirmed finding with its suggested separation.
 
-A node still in doubt after its evidence pass keeps its badge; leave it and name it in the final summary with its cause.
+A node still in doubt after its evidence pass keeps its badge. Missing facts, weak criteria, and provider errors stay visible as doubts, without becoming mixed-responsibility findings. Name the cause in the final summary.
 
-**Complete when:** the decide summary reports zero Gateway errors and every unresolved node, uncertain node, and contradiction has had one evidence pass.
+**Complete when:** the decide summary reports zero Gateway errors; every unresolved node, uncertain node, and contradiction has had one evidence pass; and every genuine two-job candidate has paths in `mixed_jobs` and a Jev verdict.
 
 ## 5. Build
 
@@ -62,7 +62,7 @@ A node still in doubt after its evidence pass keeps its badge; leave it and name
 python3 <skill-dir>/scripts/codemap.py build --repo <root> --open
 ```
 
-Build validates the map (every file in a module, every module in a component, every component in an area, Build & verify, or the `unsorted` group (shown as *Not placed yet*), with a runtime and nature; nonempty areas with the bounds in project types; accepted project memberships and bounded behavior graphs; every flow endpoint known; every edge with a reason), writes `map.json` and `index.html`, and stores an immutable snapshot for the scanned commit. A validation failure names the rule and the node; fix the draft or report the scanner gap, then rebuild.
+Build validates the map (every file in a module, every module in a component, every component in an area, Build & verify, or the `unsorted` group (shown as *Not placed yet*), with a runtime and nature; nonempty areas with the bounds in project types; accepted project memberships and bounded behavior graphs; every flow endpoint known; every edge with a reason), writes `map.json` and `index.html`, and stores an immutable snapshot for the scanned commit. Open quality findings carry a headline, meaning, evidence paths or imports, and a suggested separation when one applies; they appear together in the top-bar Code quality panel. A validation failure names the rule and the node; fix the draft or report the scanner gap, then rebuild.
 
 **Complete when:** build reports zero validation errors and the HTML path.
 
@@ -74,10 +74,10 @@ Then answer the user in this order, in plain words, the way the map's start-here
 
 1. **What it is:** the `summary` sentence and, in three to five lines, how it fits together: the flows from people to data, each with its mechanism.
 2. **Where to look for their question:** the lens that answers what they asked, as a path with its URL hash (`index.html#/` Purpose, `#/layers` Layers, `#/ships` Ships in, `#/size` Size & activity, `#/area/<id>`, `#/component/<id>`), plus one thing that lens shows. "What depends on what" is Layers or an area; "what would a change reach" is Ships in; "where is work happening" is Size & activity.
-3. **Worth a look:** open health results by their on-screen headline with the nodes involved, libraries that ship in nothing, and undecided components. Say "none" when there are none.
+3. **Worth a look:** open Code quality findings by their on-screen headline with the nodes involved, libraries that ship in nothing, and undecided components. Say "none" when there are none.
 4. **Caveats:** scanner limitations (a high unresolved-import share, a wrong unit boundary).
 
-Counts per level and per runtime are one line at most. Explain the viewer in the terms of [viewer](references/viewer.md) when the user has not seen it before.
+Counts per level and per runtime are one line at most. Explain the viewer in the terms of [viewer](references/viewer.md) when the user has not seen it before; mention that Tests starts hidden and the top bar can reveal it.
 
 **Complete when:** the user has the map path, the lens for their question, and every caveat in one message.
 

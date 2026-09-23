@@ -20,6 +20,7 @@ import tempfile
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import build as build_mod  # noqa: E402
 import jev_client  # noqa: E402
 import project_types  # noqa: E402
 from jev_client import Error  # noqa: E402
@@ -55,7 +56,7 @@ def evaluate_with_backoff(evaluate, payload):
 
 
 SCHEMA = "codemap.decisions/1"
-INSTRUCTIONS_VERSION = 9
+INSTRUCTIONS_VERSION = 10
 MAX_STATE_CHARS = 6000
 LIST_LIMIT = 8
 RUNTIMES = ("server", "client", "shared", "cli", "build", "none")
@@ -97,7 +98,10 @@ AREA_INSTRUCTIONS = (
     "An area is a group of parts one kind of person uses for one purpose. Place this component with the "
     "people who use it, judging by its responsibility rather than by who imports it. A library every area "
     "uses belongs to the area that owns its vocabulary, and a library several areas use with no owner "
-    "goes with its heaviest product consumer; that is an ordinary placement, not a reason for new_area. Supporting code (tooling, tests, content, docs, "
+    "goes with its heaviest product consumer; that is an ordinary placement, not a reason for new_area. "
+    "A headless or scripted access surface stays with the area whose output it authors or consumes when it "
+    "serves the same workflow; use a separate access area only for a distinct purpose across output areas. "
+    "Supporting code (tooling, tests, content, docs, "
     "experiments) belongs to the one area it serves, or to build_verify when it serves the repository itself or more "
     "than one area: build, gates, dev stack, repo-wide tests, docs, tools that measure several parts of the system. "
     "Choose new_area when this is product code and no "
@@ -146,6 +150,30 @@ CROSSES_THE_WIRE_INSTRUCTIONS = (
     "there, a build-time only use, or a documented exception in the evidence) and false when it is a "
     "finding a maintainer would want to remove."
 )
+MIXED_RESPONSIBILITY_INSTRUCTIONS = (
+    "The draft names exactly two jobs and the paths where each lives. Answer true only when these are "
+    "independent reasons to change that belong in separate components, supported by the responsibility, "
+    "consumers, contracts, or repository evidence. Answer false for one coherent job, a deliberate facade "
+    "or composition root, or evidence too weak to justify a split. Classification uncertainty alone is not proof."
+)
+UPWARD_DEPENDENCY_INSTRUCTIONS = (
+    "The importer is at a lower architectural role than the imported component. Answer true when this "
+    "source dependency is acceptable by design, such as a documented composition seam or contract; answer "
+    "false when an inner or shared part is coupled to a higher-layer delivery detail. Judge the import, not "
+    "the direction of runtime calls."
+)
+STABILITY_INVERSION_INSTRUCTIONS = (
+    "The importer's structural instability ratio is lower than the target's, so this edge points away from "
+    "positional stability. This ratio uses production import neighbors, not git change frequency. Answer true "
+    "when the dependency is acceptable by design, including a stable contract or a small-graph artifact; answer "
+    "false when the target's change would unnecessarily pull a more widely depended-on part and its users."
+)
+HUB_COUPLING_INSTRUCTIONS = (
+    "This component has at least three production importers and three production dependencies. Answer true "
+    "when it is a coherent orchestrator, facade, or stable contract boundary; answer false only when its "
+    "incoming and outgoing links combine unrelated responsibilities or concrete details into a broad "
+    "change bottleneck. Degree alone is not a defect."
+)
 HOLDS_INSTRUCTIONS = (
     "This component was previously assigned the area, runtime, nature, and role shown. Given the summary "
     "of what changed since that decision, answer true when the assignment still holds and false when the "
@@ -154,14 +182,20 @@ HOLDS_INSTRUCTIONS = (
 QUESTIONS = {
     "area": AREA_INSTRUCTIONS, "runtime": RUNTIME_INSTRUCTIONS,
     "nature": NATURE_INSTRUCTIONS, "role": ROLE_INSTRUCTIONS, "core_uses_adapter": CORE_USES_ADAPTER_INSTRUCTIONS,
-    "crosses_the_wire": CROSSES_THE_WIRE_INSTRUCTIONS, "holds": HOLDS_INSTRUCTIONS,
+    "crosses_the_wire": CROSSES_THE_WIRE_INSTRUCTIONS,
+    "mixed_responsibility": MIXED_RESPONSIBILITY_INSTRUCTIONS,
+    "upward_dependency": UPWARD_DEPENDENCY_INSTRUCTIONS,
+    "stability_inversion": STABILITY_INVERSION_INSTRUCTIONS,
+    "hub_coupling": HUB_COUPLING_INSTRUCTIONS, "holds": HOLDS_INSTRUCTIONS,
 }
 COMPONENT_QUESTIONS = ("area", "runtime", "nature", "role")
 SECOND_PASS_QUESTIONS = ("runtime", "nature", "role")
 STATUS_RANK = {"accepted": 2, "uncertain": 1, "unresolved": 0}
 CHECKS = {"core_uses_adapter": "core-uses-adapter", "crosses_the_wire": "crosses-the-wire"}
+QUALITY_CHECKS = {"mixed_responsibility": "mixed-responsibility", "upward_dependency": "upward-dependency",
+                  "stability_inversion": "stability-inversion", "hub_coupling": "hub-coupling"}
 QUESTIONS.update(project_types.INSTRUCTIONS)
-BOOLEAN_QUESTIONS = tuple(CHECKS) + ("holds",) + project_types.BOOLEAN_QUESTIONS
+BOOLEAN_QUESTIONS = tuple(CHECKS) + tuple(QUALITY_CHECKS) + ("holds",) + project_types.BOOLEAN_QUESTIONS
 
 
 def canonical(value):
@@ -187,7 +221,7 @@ def clip_state(state):
     """Shrink list fields deterministically until the state fits the character budget."""
     for limit in (LIST_LIMIT, 4, 2, 1):
         for key, value in list(state.items()):
-            if isinstance(value, list):
+            if isinstance(value, list) and key != "mixed_jobs":
                 state[key] = value[:limit]
         if len(canonical(state)) <= MAX_STATE_CHARS:
             return state
@@ -228,6 +262,12 @@ def load_inputs(skeleton, draft):
         seen.add(area["id"])
         if not isinstance(area.get("components", []), list):
             raise Error(f"Area {area['id']!r} needs a list of expected components.")
+    for component in components:
+        cid = component["id"]
+        card = draft["components"].get(cid) or {}
+        errors = build_mod.mixed_jobs_errors(skeleton, cid, card.get("mixed_jobs"))
+        if errors:
+            raise Error("; ".join(errors))
 
 
 def component_index(skeleton):
@@ -326,6 +366,8 @@ def component_neighbors(skeleton, component):
     """(dependents, dependencies) as {id: production import count}, aggregated over component edges."""
     outgoing, incoming = {}, {}
     for edge in component_edges(skeleton):
+        if edge.get("test_only"):
+            continue
         if edge["from"] == component["id"]:
             outgoing[edge["to"]] = outgoing.get(edge["to"], 0) + (edge.get("count") or 1)
         if edge["to"] == component["id"]:
@@ -348,6 +390,8 @@ def component_card(skeleton, draft, component):
         "responsibility": clip(card.get("responsibility")), "runs": clip(card.get("runs")), "why": clip(card.get("why")),
         "entry_points": [clip(e, 200) for e in card.get("entry_points") or [] if isinstance(e, str)],
         "evidence": evidence_paths(card.get("evidence")),
+        "mixed_jobs": [{"name": clip(j["name"], 200), "paths": [clip(p, 200) for p in j["paths"][:LIST_LIMIT]]}
+                       for j in card.get("mixed_jobs") or []],
         "loc": metrics.get("loc"), "files": metrics.get("files"),
         "dependencies": by_weight(outgoing), "dependents": by_weight(incoming),
         "externals": externals_for(skeleton, component), "sample_files": sample_files(skeleton, component),
@@ -402,6 +446,16 @@ CORE_USES_ADAPTER_CRITERIA = {"true": "Acceptable by design: the core reaches th
 CROSSES_THE_WIRE_CRITERIA = {"true": "Acceptable by design: the import is a contract or build-time use the evidence supports.",
                              "false": "Finding: client and server code are coupled directly and a maintainer would want a shared contract instead."}
 CHECK_CRITERIA = {"core_uses_adapter": CORE_USES_ADAPTER_CRITERIA, "crosses_the_wire": CROSSES_THE_WIRE_CRITERIA}
+QUALITY_CRITERIA = {
+    "mixed_responsibility": {"true": "Finding: the two named jobs are independent reasons to change and their paths justify separation.",
+                             "false": "No confirmed mixed responsibility: one coherent job or insufficient evidence."},
+    "upward_dependency": {"true": "Acceptable by design: the upward import has a deliberate boundary or documented reason.",
+                          "false": "Finding: inner or shared code depends on a higher-layer delivery detail."},
+    "stability_inversion": {"true": "Acceptable by design: the structural ratio does not indicate a harmful dependency here.",
+                            "false": "Finding: a stable component depends unnecessarily on a less stable one."},
+    "hub_coupling": {"true": "Acceptable by design: a coherent boundary explains this component's broad connectivity.",
+                     "false": "Finding: unrelated responsibilities or concrete dependencies make this hub costly to change."},
+}
 HOLDS_CRITERIA = {"true": "The previous area, runtime, nature, and role assignment still holds after these changes.",
                   "false": "The changes are material enough that area, runtime, nature, and role must be decided again."}
 
@@ -418,6 +472,41 @@ def edge_state(cards, values, edge, draft, attribute):
         "count": edge.get("count"), "examples": [clip(e, 200) for e in edge.get("examples") or [] if isinstance(e, str)][:3],
     }
     return clip_state(state)
+
+
+def topology_edge_state(cards, resolution, components, edge, draft):
+    """Role and structural graph facts for an edge candidate; no git activity proxy."""
+    roles = {cid: resolution[cid]["role"]["value"] for cid in (edge["from"], edge["to"])}
+    state = edge_state(cards, roles, edge, draft, "role")
+    state["check"] = "dependency_topology"
+    for end in ("from", "to"):
+        cid = edge[end]
+        metrics = components[cid].get("metrics") or {}
+        state[end]["metrics"] = {k: metrics.get(k) for k in ("fan_in", "fan_out", "instability")}
+        state[end]["runtime"] = resolution[cid]["runtime"]["value"]
+    return clip_state(state)
+
+
+def hub_state(card, component, resolution, edges):
+    cid = component["id"]
+    metrics = component.get("metrics") or {}
+    touching = [e for e in edges if not e.get("test_only") and cid in (e["from"], e["to"])]
+    neighbors = sorted({e["to"] if e["from"] == cid else e["from"] for e in touching})
+    state = dict(card, check="hub_coupling",
+                 topology={k: metrics.get(k) for k in ("fan_in", "fan_out", "instability")},
+                 role=resolution[cid]["role"]["value"],
+                 neighbors=[{"id": n, "role": resolution[n]["role"]["value"],
+                             "nature": resolution[n]["nature"]["value"]} for n in neighbors],
+                 imports=[ex for e in touching for ex in (e.get("examples") or [])[:1]])
+    return clip_state(state)
+
+
+def quality_verdict(kind, answer):
+    """Only clear new judgments enter map.health; cache records still retain weak answers."""
+    p = answer["probability"]
+    if kind == "mixed_responsibility":
+        return {"accepted": False, "flag": None, "probability": round(1 - p, 6)} if p >= ACCEPT_AT else None
+    return resolve_boolean(answer) if p <= UNCERTAIN_AT or p >= ACCEPT_AT else None
 
 
 DERIVED_RUNTIME = {"tooling": "build", "test": "build", "experiment": "build", "docs": "none"}
@@ -689,8 +778,26 @@ def _decide(session, skeleton, draft, dry_run):
     # 2. Health checks that need judgment, on production edges between product components.
     value_of = lambda cid, kind: resolution[cid][kind]["value"]
     product = {cid for cid in resolution if value_of(cid, "nature") == "product"}
-    edges = {}
-    for edge in component_edges(skeleton):
+    edges, quality = {}, {}
+    graph_edges = component_edges(skeleton)
+    for cid, component in sorted(components.items()):
+        jobs = (draft["components"].get(cid) or {}).get("mixed_jobs") or []
+        if jobs:
+            state = dict(cards[cid], check="mixed_responsibility",
+                         mixed_jobs_hash=hashlib.sha256(canonical(jobs).encode()).hexdigest(),
+                         classification={k: resolution[cid][k]["value"] for k in COMPONENT_QUESTIONS})
+            answer = session.ask(cid, clip_state(state), {"mixed_responsibility": QUALITY_CRITERIA["mixed_responsibility"]}).get("mixed_responsibility")
+            verdict = quality_verdict("mixed_responsibility", answer) if answer else None
+            if verdict:
+                quality[f"mixed-responsibility|{cid}"] = dict(verdict, check="mixed-responsibility", nodes=[cid])
+        metrics = component.get("metrics") or {}
+        if cid in product and build_mod.hub_candidate(metrics):
+            answer = session.ask(cid, hub_state(cards[cid], component, resolution, graph_edges),
+                                 {"hub_coupling": QUALITY_CRITERIA["hub_coupling"]}).get("hub_coupling")
+            verdict = quality_verdict("hub_coupling", answer) if answer else None
+            if verdict:
+                quality[f"hub-coupling|{cid}"] = dict(verdict, check="hub-coupling", nodes=[cid])
+    for edge in graph_edges:
         src, dst = edge["from"], edge["to"]
         if edge.get("test_only") or src not in product or dst not in product:
             continue
@@ -708,6 +815,19 @@ def _decide(session, skeleton, draft, dry_run):
                 key = node if node not in edges else f"{node}|{CHECKS[kind]}"
                 edges[key] = dict(resolve_boolean(answers[kind]), **{"from": src, "to": dst, "check": CHECKS[kind]})
 
+        quality_questions = {}
+        if build_mod.upward_candidate(roles[src], roles[dst]):
+            quality_questions["upward_dependency"] = QUALITY_CRITERIA["upward_dependency"]
+        if build_mod.stability_candidate(components[src].get("metrics") or {}, components[dst].get("metrics") or {}):
+            quality_questions["stability_inversion"] = QUALITY_CRITERIA["stability_inversion"]
+        if quality_questions:
+            answers = session.ask(f"{src}->{dst}", topology_edge_state(cards, resolution, components, edge, draft), quality_questions)
+            for kind, answer in answers.items():
+                verdict = quality_verdict(kind, answer)
+                if verdict:
+                    check = QUALITY_CHECKS[kind]
+                    quality[f"{check}|{src}->{dst}"] = dict(verdict, check=check, nodes=[src, dst])
+
     # Repository judgments are always fingerprinted afresh, independently of component holds.
     repository = {}
     for node, kind, state, criteria in project_types.questions(skeleton, draft):
@@ -723,15 +843,18 @@ def _decide(session, skeleton, draft, dry_run):
     count_values = lambda kind: dict(sorted(
         {v: sum(1 for e in resolution.values() if (e[kind]["value"] or "unresolved") == v) for v in
          {e[kind]["value"] or "unresolved" for e in resolution.values()}}.items()))
-    findings = {check: sum(1 for e in edges.values() if e["check"] == check and not e["accepted"]) for check in sorted(CHECKS.values())}
+    verdicts = list(edges.values()) + list(quality.values())
+    findings = {check: sum(1 for e in verdicts if e["check"] == check and not e["accepted"])
+                for check in sorted(set(CHECKS.values()) | set(QUALITY_CHECKS.values()))}
     result = {
         "schema": SCHEMA, "instructions_version": INSTRUCTIONS_VERSION, "model": jev_client.MODEL, "decided_at": now(),
-        "resolution": resolution, "edges": edges, "repository": repository, "records": session.records,
+        "resolution": resolution, "edges": edges, "quality": quality, "repository": repository, "records": session.records,
         "summary": {
             "components": len(components), "areas": len(areas),
             "questions": len(session.records), "calls_made": session.calls, "calls_cached": session.cached,
             "accepted": statuses.count("accepted"), "uncertain": statuses.count("uncertain"),
-            "unresolved": statuses.count("unresolved"), "checked_edges": len(edges), "second_pass": second_pass,
+            "unresolved": statuses.count("unresolved"), "checked_edges": len(edges),
+            "checked_quality": len(quality), "second_pass": second_pass,
             "areas_assigned": count_values("area"), "runtimes": count_values("runtime"), "natures": count_values("nature"),
             "findings": findings,
             "total_cost_usd": round(session.cost, 8), "total_elapsed_seconds": round(session.elapsed, 3),

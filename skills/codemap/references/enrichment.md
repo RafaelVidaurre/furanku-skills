@@ -37,6 +37,8 @@ For each new repository or changed project boundary, follow [project types](proj
 - `entry_points`: two to four paths where an engineer should start reading.
 - `evidence`: the paths and documents you used, most authoritative first.
 
+After a doubt evidence pass reveals two genuinely distinct jobs in one component, add `mixed_jobs` to that component's card: exactly two `{name, paths}` entries. Each name states a job in the repository's words; each nonempty `paths` list points to files implementing that job. For example, an asset generator and a runtime loader need separate paths for generation and loading. Jev checks this candidate on the next `decide` run. Leave `mixed_jobs` empty when the doubt comes from missing facts or unclear classification criteria; uncertainty alone does not establish mixed responsibility.
+
 ## Edge reasons
 
 Each component edge gets one line naming what the dependency is for, written from the example imports: "reads the wire format for entity snapshots", "compiles enemy sources against the content schema". A reason that could apply to any edge ("uses types from") is not a reason; open one example import and say what it carries.
@@ -51,3 +53,4 @@ Only when a directory name is opaque (`core`, `lib`, `misc`, an abbreviation) su
 - No two components share a responsibility sentence.
 - Every product component has an expected area; all project and graph references pass `draft-template` validation.
 - Every sentence names something concrete: a path, a term from the glossary, a type, a protocol, a user.
+- Every `mixed_jobs` candidate names two independently changing jobs and the paths for each; the same path may appear in both only when the file itself performs both jobs.

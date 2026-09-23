@@ -30,8 +30,7 @@ family's libraries) keeps its value and is flagged ``contradicts-evidence``.
 An unresolved runtime renders as ``none``, an unresolved
 nature as ``product``, and an unresolved role of a product component as
 ``core``, each flagged; non-product components carry role ``none``. Health
-checks (``cycle``, ``core-uses-adapter``, ``crosses-the-wire``,
-``product-uses-support``) run over production edges whose endpoints have a
+checks run over production edges whose endpoints have a
 resolved value for the attribute the check compares. ``built_at`` defaults to
 the scan time so two builds of the same inputs are byte-identical.
 """
@@ -55,12 +54,40 @@ ROLES = ("surface", "adapter", "core", "kernel")
 SUPPORT_NATURES = ("tooling", "test", "experiment")
 FALLBACKS = {"runtime": "none", "nature": "product", "role": "core"}
 ATTRIBUTES = ("area", "runtime", "nature", "role")
-CHECKS = ("cycle", "core-uses-adapter", "crosses-the-wire", "product-uses-support")
+CHECKS = ("cycle", "core-uses-adapter", "crosses-the-wire", "product-uses-support",
+          "mixed-responsibility", "upward-dependency", "stability-inversion", "hub-coupling")
+ROLE_DEPTH = {"kernel": 0, "core": 1, "adapter": 2, "surface": 3}
+HUB_MIN_NEIGHBORS = 3
 MEANINGS = {
     "cycle": "These components import each other, directly or through others, so neither can change alone.",
     "core-uses-adapter": "A core component imports an adapter, so its rules are tied to one storage, transport, or engine.",
     "crosses-the-wire": "Client code imports server code (or the reverse) directly instead of a shared contract.",
     "product-uses-support": "Product code imports tooling, test, or experiment code, which can ship or break the build.",
+    "mixed-responsibility": "This component owns two jobs that may need to change independently.",
+    "upward-dependency": "A lower layer imports a higher layer, tying shared or inner code to a caller or delivery surface.",
+    "stability-inversion": "A structurally stable component imports one that is less stable, increasing the impact of a change.",
+    "hub-coupling": "This component both serves and imports many others, making it a broad change boundary.",
+}
+MODULE_CYCLE_MEANING = "These modules import each other, so neither can change alone."
+HEADLINES = {
+    "cycle": "Parts depend on each other",
+    "core-uses-adapter": "Core rules import an I/O detail",
+    "crosses-the-wire": "Client and server are directly coupled",
+    "product-uses-support": "Product code imports support code",
+    "mixed-responsibility": "One component owns two jobs",
+    "upward-dependency": "A lower layer imports a higher layer",
+    "stability-inversion": "A stable part imports a less stable part",
+    "hub-coupling": "One part connects too many others",
+}
+SUGGESTIONS = {
+    "cycle": "Move the shared contract into one lower component or reverse one import.",
+    "core-uses-adapter": "Put a port near the core rules and make the adapter depend on it.",
+    "crosses-the-wire": "Move the shared interface into a contract component used by both sides.",
+    "product-uses-support": "Move the imported behavior into product code or keep it in the build path.",
+    "mixed-responsibility": None,  # filled from the two named jobs
+    "upward-dependency": "Move the shared contract inward or reverse the dependency at this boundary.",
+    "stability-inversion": None,  # the right change depends on the intended boundary
+    "hub-coupling": "Split unrelated responsibilities behind smaller interfaces.",
 }
 CHECK_QUESTIONS = {"core_uses_adapter": "core-uses-adapter", "crosses_the_wire": "crosses-the-wire"}
 EVIDENCE_LIMIT = 3
@@ -92,6 +119,68 @@ def edge_key(src: str, dst: str) -> str:
 
 def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", str(text).lower()).strip("-") or "item"
+
+
+def upward_candidate(source_role: str | None, target_role: str | None) -> bool:
+    return (source_role in ROLE_DEPTH and target_role in ROLE_DEPTH
+            and ROLE_DEPTH[source_role] < ROLE_DEPTH[target_role]
+            and (source_role, target_role) != ("core", "adapter"))
+
+
+def stability_candidate(source_metrics: dict, target_metrics: dict) -> bool:
+    source_i, target_i = source_metrics.get("instability"), target_metrics.get("instability")
+    return (isinstance(source_i, (int, float)) and not isinstance(source_i, bool)
+            and isinstance(target_i, (int, float)) and not isinstance(target_i, bool)
+            and source_i < target_i)
+
+
+def hub_candidate(metrics: dict) -> bool:
+    fan_in, fan_out = metrics.get("fan_in"), metrics.get("fan_out")
+    return (isinstance(fan_in, int) and not isinstance(fan_in, bool) and fan_in >= HUB_MIN_NEIGHBORS
+            and isinstance(fan_out, int) and not isinstance(fan_out, bool) and fan_out >= HUB_MIN_NEIGHBORS)
+
+
+def mixed_jobs_errors(skeleton: dict, component_id: str, jobs) -> list[str]:
+    """Validate optional, path-backed draft notes before a mixed-responsibility decision."""
+    if jobs is None or jobs == []:
+        return []
+    prefix = f"components.{component_id}.mixed_jobs"
+    if not isinstance(jobs, list) or len(jobs) != 2:
+        return [f"{prefix}: expected exactly two jobs"]
+    module_ids = next((set(c.get("modules") or []) for c in skeleton.get("components", []) if c.get("id") == component_id), set())
+    allowed = {p for m in skeleton.get("modules", []) if m.get("id") in module_ids
+               for p in [m.get("path"), *(f.get("path") for f in m.get("files", []) if isinstance(f, dict))] if isinstance(p, str)}
+    errors, names, path_sets = [], [], []
+    for i, job in enumerate(jobs):
+        if not isinstance(job, dict) or not isinstance(job.get("name"), str) or not job["name"].strip():
+            errors.append(f"{prefix}[{i}].name: expected a name")
+            continue
+        names.append(job["name"].strip().casefold())
+        paths = job.get("paths")
+        if not isinstance(paths, list) or not paths or not all(isinstance(p, str) and p.strip() for p in paths):
+            errors.append(f"{prefix}[{i}].paths: expected source or module paths")
+        elif any(p.rstrip("/") not in allowed for p in paths):
+            errors.append(f"{prefix}[{i}].paths: path is not in component {component_id}")
+        else:
+            path_sets.append({p.rstrip("/") for p in paths})
+    if len(names) == 2 and names[0] == names[1]:
+        errors.append(f"{prefix}: the two jobs need different names")
+    if len(path_sets) == 2 and path_sets[0] == path_sets[1]:
+        errors.append(f"{prefix}: the two jobs need different paths")
+    return errors
+
+
+def health_entry(check: str, level: str, nodes: list[str], evidence: list[str], accepted: bool,
+                 confidence: float | None, *, jobs: list[dict] | None = None) -> dict:
+    meaning = MODULE_CYCLE_MEANING if check == "cycle" and level == "modules" else MEANINGS[check]
+    result = {"check": check, "level": level, "nodes": nodes, "headline": HEADLINES[check],
+              "meaning": meaning, "evidence": list(dict.fromkeys(evidence))[:EVIDENCE_LIMIT],
+              "suggestion": SUGGESTIONS[check] if not accepted else None,
+              "accepted": accepted, "confidence": confidence}
+    if jobs is not None:
+        result["jobs"] = [{"name": j["name"].strip(), "paths": list(dict.fromkeys(j["paths"]))} for j in jobs]
+        result["suggestion"] = f"Separate {result['jobs'][0]['name']} from {result['jobs'][1]['name']} along the cited paths."
+    return result
 
 
 # --- decisions -------------------------------------------------------------
@@ -156,10 +245,11 @@ def index_decisions(decisions) -> dict:
     """Normalise decide.py output (or a bare record list) into one lookup structure.
 
     Returns {"area": {cid: entry}, "runtime": {...}, "nature": {...}, "role": {...},
-    "checks": {(src, dst, check): verdict}} where entry = {value, status, confidence, reason}
+    "checks": {(src, dst, check): verdict}, "quality": {(check, nodes): verdict}}
+    where entry = {value, status, confidence, reason}
     and verdict = {accepted, flag, probability}.
     """
-    index = {"checks": {}, **{kind: {} for kind in ATTRIBUTES}}
+    index = {"checks": {}, "quality": {}, **{kind: {} for kind in ATTRIBUTES}}
     structured = isinstance(decisions, dict) and isinstance(decisions.get("resolution"), dict)
     if structured:
         for cid, entry in decisions["resolution"].items():
@@ -175,6 +265,14 @@ def index_decisions(decisions) -> dict:
             check = verdict.get("check") or "core-uses-adapter"
             if src and dst and check in CHECKS:
                 index["checks"][(src, dst, check)] = {"accepted": verdict.get("accepted") is True, "flag": verdict.get("flag"), "probability": _confidence(verdict.get("probability"))}
+        for verdict in (decisions.get("quality") or {}).values():
+            if not isinstance(verdict, dict):
+                continue
+            check, nodes = verdict.get("check"), verdict.get("nodes")
+            if check in CHECKS and isinstance(nodes, list) and all(isinstance(n, str) for n in nodes):
+                index["quality"][(check, tuple(nodes))] = {
+                    "accepted": verdict.get("accepted") is True, "flag": verdict.get("flag"),
+                    "probability": _confidence(verdict.get("probability"))}
         return index
     for record in _records(decisions):
         question = str(record.get("question") or record.get("question_id") or "")
@@ -322,6 +420,10 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
     draft_components = draft.get("components") or {}
     if isinstance(draft_components, list):
         draft_components = {c.get("id"): c for c in draft_components if isinstance(c, dict)}
+    for comp in skeleton.get("components", []):
+        errors = mixed_jobs_errors(skeleton, comp["id"], (draft_components.get(comp["id"]) or {}).get("mixed_jobs"))
+        if errors:
+            raise BuildError("; ".join(errors))
     edge_reasons = draft.get("edge_reasons") or {}
     if isinstance(edge_reasons, list):
         edge_reasons = {edge_key(e["from"], e["to"]): e.get("reason", "") for e in edge_reasons if isinstance(e, dict)}
@@ -438,7 +540,7 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
             "merged": list(mod.get("merged", [])),
             "responsibility": str(text) if text else f"Holds the {name} files of {name_of.get(mod['component'], mod['component'])}.",
             "responsibility_source": "draft" if text else "generated",
-            "files": [dict(f) for f in mod.get("files", [])],
+            "files": [dict(f, test=bool(f.get("test", False))) for f in mod.get("files", [])],
             "metrics": dict(mod.get("metrics", {})),
         })
 
@@ -446,6 +548,9 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
     component_edges = []
     area_buckets = {}
     role_of, runtime_of, nature_of = attribute_of["role"], attribute_of["runtime"], attribute_of["nature"]
+    def edge_evidence(edge, src, dst):
+        return edge["examples"] or [f"{by_id[src]['path']} → {by_id[dst]['path']}"]
+
     for edge in skeleton.get("edges", {}).get("components", []):
         src, dst = edge["from"], edge["to"]
         reason = edge_reasons.get(edge_key(src, dst), "")
@@ -470,9 +575,16 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
                 verdicts.append(("crosses-the-wire", index["checks"].get((src, dst, "crosses-the-wire")) or {"accepted": False, "flag": None, "probability": None}))
         if not record["test_only"] and nature_of.get(src) == "product" and nature_of.get(dst) in SUPPORT_NATURES:
             verdicts.append(("product-uses-support", {"accepted": False, "flag": None, "probability": None}))
+        if not record["test_only"] and both_product:
+            for check in ("upward-dependency", "stability-inversion"):
+                verdict = index["quality"].get((check, (src, dst)))
+                candidate = (upward_candidate(role_of.get(src), role_of.get(dst)) if check == "upward-dependency"
+                             else stability_candidate(by_id[src].get("metrics") or {}, by_id[dst].get("metrics") or {}))
+                if verdict is not None and candidate:
+                    verdicts.append((check, verdict))
         for check, verdict in verdicts:
-            health.append({"check": check, "level": "components", "nodes": [src, dst], "meaning": MEANINGS[check],
-                           "evidence": record["examples"][:EVIDENCE_LIMIT], "accepted": verdict["accepted"], "confidence": verdict["probability"]})
+            health.append(health_entry(check, "components", [src, dst], edge_evidence(record, src, dst),
+                                       verdict["accepted"], verdict["probability"]))
             if record["finding"] is None and not verdict["accepted"]:
                 record["finding"], record["accepted"] = check, False
         if verdicts and record["finding"] is None:
@@ -507,8 +619,25 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
                 continue
             evidence = [ex for e in level_edges if e["from"] in inside and e["to"] in inside and not e.get("test_only")
                         for ex in e.get("examples", [])[:1]]
-            health.append({"check": "cycle", "level": level, "nodes": list(cycle), "meaning": MEANINGS["cycle"],
-                           "evidence": evidence[:EVIDENCE_LIMIT], "accepted": False, "confidence": None})
+            if not evidence:
+                lookup = by_id if level == "components" else {m["id"]: m for m in modules}
+                evidence = [lookup[n]["path"] for n in cycle]
+            health.append(health_entry("cycle", level, list(cycle), evidence, False, None))
+    for comp in components:
+        cid = comp["id"]
+        jobs = (draft_components.get(cid) or {}).get("mixed_jobs") or []
+        mixed = index["quality"].get(("mixed-responsibility", (cid,)))
+        if jobs and mixed and mixed["accepted"] is False and mixed["flag"] is None \
+                and mixed["probability"] is not None and mixed["probability"] <= 0.4:
+            evidence = [p for job in jobs for p in job["paths"]]
+            health.append(health_entry("mixed-responsibility", "components", [cid], evidence,
+                                       False, mixed["probability"], jobs=jobs))
+        hub = index["quality"].get(("hub-coupling", (cid,)))
+        if comp["nature"] == "product" and hub is not None and hub_candidate(comp.get("metrics") or {}):
+            evidence = [ex for edge in component_edges if not edge["test_only"] and cid in (edge["from"], edge["to"])
+                        for ex in edge["examples"][:1]] or [comp["path"]]
+            health.append(health_entry("hub-coupling", "components", [cid], evidence,
+                                       hub["accepted"], hub["probability"]))
     health.sort(key=lambda h: (h["level"] != "components", CHECKS.index(h["check"]), h["nodes"]))
     product_components = [c for c in components if c["nature"] == "product"]
 
@@ -890,8 +1019,27 @@ def validate(map_obj: dict) -> list[str]:
         for node in finding["nodes"]:
             if node not in ids:
                 errors.append(f"health {finding['check']}: unknown node {node!r}")
-        if finding["meaning"] != MEANINGS[finding["check"]]:
+        expected_meaning = MODULE_CYCLE_MEANING if finding["check"] == "cycle" and finding["level"] == "modules" else MEANINGS[finding["check"]]
+        if finding["meaning"] != expected_meaning:
             errors.append(f"health {finding['check']}: meaning differs from the check's sentence")
+        if not finding["headline"].strip():
+            errors.append(f"health {finding['check']}: missing headline")
+        if not finding["evidence"]:
+            errors.append(f"health {finding['check']}: missing path or import evidence")
+        if finding["accepted"] is None:
+            errors.append(f"health {finding['check']}: missing acceptability verdict")
+        if isinstance(finding["suggestion"], str) and not finding["suggestion"].strip():
+            errors.append(f"health {finding['check']}: empty suggestion")
+        jobs = finding.get("jobs")
+        if finding["check"] == "mixed-responsibility":
+            if finding["level"] != "components" or len(finding["nodes"]) != 1 or finding["accepted"]:
+                errors.append("health mixed-responsibility: requires one component and a confirmed finding")
+            elif finding["nodes"][0] in component_by_id:
+                errors.extend(mixed_jobs_errors(map_obj, finding["nodes"][0], jobs))
+            if not jobs:
+                errors.append("health mixed-responsibility: missing two jobs")
+        elif jobs is not None:
+            errors.append(f"health {finding['check']}: jobs belong only to mixed responsibility")
     if system["runtime_counts"] != {r: sum(1 for c in components if c["nature"] == "product" and c["runtime"] == r) for r in RUNTIMES}:
         errors.append("system: runtime_counts disagree with the product components")
     for entry in map_obj["unresolved"]:
