@@ -83,7 +83,7 @@ MODULE_SUMMARY_SHARE = 0.1
 
 
 def summarized_modules(skeleton: dict) -> list[dict]:
-    """Modules big enough to need a one-line summary: a tenth or more of a multi-module component's lines."""
+    """Production modules big enough to need a one-line summary: a tenth or more of a multi-module component's lines."""
     modules = skeleton.get("modules", [])
     by_component = {}
     for m in modules:
@@ -92,7 +92,7 @@ def summarized_modules(skeleton: dict) -> list[dict]:
     for mods in by_component.values():
         total = sum((m.get("metrics") or {}).get("loc", 0) for m in mods)
         if len(mods) > 1:
-            out += [m for m in mods if (m.get("metrics") or {}).get("loc", 0) >= total * MODULE_SUMMARY_SHARE]
+            out += [m for m in mods if not m.get("test") and (m.get("metrics") or {}).get("loc", 0) >= total * MODULE_SUMMARY_SHARE]
     return sorted(out, key=lambda m: m["id"])
 
 
