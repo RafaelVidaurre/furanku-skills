@@ -1,5 +1,8 @@
 # Grok 4.7 capability evidence
 
+> Score update, 2026-09-22: catalog scores now sit on one scale per
+> dimension. See [score normalization](model-routing-score-normalization-2026-09-22.md).
+
 > Maintained-catalog assessment as of 2026-09-22 (Europe/Lisbon). This file
 > is the 4.7 assessment for `grok/grok-4.7/high` and `claudex/grok-4.7/high`.
 > The [Grok 4.6 snapshot](grok-4.6-capability-evidence-2026-08-13.md) stays a

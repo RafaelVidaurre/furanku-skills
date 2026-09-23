@@ -14,6 +14,7 @@ import urllib.error
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import jev
+import jev_context
 import jev_trial
 
 
@@ -203,6 +204,17 @@ class JevTest(unittest.TestCase):
         self.assertEqual(profile["quota"]["anonymous_group"], "q1")
         self.assertEqual(profile["quota"]["status"], "known")
 
+    def test_candidate_profile_carries_each_capability_scale(self):
+        candidate = {"launch": {"agent": "codex", "model": "example", "effort": "high"},
+                     "capabilities": {"reasoning": {
+                         "status": "known", "score": 0.5, "conservative": 0.48, "confidence": "high",
+                         "assessed_at": "2026-09-22", "evidence": ["https://example.com"],
+                         "scale": "Index v2", "note": "Not comparable to Index v1."}}}
+        reasoning = jev_context.candidate_profile(candidate, {})["capabilities"]["reasoning"]
+        self.assertEqual(reasoning["scale"], "Index v2")
+        self.assertEqual(reasoning["note"], "Not comparable to Index v1.")
+        self.assertNotIn("evidence", reasoning)
+
     def test_trial_feature_and_launcher_constraints_leave_no_eligible_offer(self):
         compiled = {"candidates": {"worker": {"launch": {"agent": "codex", "model": "example", "effort": "high"},
                                             "features": ["tools"]}}, "accounts": {}, "preferences": []}
@@ -223,14 +235,14 @@ class JevTest(unittest.TestCase):
     def test_public_context_drops_private_profiles_and_preferences_without_reenabling(self):
         compiled = {"candidates": {
             "codex/gpt-6-astra/high": {"enabled": True, "private": "PRIVATE_PROFILE"},
-            "codex/gpt-5.6-luna/max": {"enabled": False},
+            "codex/gpt-6-luna/max": {"enabled": False},
             "custom/private/high": {"private": "PRIVATE_CUSTOM"},
         }, "preferences": [{"scope": "global", "text": "PRIVATE_PREFERENCE"}]}
         jev_trial.use_public_context(compiled)
         self.assertNotIn("PRIVATE_", json.dumps(compiled))
         self.assertEqual(set(compiled["candidates"]), {
-            "codex/gpt-6-astra/high", "codex/gpt-5.6-luna/max"})
-        self.assertFalse(compiled["candidates"]["codex/gpt-5.6-luna/max"]["enabled"])
+            "codex/gpt-6-astra/high", "codex/gpt-6-luna/max"})
+        self.assertFalse(compiled["candidates"]["codex/gpt-6-luna/max"]["enabled"])
         self.assertEqual(compiled["preferences"], jev_trial.PUBLIC_PREFERENCES)
 
 

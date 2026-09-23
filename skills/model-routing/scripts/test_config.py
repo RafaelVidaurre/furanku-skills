@@ -135,12 +135,12 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual({"enabled"}, {row["state"] for row in listed if row["model"] == "gpt-6-astra" and row["effort"] == "high"})
 
     def test_model_state_create_and_scope_shadowing(self):
-        self.run_config("set", "explicit", "gpt-6-sol", "max", "--repo", str(self.repo), ok=False)
-        self.run_config("set", "explicit", "gpt-6-sol", "max", "--create", "--agent", "codex", "--repo", str(self.repo))
+        self.run_config("set", "explicit", "gpt-6-sol", "high", "--repo", str(self.repo), ok=False)
+        self.run_config("set", "explicit", "gpt-6-sol", "high", "--create", "--agent", "codex", "--repo", str(self.repo))
         listed = json.loads(self.run_config("models", "--format", "json", "--repo", str(self.repo)).stdout)["models"]
-        self.assertIn({"candidate": "codex/gpt-6-sol/max", "model": "gpt-6-sol", "effort": "max", "agent": "codex", "state": "explicit", "source": "global"}, listed)
-        self.run_config("set", "disabled", "gpt-6-sol", "max", "--scope", "repo", "--repo", str(self.repo))
-        result = self.run_config("set", "enabled", "gpt-6-sol", "max", "--scope", "global", "--repo", str(self.repo), ok=False)
+        self.assertIn({"candidate": "codex/gpt-6-sol/high", "model": "gpt-6-sol", "effort": "high", "agent": "codex", "state": "explicit", "source": "global"}, listed)
+        self.run_config("set", "disabled", "gpt-6-sol", "high", "--scope", "repo", "--repo", str(self.repo))
+        result = self.run_config("set", "enabled", "gpt-6-sol", "high", "--scope", "global", "--repo", str(self.repo), ok=False)
         self.assertIn("repo overrides state", result.stderr)
 
     def test_models_source_names_state_layer_after_unrelated_override(self):
