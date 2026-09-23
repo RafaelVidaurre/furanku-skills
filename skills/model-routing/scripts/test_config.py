@@ -143,6 +143,32 @@ class ConfigTest(unittest.TestCase):
         result = self.run_config("set", "enabled", "gpt-6-nova", "max", "--scope", "global", "--repo", str(self.repo), ok=False)
         self.assertIn("repo overrides state", result.stderr)
 
+    def test_set_rejects_malformed_higher_layer_before_writing(self):
+        self.write("repo", {"version": 4, "routes": {},
+                            "candidates": {"codex/gpt-6-astra/high": {"context": 0}}}, self.repo)
+        global_path = self.home / ".furanku-skills" / "model-routing" / "config.json"
+        before = global_path.read_bytes() if global_path.exists() else None
+        result = self.run_config("set", "explicit", "gpt-6-astra", "high",
+                                 "--agent", "codex", "--create", "--repo", str(self.repo), ok=False)
+        self.assertIn("context", result.stderr)
+        after = global_path.read_bytes() if global_path.exists() else None
+        self.assertEqual(before, after)
+
+    def test_model_text_marks_states_and_sorts_effort(self):
+        self.run_config("set", "explicit", "gpt-6-sol", "max", "--repo", str(self.repo))
+        self.run_config("set", "disabled", "gpt-6-sol", "high", "--create", "--agent", "codex", "--repo", str(self.repo))
+        output = self.run_config("models", "--repo", str(self.repo)).stdout
+        self.assertIn("🟢 enabled", output)
+        self.assertIn("🟡 explicit", output)
+        self.assertIn("🔴 disabled", output)
+        sol = [line for line in output.splitlines() if "gpt-6-sol" in line]
+        self.assertEqual(["high", "max"], [line.split()[3] for line in sol])
+
+    def test_set_reports_exact_routes_affected_by_state(self):
+        result = self.run_config("set", "explicit", "gpt-6-astra", "high",
+                                 "--agent", "codex", "--repo", str(self.repo))
+        self.assertIn("captain (primary)", result.stdout)
+
     def test_models_source_names_state_layer_after_unrelated_override(self):
         self.run_config("set", "explicit", "gpt-6-astra", "high", "--agent", "codex", "--repo", str(self.repo))
         self.write("repo", {"version": 4, "routes": {},

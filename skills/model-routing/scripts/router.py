@@ -307,7 +307,7 @@ def isolate_compiled_candidates(candidates, candidate_sources, accounts, known_l
     return valid, valid_sources, malformed
 
 
-def compile_brief(repo="."):
+def compile_brief(repo=".", layer_overrides=None):
     catalog = read_json(CATALOG, "routing catalog")
     if catalog.get("version") != 2 or not {
         "routes",
@@ -341,11 +341,12 @@ def compile_brief(repo="."):
     exact = exact_config.resolve(paths)
     for scope in exact_config.SCOPES:
         path = paths[scope]
-        if not path.exists():
+        if not path.exists() and (layer_overrides is None or scope not in layer_overrides):
             continue
         # Partial layers are valid overlays; only the resolved routes table
         # (already validated inside exact_config.resolve) needs the base rows.
-        config = exact_config.load(path)
+        config = (layer_overrides[scope] if layer_overrides is not None and scope in layer_overrides
+                  else exact_config.load(path))
         for text in config.get("preferences", []):
             preferences.append({"scope": scope, "text": text.strip()})
         # Narrower scopes win in the private account registry. A candidate
@@ -782,7 +783,7 @@ def gate(
         reasons.append("disabled by configuration")
     elif candidate.get("explicit", False):
         if not explicit_basis:
-            reasons.append("explicit-only candidate requires --explicit-basis with the principal's request for this model and effort")
+            reasons.append("explicit-only candidate: do not retry unless the principal requested this model and effort; record that request with --explicit-basis")
         elif problem := explicit_request_problem(explicit_basis, candidate["launch"], model_names):
             reasons.append(problem)
     if allowed_launchers is not None:
@@ -1000,7 +1001,7 @@ def lower_effort_siblings(compiled, candidate_id):
 def effort_named(text, effort):
     return (
         re.search(
-            rf"(?<![a-z0-9]){re.escape(effort.lower())}(?![a-z0-9])",
+            rf"(?<![a-z0-9-]){re.escape(effort.lower())}(?![a-z0-9-])",
             text.lower(),
         )
         is not None
@@ -1019,13 +1020,19 @@ def model_alias(model):
 def explicit_request_problem(basis, launch, model_names=None):
     model = launch["model"]
     effort = launch["effort"]
-    normalized = f" {normalized_phrase(basis)} "
+    normalized = normalized_phrase(basis)
     full = normalized_phrase(model)
     alias = normalized_phrase(model_alias(model))
     names = set(model_names or [model])
     alias_unique = sum(normalized_phrase(model_alias(name)) == alias for name in names) == 1
-    names_model = f" {full} " in normalized or (alias_unique and f" {alias} " in normalized)
-    if not names_model or not effort_named(basis, effort):
+    named_together = any(
+        re.search(
+            rf"(?<![a-z0-9]){re.escape(name)} (?:at |on |with |using )?{re.escape(effort)}(?: effort)?(?![a-z0-9])",
+            normalized,
+        )
+        for name in ([full, alias] if alias_unique else [full])
+    )
+    if not named_together or not effort_named(basis, effort):
         return f"explicit basis must name {model} (or its unique alias) and effort {effort}"
     return None
 
@@ -1552,7 +1559,9 @@ def brief_markdown(compiled, runtime, repo_root, allowed_launchers=None):
         "",
     ]
     candidates = brief_candidates(compiled, allowed_launchers)
-    mixed = mixed_scales(candidates.values())
+    ordinary = {candidate_id: candidate for candidate_id, candidate in candidates.items()
+                if candidate.get("enabled", True) and not candidate.get("explicit", False)}
+    mixed = mixed_scales(ordinary.values())
     if mixed:
         lines += [
             "Scores in one column are comparable only on the same scale. "
@@ -1570,15 +1579,13 @@ def brief_markdown(compiled, runtime, repo_root, allowed_launchers=None):
         "| Candidate | State | Reasoning | Impl | Agentic | UI | 3D | $/task | tok/s | Context | Quota |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
-    for candidate_id, candidate in sorted(candidates.items(), key=candidate_sort_key):
-        if not candidate.get("enabled", True):
-            continue
+    for candidate_id, candidate in sorted(ordinary.items(), key=candidate_sort_key):
         cost, speed = economics_cells(candidate)
         context = candidate.get("context")
         state = runtime_for(runtime, candidate_id, candidate)
         lines.append(
             f"| {markdown_cell(candidate_id)} "
-            f"| {'explicit' if candidate.get('explicit', False) else 'enabled'} "
+            "| enabled "
             f"| {capability_cell(candidate, 'reasoning', mixed.get('reasoning'))} "
             f"| {capability_cell(candidate, 'implementation', mixed.get('implementation'))} "
             f"| {capability_cell(candidate, 'agentic', mixed.get('agentic'))} "
@@ -1588,6 +1595,13 @@ def brief_markdown(compiled, runtime, repo_root, allowed_launchers=None):
             f"| {f'{context:,}' if context else '?'} "
             f"| {markdown_cell(quota_cell(state) if runtime else 'not loaded')} |"
         )
+    explicit = sorted(
+        candidate_id for candidate_id, candidate in candidates.items()
+        if candidate.get("enabled", True) and candidate.get("explicit", False)
+    )
+    if explicit:
+        lines += ["", "Explicit only — select these only when the principal requested both the model and effort:"]
+        lines += [f"- {candidate_id}" for candidate_id in explicit]
     disabled = sorted(
         candidate_id
         for candidate_id, candidate in candidates.items()
