@@ -6,10 +6,12 @@ absent or partial hints block is filled with neutral defaults). Modules are the
 first-level directories under
 a unit's source root (``<path>/src`` when that directory holds most of the
 unit's files, else the unit path); files directly under the root form
-``<unit>/root``, a directory holding a single file folds into ``<unit>/root``,
-deeper directories collapse into their first-level ancestor, and a component
-with more than 16 modules keeps its 15 largest and folds the rest into
-``<unit>/other``. A flat source root (6 or more files directly under it holding
+``<unit>/root``,
+deeper directories collapse into their first-level ancestor. A component with
+more than 16 modules merges its smallest module into the one it shares the most
+production imports with until 16 remain (the entry module only as a last resort);
+the survivor keeps its name with "+ N more" and lists the absorbed names in
+``merged``. A flat source root (6 or more files directly under it holding
 at least 40% of the unit's lines, as in a Rust crate of ``step.rs``,
 ``world.rs``, ...) splits instead: each root file becomes a module named after
 its stem, joining the directory of the same name when one exists, while entry
@@ -117,6 +119,32 @@ def _tarjan(nodes: list[str], adjacency: dict[str, set[str]]) -> list[list[str]]
     return sorted(result)
 
 
+def _merge_to_cap(groups: dict, edges: list) -> None:
+    """Merge the smallest module into the one it shares the most imports with until MODULE_CAP remain.
+
+    Files that import each other belong together whatever the language, so nothing lands in a catch-all
+    bucket. The entry module (root) is the last resort: every file hangs off it, so its links say nothing.
+    Deterministic: smallest by lines, then by key; ties between neighbours go to the larger, then by key.
+    """
+    loc = lambda k: sum(f["loc"] for f in groups[k]["files"])
+    while len(groups) > MODULE_CAP:
+        owner = {f["path"]: k for k, g in groups.items() for f in g["files"]}
+        small = min((k for k in groups if k != "root"), key=lambda k: (loc(k), k))
+        links = {}
+        for a, b in edges:
+            ka, kb = owner.get(a), owner.get(b)
+            if ka and kb and ka != kb and small in (ka, kb):
+                other = kb if ka == small else ka
+                links[other] = links.get(other, 0) + 1
+        ranked = sorted((k for k in links if k != "root"), key=lambda k: (-links[k], -loc(k), k))
+        target = ranked[0] if ranked else ("root" if "root" in groups else min((k for k in groups if k != small), key=lambda k: (-loc(k), k)))
+        absorbed = groups.pop(small)
+        dest = groups[target]
+        dest["files"].extend(absorbed["files"])
+        dest["merged"] = sorted(set(dest.get("merged", [])) | {small} | set(absorbed.get("merged", [])))
+        dest["root_file"] = bool(dest.get("root_file") or absorbed.get("root_file"))
+
+
 def _metrics(node_ids, files_of, loc_of, edges, changes_of):
     out = {n: set() for n in node_ids}
     inc = {n: set() for n in node_ids}
@@ -174,6 +202,14 @@ def skeleton(scan: dict) -> dict:
             units[unit] = {"id": unit, "name": unit, "path": PurePosixPath(f["path"]).parts[0], "kind": "directory"}
         by_unit.setdefault(unit, []).append(f)
 
+    # production imports between files of the same unit, for grouping modules by what they use
+    unit_of_path = {f["path"]: (f.get("unit") or PurePosixPath(f["path"]).parts[0]) for f in files}
+    test_path = {f["path"] for f in files if f.get("role") == "test"}
+    unit_edges = {}
+    for e in scan.get("edges", []):
+        u = unit_of_path.get(e["from"])
+        if u and u == unit_of_path.get(e["to"]) and e["from"] != e["to"] and e["from"] not in test_path:
+            unit_edges.setdefault(u, []).append((e["from"], e["to"]))
     modules = []
     module_of = {}
     components = []
@@ -188,10 +224,6 @@ def skeleton(scan: dict) -> dict:
             key = "root" if dirname is None else dirname
             group = groups.setdefault(key, {"files": [], "path": root if key == "root" else f"{base}/{dirname}".lstrip("/")})
             group["files"].append(f)
-        # A directory with a single file folds into root.
-        for key in sorted(k for k in groups if k != "root"):
-            if len(groups[key]["files"]) == 1:
-                groups.setdefault("root", {"files": [], "path": root})["files"].extend(groups.pop(key)["files"])
         # A flat root splits into one module per file stem; a stem that names a directory joins it.
         flat = groups.get("root", {"files": []})["files"]
         unit_loc = sum(f["loc"] for f in unit_files) or 1
@@ -208,14 +240,7 @@ def skeleton(scan: dict) -> dict:
             groups["root"]["files"] = keep
             if not keep:
                 groups.pop("root")
-        # Cap: keep the largest MODULE_CAP - 1, fold the rest into other.
-        if len(groups) > MODULE_CAP:
-            ranked = sorted(groups, key=lambda k: (-sum(f["loc"] for f in groups[k]["files"]), k))
-            keep = set(ranked[: MODULE_CAP - 1])
-            other = {"files": [], "path": root}
-            for key in sorted(k for k in groups if k not in keep):
-                other["files"].extend(groups.pop(key)["files"])
-            groups["other"] = other
+        _merge_to_cap(groups, unit_edges.get(unit_id, []))
         module_ids = []
         for key in sorted(groups):
             group = groups[key]
@@ -228,7 +253,8 @@ def skeleton(scan: dict) -> dict:
             modules.append({
                 "id": module_id,
                 "component": unit_id,
-                "name": display_name(unit) if key == "root" else key,
+                "name": (display_name(unit) if key == "root" else key) + (f" + {len(group['merged'])} more" if group.get("merged") else ""),
+                "merged": sorted(group.get("merged", [])),
                 "path": group["path"] or unit_path,
                 "test": bool(records) and tests >= len(records) * TEST_MODULE_SHARE,
                 "root_file": key == "root" or bool(group.get("root_file")),

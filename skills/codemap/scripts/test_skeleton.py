@@ -57,7 +57,7 @@ def test_src_root_detected_and_root_module_named_after_unit():
     assert by_id["pkg/a"]["files"][0]["exports"] == []
 
 
-def test_without_src_directory_first_level_dirs_become_modules_and_singletons_fold():
+def test_without_src_directory_first_level_dirs_become_modules():
     scan = make_scan(
         [("app", "apps/app")],
         [
@@ -70,23 +70,29 @@ def test_without_src_directory_first_level_dirs_become_modules_and_singletons_fo
     )
     modules = module_map(skeleton.skeleton(scan))
     assert modules == {
-        "app/root": ["apps/app/main.ts", "apps/app/src/one.ts", "apps/app/util/only.ts"],
+        "app/root": ["apps/app/main.ts"],
+        "app/src": ["apps/app/src/one.ts"],
+        "app/util": ["apps/app/util/only.ts"],
         "app/views": ["apps/app/views/a.ts", "apps/app/views/b.ts"],
     }
 
 
-def test_more_than_sixteen_modules_folds_smallest_into_other():
-    files = []
+def test_more_than_sixteen_modules_merge_by_imports_never_into_a_catch_all():
+    files, edges = [], []
     for i in range(20):
         files.append((f"lib/d{i:02d}/a.ts", 100 + i, "lib"))
         files.append((f"lib/d{i:02d}/b.ts", 1, "lib"))
-    result = skeleton.skeleton(make_scan([("lib", "lib")], files))
-    ids = [m["id"] for m in result["modules"]]
-    assert len(ids) == 16 and "lib/other" in ids
-    kept = {i for i in ids if i != "lib/other"}
-    assert kept == {f"lib/d{i:02d}" for i in range(5, 20)}  # 15 largest by loc
-    other = next(m for m in result["modules"] if m["id"] == "lib/other")
-    assert len(other["files"]) == 10 and other["path"] == "lib"
+    files.append(("lib/index.ts", 5, "lib"))
+    # five merges bring 21 groups to 16: each small directory joins the neighbour it imports; d03 is linked only from the entry file
+    edges = [("lib/d00/a.ts", "lib/d10/a.ts", 1), ("lib/d01/a.ts", "lib/d11/a.ts", 1), ("lib/d02/a.ts", "lib/d10/a.ts", 1),
+             ("lib/d04/a.ts", "lib/d12/a.ts", 1), ("lib/d05/a.ts", "lib/d12/a.ts", 2), ("lib/index.ts", "lib/d03/a.ts", 1)]
+    result = skeleton.skeleton(make_scan([("lib", "lib")], files, edges))
+    mods = {m["id"]: m for m in result["modules"]}
+    assert len(mods) == 16 and not any(i.endswith("/other") for i in mods)
+    assert mods["lib/d10"]["merged"] == ["d00", "d02"] and mods["lib/d10"]["name"] == "d10 + 2 more"
+    assert mods["lib/d11"]["merged"] == ["d01"] and mods["lib/d12"]["merged"] == ["d04"]
+    assert mods["lib/root"]["merged"] == ["d03"]  # linked only through the entry file, so it joins root
+    assert {f["path"] for f in mods["lib/d10"]["files"]} >= {"lib/d00/a.ts", "lib/d02/b.ts"}
 
 
 def test_metrics_edges_and_cycles():

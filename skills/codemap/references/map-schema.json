@@ -593,6 +593,13 @@
           "test": {
             "type": "boolean",
             "description": "At least 80% of the module's files are tests."
+          },
+          "merged": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Names of smaller modules merged into this one because they share the most imports with it."
           }
         }
       }
