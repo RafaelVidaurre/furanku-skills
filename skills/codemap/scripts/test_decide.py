@@ -591,3 +591,16 @@ class CompactFallbackTest(unittest.TestCase):
         with mock.patch.object(dc, "_sleep"):
             dc.decide(SKELETON, draft, result, evaluate=lambda p: again.append(p["state"].get("id")) or FakeJev()(p))
         self.assertNotIn("ui", again)
+
+
+class ProgressTest(unittest.TestCase):
+    def test_decide_reports_bounded_progress_without_provider_text(self):
+        stream = io.StringIO()
+        with mock.patch.object(dc, "_progress_stream", stream), mock.patch.object(dc, "_started", [None]):
+            dc.decide(SKELETON, DRAFT, None, evaluate=FakeJev())
+        lines = [json.loads(l) for l in stream.getvalue().splitlines()]
+        phases = [l["progress"] for l in lines]
+        self.assertEqual(phases[0], "components")
+        self.assertIn("checks", phases)
+        done = [l for l in lines if l["progress"] == "components" and l["done"] == l["total"]]
+        self.assertTrue(done and all("elapsed_seconds" in l and "calls" in l for l in done))
