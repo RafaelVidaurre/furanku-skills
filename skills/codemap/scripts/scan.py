@@ -20,6 +20,13 @@ from the unit's top-level path segment, else null) and ``test_file_share``.
 (protobuf, GraphQL, OpenAPI, AsyncAPI, JSON Schema, Avro, Thrift, Cap'n Proto,
 FlatBuffers, XML Schema, Smithy) with the unit that owns their directory.
 
+Languages: TypeScript and JavaScript, Rust, Python, GDScript (``preload``/``load``/
+``extends`` by ``res://`` path or ``class_name``; loading a scene depends on the
+scripts it attaches; a folder with ``project.godot`` is a unit), and Solidity
+(``import`` by relative or project path; other paths are external packages).
+Each file also carries ``role`` (source, test, or build configuration) and
+``provenance`` (authored, generated, or a literal data table encoded as source).
+
 Every file carries ``changes``: the commits that touched it in the 90 days
 before the scanned commit's own date (``activity`` records the window), so the
 count depends on the commit, never on when the scan ran.
@@ -51,6 +58,8 @@ LANG_BY_EXT = {
     "js": "js", "jsx": "js", "mjs": "js", "cjs": "js",
     "rs": "rust",
     "py": "python",
+    "gd": "gdscript",
+    "sol": "solidity",
 }
 IGNORED_SEGMENTS = {
     "node_modules", "target", "dist", "build", "out", ".git", "__pycache__",
@@ -403,6 +412,21 @@ def _detect_rust_units(root: Path) -> list[Unit]:
     return units
 
 
+def _detect_godot_units(root: Path, tracked: list[str]) -> list[Unit]:
+    """A Godot project is the folder holding project.godot; its main scene makes it something that runs."""
+    units: list[Unit] = []
+    for rel_file in tracked:
+        if posixpath.basename(rel_file) != "project.godot" or _is_ignored(rel_file):
+            continue
+        rel = posixpath.dirname(rel_file)
+        text = _read_text(root / rel_file) or ""
+        name = re.search(r'^config/name\s*=\s*"([^"]+)"', text, re.M)
+        main = re.search(r'^run/main_scene\s*=\s*"([^"]+)"', text, re.M)
+        units.append(Unit(rel, "godot", name.group(1) if name else (posixpath.basename(rel) or "godot"), rel_file, None,
+                          _readme_for(root, rel), {"main_scene": main.group(1) if main else None}))
+    return units
+
+
 def _detect_python_units(root: Path, tracked: list[str]) -> list[Unit]:
     units: list[Unit] = []
     seen: set[str] = set()
@@ -629,6 +653,8 @@ def _is_executable(scanner: "Scanner", unit: Unit, files: list[str]) -> bool:
         return any(f.startswith(base + "src/bin/") for f in files)
     if unit.kind in ("package", "app") and data.get("bin"):
         return True
+    if unit.kind == "godot":
+        return bool(data.get("main_scene"))
     if unit.kind == "python":
         sections = data.get("sections") or {}
         if "project.scripts" in sections or "project.gui-scripts" in sections or "tool.poetry.scripts" in sections:
@@ -701,6 +727,7 @@ class Scanner:
         self.units: list[Unit] = []
         self.unit_by_path: dict[str, Unit] = {}
         self.js_by_name: dict[str, Unit] = {}
+        self.gd_classes: dict[str, str] = {}  # GDScript class_name -> the file that declares it
         self.crate_by_name: dict[str, Unit] = {}
         self.edges: list[dict] = []
         self.unresolved: list[dict] = []
@@ -712,7 +739,7 @@ class Scanner:
     # --- units -----------------------------------------------------------
     def detect_units(self) -> None:
         units = _detect_js_units(self.root) + _detect_rust_units(self.root) \
-            + _detect_python_units(self.root, sorted(self.tracked))
+            + _detect_python_units(self.root, sorted(self.tracked)) + _detect_godot_units(self.root, sorted(self.tracked))
         # an Nx project.json adds its declaration to a unit already found at that path, or defines the unit itself
         known = {u.path: u for u in units}
         for nx in _detect_nx_units(self.root, sorted(self.tracked)):
@@ -1330,6 +1357,86 @@ PY_IMPORT = re.compile(r"^\s*import\s+([A-Za-z_][\w.]*(?:\s+as\s+\w+)?(?:\s*,\s*
 PY_FROM = re.compile(r"^\s*from\s+(\.*[A-Za-z_][\w.]*|\.+)\s+import\s+(.*)$")
 
 
+GD_LOAD = re.compile(r"""\b(?:preload|load|ResourceLoader\.load)\s*\(\s*["']([^"']+)["']""")
+GD_EXTENDS_PATH = re.compile(r"""^\s*extends\s+["']([^"']+)["']""")
+GD_EXTENDS_CLASS = re.compile(r"^\s*extends\s+([A-Z]\w*)")
+GD_CLASS_NAME = re.compile(r"^\s*class_name\s+([A-Z]\w*)", re.M)
+SCENE_SCRIPT = re.compile(r'\[ext_resource[^\]]*type="Script"[^\]]*path="([^"]+)"')
+
+
+def _godot_root(scanner: Scanner, path: str) -> str | None:
+    """The folder of the nearest project.godot above path: what res:// means for that file."""
+    parts = path.split("/")[:-1]
+    while True:
+        candidate = "/".join(parts + ["project.godot"]) if parts else "project.godot"
+        if candidate in scanner.tracked:
+            return "/".join(parts)
+        if not parts:
+            return None
+        parts.pop()
+
+
+def _resolve_godot(scanner: Scanner, src: str, spec: str) -> list[str]:
+    """Source files a Godot resource path stands for: a script itself, or the scripts a scene attaches."""
+    if spec.startswith("res://"):
+        base = _godot_root(scanner, src)
+        if base is None:
+            return []
+        target = posixpath.normpath(posixpath.join(base, spec[len("res://"):])) if base else posixpath.normpath(spec[len("res://"):])
+    elif "://" in spec:
+        return []
+    else:
+        target = posixpath.normpath(posixpath.join(posixpath.dirname(src), spec))
+    if scanner.is_source(target):
+        return [target]
+    if target.endswith((".tscn", ".scn")) and target in scanner.tracked:
+        text = _read_text(scanner.root / target) or ""
+        return [t for t in (_resolve_godot(scanner, target, m) for m in SCENE_SCRIPT.findall(text)) for t in t if scanner.is_source(t)]
+    return []
+
+
+def parse_gdscript(scanner: Scanner, src: str, lines: list[str]) -> None:
+    for idx, line in enumerate(lines, start=1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        specs = GD_LOAD.findall(line)
+        m = GD_EXTENDS_PATH.match(line)
+        if m:
+            specs.append(m.group(1))
+        for spec in specs:
+            targets = _resolve_godot(scanner, src, spec)
+            for target in targets:
+                scanner.add_edge(src, target, spec, idx)
+            if not targets and spec.endswith((".gd", ".tscn", ".scn")):
+                scanner.add_unresolved(src, spec, idx)
+        m = GD_EXTENDS_CLASS.match(line)
+        if m and m.group(1) in scanner.gd_classes:
+            scanner.add_edge(src, scanner.gd_classes[m.group(1)], m.group(1), idx)
+
+
+SOL_IMPORT = re.compile(r"""^\s*import\s+(?:[^"';]*?\s+from\s+)?["']([^"']+)["']""")
+
+
+def parse_solidity(scanner: Scanner, src: str, lines: list[str], unit: Unit | None) -> None:
+    roots = [unit.path] if unit and unit.path else []
+    for idx, line in enumerate(lines, start=1):
+        m = SOL_IMPORT.match(line)
+        if not m:
+            continue
+        spec = m.group(1)
+        if spec.startswith("."):
+            target = posixpath.normpath(posixpath.join(posixpath.dirname(src), spec))
+            (scanner.add_edge if scanner.is_source(target) else lambda s, t, sp, i: scanner.add_unresolved(s, sp, i))(src, target, spec, idx)
+            continue
+        local = next((posixpath.join(r, spec) for r in roots + [""] if scanner.is_source(posixpath.normpath(posixpath.join(r, spec)))), None)
+        if local:
+            scanner.add_edge(src, posixpath.normpath(local), spec, idx)
+            continue
+        parts = spec.split("/")
+        scanner.add_external("/".join(parts[:2]) if spec.startswith("@") and len(parts) > 1 else parts[0], src)
+
+
 def parse_python(scanner: Scanner, src: str, lines: list[str], unit: Unit | None) -> None:
     for idx, line in enumerate(lines, start=1):
         stripped = line.strip()
@@ -1362,6 +1469,7 @@ def parse_python(scanner: Scanner, src: str, lines: list[str], unit: Unit | None
 TEST_DIRS = {"tests", "test", "__tests__", "spec", "specs", "testing", "fixtures", "e2e", "benches", "benchmarks"}
 TEST_BASENAME = re.compile(
     r"(?:^|[._-])(?:test|tests|spec)\.[cm]?[jt]sx?$|^test_.*\.py$|_tests?\.py$|^conftest\.py$|_tests?\.rs$|^tests?\.rs$"
+    r"|^test_.*\.gd$|_tests?\.gd$|\.t\.sol$"
 )
 
 
@@ -1385,7 +1493,7 @@ def file_role(path: str) -> str:
 
 GENERATED_MARKER = re.compile(r"@generated|do not edit|auto-?generated|generated by", re.I)
 GENERATED_DIRS = {"generated", "__generated__", "gen", "codegen"}
-LITERAL_LINE = re.compile(r"""^\s*(?:[-+]?\d[\d_.xXa-fA-FeE+-]*|"[^"]*"|'[^']*'|true|false|null|[\[\]{}(),;]|\w+\s*:\s*(?:[-+]?\d[\w.]*|"[^"]*"|'[^']*'))\s*,?\s*$""")
+LITERAL = re.compile(r"""(?<![\w.])(?:0x[0-9a-fA-F]+|[-+]?\d[\d_.]*(?:[eE][-+]?\d+)?)(?![\w])|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'""")
 
 
 def file_provenance(path: str, lines: list[str]) -> str:
@@ -1393,8 +1501,10 @@ def file_provenance(path: str, lines: list[str]) -> str:
     if any(part in GENERATED_DIRS for part in path.split("/")[:-1]) or any(GENERATED_MARKER.search(l) for l in lines[:8]):
         return "generated"
     if len(lines) >= 2000:
-        sample = [l for l in lines[:: max(1, len(lines) // 400)] if l.strip()]
-        if sample and sum(1 for l in sample if LITERAL_LINE.match(l)) >= 0.9 * len(sample):
+        # a table encoded as source: with its literals blanked, nearly every line has the same shape, whether the
+        # rows are list items, map entries, insert statements, or repeated calls such as table.set('id', 1)
+        sample = [LITERAL.sub("_", l.strip()) for l in lines[:: max(1, len(lines) // 400)] if l.strip()]
+        if sample and max(sample.count(shape) for shape in set(sample)) >= 0.8 * len(sample):
             return "data"
     return "authored"
 
@@ -1434,6 +1544,11 @@ def scan(repo_root: Path, ref: str = "HEAD", now: str | None = None) -> dict:
     remote = _git(root, "remote", "get-url", "origin", check=False)
 
     activity, changes = _activity(root, sha_value)
+    # GDScript names classes globally (class_name X), so extends X needs every declaration before any file is parsed
+    for path in sorted(p for p, lang in scanner.source.items() if lang == "gdscript"):
+        m = GD_CLASS_NAME.search(_read_text(root / path) or "")
+        if m:
+            scanner.gd_classes.setdefault(m.group(1), path)
     files: list[dict] = []
     for path in sorted(scanner.source):
         lang = scanner.source[path]
@@ -1451,6 +1566,10 @@ def scan(repo_root: Path, ref: str = "HEAD", now: str | None = None) -> dict:
             parse_rust(scanner, path, lines, unit)
         elif lang == "python":
             parse_python(scanner, path, lines, unit)
+        elif lang == "gdscript":
+            parse_gdscript(scanner, path, lines)
+        elif lang == "solidity":
+            parse_solidity(scanner, path, lines, unit)
 
     contracts = []
     for path in tracked:
@@ -1467,7 +1586,8 @@ def scan(repo_root: Path, ref: str = "HEAD", now: str | None = None) -> dict:
     for name, entry in scanner.externals.items():
         for path in entry["files"]:
             bucket = externals_by_unit.setdefault(unit_by_path.get(path), {"source": [], "test": []})
-            bucket[role_by_path.get(path, "source")].append(name)
+            # build configuration's libraries shape the build, not what ships: count them with the test harness
+            bucket["source" if role_by_path.get(path, "source") == "source" else "test"].append(name)
     for u in scanner.units:
         u.hints = unit_hints(scanner, u, files_by_unit.get(u.id, []), externals_by_unit.get(u.id, {}))
 

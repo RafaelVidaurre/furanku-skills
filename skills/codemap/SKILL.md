@@ -26,7 +26,7 @@ python3 <skill-dir>/scripts/codemap.py scan --repo <root>
 python3 <skill-dir>/scripts/codemap.py skeleton --repo <root>
 ```
 
-The scan inventories all tracked paths and document/manifest/deployment reading leads, and extracts supported TypeScript, JavaScript, Rust, and Python imports and owning units. The skeleton turns that into components, modules, metrics, and aggregated edges. Read the scan summary: units by kind, files by language, unresolved imports. Unresolved imports above a few percent of edges mean a resolution gap; report it as a scanner limitation in the final summary rather than working around it in prose.
+The scan inventories all tracked paths and document/manifest/deployment reading leads, and extracts supported TypeScript, JavaScript, Rust, Python, GDScript, and Solidity imports and owning units (workspace manifests, Nx `project.json`, `project.godot`, and directory fallbacks). The skeleton turns that into components, modules, metrics, and aggregated edges. Read the scan summary: units by kind, files by language, unresolved imports. Unresolved imports above a few percent of edges mean a resolution gap; report it as a scanner limitation in the final summary rather than working around it in prose.
 
 **Complete when:** both commands succeed and the inventory is present and any gap between scanned components and repository contents is explained by import coverage.
 
