@@ -436,12 +436,25 @@ def test_actors_may_use_the_build_verify_area(trio):
     assert build.validate(build.build(sk, draft, decisions)) == []
 
 
-def test_loaded_by_records_links_imports_cannot_see_and_drops_unknown_ids(trio):
+def test_loaded_by_records_links_imports_cannot_see_and_rejects_unknown_ids(trio):
     skel, draft, decisions = copy.deepcopy(trio)
-    draft["components"]["rules"]["loaded_by"] = ["web", "ghost-component", "rules"]
+    draft["components"]["rules"]["loaded_by"] = ["web", "rules"]
     comp = {c["id"]: c for c in build.build(skel, draft, decisions)["components"]}
     assert comp["rules"]["loaded_by"] == ["web"]
     assert comp["api"]["loaded_by"] == []
+    draft["components"]["rules"]["loaded_by"] = ["web", "ghost-component"]
+    with pytest.raises(build.BuildError, match="loaded_by: 'ghost-component' is neither"):
+        build.build(skel, draft, decisions)
+
+
+def test_components_name_the_language_most_of_their_own_lines_use(trio, valid_map):
+    comp = {c["id"]: c for c in valid_map["components"]}
+    assert comp["api"]["language"] == "TypeScript"
+    skel = copy.deepcopy(trio[0])
+    mod = next(m for m in skel["modules"] if m["component"] == "api")
+    mod["files"] += [{"path": "x/big.gd", "loc": 10_000, "exports": [], "test": False},
+                     {"path": "x/gen.sol", "loc": 50_000, "exports": [], "test": False, "provenance": "generated"}]
+    assert build.language_of(skel, "api") == "GDScript"  # generated lines do not count
 
 
 def test_full_stack_apps_never_raise_client_and_server_share_code(trio):

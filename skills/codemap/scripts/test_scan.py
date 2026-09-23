@@ -512,6 +512,21 @@ def test_gdscript_and_solidity_imports_resolve_by_path(tmp_path):
     assert roles["game/tests/test_player.gd"] == "test" and roles["game/scripts/main.gd"] == "source"
 
 
+def test_a_godot_project_nx_also_declares_stays_godot_and_runnable(tmp_path):
+    root = make_repo(tmp_path, extra={
+        "game/project.godot": '[application]\nconfig/name="Arena"\nrun/main_scene="res://main.tscn"\n',
+        "game/project.json": '{"name": "game", "projectType": "application", "targets": {"export": {}}}\n',
+        "game/main.gd": "extends Node\n",
+        "relay/package.json": '{"name": "relay", "main": "src/index.ts"}\n',
+        "relay/Dockerfile.web": "FROM scratch\n",
+        "relay/src/index.ts": "export const x = 1;\n",
+    })
+    units = {u["path"]: u for u in scan.scan(root, now=NOW)["units"]}
+    assert units["game"]["kind"] == "godot" and units["game"]["hints"]["executable"]
+    # a Dockerfile variant is start evidence too
+    assert units["relay"]["hints"]["executable"]
+
+
 def test_a_build_config_importing_a_library_scans(tmp_path):
     root = make_repo(tmp_path, extra={
         "package.json": '{"name": "ws", "private": true, "workspaces": ["web"]}\n',

@@ -218,7 +218,7 @@ HTTP_HINTS = {
     402: "the Gateway team is out of credits or over budget; top up, then rerun decide",
     403: "the key lacks Gateway access; check the team's Gateway settings",
     422: "the request was rejected as invalid; report this as a codemap bug with the dry-run request",
-    429: "rate limited; rerun decide in a minute (cached decisions are reused)",
+    429: "rate limited; rerun decide in a minute (cached decisions are reused). If it persists, `decide --dry-run` names the largest request: an oversized one is a codemap bug to report",
     529: "Jev is overloaded; rerun decide in a few minutes (cached decisions are reused)",
 }
 

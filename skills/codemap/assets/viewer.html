@@ -516,7 +516,8 @@ function buildModel(map) {
     const hints = c.hints || {}, kind = c.kind || '', rt = M.rtOf(c), desktop = (hints.desktop || [])[0], cl = hints.client_libs || [];
     const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
     const lib = M.isProduct(c) && !M.isRunnable(c), js = ['package', 'app', 'tool', 'workspace'].includes(kind);
-    const lang = hints.language ? cap(hints.language) : kind === 'crate' ? 'Rust' : kind === 'godot' ? 'Godot' : lib && js ? 'TypeScript' : desktop ? cap(desktop) : cl.includes('vite') ? 'Vite' : /\.py$|^python/.test(kind) || kind === 'pyproject' ? 'Python' : js ? 'Node' : '';
+    // JavaScript-family components keep the finer Vite / Node / TypeScript reading below; others name their language
+    const lang = c.language && !['TypeScript', 'JavaScript'].includes(c.language) ? c.language : kind === 'crate' ? 'Rust' : kind === 'godot' ? 'Godot' : lib && js ? 'TypeScript' : desktop ? cap(desktop) : cl.includes('vite') ? 'Vite' : /\.py$|^python/.test(kind) || kind === 'pyproject' ? 'Python' : js ? 'Node' : '';
     // a library is a library wherever it runs; only runnables are apps, services, and commands
     const noun = lib ? (rt === 'client' ? 'browser library' : rt === 'server' ? 'server library' : 'library') : rt === 'fullstack' ? 'full-stack web app' : rt === 'server' ? 'service' : rt === 'client' ? (desktop ? 'desktop app' : 'web app') : rt === 'cli' ? 'CLI' : rt === 'shared' ? 'library' : rt === 'build' ? 'build tool' : M.natureOf(c);
     return [lang, noun].filter(Boolean).join(' ');

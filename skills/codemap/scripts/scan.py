@@ -652,6 +652,15 @@ def _declared_kind(unit: Unit) -> str | None:
     return kind if kind in ("application", "library") else None
 
 
+def _has_container_image(scanner: "Scanner", base: str) -> bool:
+    """A Dockerfile at the unit's root, including variants such as Dockerfile.web or server.Dockerfile."""
+    if not hasattr(scanner, "_image_dirs"):
+        names = ((posixpath.dirname(p), posixpath.basename(p)) for p in scanner.tracked)
+        scanner._image_dirs = {d + "/" if d else "" for d, n in names
+                               if n == "Dockerfile" or n.startswith("Dockerfile.") or n.endswith(".Dockerfile")}
+    return base in scanner._image_dirs
+
+
 def _is_executable(scanner: "Scanner", unit: Unit, files: list[str]) -> bool:
     data = unit.data or {}
     base = unit.path + "/" if unit.path else ""
@@ -662,16 +671,16 @@ def _is_executable(scanner: "Scanner", unit: Unit, files: list[str]) -> bool:
     exports_library = any(data.get(k) for k in ("main", "exports", "types", "module"))
     if _declared_kind(unit) != "library" and (NX_START_TARGETS & set(targets)
                                                or (START_SCRIPTS & set(scripts) and not exports_library)
-                                               or (base + "Dockerfile") in scanner.tracked):
+                                               or _has_container_image(scanner, base)):
         return True
+    if data.get("main_scene"):
+        return True  # a Godot project that opens a scene, whatever build system also declares it
     if unit.kind == "crate":
         if scanner.is_source(base + "src/main.rs") or "bin" in (data.get("sections") or {}):
             return True
         return any(f.startswith(base + "src/bin/") for f in files)
     if unit.kind in ("package", "app") and data.get("bin"):
         return True
-    if unit.kind == "godot":
-        return bool(data.get("main_scene"))
     if unit.kind == "python":
         sections = data.get("sections") or {}
         if "project.scripts" in sections or "project.gui-scripts" in sections or "tool.poetry.scripts" in sections:
@@ -762,7 +771,8 @@ class Scanner:
         for nx in _detect_nx_units(self.root, sorted(self.tracked)):
             if nx.path in known:
                 known[nx.path].data = dict(known[nx.path].data or {}, nx=nx.data["nx"])
-                if nx.kind == "app":
+                # a JS package declared an application becomes an app; a Godot project or crate keeps its own kind
+                if nx.kind == "app" and known[nx.path].kind == "package":
                     known[nx.path].kind = "app"
             else:
                 units.append(nx)

@@ -438,6 +438,13 @@ def cmd_decide(args) -> dict:
         if not accepts:
             raise Failure("this decide.py does not support --require-zdr")
         kwargs["require_zdr"] = True
+    if getattr(args, "dry_run", False):
+        result = decide_mod.decide(skeleton, draft, cache, dry_run=True, **kwargs)
+        out = store.store_dir(repo) / "dry-run.jsonl"
+        out.write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in result["requests"]), encoding="utf-8")
+        largest = max(result["requests"], key=lambda r: len(json.dumps(r)), default=None)
+        return {"status": "dry-run", "requests": len(result["requests"]), "calls_cached": result["summary"]["calls_cached"],
+                "path": str(out), "largest": {"node": largest["node"], "bytes": len(json.dumps(largest))} if largest else None}
     if "checkpoint" in inspect.signature(decide_mod.decide).parameters:
         kwargs["checkpoint"] = lambda records: store.write_json(paths["decisions"], decide_mod.partial_cache("decide is still running.", records))
     # a harness that times the command out sends SIGTERM: stop like Ctrl-C so the answers so far are saved
@@ -633,6 +640,9 @@ def parser() -> argparse.ArgumentParser:
             sub.add_argument("--ref", default="HEAD")
         if name in ("decide", "all", "update"):
             sub.add_argument("--require-zdr", action="store_true", dest="require_zdr")
+        if name == "decide":
+            sub.add_argument("--dry-run", action="store_true", dest="dry_run",
+                             help="write the requests that would be sent to dry-run.jsonl in the map store; no network")
         if name in ("build", "all"):
             sub.add_argument("--open", action="store_true")
             sub.add_argument("--template", help=argparse.SUPPRESS)

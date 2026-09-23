@@ -534,6 +534,13 @@
               "type": "string"
             },
             "description": "Components that load this one through something other than an import (Wasm, FFI, generated code, plugins), from the draft."
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The language most of the component's hand-written, non-test lines use, when the scanner reads it."
           }
         }
       }

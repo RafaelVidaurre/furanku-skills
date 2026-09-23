@@ -463,6 +463,13 @@ class DecideTest(unittest.TestCase):
         self.assertEqual(written["summary"]["calls_made"], 5)
         self.assertEqual(written["summary"]["calls_cached"], 8)
 
+    def test_a_huge_change_record_is_summarized_before_it_is_asked(self):
+        paths = [f"game/f{i}.gd" for i in range(5000)]
+        summary = dc.summarize_change({"files_added": paths, "files_removed": ["a.gd"], "dependencies_added": []})
+        self.assertEqual(summary["files_added"], {"count": 5000, "examples": paths[:dc.CHANGE_EXAMPLES]})
+        self.assertEqual(summary["files_removed"], ["a.gd"])
+        self.assertLess(len(json.dumps(summary)), 2000)
+
     def test_a_stopped_run_keeps_its_answers_and_long_runs_checkpoint(self):
         calls, saved = [], []
 
