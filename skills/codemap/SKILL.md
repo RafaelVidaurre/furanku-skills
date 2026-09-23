@@ -1,6 +1,6 @@
 ---
 name: codemap
-description: Build and maintain an architecture map of a codebase as a standalone HTML explorer with five lenses (Purpose: people, areas, runnables, flows; Layers: runtime by layer; Ships in: which libraries each app, service, and CLI contains; Size & activity: lines and recent changes; Contracts: shared schemas and interface files) and a Code quality panel. Use when the user asks for a code map or architecture map, asks how a codebase is structured, what depends on what, what a change to a library would reach, where work is happening, or which code-quality findings deserve attention, asks to update the map after changes, or asks to open the map.
+description: Build and maintain an architecture map of a codebase as a standalone HTML explorer with five lenses (Purpose shows people, areas, runnables, and flows; Layers shows where each part runs and which way dependencies point; Ships in shows which libraries each app, service, and CLI contains; Size & activity shows lines and recent changes; Contracts shows shared schemas and interface files), views that fit the kind of project, and a Code quality panel. Use when the user asks for a code map or architecture map, asks how a codebase is structured, what depends on what, what a change to a library would reach, where work is happening, or which code-quality findings deserve attention, asks to update the map after changes, or asks to open the map.
 ---
 
 # Codemap
