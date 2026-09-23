@@ -1592,11 +1592,21 @@ function importCoverage() {
   if (!coverage || !coverage.inventory_available) return null;
   return h('p', { class: 'conf' }, `Repository import coverage: ${coverage.parsed_files} files parsed${coverage.languages.length ? ' (' + coverage.languages.join(', ') + ')' : ''}; ${coverage.unparsed_files} tracked files outside import parsing. Behavior evidence can include those files.`);
 }
+function decisionNotice(decision, message) {
+  if (!decision || !['uncertain', 'unresolved', 'abstain'].includes(decision.status)) return null;
+  const detail = [decision.reason, Number.isFinite(decision.confidence) ? `${pct(decision.confidence)} confidence` : null].filter(Boolean).join(' · ');
+  return h('div', {}, h('p', { class: 'conf' }, message), detail ? h('p', { class: 'why' }, detail) : null);
+}
+function repositoryGroupingNotice() {
+  return M.project ? null : decisionNotice(repositoryModel.map.landscape && repositoryModel.map.landscape.decision,
+    'Project boundaries are not established. This picture shows the repository together.');
+}
 function projectCoverage(project) {
   if (!project) return importCoverage();
   const views = (repositoryModel.map.view_decisions || []).filter((v) => v.project === project.id && !repositoryModel.byView.has(v.id));
   const memberships = (project.membership_decisions || []).filter((m) => m.decision && ['uncertain', 'unresolved', 'abstain'].includes(m.decision.status));
   return h('div', {}, !project.components.length ? h('p', { class: 'conf' }, 'No code components are mapped to this project yet. Its evidence and behavior views may describe code or infrastructure outside the source scan.') : null,
+    decisionNotice(project.decision, 'The primary project kind is not established; a generic label is shown.'),
     importCoverage(), memberships.length ? [h('p', { class: 'conf' }, `${memberships.length} component membership${memberships.length === 1 ? ' is' : 's are'} still uncertain.`), ...memberships.map((m) => h('p', { class: 'why' }, `${repositoryModel.nameOf(m.component)}: ${m.decision.reason || 'Its relationship to this project is not established.'}`))] : null,
     views.length ? [h('h3', {}, 'Views not shown'), ...views.map((v) => h('p', { class: 'why' }, `${VIEW_KIND[v.kind] || v.kind}: ${(v.decision && v.decision.reason) || 'The available evidence did not establish a useful view.'}`))] : null);
 }
@@ -1686,6 +1696,7 @@ function builtLine() {
 function systemCard() {
   const S = M.system, rc = M.runtimeCounts(), lead = S.summary || firstSentence(S.purpose), flows = M.flowsInOrder(), project = M.project || (!M.landscape && M.projects.length === 1 ? M.projects[0] : null);
   return h('div', {}, h('div', { class: 'kind' }, 'Start here'), h('h2', {}, S.name || 'System'), h('p', { class: 'lead' }, lead),
+    repositoryGroupingNotice(),
     h('div', { class: 'strip', style: 'margin-top: 4px' }, RUNTIMES.filter((r) => rc[r]).map((r) => h('span', { class: 'row', title: RT_DESC[r] }, icon(r), h('b', {}, String(rc[r])), r))),
     flows.length ? [h('h3', {}, 'How it fits together'), h('ul', { class: 'list' }, flows.map(flowItem))] : null,
     project ? h('p', { class: 'kind' }, PROJECT_KIND[project.kind] || PROJECT_KIND.other) : null,

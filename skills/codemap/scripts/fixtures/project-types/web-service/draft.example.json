@@ -1,0 +1,435 @@
+{
+  "areas": [
+    {
+      "id": "reading",
+      "name": "Reading",
+      "definition": "The HTTP reading-list product serving readers.",
+      "components": [
+        "root"
+      ]
+    }
+  ],
+  "components": {
+    "root": {
+      "summary": "The complete reading-list HTTP service.",
+      "responsibility": "Owns request tracing, demo access admission, route handling, published-book filtering and SQLite persistence.",
+      "runs": "Operators start python server.py as a long-lived HTTP server; readers call GET /books.",
+      "why": "Without it readers cannot retrieve the published reading list.",
+      "entry_points": [
+        "server.py",
+        "domain.py",
+        "store.py"
+      ],
+      "evidence": [
+        "README.md",
+        "server.py",
+        "domain.py",
+        "store.py"
+      ],
+      "loaded_by": []
+    }
+  },
+  "edge_reasons": {},
+  "module_names": {},
+  "module_summaries": {},
+  "project_relations": [],
+  "projects": [
+    {
+      "id": "reading-api",
+      "name": "Reading API",
+      "summary": "One HTTP reading-list product with internal domain and persistence modules.",
+      "purpose": "Readers retrieve published books; the domain and SQLite adapter run only inside this service and are not independent products.",
+      "components": [
+        "root"
+      ],
+      "evidence": [
+        "README.md",
+        "server.py",
+        "pyproject.toml"
+      ]
+    }
+  ],
+  "schema": "codemap.draft/1",
+  "system": {
+    "name": "Reading API",
+    "summary": "A single HTTP service returns published books from a SQLite reading list.",
+    "purpose": "Readers request published book titles through an ordered trace and authentication pipeline; a local Compose declaration adds an HTTP reverse proxy.",
+    "actors": [
+      {
+        "id": "reader",
+        "name": "Reader",
+        "role": "Requests the published reading list.",
+        "uses": [
+          "root"
+        ]
+      }
+    ],
+    "externals": [
+      {
+        "id": "sqlite",
+        "name": "SQLite",
+        "kind": "datastore",
+        "role": "Embedded book database persisted by the API.",
+        "used_by": [
+          "root"
+        ]
+      }
+    ],
+    "flows": [
+      {
+        "from": "reader",
+        "to": "root",
+        "kind": "network",
+        "label": "HTTP GET /books",
+        "detail": "Reader submits the public demo access header."
+      },
+      {
+        "from": "root",
+        "to": "sqlite",
+        "kind": "file",
+        "label": "SQLite file I/O",
+        "detail": "The embedded sqlite3 driver reads book rows."
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "books-request",
+      "project": "reading-api",
+      "kind": "request",
+      "title": "Reading-list request",
+      "question": "Where can GET /books stop before storage?",
+      "scope": "One GET /books request, with and without X-Demo-Access: reader.",
+      "summary": "server.py registers MIDDLEWARE = (trace, authenticate); dispatch starts at route and wraps reversed(MIDDLEWARE), so trace calls authenticate then route. Responses unwind through the wrappers before do_GET serializes JSON. The graph separates entry and return phases of those calls.",
+      "evidence": [
+        "server.py",
+        "domain.py",
+        "store.py"
+      ],
+      "nodes": [
+        {
+          "id": "entry",
+          "label": "GET /books",
+          "kind": "entry",
+          "detail": "BaseHTTPRequestHandler.do_GET builds the request and invokes dispatch.",
+          "evidence": [
+            "server.py"
+          ],
+          "component": "root"
+        },
+        {
+          "id": "trace",
+          "label": "Trace request",
+          "kind": "middleware",
+          "detail": "trace calls next_handler(request) before adding X-Request-Id; MIDDLEWARE = (trace, authenticate) and reverse wrapping make it outermost.",
+          "evidence": [
+            "server.py"
+          ],
+          "component": "root"
+        },
+        {
+          "id": "auth",
+          "label": "Check demo access",
+          "kind": "middleware",
+          "detail": "authenticate returns (403, {error: reader access required}, {}) when X-Demo-Access is not reader; otherwise it returns next_handler(request).",
+          "evidence": [
+            "server.py"
+          ],
+          "component": "root"
+        },
+        {
+          "id": "reject",
+          "label": "403 rejection",
+          "kind": "response",
+          "detail": "The rejection bypasses route, domain and store, then returns through trace.",
+          "evidence": [
+            "server.py"
+          ]
+        },
+        {
+          "id": "handler",
+          "label": "Route and handler",
+          "kind": "handler",
+          "detail": "For the scoped GET /books, route returns (200, {books: reading_list(request[store])}, {}). Other paths are outside this scenario.",
+          "evidence": [
+            "server.py"
+          ],
+          "component": "root"
+        },
+        {
+          "id": "domain",
+          "label": "Published books",
+          "kind": "domain",
+          "detail": "reading_list filters stored rows by published flag.",
+          "evidence": [
+            "domain.py"
+          ],
+          "component": "root"
+        },
+        {
+          "id": "store",
+          "label": "Read SQLite rows",
+          "kind": "datastore",
+          "detail": "ReadingStore.books selects titles and published flags ordered by title.",
+          "evidence": [
+            "store.py"
+          ],
+          "component": "root"
+        },
+        {
+          "id": "handler-return",
+          "label": "Handler result",
+          "kind": "handler return",
+          "detail": "After reading_list returns, route constructs the 200 body; authenticate returns that result to trace.",
+          "component": "root",
+          "evidence": [
+            "server.py"
+          ]
+        },
+        {
+          "id": "trace-return",
+          "label": "Attach trace header",
+          "kind": "middleware return",
+          "detail": "After next_handler returns either 403 or 200, trace adds X-Request-Id and returns to do_GET.",
+          "component": "root",
+          "evidence": [
+            "server.py"
+          ]
+        },
+        {
+          "id": "response",
+          "label": "JSON response",
+          "kind": "response",
+          "detail": "do_GET serializes the admitted result or rejection to JSON with trace headers.",
+          "evidence": [
+            "server.py"
+          ],
+          "component": "root"
+        }
+      ],
+      "edges": [
+        {
+          "from": "entry",
+          "to": "trace",
+          "label": "dispatch",
+          "detail": "dispatch wraps registered middleware in reverse to preserve execution order.",
+          "evidence": [
+            "server.py"
+          ],
+          "kind": "control"
+        },
+        {
+          "from": "trace",
+          "to": "auth",
+          "label": "next",
+          "detail": "Trace invokes the next handler before annotating its response.",
+          "evidence": [
+            "server.py"
+          ],
+          "kind": "control"
+        },
+        {
+          "from": "auth",
+          "to": "reject",
+          "label": "missing access",
+          "detail": "Missing or incorrect public fixture sentinel returns 403 immediately.",
+          "evidence": [
+            "server.py"
+          ],
+          "kind": "control"
+        },
+        {
+          "from": "auth",
+          "to": "handler",
+          "label": "admitted",
+          "detail": "Accepted demo access invokes the route handler.",
+          "evidence": [
+            "server.py"
+          ],
+          "kind": "control"
+        },
+        {
+          "from": "handler",
+          "to": "domain",
+          "label": "reading_list",
+          "detail": "The books handler requests domain-filtered titles.",
+          "evidence": [
+            "server.py"
+          ],
+          "kind": "control"
+        },
+        {
+          "from": "domain",
+          "to": "store",
+          "label": "books query",
+          "detail": "Domain obtains rows from the injected store.",
+          "evidence": [
+            "domain.py",
+            "store.py"
+          ],
+          "kind": "control"
+        },
+        {
+          "from": "store",
+          "to": "domain",
+          "label": "rows",
+          "detail": "The SQLite cursor provides published flags and titles.",
+          "evidence": [
+            "store.py",
+            "domain.py"
+          ],
+          "kind": "data"
+        },
+        {
+          "from": "domain",
+          "to": "handler-return",
+          "label": "filtered titles",
+          "detail": "reading_list returns published titles to route, which forms the 200 body.",
+          "kind": "data",
+          "evidence": [
+            "server.py",
+            "domain.py"
+          ]
+        },
+        {
+          "from": "handler-return",
+          "to": "trace-return",
+          "label": "return 200",
+          "detail": "The result unwinds through authenticate to the outer trace wrapper.",
+          "kind": "data",
+          "evidence": [
+            "server.py"
+          ]
+        },
+        {
+          "from": "reject",
+          "to": "trace-return",
+          "label": "return 403",
+          "detail": "The early authentication result returns directly to the outer trace wrapper.",
+          "kind": "data",
+          "evidence": [
+            "server.py"
+          ]
+        },
+        {
+          "from": "trace-return",
+          "to": "response",
+          "label": "status + headers + body",
+          "detail": "dispatch returns the traced result; do_GET sends status/headers and writes json.dumps(body).",
+          "kind": "data",
+          "evidence": [
+            "server.py"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "local-infrastructure",
+      "project": "reading-api",
+      "kind": "infrastructure",
+      "title": "Declared local infrastructure",
+      "question": "Where does declared local traffic enter and persist?",
+      "scope": "Declared optional local Docker Compose environment; not a live deployment.",
+      "summary": "HTTP crosses Nginx and the API; SQLite uses a file volume, not network traffic.",
+      "evidence": [
+        "compose.yaml",
+        "nginx.conf"
+      ],
+      "nodes": [
+        {
+          "id": "host",
+          "label": "Host :8088",
+          "kind": "ingress",
+          "detail": "Compose publishes host port 8088 to Nginx port 80.",
+          "evidence": [
+            "compose.yaml",
+            "nginx.conf"
+          ]
+        },
+        {
+          "id": "nginx",
+          "label": "Nginx :80",
+          "kind": "gateway",
+          "detail": "Nginx proxies location / to http://api:8080.",
+          "evidence": [
+            "compose.yaml",
+            "nginx.conf"
+          ]
+        },
+        {
+          "id": "api",
+          "label": "API :8080",
+          "kind": "service",
+          "detail": "The Python service runs server.py with READING_DB=/data/reading.sqlite.",
+          "evidence": [
+            "compose.yaml",
+            "server.py"
+          ],
+          "component": "root"
+        },
+        {
+          "id": "volume",
+          "label": "SQLite volume",
+          "kind": "datastore",
+          "detail": "The named reading-data volume stores the embedded SQLite database.",
+          "evidence": [
+            "compose.yaml",
+            "store.py"
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "from": "host",
+          "to": "nginx",
+          "label": "HTTP :8088 \u2192 :80",
+          "detail": "Compose port mapping admits requests.",
+          "evidence": [
+            "compose.yaml",
+            "nginx.conf"
+          ],
+          "kind": "network"
+        },
+        {
+          "from": "nginx",
+          "to": "api",
+          "label": "HTTP api:8080",
+          "detail": "proxy_pass sends requests over the Compose network.",
+          "evidence": [
+            "compose.yaml",
+            "nginx.conf"
+          ],
+          "kind": "network"
+        },
+        {
+          "from": "api",
+          "to": "volume",
+          "label": "SQLite file I/O",
+          "detail": "Embedded SQLite writes /data/reading.sqlite on the mounted volume.",
+          "evidence": [
+            "compose.yaml",
+            "store.py"
+          ],
+          "kind": "file"
+        }
+      ]
+    }
+  ],
+  "evidence_excerpts": [
+    {
+      "path": "server.py",
+      "start_line": 1,
+      "text": "\"\"\"Standard-library request pipeline with explicit middleware registration order.\"\"\"\nimport json\nimport os\nfrom http.server import BaseHTTPRequestHandler, HTTPServer\n\nfrom domain import reading_list\nfrom store import ReadingStore\n\n\ndef trace(request, next_handler):\n    status, body, headers = next_handler(request)\n    return status, body, {**headers, \"X-Request-Id\": request[\"headers\"].get(\"X-Request-Id\", \"fixture\")}\n\n\ndef authenticate(request, next_handler):\n    # A public fixture sentinel, not a credential or production auth design.\n    if request[\"headers\"].get(\"X-Demo-Access\") != \"reader\":\n        return 403, {\"error\": \"reader access required\"}, {}\n    return next_handler(request)\n\n\ndef route(request):\n    if request[\"path\"] != \"/books\":\n        return 404, {\"error\": \"route not found\"}, {}\n    return 200, {\"books\": reading_list(request[\"store\"])}, {}\n\n\nMIDDLEWARE = (trace, authenticate)\n\n\ndef dispatch(request):\n    handler = route\n    # Wrapping in reverse makes the first registration execute first.\n    for middleware in reversed(MIDDLEWARE):\n        inner = handler\n        handler = lambda req, middleware=middleware, inner=inner: middleware(req, inner)\n    return handler(request)\n\n\nclass Handler(BaseHTTPRequestHandler):\n    def do_GET(self):\n        status, body, headers = dispatch({\"path\": self.path, \"headers\": self.headers, \"store\": self.server.store})\n        payload = json.dumps(body).encode()\n        self.send_response(status)\n        self.send_header(\"Content-Type\", \"application/json\")\n        self.send_header(\"Content-Length\", str(len(payload)))\n        for key, value in headers.items():\n            self.send_header(key, value)\n        self.end_headers()\n        self.wfile.write(payload)\n\n\nif __name__ == \"__main__\":\n    server = HTTPServer((\"0.0.0.0\", int(os.environ.get(\"PORT\", \"8080\"))), Handler)\n    server.store = ReadingStore(os.environ.get(\"READING_DB\", \":memory:\"))\n    server.serve_forever()\n"
+    },
+    {
+      "path": "domain.py",
+      "start_line": 1,
+      "text": "\"\"\"Reading-list policy: only published books are visible to readers.\"\"\"\n\n\ndef reading_list(store):\n    return [book[\"title\"] for book in store.books() if book[\"published\"]]\n"
+    },
+    {
+      "path": "store.py",
+      "start_line": 1,
+      "text": "\"\"\"SQLite persistence adapter, owned by the HTTP service process.\"\"\"\nimport sqlite3\n\n\nclass ReadingStore:\n    def __init__(self, path):\n        self.connection = sqlite3.connect(path)\n        self.connection.row_factory = sqlite3.Row\n        self.connection.execute(\"CREATE TABLE IF NOT EXISTS books (title TEXT PRIMARY KEY, published INTEGER)\")\n        self.connection.executemany(\"INSERT OR IGNORE INTO books VALUES (?, ?)\", [(\"The River\", 1), (\"Unfinished\", 0)])\n        self.connection.commit()\n\n    def books(self):\n        return self.connection.execute(\"SELECT title, published FROM books ORDER BY title\").fetchall()\n"
+    }
+  ]
+}
