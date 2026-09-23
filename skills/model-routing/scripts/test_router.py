@@ -413,9 +413,11 @@ class RouterTest(unittest.TestCase):
         candidate = "codex/gpt-6-astra/high"
         self.write_repo_layer({"version": 4, "routes": {}, "candidates": {candidate: {"explicit": True}}})
         brief = self.run_router("brief").stdout
-        self.assertIn(f"| {candidate} | explicit |", brief)
+        self.assertIn(f"- {candidate}", brief)
+        self.assertNotIn(f"| {candidate} | explicit |", brief)
+        self.assertIn("Explicit only — select these only when the principal requested both the model and effort", brief)
         refused = self.check("--candidate", candidate, "--reason", "Suitable for this task.", expect_code=1)
-        self.assertIn("explicit-only candidate requires --explicit-basis", refused["reasons"][0])
+        self.assertIn("do not retry unless the principal requested this model and effort", refused["reasons"][0])
         bad_basis = self.check("--candidate", candidate, "--reason", "Principal chose it.",
                                "--explicit-basis", "Use a model for this task.", expect_code=1)
         self.assertIn("explicit basis must name gpt-6-astra", bad_basis["reasons"][0])
@@ -424,6 +426,13 @@ class RouterTest(unittest.TestCase):
                               runtime={"harnesses": {"codex": {"quota": {"status": "known"}}}})
         self.assertEqual("selected", selected["status"])
         self.assertEqual("Use Astra at high for this task.", selected["explicit_basis"])
+        for basis in ("Look at what Astra did; this is a high-risk change.",
+                      "Use grok-4.7 at high, not Astra.",
+                      "Use Astra at x-high for this task.",
+                      "Astra high-risk review."):
+            refused = self.check("--candidate", candidate, "--reason", "Suitable for this task.",
+                                 "--explicit-basis", basis, expect_code=1)
+            self.assertIn("explicit basis must name gpt-6-astra", refused["reasons"][0])
         compiled = router.compile_brief(self.repo)
         _payload, mapping, excluded = jev_context.prepare_case(
             compiled, {}, {"task": "A bounded coding task."}, {"codex"}
@@ -436,7 +445,7 @@ class RouterTest(unittest.TestCase):
                                "candidates": {"grok/grok-4.7/high": {"explicit": True}}})
         refused = self.check("--exact-route", "worker", "--route-basis", ROUTE_BASIS,
                              expect_code=1)
-        self.assertIn("explicit-only candidate requires --explicit-basis", refused["reasons"][0])
+        self.assertIn("do not retry unless the principal requested this model and effort", refused["reasons"][0])
         chosen = self.check("--exact-route", "worker", "--route-basis", ROUTE_BASIS,
                             "--explicit-basis", "Use grok-4.7 at high.",
                             runtime={"harnesses": {"grok": {"quota": {"status": "known"}}}})

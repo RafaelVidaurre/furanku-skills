@@ -455,15 +455,16 @@ def candidate_state(candidate):
     return "explicit" if candidate.get("explicit", False) else "enabled"
 
 
-def model_rows(repo):
+def model_rows(repo, compiled=None):
     try:
         from . import router as routing_router
     except ImportError:
         import router as routing_router
-    try:
-        compiled = routing_router.compile_brief(repo)
-    except routing_router.Error as error:
-        raise Error(str(error)) from error
+    if compiled is None:
+        try:
+            compiled = routing_router.compile_brief(repo)
+        except routing_router.Error as error:
+            raise Error(str(error)) from error
     paths = locations(repo)
     patches = {
         scope: load(path).get("candidates", {}) if path.exists() else {}
@@ -492,7 +493,23 @@ def model_rows(repo):
             "state": state,
             "source": state_source,
         })
-    return sorted(rows, key=lambda row: (row["model"], row["effort"], row["agent"]))
+    return sorted(rows, key=lambda row: (
+        row["model"], routing_router.EFFORT_RANK.get(row["effort"], len(routing_router.EFFORT_RANK)),
+        row["effort"], row["agent"],
+    ))
+
+
+def affected_routes(compiled, candidates):
+    launches = {tuple(row[key] for key in ("agent", "model", "effort")) for row in candidates}
+    affected = []
+    for route_id, route in compiled["exact"]["config"]["routes"].items():
+        if tuple(route[key] for key in ("agent", "model", "effort")) in launches:
+            affected.append(f"{route_id} (primary)")
+        policy = route.get("on_quota_unusable")
+        fallback = policy.get("fallback") if isinstance(policy, dict) else None
+        if fallback and tuple(fallback[key] for key in ("agent", "model", "effort")) in launches:
+            affected.append(f"{route_id} (quota fallback)")
+    return affected
 
 
 def model_command(argv):
@@ -569,27 +586,28 @@ def run_model_command(argv):
             from . import router as routing_router
         except ImportError:
             import router as routing_router
-        compiled = routing_router.compile_brief(args.repo)
+        compiled = routing_router.compile_brief(args.repo, layer_overrides={args.scope: config})
         for row in matches:
             candidate_id = row["candidate"]
-            preview = routing_router.merge_patch(
-                compiled["candidates"].get(candidate_id, {}), overrides[candidate_id]
-            )
-            try:
-                routing_router.validate_compiled_candidate(candidate_id, preview)
-            except routing_router.Error as error:
-                raise Error(str(error)) from error
+            if candidate_id in compiled["malformed_candidates"]:
+                raise Error(compiled["malformed_candidates"][candidate_id]["error"])
+            preview = compiled["candidates"].get(candidate_id)
+            if preview is None or candidate_state(preview) != args.state:
+                raise Error("requested state is overridden by another configuration layer")
         save(path, config, args.scope != "repo")
         changed = [row for row in model_rows(args.repo)
                    if row["candidate"] in {match["candidate"] for match in matches}]
-        if len(changed) != len(matches) or any(row["state"] != args.state for row in changed):
-            raise Error("saved state was overridden by another configuration layer")
+        affected = affected_routes(compiled, changed)
         if args.format == "json":
-            emit({"scope": args.scope, "changed": changed})
+            emit({"scope": args.scope, "changed": changed, "affected_routes": affected})
         else:
             print(f"Set {args.state} in {args.scope}:")
             for row in changed:
                 print(f"  {row['agent']}/{row['model']}/{row['effort']}")
+            if affected and args.state != "enabled":
+                action = ("requires the principal's model and effort request" if args.state == "explicit"
+                          else "will be refused")
+                print(f"Affected exact routes ({action}): {', '.join(affected)}")
         return
     rows = model_rows(args.repo)
     try:

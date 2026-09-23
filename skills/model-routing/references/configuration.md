@@ -104,7 +104,7 @@ python3 <skill-dir>/scripts/config.py set explicit gpt-6-astra high --agent code
 python3 <skill-dir>/scripts/config.py set enabled gpt-6-sol xhigh --agent codex --create --repo <root>
 ```
 
-The command preserves other configuration fields, refuses a lower-scope state shadowed by a higher scope, and prints the effective changed rows. Re-run `models` to inspect the result. A candidate made explicit can pass `router.py check` only with `--explicit-basis` carrying the principal's request for its model and effort. Naming an exact route without naming the model and effort does not authorize an explicit candidate or a quota fallback to one.
+The command preserves other configuration fields, refuses a lower-scope state shadowed by a higher scope, and prints the effective changed rows and any exact routes they affect. Re-run `models` to inspect the result. Quote model names containing shell metacharacters, for example `'claude-fable-5-1[1m]'` in zsh. A candidate made explicit can pass `router.py check` only with `--explicit-basis` carrying the principal's request for its model and effort. Naming an exact route without naming the model and effort does not authorize an explicit candidate or a quota fallback to one.
 
 1. Run both views against the target repository.
 2. Select the requested scope: `global` for machine-wide behavior, `repo` for shared project behavior, or `machine-repo` for private project behavior. Ask when the intended scope is materially ambiguous.
