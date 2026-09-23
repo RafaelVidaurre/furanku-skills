@@ -91,7 +91,7 @@ def test_draft_template_writes_fixed_shape_once_then_reports_gaps(repo, capsys):
     assert payload["shapes"] == codemap.SHAPES and set(payload["shapes"]) == {"actor", "external", "flow", "area"}
     assert payload["gaps"][:3] == ["system.name", "system.summary", "system.purpose"] and {"system.flows", "areas"} <= set(payload["gaps"])
     assert set(draft["components"]) == {"api", "cli", "web", "orchestrator", "rules", "store", "schema", "devtools", "harness", "lab", "content", "docs"}
-    assert draft["components"]["cli"] == {"summary": "", "responsibility": "", "runs": "", "why": "", "entry_points": [], "evidence": []}
+    assert draft["components"]["cli"] == {"summary": "", "responsibility": "", "runs": "", "why": "", "entry_points": [], "evidence": [], "loaded_by": []}
     assert draft["edge_reasons"]["cli->orchestrator"] == ""
     assert len(draft["edge_reasons"]) == 19
     assert "components.cli.responsibility" in payload["gaps"] and "edge_reasons.cli->store" in payload["gaps"]
@@ -254,7 +254,7 @@ def test_update_records_changes_merges_draft_and_defers_decide_until_gaps_are_fi
     assert changes["components"]["rules"]["files_changed"] == [rules_file["path"]]
     assert changes["previous_sha"] != changes["current_sha"] == "b" * 40
     draft = store.read_json(paths["draft"])
-    assert draft["components"]["metrics"] == {"summary": "", "responsibility": "", "runs": "", "why": "", "entry_points": [], "evidence": []}
+    assert draft["components"]["metrics"] == {"summary": "", "responsibility": "", "runs": "", "why": "", "entry_points": [], "evidence": [], "loaded_by": []}
     assert draft["edge_reasons"]["metrics->schema"] == "" and draft["edge_reasons"]["cli->schema"] == ""
     assert draft["components"]["cli"]["responsibility"]  # existing prose untouched
     assert payload["draft"]["components_added"] == ["metrics"] and payload["draft"]["edges_added"] == ["cli->schema", "metrics->schema"]

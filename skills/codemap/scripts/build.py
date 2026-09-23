@@ -326,6 +326,7 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
     members[BUILD_VERIFY] = []
     members[UNSORTED] = []
     attribute_of = {kind: {} for kind in ("runtime", "nature", "role")}  # resolved values only; checks skip the rest
+    known_ids = {c["id"] for c in skeleton.get("components", [])}
     for comp in skeleton.get("components", []):
         cid = comp["id"]
         card = draft_components.get(cid) or {}
@@ -377,6 +378,8 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
             "role": values["role"],
             "summary": str(card.get("summary", "")),
             "contracts": [dict(c) for c in comp.get("contracts", [])],
+            # components that load this one by something other than an import: Wasm, FFI, generated code, plugins
+            "loaded_by": sorted({str(x) for x in card.get("loaded_by", []) if str(x) in known_ids and str(x) != cid}),
             "responsibility": str(card.get("responsibility", "")),
             "runs": str(card.get("runs", "")),
             "why": str(card.get("why", "")),

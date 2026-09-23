@@ -533,7 +533,10 @@ function buildModel(map) {
   M.activity = (map.meta && map.meta.activity) || null;
   M.hasActivity = !!(M.activity && M.activity.commits) || map.components.some((c) => M.changesOf(c) > 0);
   // production imports only: what a runnable compiles in, directly or through its libraries
-  M.prodOut = new Map(); for (const e of M.edgesOf.component) if (e.count > 0 && !e.test_only) { if (!M.prodOut.has(e.from)) M.prodOut.set(e.from, []); M.prodOut.get(e.from).push(e.to); }
+  M.prodOut = new Map(); const link = (a, b) => { if (!M.prodOut.has(a)) M.prodOut.set(a, []); M.prodOut.get(a).push(b); };
+  for (const e of M.edgesOf.component) if (e.count > 0 && !e.test_only) link(e.from, e.to);
+  // links an import scan cannot see (Wasm, FFI, generated code, plugins), recorded from the repository's evidence
+  for (const c of map.components) for (const by of c.loaded_by || []) link(by, c.id);
   M.shipsOf = (runnableId) => {
     const out = new Map(), queue = [];
     for (const id of M.prodOut.get(runnableId) || []) { const c = M.byComp.get(id); if (c && M.isProduct(c) && !out.has(id)) { out.set(id, 'direct'); queue.push(id); } }
@@ -977,7 +980,7 @@ function layoutShips(M, contractsOnly) {
     groups[groups.length - 1].h = y + RH - groups[groups.length - 1].y; y += RH;
   }
   if (contractsOnly) for (const n of nodes) if (n.shipRow && M.contractKinds(n.data).length) n.title += ` · files: ${M.contractKinds(n.data).join(', ')}`;
-  const L = { level: 1, lens: contractsOnly ? 'contracts' : 'ships', nodes, edges: [], ships: { cells, groups, colGroups, x0, right, head: HEAD }, bounds: bounds(nodes, [{ x: 0, y: 0, w: right, h: y }]), title: contractsOnly ? 'Contracts' : 'Ships in', frame: { kind: 'system', id: 'system' } };
+  const L = { level: 1, lens: contractsOnly ? 'contracts' : 'ships', nodes, edges: [], ships: { cells, groups, colGroups, x0, right, head: HEAD }, bounds: bounds(nodes, [{ x: -10 - Math.max(0, ...groups.map((g) => g.area.name.length)) * 7.4, y: 0, w: right, h: y + 30 }]), title: contractsOnly ? 'Contracts' : 'Ships in', frame: { kind: 'system', id: 'system' } };
   L.related = (id, rel, mark) => { for (const c of cells) { if (c.row === id) mark(rel.nodes, c.col, 'in'); if (c.col === id) mark(rel.nodes, c.row, 'out'); } return new Set([id]); };
   return L;
 }
@@ -1599,6 +1602,7 @@ function componentCard(c, n) {
     h('h3', {}, `Depends on (${out.length})`), out.length ? h('ul', { class: 'list' }, out.map((e) => compItem(e.to, e, () => selectEdgeOrGo(e.from, e.to)))) : h('p', { class: 'empty' }, 'nothing'),
     h('h3', {}, `Depended by (${inn.length})`), inn.length ? h('ul', { class: 'list' }, inn.map((e) => compItem(e.from, e, () => selectEdgeOrGo(e.from, e.to)))) : h('p', { class: 'empty' }, 'nothing'),
     h('h3', {}, 'Modules'), h('ul', { class: 'list' }, (M.modsOf.get(c.id) || []).map((m) => h('li', { class: 'item', onclick: () => navigateOrSelect('module', m.id) }, h('span'), h('span', { class: 'name' }, m.name || m.id), h('span', { class: 'count' }, fmtLoc((m.metrics && m.metrics.loc) || 0)), h('span', { class: 'reason' }, m.responsibility || '')))),
+    (c.loaded_by || []).length ? [h('h3', {}, 'Loaded by'), h('p', { class: 'conf' }, 'Reached without an import, for example compiled to Wasm or called through FFI.'), h('ul', { class: 'list' }, c.loaded_by.map((id) => compItem(id)))] : null,
     (c.contracts || []).length ? [h('h3', {}, `Contract files (${c.contracts.length})`), c.contracts.map((x) => h('div', { class: 'path', title: 'Click to copy' }, h('span', { class: 'conf' }, x.kind + ' '), x.path))] : null,
     (c.entry_points || []).length ? [h('h3', {}, 'Entry points'), c.entry_points.map(pathRow)] : null,
     (c.evidence || []).length ? [h('h3', {}, 'Evidence'), c.evidence.map(pathRow)] : null,

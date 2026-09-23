@@ -363,3 +363,11 @@ def test_actors_may_use_the_build_verify_area(trio):
     draft = json.loads(json.dumps(draft))
     draft["system"]["actors"][0]["uses"] = ["build-verify"]
     assert build.validate(build.build(sk, draft, decisions)) == []
+
+
+def test_loaded_by_records_links_imports_cannot_see_and_drops_unknown_ids(trio):
+    skel, draft, decisions = copy.deepcopy(trio)
+    draft["components"]["rules"]["loaded_by"] = ["web", "ghost-component", "rules"]
+    comp = {c["id"]: c for c in build.build(skel, draft, decisions)["components"]}
+    assert comp["rules"]["loaded_by"] == ["web"]
+    assert comp["api"]["loaded_by"] == []
