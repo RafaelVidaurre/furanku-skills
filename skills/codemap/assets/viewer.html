@@ -499,10 +499,12 @@ function buildModel(map) {
   M.healthOnEdge = (level, a, b) => M.health.filter((f) => (f.level || 'components') === level && (f.nodes || []).length > 1 && (f.check === 'cycle' ? f.nodes.includes(a) && f.nodes.includes(b) : f.nodes[0] === a && f.nodes[1] === b));
   M.edgeFinding = (level, e) => { if (e.test_only) return null; const fs = M.healthOnEdge(level, e.from, e.to); return fs.find((f) => !f.accepted) || fs[0] || null; };
   M.testOf = (e) => ({ testCount: e.test_count || 0, testOnly: !!e.test_only });
-  M.importsLabel = (count, testCount, testOnly) => testOnly ? `test-only · ${testCount} import${testCount === 1 ? '' : 's'} from tests` : `${count} import${count === 1 ? '' : 's'}${testCount ? ` · ${testCount} from tests` : ''}`;
+  M.importsLabel = (count, testCount, testOnly) => testOnly ? `${testCount} import${testCount === 1 ? '' : 's'}, only from tests or build config` : `${count} import${count === 1 ? '' : 's'}${testCount ? ` · ${testCount} from tests` : ''}`;
   M.areaOf = (c) => c._area || c.area;
   M.hueOf = (c) => { const a = M.byArea.get(M.areaOf(c)); return a ? a.hue : null; };
   M.locOf = (c) => (c.metrics && c.metrics.loc) || 0;
+  // lines people write: generated files and literal data tables encoded as source do not count as engineering surface
+  M.authoredOf = (c) => (c.metrics && c.metrics.authored_loc != null ? c.metrics.authored_loc : M.locOf(c));
   M.rtOf = (c) => (RUNTIMES.includes(c.runtime) ? c.runtime : 'none');
   M.roleOf = (c) => (M.isProduct(c) && ROLES.includes(c.role) ? c.role : 'none');
   // runnable: the pipeline's flag; for older maps, a surface that runs as its own page, service, or command
@@ -1060,16 +1062,16 @@ function squarify(items, r) {
 // "Size & activity": every component as a tile sized by its lines of code, grouped by area; colour is how often it changed recently
 function layoutSize(M) {
   const W = 1400, H = 840, HEAD = 24, PAD = 4, nodes = [], regions = [];
-  const areas = M.areas.map((a) => ({ a, comps: visibleCompsOf(a.id).filter((c) => M.locOf(c) > 0) })).filter((x) => x.comps.length).map((x) => ({ ...x, v: x.comps.reduce((s, c) => s + M.locOf(c), 0), id: x.a.id })).sort((p, q) => (q.v - p.v) || byId(p, q));
+  const areas = M.areas.map((a) => ({ a, comps: visibleCompsOf(a.id).filter((c) => M.authoredOf(c) > 0) })).filter((x) => x.comps.length).map((x) => ({ ...x, v: x.comps.reduce((s, c) => s + M.authoredOf(c), 0), id: x.a.id })).sort((p, q) => (q.v - p.v) || byId(p, q));
   const changed = [...new Set(M.map.components.filter(visibleComp).map(M.changesOf).filter((v) => v > 0))].sort((a, b) => a - b);
   const heatOf = (v) => (v > 0 ? (changed.length > 1 ? changed.indexOf(v) / (changed.length - 1) : 1) : 0);
   for (const box of squarify(areas, { x: 0, y: 0, w: W, h: H })) {
     const a = box.item.a, inner = { x: box.x + PAD, y: box.y + HEAD, w: Math.max(1, box.w - PAD * 2), h: Math.max(1, box.h - HEAD - PAD) };
     regions.push({ id: 'area:' + a.id, kind: 'area', tiles: true, label: a.name, sub: `${fmtLoc(box.item.v)} lines`, hue: a.hue, x: box.x + box.w / 2, y: box.y + box.h / 2, w: box.w - 2, h: box.h - 2, data: a, title: a.definition || '' });
-    const items = box.item.comps.map((c) => ({ c, v: M.locOf(c), id: c.id })).sort((p, q) => (q.v - p.v) || byId(p, q));
+    const items = box.item.comps.map((c) => ({ c, v: M.authoredOf(c), id: c.id })).sort((p, q) => (q.v - p.v) || byId(p, q));
     for (const t of squarify(items, inner)) {
       const c = t.item.c, ch = M.changesOf(c);
-      nodes.push({ id: c.id, kind: 'component', tile: true, label: c.name || c.id, sub: `${fmtLoc(M.locOf(c))} lines${M.hasActivity ? ` · ${ch} change${ch === 1 ? '' : 's'}` : ''}`, hue: M.hueOf(c), rt: M.rtOf(c), nature: M.natureOf(c), support: !M.isProduct(c), heat: M.hasActivity ? heatOf(ch) : null, x: t.x + t.w / 2, y: t.y + t.h / 2, w: Math.max(1, t.w - 2), h: Math.max(1, t.h - 2), data: c, flag: M.flagOf(c), title: `${c.name || c.id} · ${fmtLoc(M.locOf(c))} lines${M.hasActivity ? ` · ${ch} file change${ch === 1 ? '' : 's'} in ${(M.activity && M.activity.window_days) || 90} days` : ''}` });
+      nodes.push({ id: c.id, kind: 'component', tile: true, label: c.name || c.id, sub: `${fmtLoc(M.authoredOf(c))} lines${M.hasActivity ? ` · ${ch} change${ch === 1 ? '' : 's'}` : ''}`, hue: M.hueOf(c), rt: M.rtOf(c), nature: M.natureOf(c), support: !M.isProduct(c), heat: M.hasActivity ? heatOf(ch) : null, x: t.x + t.w / 2, y: t.y + t.h / 2, w: Math.max(1, t.w - 2), h: Math.max(1, t.h - 2), data: c, flag: M.flagOf(c), title: `${c.name || c.id} · ${fmtLoc(M.authoredOf(c))} lines${M.authoredOf(c) !== M.locOf(c) ? ` written (${fmtLoc(M.locOf(c))} with generated and data files)` : ''}${M.hasActivity ? ` · ${ch} file change${ch === 1 ? '' : 's'} in ${(M.activity && M.activity.window_days) || 90} days` : ''}` });
     }
   }
   return { level: 1, lens: 'size', nodes: [...regions, ...nodes], edges: [], bounds: { x: 0, y: 0, w: W, h: H }, title: 'Size & activity', frame: { kind: 'system', id: 'system' } };
@@ -1581,7 +1583,7 @@ function renderLegend() {
   const kinds = [['runnable', 'runs on its own', (n) => n.runnable], ['product', 'library', (n) => !n.runnable && !n.support && n.nature === 'product' && n.kind === 'component'], ['product', 'module', (n) => n.kind === 'module' && !n.test], ['test', 'tests', (n) => n.nature === 'test'], ['tooling', 'tooling', (n) => n.nature === 'tooling'], ['content', 'content · docs', (n) => n.nature === 'content' || n.nature === 'docs'], ['experiment', 'experiment', (n) => n.nature === 'experiment']].filter((k) => ns.some(k[2]));
   l2.append(lbl('shape'), ...kinds.map(([k, label]) => row(k === 'runnable' ? 'starts as its own process, page, or command' : NATURE_DESC[k] || '', shapeGlyph(k), label)));
   if (es.some((e) => !e.testOnly)) l2.append(gap(), lbl('arrow · imports'), row('production imports; thicker means more. Hover a node: blue is what it uses, magenta what uses it', edgeGlyph('var(--edge)'), 'imports'));
-  if (state.tests && es.some((e) => e.testOnly)) l2.append(row('imports made only from tests', edgeGlyph('var(--edge)', '1.5 3.5'), 'only from tests'));
+  if (state.tests && es.some((e) => e.testOnly)) l2.append(row('imports made only from tests or build configuration', edgeGlyph('var(--edge)', '1.5 3.5'), 'only from tests or build config'));
   if (ns.some((n) => n.ghost)) l2.append(row('parts of other areas or components this one touches', h('span', { class: 'sw', style: 'background: var(--ghost-fill); border: 1px solid var(--line)' }), 'faded: elsewhere'));
   qualityLegend(); badge();
 }
@@ -1610,8 +1612,8 @@ function moveSelection(dx, dy) {
 }
 function metrics(m) {
   if (!m) return null;
-  const days = (M.activity && M.activity.window_days) || 90, keys = [['files', 'files', 'source files'], ['loc', 'lines', 'lines of code'], ['fan_in', 'used by', 'how many others import it'], ['fan_out', 'uses', 'how many others it imports'], ['changes', 'changes', `file changes in the ${days} days before this commit`]].filter(([k]) => m[k] != null && (k !== 'changes' || M.hasActivity));
-  return h('div', { class: 'metrics' }, keys.map(([k, l, t]) => h('div', { class: 'metric', title: t }, h('b', {}, k === 'loc' ? fmtLoc(m[k]) : String(m[k])), h('span', {}, l))), m.in_cycle ? h('div', { class: 'metric', title: 'part of a group that imports itself in a loop' }, h('b', { style: 'color: var(--bad)' }, '↻'), h('span', {}, 'in a loop')) : null);
+  const days = (M.activity && M.activity.window_days) || 90, keys = [['files', 'files', 'source files'], ['loc', 'lines', 'lines of code'], ['authored_loc', 'written', 'lines people write: without generated files and literal data tables'], ['fan_in', 'used by', 'how many others import it'], ['fan_out', 'uses', 'how many others it imports'], ['changes', 'changes', `file changes in the ${days} days before this commit`]].filter(([k]) => m[k] != null && (k !== 'changes' || M.hasActivity));
+  return h('div', { class: 'metrics' }, keys.map(([k, l, t]) => h('div', { class: 'metric', title: t }, h('b', {}, k === 'loc' || k === 'authored_loc' ? fmtLoc(m[k]) : String(m[k])), h('span', {}, l))), m.in_cycle ? h('div', { class: 'metric', title: 'part of a group that imports itself in a loop' }, h('b', { style: 'color: var(--bad)' }, '↻'), h('span', {}, 'in a loop')) : null);
 }
 function compItem(id, e, onEdge, countText) {
   const c = M.byComp.get(id); if (!visibleComp(c) || (e && !visibleEdge(e, 'components'))) return null;

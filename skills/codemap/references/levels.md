@@ -48,7 +48,7 @@ Components and modules themselves are mechanical: units come from workspace mani
 
 ## Edges
 
-An edge exists only where an import exists. The scanner finds file-level imports; the builder aggregates them to modules, components, and areas with counts and example imports. Between areas and between components every edge carries a one-line reason you wrote from its examples; between modules the examples speak for themselves. Imports from test files (`tests/`, `*.test.ts`, `test_*.py`, `tests/*.rs`) are counted separately. Test components, modules, files, and test-only edges are drawn when the reader turns on Tests; tests are hidden initially. A test-only edge never forms a cycle or raises a finding.
+An edge exists only where an import exists. The scanner finds file-level imports; the builder aggregates them to modules, components, and areas with counts and example imports. Between areas and between components every edge carries a one-line reason you wrote from its examples; between modules the examples speak for themselves. Imports from test files (`tests/`, `*.test.ts`, `test_*.py`, `tests/*.rs`) and from build configuration (`vite.config.ts`, `tailwind.config.js`, `build.rs`, `setup.py`, ...) are counted separately, so build-time wiring never reads as product code depending on support code. Generated files and literal data tables encoded as source are tagged by the scanner and left out of the lines Size & activity uses (`authored_loc`). Test components, modules, files, and test-only edges are drawn when the reader turns on Tests; tests are hidden initially. A test-only edge never forms a cycle or raises a finding.
 
 ## Code quality
 

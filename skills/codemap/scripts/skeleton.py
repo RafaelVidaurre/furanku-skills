@@ -209,7 +209,7 @@ def _merge_to_cap(groups: dict, edges: list) -> None:
         dest["root_file"] = bool(dest.get("root_file") or absorbed.get("root_file"))
 
 
-def _metrics(node_ids, files_of, loc_of, edges, changes_of):
+def _metrics(node_ids, files_of, loc_of, edges, changes_of, authored_of=None):
     out = {n: set() for n in node_ids}
     inc = {n: set() for n in node_ids}
     for edge in edges:
@@ -229,6 +229,7 @@ def _metrics(node_ids, files_of, loc_of, edges, changes_of):
             "instability": round(fan_out / total, 3) if total else None,
             "in_cycle": n in cyclic,
             "changes": changes_of[n],
+            **({"authored_loc": authored_of[n]} if authored_of is not None and authored_of[n] != loc_of[n] else {}),
         }
     return metrics, cycles
 
@@ -241,7 +242,7 @@ def _aggregate(file_edges, owner: dict, role_of: dict) -> list[dict]:
             continue
         bucket = buckets.setdefault((src, dst), {"count": 0, "test_count": 0, "examples": [], "test_examples": []})
         example = f"{edge['from']}:{edge.get('line', 0)} → {edge['to']}"
-        if role_of.get(edge["from"]) == "test":
+        if role_of.get(edge["from"]) in ("test", "build"):  # tests and build configuration are not production
             bucket["test_count"] += 1
             bucket["test_examples"].append(example)
         else:
@@ -324,7 +325,9 @@ def skeleton(scan: dict) -> dict:
                 "test": bool(records) and tests >= len(records) * TEST_MODULE_SHARE,
                 "root_file": key == "root" or bool(group.get("root_file")),
                 "files": [{"path": f["path"], "loc": int(f.get("loc", 0)), "exports": [],
-                           "test": f.get("role") == "test"} for f in records],
+                           "test": f.get("role") == "test",
+                           **({"provenance": f["provenance"]} if f.get("provenance") not in (None, "authored") else {})}
+                          for f in records],
             })
         components.append({
             "contracts": [{"path": c["path"], "kind": c["kind"]} for c in scan.get("contracts", []) if c.get("unit") == unit_id],
@@ -357,6 +360,7 @@ def skeleton(scan: dict) -> dict:
         {m["id"]: sum(f["loc"] for f in m["files"]) for m in modules},
         production_module_edges,
         {m["id"]: sum(changes_of.get(f["path"], 0) for f in m["files"]) for m in modules},
+        {m["id"]: sum(f["loc"] for f in m["files"] if f.get("provenance") is None) for m in modules},
     )
     component_ids = [c["id"] for c in components]
     component_metrics, component_cycles = _metrics(
@@ -365,6 +369,7 @@ def skeleton(scan: dict) -> dict:
         {c["id"]: sum(f["loc"] for m in modules if m["component"] == c["id"] for f in m["files"]) for c in components},
         production_component_edges,
         {c["id"]: sum(changes_of.get(f["path"], 0) for m in modules if m["component"] == c["id"] for f in m["files"]) for c in components},
+        {c["id"]: sum(f["loc"] for m in modules if m["component"] == c["id"] for f in m["files"] if f.get("provenance") is None) for c in components},
     )
     for m in modules:
         m["metrics"] = module_metrics[m["id"]]
