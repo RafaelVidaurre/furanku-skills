@@ -95,6 +95,19 @@ def test_more_than_sixteen_modules_merge_by_imports_never_into_a_catch_all():
     assert {f["path"] for f in mods["lib/d10"]["files"]} >= {"lib/d00/a.ts", "lib/d02/b.ts"}
 
 
+def test_merging_a_barrel_folder_does_not_invent_a_module_cycle():
+    files = [(f"lib/d{i:02d}/a.ts", 100 + i, "lib") for i in range(20)] + [("lib/barrel/index.ts", 1, "lib")]
+    # the barrel re-exports d10 and d11 and d11 imports d10: acyclic until the barrel merges into d10
+    edges = [("lib/barrel/index.ts", "lib/d10/a.ts", 1), ("lib/barrel/index.ts", "lib/d11/a.ts", 2), ("lib/d11/a.ts", "lib/d10/a.ts", 1)]
+    result = skeleton.skeleton(make_scan([("lib", "lib")], files, edges))
+    mods = {m["id"]: m for m in result["modules"]}
+    assert "barrel" in mods["lib/d10"]["merged"]
+    assert result["cycles"]["modules"] == [] and not mods["lib/d10"]["metrics"]["in_cycle"]
+    # a cycle the code really has survives the same merge
+    edges.append(("lib/d10/a.ts", "lib/d11/a.ts", 3))
+    assert skeleton.skeleton(make_scan([("lib", "lib")], files, edges))["cycles"]["modules"] == [["lib/d10", "lib/d11"]]
+
+
 def test_metrics_edges_and_cycles():
     scan = make_scan(
         [("a", "a"), ("b", "b"), ("c", "c")],

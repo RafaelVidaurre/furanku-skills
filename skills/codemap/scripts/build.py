@@ -440,6 +440,7 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
     members[UNSORTED] = []
     attribute_of = {kind: {} for kind in ("runtime", "nature", "role")}  # resolved values only; checks skip the rest
     known_ids = {c["id"] for c in skeleton.get("components", [])}
+    external_ids = {str(x.get("id")) for x in ((draft.get("system") or {}).get("externals") or []) if isinstance(x, dict)}
     for comp in skeleton.get("components", []):
         cid = comp["id"]
         card = draft_components.get(cid) or {}
@@ -492,7 +493,7 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
             "summary": str(card.get("summary", "")),
             "contracts": [dict(c) for c in comp.get("contracts", [])],
             # components that load this one by something other than an import: Wasm, FFI, generated code, plugins
-            "loaded_by": sorted({str(x) for x in card.get("loaded_by", []) if str(x) in known_ids and str(x) != cid}),
+            "loaded_by": sorted({str(x) for x in card.get("loaded_by", []) if (str(x) in known_ids or str(x) in external_ids) and str(x) != cid}),
             "responsibility": str(card.get("responsibility", "")),
             "runs": str(card.get("runs", "")),
             "why": str(card.get("why", "")),
@@ -883,6 +884,8 @@ def validate(map_obj: dict) -> list[str]:
         errors.append("system: duplicate actor ids")
     if len(external_ids) != len(system["externals"]):
         errors.append("system: duplicate external ids")
+    for clash in sorted(external_ids & set(component_by_id)):
+        errors.append(f"system.externals[{clash}]: shares its id with a component; rename the external and its flow references")
     explicit_areas = [a["id"] for a in areas if a["id"] not in IMPLICIT_AREAS]
     for actor in system["actors"]:
         if not landscape and len(actor["uses"]) > BOUNDS["uses"]:

@@ -1515,13 +1515,13 @@ def repository_inventory(tracked, parsed):
         name = path.rsplit("/", 1)[-1].lower()
         if name.endswith((".md", ".rst", ".adoc")) or name.startswith(("readme", "architecture")):
             documents.append(path)
-        if name in {"package.json", "cargo.toml", "pyproject.toml", "go.mod", "pom.xml", "build.gradle", "build.gradle.kts", "gemfile", "composer.json", "pubspec.yaml", "mix.exs", "cmakelists.txt", "package.swift", "project.godot"} or name.endswith((".csproj", ".fsproj", ".sln", ".uproject", ".uplugin")):
+        if name in {"package.json", "cargo.toml", "pyproject.toml", "go.mod", "pom.xml", "build.gradle", "build.gradle.kts", "gemfile", "composer.json", "pubspec.yaml", "mix.exs", "cmakelists.txt", "package.swift", "project.godot", "project.json", "nx.json", "turbo.json", "pnpm-workspace.yaml", "lerna.json"} or name.endswith((".csproj", ".fsproj", ".sln", ".uproject", ".uplugin")):
             manifests.append(path)
         if name.startswith(("dockerfile", "compose.", "docker-compose.", "serverless.")) or name in {"chart.yaml", "skaffold.yaml", "pulumi.yaml"} or name.endswith((".tf", ".tfvars", ".bicep")) or any(part.lower() in {"deploy", "deployment", "deployments", "k8s", "kubernetes", "terraform", "helm", "infra"} for part in path.split("/")[:-1]):
             deployments.append(path)
     covered = sorted(parsed)
     return {"tracked_paths": sorted(set(tracked)), "documents": documents, "manifests": manifests,
-            "deployments": deployments, "import_coverage": {"languages": ["javascript", "typescript", "rust", "python"],
+            "deployments": deployments, "import_coverage": {"languages": ["javascript", "typescript", "rust", "python", "gdscript", "solidity"],
             "parsed_paths": covered, "unparsed_paths": sorted(set(tracked) - set(covered))}}
 
 
