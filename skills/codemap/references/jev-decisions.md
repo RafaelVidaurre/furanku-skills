@@ -47,6 +47,7 @@ After the first round, every component whose `runtime`, `nature`, or `role` (rol
 | --- | --- | --- |
 | `runtime` | `server` | a long-lived service process |
 | | `client` | a page or desktop app a person uses |
+| | `fullstack` | an application whose own code runs both on a server and in the browser, such as server-side rendering with server routes beside its pages |
 | | `shared` | a library compiled into more than one runtime |
 | | `cli` | a command that is part of the product, run by its users or operators |
 | | `build` | runs only while building, testing, developing, or producing assets, however it is started |

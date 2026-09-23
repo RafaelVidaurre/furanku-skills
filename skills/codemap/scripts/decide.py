@@ -72,16 +72,17 @@ def evaluate_with_backoff(evaluate, payload):
 
 
 SCHEMA = "codemap.decisions/1"
-INSTRUCTIONS_VERSION = 10
+INSTRUCTIONS_VERSION = 11
 MAX_STATE_CHARS = 6000
 LIST_LIMIT = 8
-RUNTIMES = ("server", "client", "shared", "cli", "build", "none")
+RUNTIMES = ("server", "client", "fullstack", "shared", "cli", "build", "none")
 NATURES = ("product", "tooling", "test", "content", "docs", "experiment")
 ROLES = ("surface", "adapter", "core", "kernel")
 SUPPORT_NATURES = ("tooling", "test", "experiment")
 RUNTIME_DEFINITIONS = {
     "server": "a long-lived service process",
     "client": "a page or desktop app a person uses",
+    "fullstack": "an application whose own code runs both on a server and in the browser, such as server-side rendering with server routes beside its pages",
     "shared": "a library compiled into more than one runtime",
     "cli": "a command that is part of the product, run by its users or operators",
     "build": "runs only while building, testing, developing, or producing assets, however it is started",

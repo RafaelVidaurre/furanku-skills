@@ -84,8 +84,8 @@ def test_fixture_trio_builds_a_valid_deterministic_map(trio, valid_map):
     assert all(h["headline"] == build.HEADLINES[h["check"]] and h["evidence"] for h in valid_map["health"])
     assert all((h["suggestion"] is None) if h["accepted"] else isinstance(h["suggestion"], str)
                for h in valid_map["health"])
-    assert areas["processing"]["counts"] == {"product": 5, "supporting": 2, "runtimes": {"client": 0, "shared": 2, "server": 3, "cli": 0, "build": 0, "none": 0}}
-    assert valid_map["system"]["runtime_counts"] == {"client": 1, "shared": 2, "server": 3, "cli": 1, "build": 0, "none": 0}
+    assert areas["processing"]["counts"] == {"product": 5, "supporting": 2, "runtimes": {"client": 0, "fullstack": 0, "shared": 2, "server": 3, "cli": 0, "build": 0, "none": 0}}
+    assert valid_map["system"]["runtime_counts"] == {"client": 1, "fullstack": 0, "shared": 2, "server": 3, "cli": 1, "build": 0, "none": 0}
     area_edges = {(e["from"], e["to"]): e for e in valid_map["edges"]["areas"]}
     assert "domains" not in valid_map["edges"]
     assert area_edges[("operating", "processing")]["count"] == 3
@@ -442,3 +442,12 @@ def test_loaded_by_records_links_imports_cannot_see_and_drops_unknown_ids(trio):
     comp = {c["id"]: c for c in build.build(skel, draft, decisions)["components"]}
     assert comp["rules"]["loaded_by"] == ["web"]
     assert comp["api"]["loaded_by"] == []
+
+
+def test_full_stack_apps_never_raise_client_and_server_share_code(trio):
+    sk, draft, decisions = copy.deepcopy(trio)
+    # web (client) imports api (server) in the fixture: make web a full-stack app and the check no longer applies
+    decisions["resolution"]["web"]["runtime"] = {"value": "fullstack", "status": "accepted", "confidence": .9, "reason": None}
+    result = build.build(sk, draft, decisions)
+    assert not any(h["check"] == "crosses-the-wire" and "web" in h["nodes"] for h in result["health"])
+    assert {c["id"]: c["runtime"] for c in result["components"]}["web"] == "fullstack"

@@ -192,6 +192,9 @@
             },
             "none": {
               "type": "integer"
+            },
+            "fullstack": {
+              "type": "integer"
             }
           }
         },
@@ -281,6 +284,9 @@
                     "type": "integer"
                   },
                   "none": {
+                    "type": "integer"
+                  },
+                  "fullstack": {
                     "type": "integer"
                   }
                 }
@@ -392,6 +398,7 @@
             "type": "string",
             "enum": [
               "client",
+              "fullstack",
               "shared",
               "server",
               "cli",
