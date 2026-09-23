@@ -351,6 +351,33 @@ assert.ok(textOf(projectCoverage(M.project)).includes('7 tracked files outside i
 """, cards=True)
 
 
+def test_undecided_repository_and_project_kinds_explain_generic_pictures():
+    run_viewer_js("""
+for (const status of ['uncertain', 'unresolved', 'abstain']) {
+  repositoryModel.map.landscape.decision = {status, confidence: 0.27, reason: 'Boundary evidence is incomplete'};
+  const notice = textOf(repositoryGroupingNotice());
+  assert.ok(notice.includes('Project boundaries'));
+  assert.ok(notice.includes('Boundary evidence is incomplete'));
+  assert.ok(notice.includes('27%'));
+  M = modelFor('api-project');
+  assert.equal(repositoryGroupingNotice(), null);
+  M.project.kind = 'other';
+  M.project.decision = {status, reason: 'Several purposes overlap'};
+  const card = textOf(projectCoverage(M.project));
+  assert.ok(card.includes('primary project kind'));
+  assert.ok(card.includes('Several purposes overlap'));
+  assert.ok(!card.includes('undefined') && !card.includes('NaN'));
+  assert.equal(M.project.kind, 'other');
+  M = repositoryModel;
+}
+repositoryModel.map.landscape.decision = {status: 'accepted', value: 'single', confidence: 0.99};
+assert.equal(repositoryGroupingNotice(), null);
+assert.equal(decisionNotice({status: 'accepted'}, 'Should not appear'), null);
+delete repositoryModel.map.landscape.decision;
+assert.equal(repositoryGroupingNotice(), null);
+""", cards=True)
+
+
 def test_old_maps_keep_existing_lenses_without_project_metadata():
     run_viewer_js("const legacy = buildModel(" + json.dumps(load()) + """ );
 assert.equal(legacy.landscape, false);
