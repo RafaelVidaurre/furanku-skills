@@ -45,9 +45,9 @@ After the first round, every component whose `runtime`, `nature`, or `role` (rol
 
 | Question | Option | Description |
 | --- | --- | --- |
-| `runtime` | `server` | a long-lived service process |
-| | `client` | a page or desktop app a person uses |
-| | `fullstack` | an application whose own code runs both on a server and in the browser, such as server-side rendering with server routes beside its pages |
+| `runtime` | `server` | runs remotely, not on a person's device: a long-lived service process, or code a hosted platform runs on request (serverless functions, on-chain contracts) |
+| | `client` | a page, desktop, mobile, or game app a person uses on their own device |
+| | `fullstack` | one application whose own code runs both as a server and as the app people use: server-side rendering with server routes beside its pages, or a game that builds both its player app and its headless servers |
 | | `shared` | a library compiled into more than one runtime |
 | | `cli` | a command that is part of the product, run by its users or operators |
 | | `build` | runs only while building, testing, developing, or producing assets, however it is started |

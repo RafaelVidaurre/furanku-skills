@@ -48,7 +48,9 @@ def progress(phase, done, total, **extra):
         _started[0] = time.monotonic()
     if done not in (0, total) and done % PROGRESS_EVERY:
         return
-    line = {"progress": phase, "done": done, "total": total, "elapsed_seconds": round(time.monotonic() - _started[0], 1), **extra}
+    # a retry line is about one waiting request, not the phase's count
+    counts = {} if phase == "retry" else {"done": done, "total": total}
+    line = {"progress": phase, **counts, "elapsed_seconds": round(time.monotonic() - _started[0], 1), **extra}
     print(json.dumps(line), file=_progress_stream, flush=True)
 MIN_INTERVAL = 0.3
 CHECKPOINT_EVERY = 20  # live calls between saved progress in a long run
@@ -81,9 +83,9 @@ NATURES = ("product", "tooling", "test", "content", "docs", "experiment")
 ROLES = ("surface", "adapter", "core", "kernel")
 SUPPORT_NATURES = ("tooling", "test", "experiment")
 RUNTIME_DEFINITIONS = {
-    "server": "a long-lived service process",
-    "client": "a page or desktop app a person uses",
-    "fullstack": "an application whose own code runs both on a server and in the browser, such as server-side rendering with server routes beside its pages",
+    "server": "runs remotely, not on a person's device: a long-lived service process, or code a hosted platform runs on request (serverless functions, on-chain contracts)",
+    "client": "a page, desktop, mobile, or game app a person uses on their own device",
+    "fullstack": "one application whose own code runs both as a server and as the app people use: server-side rendering with server routes beside its pages, or a game that builds both its player app and its headless servers",
     "shared": "a library compiled into more than one runtime",
     "cli": "a command that is part of the product, run by its users or operators",
     "build": "runs only while building, testing, developing, or producing assets, however it is started",

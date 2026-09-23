@@ -108,6 +108,24 @@ def test_merging_a_barrel_folder_does_not_invent_a_module_cycle():
     assert skeleton.skeleton(make_scan([("lib", "lib")], files, edges))["cycles"]["modules"] == [["lib/d10", "lib/d11"]]
 
 
+def test_tests_merge_only_with_tests_and_a_merged_module_is_named_after_its_largest_member():
+    files = [(f"lib/d{i:02d}/a.ts", 100 + i, "lib") for i in range(16)]
+    files += [("lib/big/a.ts", 900, "lib"), ("lib/big/b.ts", 900, "lib")]
+    files += [("lib/tests/a.test.ts", 5, "lib"), ("lib/specs/b.test.ts", 6, "lib")]
+    # the tiny test folders import production code; the entry-less d00 is absorbed into big, which dwarfs it
+    edges = [("lib/tests/a.test.ts", "lib/d01/a.ts", 1), ("lib/specs/b.test.ts", "lib/d02/a.ts", 1), ("lib/d00/a.ts", "lib/big/a.ts", 1)]
+    scan = make_scan([("lib", "lib")], files, edges)
+    for f in scan["files"]:
+        f["role"] = "test" if ".test." in f["path"] else "source"
+    mods = {m["id"]: m for m in skeleton.skeleton(scan)["modules"]}
+    tests = [m for m in mods.values() if m["test"]]
+    assert len(tests) == 1 and {f["path"] for f in tests[0]["files"]} == {"lib/tests/a.test.ts", "lib/specs/b.test.ts"}
+    assert not any(f["test"] for m in mods.values() if not m["test"] for f in m["files"])
+    assert mods["lib/big"]["merged"] == ["d00", "d01"] and mods["lib/big"]["name"] == "big + 2 more"
+    # a folder that absorbed bigger ones takes the biggest one's name
+    assert skeleton._lead({"sizes": {"duels": 10, "client": 500, "hud": 40}}, "duels") == "client"
+
+
 def test_metrics_edges_and_cycles():
     scan = make_scan(
         [("a", "a"), ("b", "b"), ("c", "c")],

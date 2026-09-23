@@ -425,6 +425,11 @@ def test_module_cycles_through_the_root_module_are_not_findings_and_component_fi
     result = build.build(sk, draft, decisions)
     module_cycles = [h["nodes"] for h in result["health"] if h["check"] == "cycle" and h["level"] == "modules"]
     assert module_cycles == [["web/state", "web/views"]]
+    looped = {m["id"] for m in result["modules"] if m["metrics"].get("in_cycle")}
+    assert looped == {"web/state", "web/views"}  # the skipped hub cycle leaves web/root out of any loop
+    sk["cycles"]["modules"] = [["web/root", "web/state"]]
+    assert not any(m["metrics"].get("in_cycle") for m in build.build(sk, draft, decisions)["modules"])
+    assert build.generated_module_text({"id": "g/duels", "path": "game/duels", "merged": ["a", "b"]}) == "Code in game/duels and 2 nearby folders."
     levels = [h["level"] for h in result["health"]]
     assert levels == sorted(levels, key=lambda l: l != "components")
 

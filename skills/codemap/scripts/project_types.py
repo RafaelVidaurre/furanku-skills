@@ -11,7 +11,7 @@ PROJECT_KINDS = {
     "library": "Library or SDK used by callers",
     "cli": "Command-line application or developer tool",
     "data-pipeline": "Data pipeline or ETL processing datasets",
-    "application": "Mobile, desktop or interactive application",
+    "application": "Web, mobile, desktop or other interactive application people use directly, whatever backend or chain it talks to",
     "compiler": "Compiler or interpreter transforming or executing a language",
     "ml": "Machine-learning training or inference system",
     "embedded": "Embedded software or device firmware",

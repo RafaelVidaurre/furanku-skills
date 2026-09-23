@@ -30,7 +30,7 @@ from pathlib import Path, PurePosixPath
 import sys
 
 # Bump whenever a change alters how files group into modules or what the skeleton derives (cycles, metrics).
-SKELETON_VERSION = 1
+SKELETON_VERSION = 2
 MODULE_CAP = 16
 EXAMPLE_LIMIT = 3
 EMPTY_HINTS = {
@@ -181,6 +181,12 @@ def _split_large(groups: dict) -> None:
             return
 
 
+def _lead(group: dict, key: str) -> str:
+    """A merged module is named after its largest member, not whichever folder happened to absorb the rest."""
+    sizes = group.get("sizes") or {key: 0}
+    return max(sorted(sizes), key=lambda k: sizes[k])
+
+
 def _merge_to_cap(groups: dict, edges: list) -> None:
     """Merge the smallest module into the one it shares the most imports with until MODULE_CAP remain.
 
@@ -190,9 +196,16 @@ def _merge_to_cap(groups: dict, edges: list) -> None:
     most shared imports, then the smaller, then by key.
     """
     loc = lambda k: sum(f["loc"] for f in groups[k]["files"])
+    # tests merge only with tests, so the Tests toggle can still hide them and production modules stay production
+    testy = lambda k: sum(1 for f in groups[k]["files"] if f.get("role") == "test") >= len(groups[k]["files"]) * TEST_MODULE_SHARE
+    for k, g in groups.items():
+        g.setdefault("sizes", {k: loc(k)})
     while len(groups) > MODULE_CAP:
         owner = {f["path"]: k for k, g in groups.items() for f in g["files"]}
-        small = min((k for k in groups if k != "root"), key=lambda k: (loc(k), k))
+        # the smallest module that has a partner of its own kind; a lone test module stays whole
+        paired = [k for k in groups if k != "root" and any(testy(o) == testy(k) for o in groups if o != k)]
+        small = min(paired or [k for k in groups if k != "root"], key=lambda k: (loc(k), k))
+        kind = testy(small) if paired else None
         links = {}
         for a, b in edges:
             ka, kb = owner.get(a), owner.get(b)
@@ -202,12 +215,15 @@ def _merge_to_cap(groups: dict, edges: list) -> None:
         # prefer neighbours still under the size bound, then the most shared imports, then the smaller one, so a
         # module everything imports (a shared lib folder) does not snowball into a catch-all
         big = lambda k: len(groups[k]["files"]) > LARGE_MODULE_FILES
-        ranked = sorted((k for k in links if k != "root"), key=lambda k: (big(k), -links[k], loc(k), k))
-        target = ranked[0] if ranked else ("root" if "root" in groups else min((k for k in groups if k != small), key=lambda k: (-loc(k), k)))
+        same = lambda k: kind is None or testy(k) == kind
+        ranked = sorted((k for k in links if k != "root" and same(k)), key=lambda k: (big(k), -links[k], loc(k), k))
+        fallback = [k for k in groups if k != small and same(k)]
+        target = ranked[0] if ranked else ("root" if "root" in groups and same("root") else min(fallback, key=lambda k: (-loc(k), k)))
         absorbed = groups.pop(small)
         dest = groups[target]
         dest["files"].extend(absorbed["files"])
         dest["merged"] = sorted(set(dest.get("merged", [])) | {small} | set(absorbed.get("merged", [])))
+        dest["sizes"].update(absorbed["sizes"])
         dest["root_file"] = bool(dest.get("root_file") or absorbed.get("root_file"))
 
 
@@ -348,7 +364,8 @@ def skeleton(scan: dict) -> dict:
             modules.append({
                 "id": module_id,
                 "component": unit_id,
-                "name": (display_name(unit) if key == "root" else _module_label(key)) + (f" + {len(group['merged'])} more" if group.get("merged") else ""),
+                "name": (display_name(unit) if _lead(group, key) == "root" else _module_label(_lead(group, key)))
+                        + (f" + {len(group['merged'])} more" if group.get("merged") else ""),
                 "merged": sorted(group.get("merged", [])),
                 "path": group["path"] or unit_path,
                 "test": bool(records) and tests >= len(records) * TEST_MODULE_SHARE,

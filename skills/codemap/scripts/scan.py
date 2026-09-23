@@ -53,7 +53,7 @@ from pathlib import Path
 SCHEMA = "codemap.scan/1"
 # Bump whenever a change alters what a scan finds (languages, units, roles, provenance): status then reports
 # existing maps as outdated so they are rescanned instead of silently keeping the old structure.
-SCANNER_VERSION = 1
+SCANNER_VERSION = 2
 MAX_FILE_BYTES = 2 * 1024 * 1024
 
 LANG_BY_EXT = {
