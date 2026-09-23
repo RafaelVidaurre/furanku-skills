@@ -154,6 +154,8 @@ def validate_compiled_candidate(candidate_id, candidate):
         raise Error(f"{label}.launch values must be non-empty strings")
     if "enabled" in candidate and not isinstance(candidate["enabled"], bool):
         raise Error(f"{label}.enabled must be boolean")
+    if "explicit" in candidate and not isinstance(candidate["explicit"], bool):
+        raise Error(f"{label}.explicit must be boolean")
     pool = candidate.get("quota_pool")
     if pool is not None:
         if (
@@ -768,11 +770,18 @@ def gate(
     minimum_context=None,
     allowed_launchers=None,
     expected_accounts=None,
+    explicit_basis=None,
+    model_names=None,
 ):
     """Hard eligibility only. Judgment stays with the agent."""
     reasons, warnings = [], []
     if not candidate.get("enabled", True):
         reasons.append("disabled by configuration")
+    elif candidate.get("explicit", False):
+        if not explicit_basis:
+            reasons.append("explicit-only candidate requires --explicit-basis with the principal's request for this model and effort")
+        elif problem := explicit_request_problem(explicit_basis, candidate["launch"], model_names):
+            reasons.append(problem)
     if allowed_launchers is not None:
         agent = candidate["launch"]["agent"]
         if agent not in allowed_launchers:
@@ -857,6 +866,8 @@ def gate_check(
     minimum_context=None,
     allowed_launchers=None,
     expected_accounts=None,
+    explicit_basis=None,
+    model_names=None,
 ):
     """Single gate-and-runtime resolution shared by every decision path."""
     reasons, warnings = gate(
@@ -867,6 +878,8 @@ def gate_check(
         minimum_context=minimum_context,
         allowed_launchers=allowed_launchers,
         expected_accounts=expected_accounts,
+        explicit_basis=explicit_basis,
+        model_names=model_names,
     )
     state = runtime_for(runtime, candidate_id, candidate)
     return reasons, warnings, quota_summary(state)
@@ -969,6 +982,7 @@ def lower_effort_siblings(compiled, candidate_id):
         for item in compiled["candidates"].items()
         if item[0] != candidate_id
         and item[1].get("enabled", True)
+        and not item[1].get("explicit", False)
         and item[1]["launch"]["agent"] == launch["agent"]
         and item[1]["launch"]["model"] == launch["model"]
         and EFFORT_RANK.get(item[1]["launch"]["effort"], len(EFFORT_RANK))
@@ -990,6 +1004,29 @@ def effort_named(text, effort):
     )
 
 
+def normalized_phrase(value):
+    return " ".join(re.findall(r"[a-z0-9]+", value.lower()))
+
+
+def model_alias(model):
+    stem = re.sub(r"\[[^]]*\]$", "", model)
+    return re.sub(r"^(?:gpt-\d+(?:\.\d+)?|claude)-", "", stem)
+
+
+def explicit_request_problem(basis, launch, model_names=None):
+    model = launch["model"]
+    effort = launch["effort"]
+    normalized = f" {normalized_phrase(basis)} "
+    full = normalized_phrase(model)
+    alias = normalized_phrase(model_alias(model))
+    names = set(model_names or [model])
+    alias_unique = sum(normalized_phrase(model_alias(name)) == alias for name in names) == 1
+    names_model = f" {full} " in normalized or (alias_unique and f" {alias} " in normalized)
+    if not names_model or not effort_named(basis, effort):
+        return f"explicit basis must name {model} (or its unique alias) and effort {effort}"
+    return None
+
+
 def gate_launch(
     compiled,
     launch,
@@ -1009,6 +1046,8 @@ def gate_launch(
             minimum_context=args.minimum_context,
             allowed_launchers=allowed_launchers,
             expected_accounts=expected_accounts,
+            explicit_basis=getattr(args, "explicit_basis", None),
+            model_names={candidate["launch"]["model"] for candidate in compiled["candidates"].values()},
         )
     if args.require_feature or args.minimum_context is not None:
         raise Error(
@@ -1021,6 +1060,8 @@ def gate_launch(
         runtime,
         allowed_launchers=allowed_launchers,
         expected_accounts=expected_accounts,
+        explicit_basis=getattr(args, "explicit_basis", None),
+        model_names={candidate["launch"]["model"] for candidate in compiled["candidates"].values()},
     )
 
 
@@ -1053,7 +1094,7 @@ def parse_allowed_launchers(values):
     return allowed
 
 
-def check(compiled, args, runtime):
+def _check(compiled, args, runtime):
     if bool(args.candidate) == bool(args.exact_route):
         raise Error("check requires exactly one of --candidate or --exact-route")
     allowed_launchers = parse_allowed_launchers(args.launchable_via)
@@ -1073,6 +1114,9 @@ def check(compiled, args, runtime):
             "check --exact-route requires --route-basis with the principal's "
             "request for this task"
         )
+    explicit_basis = getattr(args, "explicit_basis", None)
+    if explicit_basis is not None and not explicit_basis.strip():
+        raise Error("--explicit-basis requires the principal's request as its value")
     if args.exact_route and args.reason is not None:
         raise Error(
             "--reason applies to --candidate; exact routes record --route-basis"
@@ -1093,6 +1137,13 @@ def check(compiled, args, runtime):
             raise Error(f"configured route not found: {args.exact_route}")
         launch = exact_config.launch_of(row)
         candidate_id = match_candidate(compiled, launch)
+        fallback_policy = exact_config.quota_unusable_policy(row)
+        fallback_id = match_candidate(compiled, fallback_policy["launch"]) if fallback_policy else None
+        if explicit_basis and not any(
+            compiled["candidates"][item].get("explicit", False)
+            for item in (candidate_id, fallback_id) if item is not None
+        ):
+            raise Error("--explicit-basis applies only to an explicit candidate or quota fallback")
         if candidate_id is None:
             refuse_malformed_route_target(compiled, args.exact_route, launch)
         reasons, warnings, quota = gate_launch(
@@ -1239,6 +1290,8 @@ def check(compiled, args, runtime):
         )
     if not args.reason or not args.reason.strip():
         raise Error("check --candidate requires --reason with the task judgment")
+    if explicit_basis and not candidate.get("explicit", False):
+        raise Error("--explicit-basis applies only to an explicit candidate")
     lower_effort = lower_effort_siblings(compiled, args.candidate)
     reasons, warnings, quota = gate_check(
         args.candidate,
@@ -1248,8 +1301,10 @@ def check(compiled, args, runtime):
         minimum_context=args.minimum_context,
         allowed_launchers=allowed_launchers,
         expected_accounts=compiled.get("accounts", {}),
+        explicit_basis=explicit_basis,
+        model_names={row["launch"]["model"] for row in compiled["candidates"].values()},
     )
-    if lower_effort:
+    if lower_effort and not candidate.get("explicit", False):
         strongest_lower = lower_effort[-1]
         strongest_effort = compiled["candidates"][strongest_lower]["launch"]["effort"]
         if args.max_effort_basis is None:
@@ -1274,7 +1329,7 @@ def check(compiled, args, runtime):
             "reasons": reasons,
             "warnings": warnings,
         }
-        if lower_effort:
+        if lower_effort and not candidate.get("explicit", False):
             decision["lower_effort_candidates"] = lower_effort
         return decision
     pending, acceptance = acceptance_terms(quota, args.accept_quota_unknown)
@@ -1288,7 +1343,7 @@ def check(compiled, args, runtime):
             "warnings": warnings,
             "quota": quota,
         }
-        if lower_effort:
+        if lower_effort and not candidate.get("explicit", False):
             decision["lower_effort_candidates"] = lower_effort
             decision["max_effort_basis"] = args.max_effort_basis.strip()
         return decision
@@ -1300,11 +1355,19 @@ def check(compiled, args, runtime):
         "quota": quota,
         "sources": compiled["candidate_sources"].get(args.candidate, []),
     }
-    if lower_effort:
+    if lower_effort and not candidate.get("explicit", False):
         decision["lower_effort_candidates"] = lower_effort
         decision["max_effort_basis"] = args.max_effort_basis.strip()
     if acceptance:
         decision["quota_acceptance"] = acceptance
+    return decision
+
+
+def check(compiled, args, runtime):
+    decision = _check(compiled, args, runtime)
+    basis = getattr(args, "explicit_basis", None)
+    if basis and basis.strip():
+        decision["explicit_basis"] = basis.strip()
     return decision
 
 
@@ -1459,8 +1522,8 @@ def brief_markdown(compiled, runtime, repo_root, allowed_launchers=None):
         "",
         MAX_EFFORT_POLICY,
         "",
-        "| Candidate | Reasoning | Impl | Agentic | UI | 3D | $/task | tok/s | Context | Quota |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| Candidate | State | Reasoning | Impl | Agentic | UI | 3D | $/task | tok/s | Context | Quota |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     candidates = brief_candidates(compiled, allowed_launchers)
     for candidate_id, candidate in sorted(candidates.items(), key=candidate_sort_key):
@@ -1471,6 +1534,7 @@ def brief_markdown(compiled, runtime, repo_root, allowed_launchers=None):
         state = runtime_for(runtime, candidate_id, candidate)
         lines.append(
             f"| {markdown_cell(candidate_id)} "
+            f"| {'explicit' if candidate.get('explicit', False) else 'enabled'} "
             f"| {capability_cell(candidate, 'reasoning')} "
             f"| {capability_cell(candidate, 'implementation')} "
             f"| {capability_cell(candidate, 'agentic')} "
@@ -1567,7 +1631,10 @@ def brief_json(compiled, runtime, repo_root, allowed_launchers=None):
             for candidate_id in candidates
         },
         "malformed_candidates": compiled.get("malformed_candidates") or {},
-        "candidate_policy": {"maximum_effort": MAX_EFFORT_POLICY},
+        "candidate_policy": {
+            "maximum_effort": MAX_EFFORT_POLICY,
+            "explicit": "An explicit-only candidate may be checked only with --explicit-basis recording the principal's request for its model and effort. Ordinary selectors exclude it.",
+        },
         "methodology": compiled["methodology"],
         "layers": brief_layers(compiled, candidates),
         "runtime": brief_runtime(runtime, candidates) or None,
@@ -1629,6 +1696,10 @@ def main(argv=None):
     parser.add_argument(
         "--reason",
         help="the task judgment behind the candidate pick; recorded verbatim",
+    )
+    parser.add_argument(
+        "--explicit-basis",
+        help="verbatim principal request naming this explicit-only model and effort",
     )
     parser.add_argument(
         "--max-effort-basis",

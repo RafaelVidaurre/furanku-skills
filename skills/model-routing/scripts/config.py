@@ -449,6 +449,169 @@ def emit(value, compact=False):
     sys.stdout.write("\n")
 
 
+def candidate_state(candidate):
+    if not candidate.get("enabled", True):
+        return "disabled"
+    return "explicit" if candidate.get("explicit", False) else "enabled"
+
+
+def model_rows(repo):
+    try:
+        from . import router as routing_router
+    except ImportError:
+        import router as routing_router
+    try:
+        compiled = routing_router.compile_brief(repo)
+    except routing_router.Error as error:
+        raise Error(str(error)) from error
+    paths = locations(repo)
+    patches = {
+        scope: load(path).get("candidates", {}) if path.exists() else {}
+        for scope, path in paths.items()
+    }
+    builtin_ids = set(builtin()["candidates"])
+    rows = []
+    for candidate_id, candidate in compiled["candidates"].items():
+        launch = candidate["launch"]
+        state = candidate_state(candidate)
+        state_source = "builtin"
+        for scope in SCOPES:
+            patch = patches[scope].get(candidate_id)
+            if not isinstance(patch, dict):
+                continue
+            if (state == "disabled" and "enabled" in patch
+                or state == "explicit" and "explicit" in patch
+                or state == "enabled" and ("enabled" in patch or "explicit" in patch)
+                or candidate_id not in builtin_ids and "launch" in patch):
+                state_source = scope
+        rows.append({
+            "candidate": candidate_id,
+            "model": launch["model"],
+            "effort": launch["effort"],
+            "agent": launch["agent"],
+            "state": state,
+            "source": state_source,
+        })
+    return sorted(rows, key=lambda row: (row["model"], row["effort"], row["agent"]))
+
+
+def model_command(argv):
+    parser = argparse.ArgumentParser(description="List or set model and effort states")
+    parser.add_argument("command", choices=("list", "models", "set"))
+    parser.add_argument("state", nargs="?", choices=("enabled", "disabled", "explicit"))
+    parser.add_argument("model", nargs="?")
+    parser.add_argument("effort", nargs="?")
+    parser.add_argument("--repo", default=".")
+    parser.add_argument("--scope", choices=SCOPES, default="global")
+    parser.add_argument("--agent", help="limit to one launch surface")
+    parser.add_argument("--all-agents", action="store_true", help="change every matching launch surface")
+    parser.add_argument("--create", action="store_true", help="add an absent candidate; requires --agent")
+    parser.add_argument("--format", choices=("text", "json"), default="text")
+    args = parser.parse_args(argv)
+    if args.command != "set":
+        if args.state or args.model or args.effort or args.agent or args.all_agents or args.create or args.scope != "global":
+            parser.error("list/models takes only --repo and --format")
+    elif not all((args.state, args.model, args.effort)):
+        parser.error("set requires state, model, and effort")
+    if args.create and not args.agent:
+        parser.error("--create requires --agent")
+    if args.agent and args.all_agents:
+        parser.error("--agent and --all-agents are mutually exclusive")
+    return args
+
+
+def run_model_command(argv):
+    args = model_command(argv)
+    if args.command == "set":
+        paths = locations(args.repo)
+        rows = model_rows(args.repo)
+        matches = [row for row in rows if row["model"] == args.model
+                   and row["effort"] == args.effort
+                   and (args.agent is None or row["agent"] == args.agent)]
+        if len(matches) > 1 and not args.all_agents:
+            agents = ", ".join(sorted(row["agent"] for row in matches))
+            raise Error(f"multiple launch surfaces match ({agents}); use --agent <launcher> or --all-agents")
+        if not matches and not args.create:
+            other_agents = sorted({row["agent"] for row in rows
+                                   if row["model"] == args.model and row["effort"] == args.effort})
+            if other_agents:
+                raise Error(f"{args.model}/{args.effort} is configured through {', '.join(other_agents)}, not {args.agent}")
+            raise Error("model/effort is not configured; use --create --agent <launcher> to add it")
+        if not matches:
+            validate_launch_tuple({"agent": args.agent, "model": args.model, "effort": args.effort}, "new candidate")
+            matches = [{"candidate": f"{args.agent}/{args.model}/{args.effort}"}]
+        higher = SCOPES[SCOPES.index(args.scope) + 1:]
+        for scope in higher:
+            path = paths[scope]
+            if not path.exists():
+                continue
+            overrides = load(path).get("candidates", {})
+            shadowed = [row["candidate"] for row in matches
+                        if row["candidate"] in overrides
+                        and (overrides[row["candidate"]] is None
+                             or {"enabled", "explicit"} & set(overrides[row["candidate"]]))]
+            if shadowed:
+                raise Error(f"{scope} overrides state for {', '.join(shadowed)}; set that scope instead")
+        path = paths[args.scope]
+        config = load(path) if path.exists() else {"version": VERSION, "routes": {}}
+        overrides = config.setdefault("candidates", {})
+        for row in matches:
+            candidate_id = row["candidate"]
+            patch = overrides.get(candidate_id)
+            if not isinstance(patch, dict):
+                patch = {}
+            if row.get("model") is None:
+                patch["launch"] = {"agent": args.agent, "model": args.model, "effort": args.effort}
+            patch.update({"enabled": args.state != "disabled", "explicit": args.state == "explicit"})
+            overrides[candidate_id] = patch
+        validate_schema(config, False, str(path))
+        try:
+            from . import router as routing_router
+        except ImportError:
+            import router as routing_router
+        compiled = routing_router.compile_brief(args.repo)
+        for row in matches:
+            candidate_id = row["candidate"]
+            preview = routing_router.merge_patch(
+                compiled["candidates"].get(candidate_id, {}), overrides[candidate_id]
+            )
+            try:
+                routing_router.validate_compiled_candidate(candidate_id, preview)
+            except routing_router.Error as error:
+                raise Error(str(error)) from error
+        save(path, config, args.scope != "repo")
+        changed = [row for row in model_rows(args.repo)
+                   if row["candidate"] in {match["candidate"] for match in matches}]
+        if len(changed) != len(matches) or any(row["state"] != args.state for row in changed):
+            raise Error("saved state was overridden by another configuration layer")
+        if args.format == "json":
+            emit({"scope": args.scope, "changed": changed})
+        else:
+            print(f"Set {args.state} in {args.scope}:")
+            for row in changed:
+                print(f"  {row['agent']}/{row['model']}/{row['effort']}")
+        return
+    rows = model_rows(args.repo)
+    try:
+        from . import router as routing_router
+    except ImportError:
+        import router as routing_router
+    malformed = routing_router.compile_brief(args.repo).get("malformed_candidates") or {}
+    if args.format == "json":
+        emit({"models": rows, "malformed_candidates": malformed})
+        return
+    print("Model routing states (effective for this repository)")
+    print("🟢 enabled = selectable  🟡 explicit = user request only  🔴 disabled = unavailable")
+    print("\nState        Model                         Effort   Agent       Source")
+    for row in rows:
+        marker = {"enabled": "🟢", "explicit": "🟡", "disabled": "🔴"}[row["state"]]
+        print(f"{marker} {row['state']:<9}  {row['model']:<28}  {row['effort']:<7}  {row['agent']:<10}  {row['source']}")
+    if malformed:
+        print("\nExcluded malformed candidates:")
+        for candidate_id, info in sorted(malformed.items()):
+            print(f"  {candidate_id}: {info['error']}")
+
+
 def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -481,6 +644,13 @@ def arguments():
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] in {"list", "models", "set"}:
+        try:
+            run_model_command(sys.argv[1:])
+        except (Error, OSError) as error:
+            print(f"model-routing-config: {error}", file=sys.stderr)
+            raise SystemExit(1)
+        return
     args = arguments()
     try:
         if args.command == "template":
