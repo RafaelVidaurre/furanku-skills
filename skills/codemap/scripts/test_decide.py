@@ -175,7 +175,7 @@ class DecideTest(unittest.TestCase):
         self.assertEqual(list(questions["runtime"]["criteria"]), list(dc.RUNTIMES) + ["abstain"])
         self.assertEqual(list(questions["nature"]["criteria"]), list(dc.NATURES) + ["abstain"])
         self.assertEqual(list(questions["role"]["criteria"]), list(dc.ROLES) + ["abstain"])
-        self.assertEqual(questions["role"]["criteria"]["kernel"], "types, schemas, utilities every role shares")
+        self.assertEqual(questions["role"]["criteria"]["kernel"], dc.ROLE_DEFINITIONS["kernel"])
         big = deepcopy(SKELETON)
         big["edges"]["components"] += [{"from": f"dep{i}", "to": "ui", "count": i} for i in range(40)]
         big["components"] += [{"id": f"dep{i}", "name": f"dep{i}", "path": f"p/dep{i}", "kind": "package",
@@ -215,6 +215,8 @@ class DecideTest(unittest.TestCase):
         self.assertEqual(result["summary"]["unresolved"], 3)
         self.assertEqual([(u["node"], u["question"]) for u in result["summary"]["unresolved_nodes"]],
                          [("devtools", "area"), ("store", "area"), ("store", "role")])
+        # the unsure answer is handed to the agent with the two options the evidence must separate
+        self.assertEqual(result["summary"]["uncertain_nodes"], [{"node": "core", "question": "area", "torn_between": ["records", "viewing"], "value": "records", "confidence": 0.5}])
         # store has no role, so core->store is not a core-uses-adapter question; store->ui still crosses the wire.
         self.assertEqual(list(result["edges"]), ["store->ui"])
         uncertain = FakeJev(overrides={("edge", "core_uses_adapter"): 0.5})
@@ -377,7 +379,7 @@ class DecideTest(unittest.TestCase):
         def flaky(payload):
             attempts.append(payload)
             if len(attempts) < 3:
-                raise jc.Error("Gateway HTTP 429: rate limited")
+                raise jc.Error("Gateway HTTP 429: rate limited" if len(attempts) == 1 else "Gateway HTTP 503: evaluation failed")
             return FakeJev()(payload)
 
         with mock.patch.object(dc, "_sleep") as sleep:
@@ -438,3 +440,40 @@ class DecideTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DerivedRuntimeTest(unittest.TestCase):
+    def test_supporting_code_runs_at_build_time_without_asking_twice(self):
+        draft = deepcopy(DRAFT)
+        draft["components"]["devtools"]["runs"] = "Developers run it from a terminal; nothing ships it."
+        fake = FakeJev(overrides={("devtools", "runtime"): ("cli", 0.5)})
+        result = dc.decide(SKELETON, draft, None, evaluate=fake)
+        runtime = result["resolution"]["devtools"]["runtime"]
+        self.assertEqual((runtime["value"], runtime["status"]), ("build", "accepted"))
+        self.assertIn("tooling", runtime["derived"])
+        # no second pass for a runtime the nature settles, and nothing left for the agent to clarify
+        self.assertEqual(result["summary"]["second_pass"], [])
+        self.assertEqual(result["summary"]["uncertain_nodes"], [])
+        card = next(r for r in fake.requests if r["state"].get("id") == "devtools")["state"]
+        self.assertEqual(card["runs"], "Developers run it from a terminal; nothing ships it.")
+
+
+class ProviderFailureTest(unittest.TestCase):
+    def test_one_card_the_provider_cannot_evaluate_is_skipped_but_an_outage_stops_the_run(self):
+        def picky(payload):
+            if payload["state"].get("id") == "store":
+                raise jc.Error("Gateway HTTP 503: evaluation failed; no fallback was used.")
+            return FakeJev()(payload)
+
+        with mock.patch.object(dc, "_sleep"):
+            result = dc.decide(SKELETON, DRAFT, None, evaluate=picky)
+        self.assertEqual([f["node"] for f in result["summary"]["provider_failures"]], ["store"])
+        self.assertEqual({result["resolution"]["store"][k]["reason"] for k in dc.COMPONENT_QUESTIONS}, {"provider_error"})
+        self.assertEqual(result["resolution"]["ui"]["area"]["status"], "accepted")
+        self.assertFalse(any(r["node"] == "store" for r in result["records"]))  # nothing cached: the next run asks again
+
+        def down(payload):
+            raise jc.Error("Gateway HTTP 503: evaluation failed; no fallback was used.")
+
+        with mock.patch.object(dc, "_sleep"), self.assertRaises(dc.Interrupted):
+            dc.decide(SKELETON, DRAFT, None, evaluate=down)

@@ -1,15 +1,26 @@
 # Levels, facts, and lenses
 
-The map answers one question per screen. An engineer zooms from the whole system to a file without ever seeing more than about a dozen boxes, and the same visual channel means the same thing on every screen.
+The map answers one question per screen. There is more than one honest way to look at a codebase from above, so the whole system is shown through four **lenses**, each answering one question about the same components (five with Contracts); from there an engineer drills from an area to a component to a file without seeing more than about a dozen boxes at a time. Hue, selection, and the card stay the same across every screen.
+
+## Lenses
+
+| Lens | Question it answers | What is drawn | Built from |
+| --- | --- | --- | --- |
+| Purpose | Who uses what, and how do the running parts talk? | people · areas with their runnables · external systems, joined by flows; Build & verify beneath | the draft's people, areas, externals, flows, and Jev's area placements |
+| Layers | Where does each part run, and which way do its dependencies point? | every product component in the runtime × role matrix; supporting code is left to the area views | Jev's runtime and role answers, production imports |
+| Ships in | Which libraries end up inside each app, service, and command? | a matrix: product libraries (rows, grouped by area) × runnables (columns, grouped by runtime); a dot where the runnable imports the library, a ring where it arrives through another library | production imports, followed transitively |
+| Size & activity | Where is the code, and where is work happening? | every component as a tile sized by lines, grouped by area, shaded by recent changes | line counts and the scan's git window |
+| Contracts | Which shared schemas and contracts exist, and what uses each? | the Ships in matrix restricted to contracts: kernel-layer product components and any component holding interface files | Jev's role answers, contract files the scanner finds by name in any stack |
+
+Purpose is where the map opens; its panel is a start-here summary (the `summary` sentence, the flows in reading order, the lenses). Switching lens keeps the selected component selected. Ships in makes two things visible that no other screen does: libraries compiled into both client and server, and product libraries no runnable imports.
 
 ## Levels
 
 | Level | Name | What is drawn | Question it answers | Bounds |
 | --- | --- | --- | --- | --- |
-| L0 | System picture | people on the left, areas with their runnable parts in the middle, the external systems the product touches on the right, runtime flows between them, Build & verify along the bottom | What is this, who uses it, what runs, what talks to what? | ≤ 6 people, 3–7 areas, ≤ 10 runnables, ≤ 8 externals |
+| L0 | System picture (the Purpose lens) | people on the left, areas with their runnable parts in the middle, the external systems the product touches on the right, runtime flows between them, Build & verify along the bottom | What is this, who uses it, what runs, what talks to what? | ≤ 6 people, 3–7 areas, ≤ 10 runnables, ≤ 8 externals |
 | L1 | Area | one area's components in the runtime × role matrix, ghosts for touched components of other areas, supporting tray beneath | Inside this area, what are the parts, where do they run, which feed which? | ≤ 12 product components per area |
-| L2 | Component | modules of one component, files listed on the card | Inside this component, where does each responsibility live? | ≤ 16 modules |
-| lens | Where it runs | every product component in one runtime × role matrix | What is client, what is server, what is neither? | whole system |
+| L2 | Component | modules of one component, test modules in their own band beneath, files listed on the card | Inside this component, where does each responsibility live? | ≤ 16 modules |
 
 The map stops at files. A leaf links to a path; reading code is the editor's job.
 
@@ -17,7 +28,7 @@ The map stops at files. A leaf links to a path; reading code is the editor's job
 
 An **area** is a group of parts one kind of person uses for one purpose: *Playing*, *Authoring worlds*, *Serving a World*, *Operating*. You propose 3–7 areas with definitions in the repository's vocabulary; Jev places every component. Every area must hold at least one **runnable**: a `surface` product component that starts as its own process or page (an executable, or a `client`, `server`, or `cli` runtime). Supporting code (tooling, tests, docs, experiments) lands with the area it serves or in the implicit **Build & verify** area; it never forms an area of its own.
 
-**Flows** are the arrows of the system picture. Imports cannot say that the client talks to the gateway over HTTPS or that the server loads content files, so you write flows from the repository's documentation: `{from, to, label, kind}` with endpoints among runnables, people, and externals, a label naming the mechanism, and kind `network`, `file`, or `process`.
+**Flows** are the arrows of the system picture. Imports cannot say that the client talks to the gateway over HTTPS or that the server loads content files, so you write flows from the repository's documentation: `{from, to, label, detail, kind}` with endpoints among runnables, people, and externals, a short `label` naming the mechanism (drawn on the arrow in full), a `detail` saying what travels (shown on hover and in the card), and kind `network`, `file`, or `process`.
 
 **People** (`actors`) carry `uses`: up to two runnables or areas they touch. **Externals** carry a `kind`: `datastore`, `service`, `runtime` (browser, desktop wrapper, embedded engine) appear on the system picture; `devtool` externals (Blender, Playwright, package managers) are chips in Build & verify.
 
@@ -31,11 +42,9 @@ One grouping cannot answer "what is it for", "where does it run", and "is this p
 
 Product components also carry a **role**, their hexagonal position: `surface` (what a person or another system touches: UI, API handlers, CLI entry points, editor hosts), `adapter` (I/O and engines: persistence, transport, rendering, filesystem, OS and browser APIs), `core` (the system's own rules, models, sessions, workflows), `kernel` (types, schemas, utilities every role shares). Drawn top to bottom in that order, healthy dependencies point down; core reaching into an adapter is the one upward arrow that matters.
 
-Components and modules themselves are mechanical: units come from workspace manifests, modules from first-level directories under a unit's source root. A wrong unit boundary is a scanner gap to report, never something to fix in prose.
+The viewer calls the role a **layer** and glosses each one on screen (surface: what people touch; adapter: I/O and engines; core: the rules; kernel: shared types).
 
-## Lenses
-
-Hue is the area, the same everywhere a component appears. The system picture is the primary view; **Where it runs** is the alternate whole-system view: the runtime × role matrix over every product component with the supporting tray beneath. An area (L1) uses that matrix for its own components.
+Components and modules themselves are mechanical: units come from workspace manifests, modules from first-level directories under a unit's source root, or from its root files when the root is flat (a Rust crate of sibling `.rs` files). A wrong unit boundary is a scanner gap to report, never something to fix in prose.
 
 ## Edges
 
@@ -54,7 +63,7 @@ Findings are named, explained, and evidenced; they are shown, never hidden and n
 
 ## The card
 
-Every node carries the same card: `name` and `path`; the three facts and role as chips; `responsibility` (one sentence, "owns …"); `why` (what breaks without it); `depends_on` with a reason per edge and `depended_by`; `entry_points`; `evidence`; `metrics` (files, lines, fan-in, fan-out, instability, in a cycle); and `decision` provenance with confidence. `uncertain` and `unresolved` badges are part of the map, not an error to hide.
+Every node carries the same card: `name` and `path`; the three facts and role as chips; `responsibility` (one sentence, "owns …"); `runs` (who starts it, when, and what uses its output); `why` (what breaks without it); `depends_on` with a reason per edge and `depended_by`; `entry_points`; `evidence`; `metrics` (files, lines, used by, uses, recent changes, in a loop); and `decision` provenance with confidence. `uncertain` and `unresolved` badges (shown as *unsure* and *undecided*) are part of the map, not an error to hide.
 
 ## Stability
 

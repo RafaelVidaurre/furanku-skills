@@ -186,6 +186,7 @@
    "id": "acceptance",
    "kind": "package",
    "metrics": {
+    "changes": 19,
     "fan_in": 0,
     "fan_out": 3,
     "files": 5,
@@ -243,6 +244,7 @@
    "id": "admin-api",
    "kind": "crate",
    "metrics": {
+    "changes": 21,
     "fan_in": 0,
     "fan_out": 3,
     "files": 7,
@@ -294,6 +296,7 @@
    "id": "asset-pipeline",
    "kind": "tool",
    "metrics": {
+    "changes": 32,
     "fan_in": 0,
     "fan_out": 3,
     "files": 6,
@@ -345,6 +348,7 @@
    "id": "audio",
    "kind": "package",
    "metrics": {
+    "changes": 12,
     "fan_in": 1,
     "fan_out": 1,
     "files": 6,
@@ -397,6 +401,7 @@
    "id": "client-core",
    "kind": "package",
    "metrics": {
+    "changes": 96,
     "fan_in": 2,
     "fan_out": 5,
     "files": 16,
@@ -450,6 +455,7 @@
    "id": "client-state",
    "kind": "package",
    "metrics": {
+    "changes": 27,
     "fan_in": 4,
     "fan_out": 2,
     "files": 12,
@@ -502,6 +508,7 @@
    "id": "content-items",
    "kind": "package",
    "metrics": {
+    "changes": 39,
     "fan_in": 1,
     "fan_out": 1,
     "files": 13,
@@ -554,6 +561,7 @@
    "id": "content-loader",
    "kind": "package",
    "metrics": {
+    "changes": 16,
     "fan_in": 5,
     "fan_out": 1,
     "files": 6,
@@ -605,6 +613,7 @@
    "id": "content-maps",
    "kind": "package",
    "metrics": {
+    "changes": 76,
     "fan_in": 1,
     "fan_out": 2,
     "files": 9,
@@ -657,6 +666,7 @@
    "id": "content-monsters",
    "kind": "package",
    "metrics": {
+    "changes": 16,
     "fan_in": 1,
     "fan_out": 2,
     "files": 11,
@@ -710,6 +720,7 @@
    "id": "content-schema",
    "kind": "package",
    "metrics": {
+    "changes": 19,
     "fan_in": 10,
     "fan_out": 0,
     "files": 12,
@@ -765,6 +776,7 @@
    "id": "content-validate",
    "kind": "tool",
    "metrics": {
+    "changes": 0,
     "fan_in": 0,
     "fan_out": 2,
     "files": 3,
@@ -819,6 +831,7 @@
    "id": "desktop-shell",
    "kind": "app",
    "metrics": {
+    "changes": 17,
     "fan_in": 0,
     "fan_out": 1,
     "files": 6,
@@ -872,6 +885,7 @@
    "id": "devtools-cli",
    "kind": "tool",
    "metrics": {
+    "changes": 9,
     "fan_in": 0,
     "fan_out": 2,
     "files": 5,
@@ -922,6 +936,7 @@
    "id": "editor-core",
    "kind": "package",
    "metrics": {
+    "changes": 17,
     "fan_in": 2,
     "fan_out": 1,
     "files": 10,
@@ -974,6 +989,7 @@
    "id": "event-bus",
    "kind": "crate",
    "metrics": {
+    "changes": 10,
     "fan_in": 4,
     "fan_out": 2,
     "files": 6,
@@ -1032,6 +1048,7 @@
    "id": "gateway",
    "kind": "crate",
    "metrics": {
+    "changes": 37,
     "fan_in": 0,
     "fan_out": 6,
     "files": 11,
@@ -1084,6 +1101,7 @@
    "id": "input",
    "kind": "package",
    "metrics": {
+    "changes": 9,
     "fan_in": 2,
     "fan_out": 1,
     "files": 7,
@@ -1135,6 +1153,7 @@
    "id": "legacy-bridge",
    "kind": "crate",
    "metrics": {
+    "changes": 16,
     "fan_in": 1,
     "fan_out": 2,
     "files": 7,
@@ -1192,6 +1211,7 @@
    "id": "login-server",
    "kind": "crate",
    "metrics": {
+    "changes": 14,
     "fan_in": 0,
     "fan_out": 4,
     "files": 8,
@@ -1248,6 +1268,7 @@
    "id": "map-editor",
    "kind": "app",
    "metrics": {
+    "changes": 47,
     "fan_in": 0,
     "fan_out": 7,
     "files": 14,
@@ -1300,6 +1321,7 @@
    "id": "net-client",
    "kind": "package",
    "metrics": {
+    "changes": 9,
     "fan_in": 1,
     "fan_out": 1,
     "files": 7,
@@ -1351,6 +1373,7 @@
    "id": "persistence",
    "kind": "crate",
    "metrics": {
+    "changes": 35,
     "fan_in": 5,
     "fan_out": 2,
     "files": 11,
@@ -1404,6 +1427,7 @@
    "id": "protocol",
    "kind": "crate",
    "metrics": {
+    "changes": 45,
     "fan_in": 8,
     "fan_out": 0,
     "files": 13,
@@ -1456,6 +1480,7 @@
    "id": "protocol-codegen",
    "kind": "tool",
    "metrics": {
+    "changes": 18,
     "fan_in": 0,
     "fan_out": 2,
     "files": 7,
@@ -1507,6 +1532,7 @@
    "id": "protocol-docs",
    "kind": "directory",
    "metrics": {
+    "changes": 9,
     "fan_in": 0,
     "fan_out": 0,
     "files": 5,
@@ -1559,6 +1585,7 @@
    "id": "protocol-ts",
    "kind": "package",
    "metrics": {
+    "changes": 30,
     "fan_in": 4,
     "fan_out": 0,
     "files": 8,
@@ -1611,6 +1638,7 @@
    "id": "renderer",
    "kind": "package",
    "metrics": {
+    "changes": 61,
     "fan_in": 3,
     "fan_out": 3,
     "files": 11,
@@ -1664,6 +1692,7 @@
    "id": "renderer-webgl",
    "kind": "package",
    "metrics": {
+    "changes": 46,
     "fan_in": 2,
     "fan_out": 2,
     "files": 12,
@@ -1716,6 +1745,7 @@
    "id": "server-config",
    "kind": "crate",
    "metrics": {
+    "changes": 8,
     "fan_in": 7,
     "fan_out": 0,
     "files": 8,
@@ -1769,6 +1799,7 @@
    "id": "sim-bench",
    "kind": "crate",
    "metrics": {
+    "changes": 11,
     "fan_in": 0,
     "fan_out": 2,
     "files": 3,
@@ -1819,6 +1850,7 @@
    "id": "sim-combat",
    "kind": "crate",
    "metrics": {
+    "changes": 50,
     "fan_in": 3,
     "fan_out": 1,
     "files": 11,
@@ -1872,6 +1904,7 @@
    "id": "sim-core",
    "kind": "crate",
    "metrics": {
+    "changes": 81,
     "fan_in": 7,
     "fan_out": 2,
     "files": 17,
@@ -1925,6 +1958,7 @@
    "id": "sim-economy",
    "kind": "crate",
    "metrics": {
+    "changes": 23,
     "fan_in": 1,
     "fan_out": 2,
     "files": 9,
@@ -1977,6 +2011,7 @@
    "id": "sim-pathing",
    "kind": "crate",
    "metrics": {
+    "changes": 18,
     "fan_in": 1,
     "fan_out": 1,
     "files": 10,
@@ -2030,6 +2065,7 @@
    "id": "sim-scripting",
    "kind": "crate",
    "metrics": {
+    "changes": 36,
     "fan_in": 2,
     "fan_out": 3,
     "files": 12,
@@ -2082,6 +2118,7 @@
    "id": "sim-testkit",
    "kind": "crate",
    "metrics": {
+    "changes": 4,
     "fan_in": 1,
     "fan_out": 2,
     "files": 7,
@@ -2133,6 +2170,7 @@
    "id": "sprite-atlas",
    "kind": "package",
    "metrics": {
+    "changes": 11,
     "fan_in": 6,
     "fan_out": 0,
     "files": 6,
@@ -2189,6 +2227,7 @@
    "id": "sprite-editor",
    "kind": "app",
    "metrics": {
+    "changes": 16,
     "fan_in": 0,
     "fan_out": 3,
     "files": 6,
@@ -2240,6 +2279,7 @@
    "id": "ui-kit",
    "kind": "package",
    "metrics": {
+    "changes": 42,
     "fan_in": 4,
     "fan_out": 1,
     "files": 9,
@@ -2290,6 +2330,7 @@
    "id": "voxel-prototype",
    "kind": "package",
    "metrics": {
+    "changes": 4,
     "fan_in": 1,
     "fan_out": 2,
     "files": 3,
@@ -2346,6 +2387,7 @@
    "id": "web-client",
    "kind": "app",
    "metrics": {
+    "changes": 55,
     "fan_in": 1,
     "fan_out": 7,
     "files": 12,
@@ -2398,6 +2440,7 @@
    "id": "wire",
    "kind": "crate",
    "metrics": {
+    "changes": 22,
     "fan_in": 3,
     "fan_out": 1,
     "files": 8,
@@ -2456,6 +2499,7 @@
    "id": "world-server",
    "kind": "crate",
    "metrics": {
+    "changes": 76,
     "fan_in": 1,
     "fan_out": 11,
     "files": 15,
@@ -6484,57 +6528,66 @@
  },
  "flows": [
   {
+   "detail": "binary protocol: intents up, world deltas down",
    "from": "web-client",
    "kind": "network",
-   "label": "WebSocket, binary protocol",
+   "label": "WebSocket",
    "to": "gateway"
   },
   {
+   "detail": "the built web client inside the desktop shell",
    "from": "desktop-shell",
    "kind": "process",
-   "label": "hosts the built web client",
+   "label": "hosts",
    "to": "web-client"
   },
   {
+   "detail": "authenticate a session",
    "from": "gateway",
    "kind": "network",
-   "label": "NATS request: authenticate",
+   "label": "NATS request",
    "to": "login-server"
   },
   {
+   "detail": "player intents in, world deltas out",
    "from": "gateway",
    "kind": "network",
-   "label": "NATS: intents and deltas",
+   "label": "NATS",
    "to": "world-server"
   },
   {
+   "detail": "characters, houses, market",
    "from": "world-server",
    "kind": "network",
-   "label": "SQL: characters, houses, market",
+   "label": "SQL",
    "to": "postgres"
   },
   {
+   "detail": "accounts",
    "from": "login-server",
    "kind": "network",
-   "label": "SQL: accounts",
+   "label": "SQL",
    "to": "postgres"
   },
   {
+   "detail": "maps the server loads at start",
    "from": "map-editor",
    "kind": "file",
-   "label": "writes content/maps the server loads",
+   "label": "writes content/maps",
    "to": "world-server"
   },
   {
+   "detail": "packed atlases the client loads at start",
    "from": "sprite-editor",
    "kind": "file",
-   "label": "packed atlases, loaded at start",
+   "label": "sprite atlases",
    "to": "web-client"
   },
   {
+   "detail": "moderation commands",
    "from": "admin-api",
    "kind": "network",
-   "label": "NATS: moderation commands",
+   "label": "NATS",
    "to": "world-server"
   }
  ],
@@ -6662,6 +6715,12 @@
   }
  ],
  "meta": {
+  "activity": {
+   "commits": 214,
+   "since": "2026-06-24T10:00:00+00:00",
+   "until": "2026-09-22T10:00:00+00:00",
+   "window_days": 90
+  },
   "built_at": "2026-09-22T10:14:03Z",
   "instructions_version": 1,
   "jev_model": "typesafe-ai/jev",
@@ -6696,6 +6755,7 @@
    ],
    "id": "acceptance/lanes",
    "metrics": {
+    "changes": 18,
     "fan_in": 0,
     "fan_out": 0,
     "files": 3,
@@ -6705,7 +6765,8 @@
    },
    "name": "Lanes",
    "path": "tests/acceptance/lanes",
-   "responsibility": "One spec per player journey: login, walk, trade."
+   "responsibility": "One spec per player journey: login, walk, trade.",
+   "test": false
   },
   {
    "component": "acceptance",
@@ -6727,6 +6788,7 @@
    ],
    "id": "acceptance/support",
    "metrics": {
+    "changes": 1,
     "fan_in": 0,
     "fan_out": 0,
     "files": 2,
@@ -6736,7 +6798,8 @@
    },
    "name": "Support",
    "path": "tests/acceptance/support",
-   "responsibility": "Boots a gateway and a world in-process and drives a scripted client."
+   "responsibility": "Boots a gateway and a world in-process and drives a scripted client.",
+   "test": false
   },
   {
    "component": "admin-api",
@@ -6764,6 +6827,7 @@
    ],
    "id": "admin-api/auth",
    "metrics": {
+    "changes": 9,
     "fan_in": 0,
     "fan_out": 4,
     "files": 3,
@@ -6773,7 +6837,8 @@
    },
    "name": "Operator auth",
    "path": "crates/admin-api/src/auth",
-   "responsibility": "Owns operator tokens and role checks."
+   "responsibility": "Owns operator tokens and role checks.",
+   "test": false
   },
   {
    "component": "admin-api",
@@ -6809,6 +6874,7 @@
    ],
    "id": "admin-api/routes",
    "metrics": {
+    "changes": 12,
     "fan_in": 1,
     "fan_out": 2,
     "files": 4,
@@ -6818,7 +6884,8 @@
    },
    "name": "Routes",
    "path": "crates/admin-api/src/routes",
-   "responsibility": "Owns the HTTP routes and their JSON shapes."
+   "responsibility": "Owns the HTTP routes and their JSON shapes.",
+   "test": false
   },
   {
    "component": "asset-pipeline",
@@ -6845,6 +6912,7 @@
    ],
    "id": "asset-pipeline/compress",
    "metrics": {
+    "changes": 27,
     "fan_in": 0,
     "fan_out": 5,
     "files": 3,
@@ -6854,7 +6922,8 @@
    },
    "name": "Map compression",
    "path": "tools/asset-pipeline/src/compress",
-   "responsibility": "Owns map tile run-length encoding and chunking."
+   "responsibility": "Owns map tile run-length encoding and chunking.",
+   "test": false
   },
   {
    "component": "asset-pipeline",
@@ -6882,6 +6951,7 @@
    ],
    "id": "asset-pipeline/pack",
    "metrics": {
+    "changes": 5,
     "fan_in": 1,
     "fan_out": 1,
     "files": 3,
@@ -6891,7 +6961,8 @@
    },
    "name": "Atlas packing",
    "path": "tools/asset-pipeline/src/pack",
-   "responsibility": "Owns the rectangle packer and manifest writer."
+   "responsibility": "Owns the rectangle packer and manifest writer.",
+   "test": false
   },
   {
    "component": "audio",
@@ -6918,6 +6989,7 @@
    ],
    "id": "audio/bank",
    "metrics": {
+    "changes": 4,
     "fan_in": 1,
     "fan_out": 2,
     "files": 3,
@@ -6927,7 +6999,8 @@
    },
    "name": "Sound bank",
    "path": "packages/audio/src/bank",
-   "responsibility": "Owns loading and caching sound assets by event id."
+   "responsibility": "Owns loading and caching sound assets by event id.",
+   "test": false
   },
   {
    "component": "audio",
@@ -6956,6 +7029,7 @@
    ],
    "id": "audio/engine",
    "metrics": {
+    "changes": 8,
     "fan_in": 2,
     "fan_out": 1,
     "files": 3,
@@ -6965,7 +7039,8 @@
    },
    "name": "Engine",
    "path": "packages/audio/src/engine",
-   "responsibility": "Owns the AudioContext, mixing buses, and unlock on first gesture."
+   "responsibility": "Owns the AudioContext, mixing buses, and unlock on first gesture.",
+   "test": false
   },
   {
    "component": "client-core",
@@ -7007,6 +7082,7 @@
    ],
    "id": "client-core/intents",
    "metrics": {
+    "changes": 37,
     "fan_in": 1,
     "fan_out": 5,
     "files": 5,
@@ -7016,7 +7092,8 @@
    },
    "name": "Intents",
    "path": "packages/client-core/src/intents",
-   "responsibility": "Owns turning input actions into protocol intents with client-side validation."
+   "responsibility": "Owns turning input actions into protocol intents with client-side validation.",
+   "test": false
   },
   {
    "component": "client-core",
@@ -7053,6 +7130,7 @@
    ],
    "id": "client-core/loop",
    "metrics": {
+    "changes": 18,
     "fan_in": 4,
     "fan_out": 2,
     "files": 4,
@@ -7062,7 +7140,8 @@
    },
    "name": "Game loop",
    "path": "packages/client-core/src/loop",
-   "responsibility": "Owns the requestAnimationFrame loop and the fixed-step interpolation."
+   "responsibility": "Owns the requestAnimationFrame loop and the fixed-step interpolation.",
+   "test": false
   },
   {
    "component": "client-core",
@@ -7090,6 +7169,7 @@
    ],
    "id": "client-core/predict",
    "metrics": {
+    "changes": 16,
     "fan_in": 1,
     "fan_out": 4,
     "files": 3,
@@ -7099,7 +7179,8 @@
    },
    "name": "Prediction",
    "path": "packages/client-core/src/predict",
-   "responsibility": "Owns optimistic walking and its rollback."
+   "responsibility": "Owns optimistic walking and its rollback.",
+   "test": false
   },
   {
    "component": "client-core",
@@ -7135,6 +7216,7 @@
    ],
    "id": "client-core/reconcile",
    "metrics": {
+    "changes": 25,
     "fan_in": 2,
     "fan_out": 3,
     "files": 4,
@@ -7144,7 +7226,8 @@
    },
    "name": "Reconciliation",
    "path": "packages/client-core/src/reconcile",
-   "responsibility": "Owns applying server deltas and resolving them against local prediction."
+   "responsibility": "Owns applying server deltas and resolving them against local prediction.",
+   "test": false
   },
   {
    "component": "client-state",
@@ -7178,6 +7261,7 @@
    ],
    "id": "client-state/entities",
    "metrics": {
+    "changes": 5,
     "fan_in": 1,
     "fan_out": 3,
     "files": 4,
@@ -7187,7 +7271,8 @@
    },
    "name": "Entities",
    "path": "packages/client-state/src/entities",
-   "responsibility": "Owns known creatures and tiles within view range."
+   "responsibility": "Owns known creatures and tiles within view range.",
+   "test": false
   },
   {
    "component": "client-state",
@@ -7221,6 +7306,7 @@
    ],
    "id": "client-state/inventory",
    "metrics": {
+    "changes": 18,
     "fan_in": 3,
     "fan_out": 2,
     "files": 4,
@@ -7230,7 +7316,8 @@
    },
    "name": "Inventory",
    "path": "packages/client-state/src/inventory",
-   "responsibility": "Owns the player's equipment, containers, and gold."
+   "responsibility": "Owns the player's equipment, containers, and gold.",
+   "test": false
   },
   {
    "component": "client-state",
@@ -7264,6 +7351,7 @@
    ],
    "id": "client-state/store",
    "metrics": {
+    "changes": 4,
     "fan_in": 6,
     "fan_out": 1,
     "files": 4,
@@ -7273,7 +7361,8 @@
    },
    "name": "Store",
    "path": "packages/client-state/src/store",
-   "responsibility": "Owns the observable store and its change notifications."
+   "responsibility": "Owns the observable store and its change notifications.",
+   "test": false
   },
   {
    "component": "content-items",
@@ -7306,6 +7395,7 @@
    ],
    "id": "content-items/armor",
    "metrics": {
+    "changes": 18,
     "fan_in": 0,
     "fan_out": 1,
     "files": 5,
@@ -7315,7 +7405,8 @@
    },
    "name": "Armor",
    "path": "content/items/armor",
-   "responsibility": "Owns helmets, armors, legs, boots, and shields."
+   "responsibility": "Owns helmets, armors, legs, boots, and shields.",
+   "test": false
   },
   {
    "component": "content-items",
@@ -7338,6 +7429,7 @@
    ],
    "id": "content-items/consumables",
    "metrics": {
+    "changes": 16,
     "fan_in": 2,
     "fan_out": 2,
     "files": 3,
@@ -7347,7 +7439,8 @@
    },
    "name": "Consumables",
    "path": "content/items/consumables",
-   "responsibility": "Owns potions, runes, and food."
+   "responsibility": "Owns potions, runes, and food.",
+   "test": false
   },
   {
    "component": "content-items",
@@ -7380,6 +7473,7 @@
    ],
    "id": "content-items/weapons",
    "metrics": {
+    "changes": 5,
     "fan_in": 2,
     "fan_out": 1,
     "files": 5,
@@ -7389,7 +7483,8 @@
    },
    "name": "Weapons",
    "path": "content/items/weapons",
-   "responsibility": "Owns swords, axes, clubs, bows, and wands."
+   "responsibility": "Owns swords, axes, clubs, bows, and wands.",
+   "test": false
   },
   {
    "component": "content-loader",
@@ -7416,6 +7511,7 @@
    ],
    "id": "content-loader/index",
    "metrics": {
+    "changes": 9,
     "fan_in": 7,
     "fan_out": 2,
     "files": 3,
@@ -7425,7 +7521,8 @@
    },
    "name": "Index",
    "path": "packages/content-loader/src/index",
-   "responsibility": "Owns the id index and cross-reference resolution."
+   "responsibility": "Owns the id index and cross-reference resolution.",
+   "test": false
   },
   {
    "component": "content-loader",
@@ -7453,6 +7550,7 @@
    ],
    "id": "content-loader/watch",
    "metrics": {
+    "changes": 7,
     "fan_in": 3,
     "fan_out": 1,
     "files": 3,
@@ -7462,7 +7560,8 @@
    },
    "name": "Hot reload",
    "path": "packages/content-loader/src/watch",
-   "responsibility": "Owns file watching and incremental re-index in dev."
+   "responsibility": "Owns file watching and incremental re-index in dev.",
+   "test": false
   },
   {
    "component": "content-maps",
@@ -7480,6 +7579,7 @@
    ],
    "id": "content-maps/spawns",
    "metrics": {
+    "changes": 9,
     "fan_in": 1,
     "fan_out": 3,
     "files": 2,
@@ -7489,7 +7589,8 @@
    },
    "name": "Spawns",
    "path": "content/maps/spawns",
-   "responsibility": "Owns spawn tables per area with respawn timers."
+   "responsibility": "Owns spawn tables per area with respawn timers.",
+   "test": false
   },
   {
    "component": "content-maps",
@@ -7517,6 +7618,7 @@
    ],
    "id": "content-maps/towns",
    "metrics": {
+    "changes": 19,
     "fan_in": 3,
     "fan_out": 0,
     "files": 4,
@@ -7526,7 +7628,8 @@
    },
    "name": "Towns",
    "path": "content/maps/towns",
-   "responsibility": "Owns town tiles, houses, and NPC placement."
+   "responsibility": "Owns town tiles, houses, and NPC placement.",
+   "test": false
   },
   {
    "component": "content-maps",
@@ -7549,6 +7652,7 @@
    ],
    "id": "content-maps/wilds",
    "metrics": {
+    "changes": 48,
     "fan_in": 0,
     "fan_out": 3,
     "files": 3,
@@ -7558,7 +7662,8 @@
    },
    "name": "Hunting grounds",
    "path": "content/maps/wilds",
-   "responsibility": "Owns dungeons and wilderness tiles."
+   "responsibility": "Owns dungeons and wilderness tiles.",
+   "test": false
   },
   {
    "component": "content-monsters",
@@ -7586,6 +7691,7 @@
    ],
    "id": "content-monsters/behaviors",
    "metrics": {
+    "changes": 12,
     "fan_in": 1,
     "fan_out": 2,
     "files": 4,
@@ -7595,7 +7701,8 @@
    },
    "name": "Behaviors",
    "path": "content/monsters/behaviors",
-   "responsibility": "Owns Lua behavior scripts for aggression, fleeing, and spells."
+   "responsibility": "Owns Lua behavior scripts for aggression, fleeing, and spells.",
+   "test": false
   },
   {
    "component": "content-monsters",
@@ -7623,6 +7730,7 @@
    ],
    "id": "content-monsters/creatures",
    "metrics": {
+    "changes": 1,
     "fan_in": 3,
     "fan_out": 3,
     "files": 4,
@@ -7632,7 +7740,8 @@
    },
    "name": "Creatures",
    "path": "content/monsters/creatures",
-   "responsibility": "Owns creature stat blocks grouped by region."
+   "responsibility": "Owns creature stat blocks grouped by region.",
+   "test": false
   },
   {
    "component": "content-monsters",
@@ -7655,6 +7764,7 @@
    ],
    "id": "content-monsters/loot",
    "metrics": {
+    "changes": 3,
     "fan_in": 1,
     "fan_out": 2,
     "files": 3,
@@ -7664,7 +7774,8 @@
    },
    "name": "Loot lists",
    "path": "content/monsters/loot",
-   "responsibility": "Owns per-creature loot tables."
+   "responsibility": "Owns per-creature loot tables.",
+   "test": false
   },
   {
    "component": "content-schema",
@@ -7692,6 +7803,7 @@
    ],
    "id": "content-schema/items",
    "metrics": {
+    "changes": 3,
     "fan_in": 7,
     "fan_out": 0,
     "files": 3,
@@ -7701,7 +7813,8 @@
    },
    "name": "Item schema",
    "path": "packages/content-schema/schema/items",
-   "responsibility": "Owns item attributes, slots, and stacking rules."
+   "responsibility": "Owns item attributes, slots, and stacking rules.",
+   "test": false
   },
   {
    "component": "content-schema",
@@ -7729,6 +7842,7 @@
    ],
    "id": "content-schema/maps",
    "metrics": {
+    "changes": 9,
     "fan_in": 6,
     "fan_out": 2,
     "files": 3,
@@ -7738,7 +7852,8 @@
    },
    "name": "Map schema",
    "path": "packages/content-schema/schema/maps",
-   "responsibility": "Owns tile, spawn, and house records."
+   "responsibility": "Owns tile, spawn, and house records.",
+   "test": false
   },
   {
    "component": "content-schema",
@@ -7765,6 +7880,7 @@
    ],
    "id": "content-schema/monsters",
    "metrics": {
+    "changes": 5,
     "fan_in": 7,
     "fan_out": 1,
     "files": 3,
@@ -7774,7 +7890,8 @@
    },
    "name": "Monster schema",
    "path": "packages/content-schema/schema/monsters",
-   "responsibility": "Owns creature stats, loot lists, and behavior references."
+   "responsibility": "Owns creature stats, loot lists, and behavior references.",
+   "test": false
   },
   {
    "component": "content-schema",
@@ -7801,6 +7918,7 @@
    ],
    "id": "content-schema/spells",
    "metrics": {
+    "changes": 2,
     "fan_in": 4,
     "fan_out": 1,
     "files": 3,
@@ -7810,7 +7928,8 @@
    },
    "name": "Spell schema",
    "path": "packages/content-schema/schema/spells",
-   "responsibility": "Owns spell words, cost, and effect references."
+   "responsibility": "Owns spell words, cost, and effect references.",
+   "test": false
   },
   {
    "component": "content-validate",
@@ -7838,6 +7957,7 @@
    ],
    "id": "content-validate/cli",
    "metrics": {
+    "changes": 0,
     "fan_in": 0,
     "fan_out": 3,
     "files": 3,
@@ -7847,7 +7967,8 @@
    },
    "name": "CLI",
    "path": "tools/content-validate/src/cli",
-   "responsibility": "Owns argument parsing, the report format, and the exit code."
+   "responsibility": "Owns argument parsing, the report format, and the exit code.",
+   "test": false
   },
   {
    "component": "desktop-shell",
@@ -7882,6 +8003,7 @@
    ],
    "id": "desktop-shell/main",
    "metrics": {
+    "changes": 16,
     "fan_in": 1,
     "fan_out": 1,
     "files": 4,
@@ -7891,7 +8013,8 @@
    },
    "name": "Main process",
    "path": "apps/desktop-shell/src/main",
-   "responsibility": "Owns window creation, menus, and the updater."
+   "responsibility": "Owns window creation, menus, and the updater.",
+   "test": false
   },
   {
    "component": "desktop-shell",
@@ -7911,6 +8034,7 @@
    ],
    "id": "desktop-shell/preload",
    "metrics": {
+    "changes": 1,
     "fan_in": 0,
     "fan_out": 2,
     "files": 2,
@@ -7920,7 +8044,8 @@
    },
    "name": "Preload bridge",
    "path": "apps/desktop-shell/src/preload",
-   "responsibility": "Owns the narrow IPC bridge exposed to the web client."
+   "responsibility": "Owns the narrow IPC bridge exposed to the web client.",
+   "test": false
   },
   {
    "component": "devtools-cli",
@@ -7964,6 +8089,7 @@
    ],
    "id": "devtools-cli/commands",
    "metrics": {
+    "changes": 9,
     "fan_in": 0,
     "fan_out": 3,
     "files": 5,
@@ -7973,7 +8099,8 @@
    },
    "name": "Commands",
    "path": "tools/devtools-cli/src/commands",
-   "responsibility": "Owns the `world`, `seed`, `migrate`, and `doctor` subcommands."
+   "responsibility": "Owns the `world`, `seed`, `migrate`, and `doctor` subcommands.",
+   "test": false
   },
   {
    "component": "editor-core",
@@ -8008,6 +8135,7 @@
    ],
    "id": "editor-core/document",
    "metrics": {
+    "changes": 12,
     "fan_in": 2,
     "fan_out": 1,
     "files": 4,
@@ -8017,7 +8145,8 @@
    },
    "name": "Document model",
    "path": "packages/editor-core/src/document",
-   "responsibility": "Owns the in-memory document and its schema-typed records."
+   "responsibility": "Owns the in-memory document and its schema-typed records.",
+   "test": false
   },
   {
    "component": "editor-core",
@@ -8044,6 +8173,7 @@
    ],
    "id": "editor-core/export",
    "metrics": {
+    "changes": 2,
     "fan_in": 2,
     "fan_out": 2,
     "files": 3,
@@ -8053,7 +8183,8 @@
    },
    "name": "Export",
    "path": "packages/editor-core/src/export",
-   "responsibility": "Owns saving to package files and export for the asset pipeline."
+   "responsibility": "Owns saving to package files and export for the asset pipeline.",
+   "test": false
   },
   {
    "component": "editor-core",
@@ -8080,6 +8211,7 @@
    ],
    "id": "editor-core/history",
    "metrics": {
+    "changes": 3,
     "fan_in": 2,
     "fan_out": 1,
     "files": 3,
@@ -8089,7 +8221,8 @@
    },
    "name": "History",
    "path": "packages/editor-core/src/history",
-   "responsibility": "Owns the undo and redo stacks with command coalescing."
+   "responsibility": "Owns the undo and redo stacks with command coalescing.",
+   "test": false
   },
   {
    "component": "event-bus",
@@ -8116,6 +8249,7 @@
    ],
    "id": "event-bus/publish",
    "metrics": {
+    "changes": 9,
     "fan_in": 4,
     "fan_out": 2,
     "files": 3,
@@ -8125,7 +8259,8 @@
    },
    "name": "Publish",
    "path": "crates/event-bus/src/publish",
-   "responsibility": "Owns typed publish with subject naming and envelope headers."
+   "responsibility": "Owns typed publish with subject naming and envelope headers.",
+   "test": false
   },
   {
    "component": "event-bus",
@@ -8153,6 +8288,7 @@
    ],
    "id": "event-bus/subscribe",
    "metrics": {
+    "changes": 1,
     "fan_in": 5,
     "fan_out": 2,
     "files": 3,
@@ -8162,7 +8298,8 @@
    },
    "name": "Subscribe",
    "path": "crates/event-bus/src/subscribe",
-   "responsibility": "Owns subscriptions with reconnect and backpressure."
+   "responsibility": "Owns subscriptions with reconnect and backpressure.",
+   "test": false
   },
   {
    "component": "gateway",
@@ -8198,6 +8335,7 @@
    ],
    "id": "gateway/listener",
    "metrics": {
+    "changes": 24,
     "fan_in": 2,
     "fan_out": 2,
     "files": 4,
@@ -8207,7 +8345,8 @@
    },
    "name": "Listener",
    "path": "crates/gateway/src/listener",
-   "responsibility": "Owns the TCP and WebSocket accept loops and connection limits."
+   "responsibility": "Owns the TCP and WebSocket accept loops and connection limits.",
+   "test": false
   },
   {
    "component": "gateway",
@@ -8236,6 +8375,7 @@
    ],
    "id": "gateway/router",
    "metrics": {
+    "changes": 8,
     "fan_in": 0,
     "fan_out": 7,
     "files": 3,
@@ -8245,7 +8385,8 @@
    },
    "name": "Router",
    "path": "crates/gateway/src/router",
-   "responsibility": "Owns forwarding frames to the world that owns the character."
+   "responsibility": "Owns forwarding frames to the world that owns the character.",
+   "test": false
   },
   {
    "component": "gateway",
@@ -8280,6 +8421,7 @@
    ],
    "id": "gateway/session",
    "metrics": {
+    "changes": 5,
     "fan_in": 1,
     "fan_out": 4,
     "files": 4,
@@ -8289,7 +8431,8 @@
    },
    "name": "Sessions",
    "path": "crates/gateway/src/session",
-   "responsibility": "Owns session tokens, the handshake, and per-connection state."
+   "responsibility": "Owns session tokens, the handshake, and per-connection state.",
+   "test": false
   },
   {
    "component": "input",
@@ -8317,6 +8460,7 @@
    ],
    "id": "input/bindings",
    "metrics": {
+    "changes": 8,
     "fan_in": 2,
     "fan_out": 2,
     "files": 3,
@@ -8326,7 +8470,8 @@
    },
    "name": "Bindings",
    "path": "packages/input/src/bindings",
-   "responsibility": "Owns the default hotkey map and rebinding."
+   "responsibility": "Owns the default hotkey map and rebinding.",
+   "test": false
   },
   {
    "component": "input",
@@ -8362,6 +8507,7 @@
    ],
    "id": "input/capture",
    "metrics": {
+    "changes": 1,
     "fan_in": 3,
     "fan_out": 1,
     "files": 4,
@@ -8371,7 +8517,8 @@
    },
    "name": "Capture",
    "path": "packages/input/src/capture",
-   "responsibility": "Owns DOM listeners and pointer normalization."
+   "responsibility": "Owns DOM listeners and pointer normalization.",
+   "test": false
   },
   {
    "component": "legacy-bridge",
@@ -8400,6 +8547,7 @@
    ],
    "id": "legacy-bridge/otclient",
    "metrics": {
+    "changes": 7,
     "fan_in": 1,
     "fan_out": 2,
     "files": 3,
@@ -8409,7 +8557,8 @@
    },
    "name": "OTClient quirks",
    "path": "crates/legacy-bridge/src/otclient",
-   "responsibility": "Owns workarounds for the old client's framing and cipher differences."
+   "responsibility": "Owns workarounds for the old client's framing and cipher differences.",
+   "test": false
   },
   {
    "component": "legacy-bridge",
@@ -8443,6 +8592,7 @@
    ],
    "id": "legacy-bridge/translate",
    "metrics": {
+    "changes": 9,
     "fan_in": 1,
     "fan_out": 1,
     "files": 4,
@@ -8452,7 +8602,8 @@
    },
    "name": "Translation",
    "path": "crates/legacy-bridge/src/translate",
-   "responsibility": "Owns opcode and message translation in both directions."
+   "responsibility": "Owns opcode and message translation in both directions.",
+   "test": false
   },
   {
    "component": "login-server",
@@ -8488,6 +8639,7 @@
    ],
    "id": "login-server/accounts",
    "metrics": {
+    "changes": 4,
     "fan_in": 0,
     "fan_out": 6,
     "files": 4,
@@ -8497,7 +8649,8 @@
    },
    "name": "Account rules",
    "path": "crates/login-server/src/accounts",
-   "responsibility": "Owns password verification, lockout, and premium status."
+   "responsibility": "Owns password verification, lockout, and premium status.",
+   "test": false
   },
   {
    "component": "login-server",
@@ -8532,6 +8685,7 @@
    ],
    "id": "login-server/http",
    "metrics": {
+    "changes": 10,
     "fan_in": 1,
     "fan_out": 3,
     "files": 4,
@@ -8541,7 +8695,8 @@
    },
    "name": "HTTP endpoints",
    "path": "crates/login-server/src/http",
-   "responsibility": "Owns the login and character-list endpoints."
+   "responsibility": "Owns the login and character-list endpoints.",
+   "test": false
   },
   {
    "component": "map-editor",
@@ -8576,6 +8731,7 @@
    ],
    "id": "map-editor/app",
    "metrics": {
+    "changes": 7,
     "fan_in": 2,
     "fan_out": 6,
     "files": 4,
@@ -8585,7 +8741,8 @@
    },
    "name": "App shell",
    "path": "apps/map-editor/src/app",
-   "responsibility": "Owns the editor window, menus, and document tabs."
+   "responsibility": "Owns the editor window, menus, and document tabs.",
+   "test": false
   },
   {
    "component": "map-editor",
@@ -8626,6 +8783,7 @@
    ],
    "id": "map-editor/brushes",
    "metrics": {
+    "changes": 24,
     "fan_in": 0,
     "fan_out": 3,
     "files": 5,
@@ -8635,7 +8793,8 @@
    },
    "name": "Brushes",
    "path": "apps/map-editor/src/brushes",
-   "responsibility": "Owns tile, border, and doodad brushes with auto-bordering."
+   "responsibility": "Owns tile, border, and doodad brushes with auto-bordering.",
+   "test": false
   },
   {
    "component": "map-editor",
@@ -8679,6 +8838,7 @@
    ],
    "id": "map-editor/panels",
    "metrics": {
+    "changes": 16,
     "fan_in": 0,
     "fan_out": 6,
     "files": 5,
@@ -8688,7 +8848,8 @@
    },
    "name": "Panels",
    "path": "apps/map-editor/src/panels",
-   "responsibility": "Owns the palette, minimap, spawn, and house panels."
+   "responsibility": "Owns the palette, minimap, spawn, and house panels.",
+   "test": false
   },
   {
    "component": "net-client",
@@ -8717,6 +8878,7 @@
    ],
    "id": "net-client/frames",
    "metrics": {
+    "changes": 7,
     "fan_in": 1,
     "fan_out": 2,
     "files": 3,
@@ -8726,7 +8888,8 @@
    },
    "name": "Frames",
    "path": "packages/net-client/src/frames",
-   "responsibility": "Owns frame splitting and decryption before decoding."
+   "responsibility": "Owns frame splitting and decryption before decoding.",
+   "test": false
   },
   {
    "component": "net-client",
@@ -8760,6 +8923,7 @@
    ],
    "id": "net-client/socket",
    "metrics": {
+    "changes": 2,
     "fan_in": 2,
     "fan_out": 1,
     "files": 4,
@@ -8769,7 +8933,8 @@
    },
    "name": "Socket",
    "path": "packages/net-client/src/socket",
-   "responsibility": "Owns the WebSocket lifecycle, heartbeats, and reconnect backoff."
+   "responsibility": "Owns the WebSocket lifecycle, heartbeats, and reconnect backoff.",
+   "test": false
   },
   {
    "component": "persistence",
@@ -8797,6 +8962,7 @@
    ],
    "id": "persistence/migrations",
    "metrics": {
+    "changes": 5,
     "fan_in": 3,
     "fan_out": 2,
     "files": 3,
@@ -8806,7 +8972,8 @@
    },
    "name": "Migrations",
    "path": "crates/persistence/src/migrations",
-   "responsibility": "Owns the ordered SQL migrations and the runner."
+   "responsibility": "Owns the ordered SQL migrations and the runner.",
+   "test": false
   },
   {
    "component": "persistence",
@@ -8833,6 +9000,7 @@
    ],
    "id": "persistence/pool",
    "metrics": {
+    "changes": 6,
     "fan_in": 2,
     "fan_out": 2,
     "files": 3,
@@ -8842,7 +9010,8 @@
    },
    "name": "Connection pool",
    "path": "crates/persistence/src/pool",
-   "responsibility": "Owns pool sizing, health checks, and retry policy."
+   "responsibility": "Owns pool sizing, health checks, and retry policy.",
+   "test": false
   },
   {
    "component": "persistence",
@@ -8884,6 +9053,7 @@
    ],
    "id": "persistence/repos",
    "metrics": {
+    "changes": 24,
     "fan_in": 5,
     "fan_out": 2,
     "files": 5,
@@ -8893,7 +9063,8 @@
    },
    "name": "Repositories",
    "path": "crates/persistence/src/repos",
-   "responsibility": "Owns typed queries per aggregate."
+   "responsibility": "Owns typed queries per aggregate.",
+   "test": false
   },
   {
    "component": "protocol-codegen",
@@ -8929,6 +9100,7 @@
    ],
    "id": "protocol-codegen/emit",
    "metrics": {
+    "changes": 9,
     "fan_in": 0,
     "fan_out": 4,
     "files": 4,
@@ -8938,7 +9110,8 @@
    },
    "name": "Emitter",
    "path": "tools/protocol-codegen/src/emit",
-   "responsibility": "Owns TypeScript emission and the formatting pass."
+   "responsibility": "Owns TypeScript emission and the formatting pass.",
+   "test": false
   },
   {
    "component": "protocol-codegen",
@@ -8965,6 +9138,7 @@
    ],
    "id": "protocol-codegen/parse",
    "metrics": {
+    "changes": 9,
     "fan_in": 1,
     "fan_out": 1,
     "files": 3,
@@ -8974,7 +9148,8 @@
    },
    "name": "Schema parser",
    "path": "tools/protocol-codegen/src/parse",
-   "responsibility": "Owns parsing the annotated Rust message structs."
+   "responsibility": "Owns parsing the annotated Rust message structs.",
+   "test": false
   },
   {
    "component": "protocol-docs",
@@ -8997,6 +9172,7 @@
    ],
    "id": "protocol-docs/reference",
    "metrics": {
+    "changes": 0,
     "fan_in": 0,
     "fan_out": 0,
     "files": 3,
@@ -9006,7 +9182,8 @@
    },
    "name": "Reference",
    "path": "docs/protocol",
-   "responsibility": "The opcode tables and the handshake sequence, one page per message family."
+   "responsibility": "The opcode tables and the handshake sequence, one page per message family.",
+   "test": false
   },
   {
    "component": "protocol-docs",
@@ -9024,6 +9201,7 @@
    ],
    "id": "protocol-docs/reviews",
    "metrics": {
+    "changes": 9,
     "fan_in": 0,
     "fan_out": 0,
     "files": 2,
@@ -9033,7 +9211,8 @@
    },
    "name": "Version reviews",
    "path": "docs/protocol/reviews",
-   "responsibility": "Review evidence for each protocol version bump."
+   "responsibility": "Review evidence for each protocol version bump.",
+   "test": false
   },
   {
    "component": "protocol-ts",
@@ -9068,6 +9247,7 @@
    ],
    "id": "protocol-ts/codec",
    "metrics": {
+    "changes": 17,
     "fan_in": 3,
     "fan_out": 1,
     "files": 4,
@@ -9077,7 +9257,8 @@
    },
    "name": "Codec",
    "path": "packages/protocol-ts/src/codec",
-   "responsibility": "Owns the hand-written reader and writer primitives the generated code calls."
+   "responsibility": "Owns the hand-written reader and writer primitives the generated code calls.",
+   "test": false
   },
   {
    "component": "protocol-ts",
@@ -9113,6 +9294,7 @@
    ],
    "id": "protocol-ts/generated",
    "metrics": {
+    "changes": 13,
     "fan_in": 6,
     "fan_out": 0,
     "files": 4,
@@ -9122,7 +9304,8 @@
    },
    "name": "Generated types",
    "path": "packages/protocol-ts/src/generated",
-   "responsibility": "Owns the generated message types and opcode enums; never edited by hand."
+   "responsibility": "Owns the generated message types and opcode enums; never edited by hand.",
+   "test": false
   },
   {
    "component": "protocol",
@@ -9172,6 +9355,7 @@
    ],
    "id": "protocol/messages",
    "metrics": {
+    "changes": 18,
     "fan_in": 6,
     "fan_out": 1,
     "files": 6,
@@ -9181,7 +9365,8 @@
    },
    "name": "Messages",
    "path": "crates/protocol/src/messages",
-   "responsibility": "Owns the message structs and their serde derives."
+   "responsibility": "Owns the message structs and their serde derives.",
+   "test": false
   },
   {
    "component": "protocol",
@@ -9217,6 +9402,7 @@
    ],
    "id": "protocol/opcodes",
    "metrics": {
+    "changes": 21,
     "fan_in": 7,
     "fan_out": 0,
     "files": 4,
@@ -9226,7 +9412,8 @@
    },
    "name": "Opcodes",
    "path": "crates/protocol/src/opcodes",
-   "responsibility": "Owns the numbered opcode registry and its stability rules."
+   "responsibility": "Owns the numbered opcode registry and its stability rules.",
+   "test": false
   },
   {
    "component": "protocol",
@@ -9253,6 +9440,7 @@
    ],
    "id": "protocol/version",
    "metrics": {
+    "changes": 6,
     "fan_in": 4,
     "fan_out": 2,
     "files": 3,
@@ -9262,7 +9450,8 @@
    },
    "name": "Versioning",
    "path": "crates/protocol/src/version",
-   "responsibility": "Owns protocol version negotiation and the compatibility table."
+   "responsibility": "Owns protocol version negotiation and the compatibility table.",
+   "test": false
   },
   {
    "component": "renderer-webgl",
@@ -9297,6 +9486,7 @@
    ],
    "id": "renderer-webgl/backend",
    "metrics": {
+    "changes": 9,
     "fan_in": 3,
     "fan_out": 3,
     "files": 4,
@@ -9306,7 +9496,8 @@
    },
    "name": "Backend",
    "path": "packages/renderer-webgl/src/backend",
-   "responsibility": "Owns context creation, capability detection, and the frame submit."
+   "responsibility": "Owns context creation, capability detection, and the frame submit.",
+   "test": false
   },
   {
    "component": "renderer-webgl",
@@ -9335,6 +9526,7 @@
    ],
    "id": "renderer-webgl/batch",
    "metrics": {
+    "changes": 18,
     "fan_in": 2,
     "fan_out": 1,
     "files": 3,
@@ -9344,7 +9536,8 @@
    },
    "name": "Batching",
    "path": "packages/renderer-webgl/src/batch",
-   "responsibility": "Owns sprite batching and GPU atlas uploads."
+   "responsibility": "Owns sprite batching and GPU atlas uploads.",
+   "test": false
   },
   {
    "component": "renderer-webgl",
@@ -9380,6 +9573,7 @@
    ],
    "id": "renderer-webgl/shaders",
    "metrics": {
+    "changes": 19,
     "fan_in": 0,
     "fan_out": 2,
     "files": 5,
@@ -9389,7 +9583,8 @@
    },
    "name": "Shaders",
    "path": "packages/renderer-webgl/src/shaders",
-   "responsibility": "Owns GLSL sources and program linking."
+   "responsibility": "Owns GLSL sources and program linking.",
+   "test": false
   },
   {
    "component": "renderer",
@@ -9416,6 +9611,7 @@
    ],
    "id": "renderer/lighting",
    "metrics": {
+    "changes": 19,
     "fan_in": 2,
     "fan_out": 1,
     "files": 3,
@@ -9425,7 +9621,8 @@
    },
    "name": "Lighting",
    "path": "packages/renderer/src/lighting",
-   "responsibility": "Owns the light map and day-night blending."
+   "responsibility": "Owns the light map and day-night blending.",
+   "test": false
   },
   {
    "component": "renderer",
@@ -9467,6 +9664,7 @@
    ],
    "id": "renderer/scene",
    "metrics": {
+    "changes": 24,
     "fan_in": 5,
     "fan_out": 3,
     "files": 5,
@@ -9476,7 +9674,8 @@
    },
    "name": "Scene graph",
    "path": "packages/renderer/src/scene",
-   "responsibility": "Owns building the frame's draw list from the world model."
+   "responsibility": "Owns building the frame's draw list from the world model.",
+   "test": false
   },
   {
    "component": "renderer",
@@ -9503,6 +9702,7 @@
    ],
    "id": "renderer/sort",
    "metrics": {
+    "changes": 18,
     "fan_in": 1,
     "fan_out": 4,
     "files": 3,
@@ -9512,7 +9712,8 @@
    },
    "name": "Draw ordering",
    "path": "packages/renderer/src/sort",
-   "responsibility": "Owns the isometric depth sort and elevation rules."
+   "responsibility": "Owns the isometric depth sort and elevation rules.",
+   "test": false
   },
   {
    "component": "server-config",
@@ -9546,6 +9747,7 @@
    ],
    "id": "server-config/load",
    "metrics": {
+    "changes": 7,
     "fan_in": 9,
     "fan_out": 1,
     "files": 4,
@@ -9555,7 +9757,8 @@
    },
    "name": "Loader",
    "path": "crates/server-config/src/load",
-   "responsibility": "Owns file discovery, environment overrides, and validation."
+   "responsibility": "Owns file discovery, environment overrides, and validation.",
+   "test": false
   },
   {
    "component": "server-config",
@@ -9590,6 +9793,7 @@
    ],
    "id": "server-config/schema",
    "metrics": {
+    "changes": 1,
     "fan_in": 5,
     "fan_out": 0,
     "files": 4,
@@ -9599,7 +9803,8 @@
    },
    "name": "Config schema",
    "path": "crates/server-config/src/schema",
-   "responsibility": "Owns the config structs and defaults."
+   "responsibility": "Owns the config structs and defaults.",
+   "test": false
   },
   {
    "component": "sim-bench",
@@ -9629,6 +9834,7 @@
    ],
    "id": "sim-bench/benches",
    "metrics": {
+    "changes": 11,
     "fan_in": 0,
     "fan_out": 3,
     "files": 3,
@@ -9638,7 +9844,8 @@
    },
    "name": "Benchmarks",
    "path": "crates/sim-bench/benches",
-   "responsibility": "Owns tick, pathing, and combat benchmarks with a 1,000-creature world."
+   "responsibility": "Owns tick, pathing, and combat benchmarks with a 1,000-creature world.",
+   "test": false
   },
   {
    "component": "sim-combat",
@@ -9667,6 +9874,7 @@
    ],
    "id": "sim-combat/conditions",
    "metrics": {
+    "changes": 6,
     "fan_in": 3,
     "fan_out": 2,
     "files": 3,
@@ -9676,7 +9884,8 @@
    },
    "name": "Conditions",
    "path": "crates/sim-combat/src/conditions",
-   "responsibility": "Owns timed conditions such as poison, haste, and paralysis and their tick hooks."
+   "responsibility": "Owns timed conditions such as poison, haste, and paralysis and their tick hooks.",
+   "test": false
   },
   {
    "component": "sim-combat",
@@ -9710,6 +9919,7 @@
    ],
    "id": "sim-combat/formulas",
    "metrics": {
+    "changes": 11,
     "fan_in": 3,
     "fan_out": 0,
     "files": 4,
@@ -9719,7 +9929,8 @@
    },
    "name": "Damage formulas",
    "path": "crates/sim-combat/src/formulas",
-   "responsibility": "Owns melee, distance, and magic damage math with skill and level scaling."
+   "responsibility": "Owns melee, distance, and magic damage math with skill and level scaling.",
+   "test": false
   },
   {
    "component": "sim-combat",
@@ -9754,6 +9965,7 @@
    ],
    "id": "sim-combat/resolve",
    "metrics": {
+    "changes": 33,
     "fan_in": 1,
     "fan_out": 2,
     "files": 4,
@@ -9763,7 +9975,8 @@
    },
    "name": "Attack resolution",
    "path": "crates/sim-combat/src/resolve",
-   "responsibility": "Owns hit, block, and death resolution and the events they emit."
+   "responsibility": "Owns hit, block, and death resolution and the events they emit.",
+   "test": false
   },
   {
    "component": "sim-core",
@@ -9805,6 +10018,7 @@
    ],
    "id": "sim-core/entity",
    "metrics": {
+    "changes": 28,
     "fan_in": 3,
     "fan_out": 2,
     "files": 5,
@@ -9814,7 +10028,8 @@
    },
    "name": "Entity tables",
    "path": "crates/sim-core/src/entity",
-   "responsibility": "Owns creature, item, and player component tables with generational ids."
+   "responsibility": "Owns creature, item, and player component tables with generational ids.",
+   "test": false
   },
   {
    "component": "sim-core",
@@ -9842,6 +10057,7 @@
    ],
    "id": "sim-core/events",
    "metrics": {
+    "changes": 4,
     "fan_in": 2,
     "fan_out": 3,
     "files": 3,
@@ -9851,7 +10067,8 @@
    },
    "name": "Event queue",
    "path": "crates/sim-core/src/events",
-   "responsibility": "Owns the ordered event queue that systems and scripts observe after each phase."
+   "responsibility": "Owns the ordered event queue that systems and scripts observe after each phase.",
+   "test": false
   },
   {
    "component": "sim-core",
@@ -9886,6 +10103,7 @@
    ],
    "id": "sim-core/tick",
    "metrics": {
+    "changes": 6,
     "fan_in": 5,
     "fan_out": 0,
     "files": 4,
@@ -9895,7 +10113,8 @@
    },
    "name": "Tick loop",
    "path": "crates/sim-core/src/tick",
-   "responsibility": "Owns the fixed 50 ms step, phase ordering, and the deterministic RNG seeded per tick."
+   "responsibility": "Owns the fixed 50 ms step, phase ordering, and the deterministic RNG seeded per tick.",
+   "test": false
   },
   {
    "component": "sim-core",
@@ -9938,6 +10157,7 @@
    ],
    "id": "sim-core/world",
    "metrics": {
+    "changes": 43,
     "fan_in": 7,
     "fan_out": 3,
     "files": 5,
@@ -9947,7 +10167,8 @@
    },
    "name": "World state",
    "path": "crates/sim-core/src/world",
-   "responsibility": "Owns the tile map, creature positions, and the spatial index queried by every system."
+   "responsibility": "Owns the tile map, creature positions, and the spatial index queried by every system.",
+   "test": false
   },
   {
    "component": "sim-economy",
@@ -9975,6 +10196,7 @@
    ],
    "id": "sim-economy/loot",
    "metrics": {
+    "changes": 0,
     "fan_in": 2,
     "fan_out": 0,
     "files": 3,
@@ -9984,7 +10206,8 @@
    },
    "name": "Loot rolls",
    "path": "crates/sim-economy/src/loot",
-   "responsibility": "Owns weighted loot rolls from content loot tables."
+   "responsibility": "Owns weighted loot rolls from content loot tables.",
+   "test": false
   },
   {
    "component": "sim-economy",
@@ -10012,6 +10235,7 @@
    ],
    "id": "sim-economy/sinks",
    "metrics": {
+    "changes": 7,
     "fan_in": 0,
     "fan_out": 1,
     "files": 3,
@@ -10021,7 +10245,8 @@
    },
    "name": "Gold sinks",
    "path": "crates/sim-economy/src/sinks",
-   "responsibility": "Owns house rent, blessings, and other recurring gold removal."
+   "responsibility": "Owns house rent, blessings, and other recurring gold removal.",
+   "test": false
   },
   {
    "component": "sim-economy",
@@ -10048,6 +10273,7 @@
    ],
    "id": "sim-economy/vendors",
    "metrics": {
+    "changes": 16,
     "fan_in": 2,
     "fan_out": 5,
     "files": 3,
@@ -10057,7 +10283,8 @@
    },
    "name": "Vendors",
    "path": "crates/sim-economy/src/vendors",
-   "responsibility": "Owns NPC buy and sell pricing with per-town modifiers."
+   "responsibility": "Owns NPC buy and sell pricing with per-town modifiers.",
+   "test": false
   },
   {
    "component": "sim-pathing",
@@ -10091,6 +10318,7 @@
    ],
    "id": "sim-pathing/astar",
    "metrics": {
+    "changes": 6,
     "fan_in": 3,
     "fan_out": 0,
     "files": 4,
@@ -10100,7 +10328,8 @@
    },
    "name": "A*",
    "path": "crates/sim-pathing/src/astar",
-   "responsibility": "Owns single-agent A* with the tile cost model."
+   "responsibility": "Owns single-agent A* with the tile cost model.",
+   "test": false
   },
   {
    "component": "sim-pathing",
@@ -10128,6 +10357,7 @@
    ],
    "id": "sim-pathing/flowfield",
    "metrics": {
+    "changes": 6,
     "fan_in": 0,
     "fan_out": 2,
     "files": 3,
@@ -10137,7 +10367,8 @@
    },
    "name": "Flow fields",
    "path": "crates/sim-pathing/src/flowfield",
-   "responsibility": "Owns per-target flow fields reused by every creature chasing the same player."
+   "responsibility": "Owns per-target flow fields reused by every creature chasing the same player.",
+   "test": false
   },
   {
    "component": "sim-pathing",
@@ -10166,6 +10397,7 @@
    ],
    "id": "sim-pathing/grid",
    "metrics": {
+    "changes": 6,
     "fan_in": 1,
     "fan_out": 2,
     "files": 3,
@@ -10175,7 +10407,8 @@
    },
    "name": "Walk grid",
    "path": "crates/sim-pathing/src/grid",
-   "responsibility": "Owns the walkability grid derived from world tiles."
+   "responsibility": "Owns the walkability grid derived from world tiles.",
+   "test": false
   },
   {
    "component": "sim-scripting",
@@ -10216,6 +10449,7 @@
    ],
    "id": "sim-scripting/bindings",
    "metrics": {
+    "changes": 6,
     "fan_in": 2,
     "fan_out": 4,
     "files": 5,
@@ -10225,7 +10459,8 @@
    },
    "name": "Bindings",
    "path": "crates/sim-scripting/src/bindings",
-   "responsibility": "Owns the Lua API surface over creatures, items, and combat."
+   "responsibility": "Owns the Lua API surface over creatures, items, and combat.",
+   "test": false
   },
   {
    "component": "sim-scripting",
@@ -10259,6 +10494,7 @@
    ],
    "id": "sim-scripting/host",
    "metrics": {
+    "changes": 28,
     "fan_in": 3,
     "fan_out": 1,
     "files": 4,
@@ -10268,7 +10504,8 @@
    },
    "name": "Script host",
    "path": "crates/sim-scripting/src/host",
-   "responsibility": "Owns Lua VM lifecycle, sandboxing, and per-script error isolation."
+   "responsibility": "Owns Lua VM lifecycle, sandboxing, and per-script error isolation.",
+   "test": false
   },
   {
    "component": "sim-scripting",
@@ -10295,6 +10532,7 @@
    ],
    "id": "sim-scripting/scheduler",
    "metrics": {
+    "changes": 2,
     "fan_in": 1,
     "fan_out": 3,
     "files": 3,
@@ -10304,7 +10542,8 @@
    },
    "name": "Scheduler",
    "path": "crates/sim-scripting/src/scheduler",
-   "responsibility": "Owns delayed and repeating script actions queued onto future ticks."
+   "responsibility": "Owns delayed and repeating script actions queued onto future ticks.",
+   "test": false
   },
   {
    "component": "sim-testkit",
@@ -10340,6 +10579,7 @@
    ],
    "id": "sim-testkit/fixtures",
    "metrics": {
+    "changes": 2,
     "fan_in": 2,
     "fan_out": 1,
     "files": 4,
@@ -10349,7 +10589,8 @@
    },
    "name": "Fixtures",
    "path": "crates/sim-testkit/src/fixtures",
-   "responsibility": "Owns canned worlds, creatures, and items for tests."
+   "responsibility": "Owns canned worlds, creatures, and items for tests.",
+   "test": false
   },
   {
    "component": "sim-testkit",
@@ -10377,6 +10618,7 @@
    ],
    "id": "sim-testkit/scenario",
    "metrics": {
+    "changes": 2,
     "fan_in": 1,
     "fan_out": 2,
     "files": 3,
@@ -10386,7 +10628,8 @@
    },
    "name": "Scenario builder",
    "path": "crates/sim-testkit/src/scenario",
-   "responsibility": "Owns a fluent builder that runs N ticks and asserts on events."
+   "responsibility": "Owns a fluent builder that runs N ticks and asserts on events.",
+   "test": false
   },
   {
    "component": "sprite-atlas",
@@ -10413,6 +10656,7 @@
    ],
    "id": "sprite-atlas/atlas",
    "metrics": {
+    "changes": 6,
     "fan_in": 8,
     "fan_out": 0,
     "files": 3,
@@ -10422,7 +10666,8 @@
    },
    "name": "Atlas format",
    "path": "packages/sprite-atlas/src/atlas",
-   "responsibility": "Owns the atlas manifest format and its parser."
+   "responsibility": "Owns the atlas manifest format and its parser.",
+   "test": false
   },
   {
    "component": "sprite-atlas",
@@ -10449,6 +10694,7 @@
    ],
    "id": "sprite-atlas/lookup",
    "metrics": {
+    "changes": 5,
     "fan_in": 3,
     "fan_out": 1,
     "files": 3,
@@ -10458,7 +10704,8 @@
    },
    "name": "Lookup",
    "path": "packages/sprite-atlas/src/lookup",
-   "responsibility": "Owns sprite id to region lookup and animation frame tables."
+   "responsibility": "Owns sprite id to region lookup and animation frame tables.",
+   "test": false
   },
   {
    "component": "sprite-editor",
@@ -10486,6 +10733,7 @@
    ],
    "id": "sprite-editor/app",
    "metrics": {
+    "changes": 14,
     "fan_in": 1,
     "fan_out": 2,
     "files": 3,
@@ -10495,7 +10743,8 @@
    },
    "name": "App shell",
    "path": "apps/sprite-editor/src/app",
-   "responsibility": "Owns the editor window and the atlas preview."
+   "responsibility": "Owns the editor window and the atlas preview.",
+   "test": false
   },
   {
    "component": "sprite-editor",
@@ -10523,6 +10772,7 @@
    ],
    "id": "sprite-editor/timeline",
    "metrics": {
+    "changes": 2,
     "fan_in": 0,
     "fan_out": 5,
     "files": 3,
@@ -10532,7 +10782,8 @@
    },
    "name": "Timeline",
    "path": "apps/sprite-editor/src/timeline",
-   "responsibility": "Owns the animation frame timeline and onion skinning."
+   "responsibility": "Owns the animation frame timeline and onion skinning.",
+   "test": false
   },
   {
    "component": "ui-kit",
@@ -10583,6 +10834,7 @@
    ],
    "id": "ui-kit/components",
    "metrics": {
+    "changes": 31,
     "fan_in": 4,
     "fan_out": 1,
     "files": 6,
@@ -10592,7 +10844,8 @@
    },
    "name": "Components",
    "path": "packages/ui-kit/src/components",
-   "responsibility": "Owns windows, buttons, lists, tooltips, and the drag layer."
+   "responsibility": "Owns windows, buttons, lists, tooltips, and the drag layer.",
+   "test": false
   },
   {
    "component": "ui-kit",
@@ -10619,6 +10872,7 @@
    ],
    "id": "ui-kit/theme",
    "metrics": {
+    "changes": 11,
     "fan_in": 5,
     "fan_out": 1,
     "files": 3,
@@ -10628,7 +10882,8 @@
    },
    "name": "Theme",
    "path": "packages/ui-kit/src/theme",
-   "responsibility": "Owns the classic palette, fonts, and spacing tokens."
+   "responsibility": "Owns the classic palette, fonts, and spacing tokens.",
+   "test": false
   },
   {
    "component": "voxel-prototype",
@@ -10657,6 +10912,7 @@
    ],
    "id": "voxel-prototype/src",
    "metrics": {
+    "changes": 4,
     "fan_in": 0,
     "fan_out": 0,
     "files": 3,
@@ -10666,7 +10922,8 @@
    },
    "name": "Voxel spike",
    "path": "prototypes/voxel-renderer/src",
-   "responsibility": "Meshes tile columns into voxels and draws them through the scene graph camera."
+   "responsibility": "Meshes tile columns into voxels and draws them through the scene graph camera.",
+   "test": false
   },
   {
    "component": "web-client",
@@ -10701,6 +10958,7 @@
    ],
    "id": "web-client/app",
    "metrics": {
+    "changes": 13,
     "fan_in": 2,
     "fan_out": 2,
     "files": 4,
@@ -10710,7 +10968,8 @@
    },
    "name": "App shell",
    "path": "apps/web-client/src/app",
-   "responsibility": "Owns the root React tree, providers, and startup sequence."
+   "responsibility": "Owns the root React tree, providers, and startup sequence.",
+   "test": false
   },
   {
    "component": "web-client",
@@ -10737,6 +10996,7 @@
    ],
    "id": "web-client/canvas",
    "metrics": {
+    "changes": 23,
     "fan_in": 1,
     "fan_out": 5,
     "files": 3,
@@ -10746,7 +11006,8 @@
    },
    "name": "Canvas mount",
    "path": "apps/web-client/src/canvas",
-   "responsibility": "Owns mounting the renderer onto the canvas and resize handling."
+   "responsibility": "Owns mounting the renderer onto the canvas and resize handling.",
+   "test": false
   },
   {
    "component": "web-client",
@@ -10788,6 +11049,7 @@
    ],
    "id": "web-client/routes",
    "metrics": {
+    "changes": 19,
     "fan_in": 1,
     "fan_out": 9,
     "files": 5,
@@ -10797,7 +11059,8 @@
    },
    "name": "Routes",
    "path": "apps/web-client/src/routes",
-   "responsibility": "Owns the login, character select, and game screens."
+   "responsibility": "Owns the login, character select, and game screens.",
+   "test": false
   },
   {
    "component": "wire",
@@ -10824,6 +11087,7 @@
    ],
    "id": "wire/cipher",
    "metrics": {
+    "changes": 5,
     "fan_in": 2,
     "fan_out": 2,
     "files": 3,
@@ -10833,7 +11097,8 @@
    },
    "name": "Cipher",
    "path": "crates/wire/src/cipher",
-   "responsibility": "Owns the per-session symmetric cipher and key exchange."
+   "responsibility": "Owns the per-session symmetric cipher and key exchange.",
+   "test": false
   },
   {
    "component": "wire",
@@ -10853,6 +11118,7 @@
    ],
    "id": "wire/compress",
    "metrics": {
+    "changes": 7,
     "fan_in": 2,
     "fan_out": 2,
     "files": 2,
@@ -10862,7 +11128,8 @@
    },
    "name": "Compression",
    "path": "crates/wire/src/compress",
-   "responsibility": "Owns optional zlib compression for large deltas."
+   "responsibility": "Owns optional zlib compression for large deltas.",
+   "test": false
   },
   {
    "component": "wire",
@@ -10889,6 +11156,7 @@
    ],
    "id": "wire/framing",
    "metrics": {
+    "changes": 10,
     "fan_in": 3,
     "fan_out": 1,
     "files": 3,
@@ -10898,7 +11166,8 @@
    },
    "name": "Framing",
    "path": "crates/wire/src/framing",
-   "responsibility": "Owns length-prefixed frames and the checksum trailer."
+   "responsibility": "Owns length-prefixed frames and the checksum trailer.",
+   "test": false
   },
   {
    "component": "world-server",
@@ -10919,6 +11188,7 @@
    ],
    "id": "world-server/admin",
    "metrics": {
+    "changes": 4,
     "fan_in": 1,
     "fan_out": 8,
     "files": 2,
@@ -10928,7 +11198,8 @@
    },
    "name": "Admin hooks",
    "path": "crates/world-server/src/admin",
-   "responsibility": "Owns kick, ban, and broadcast handlers driven from the event bus."
+   "responsibility": "Owns kick, ban, and broadcast handlers driven from the event bus.",
+   "test": false
   },
   {
    "component": "world-server",
@@ -10963,6 +11234,7 @@
    ],
    "id": "world-server/broadcast",
    "metrics": {
+    "changes": 24,
     "fan_in": 2,
     "fan_out": 8,
     "files": 4,
@@ -10972,7 +11244,8 @@
    },
    "name": "Broadcast",
    "path": "crates/world-server/src/broadcast",
-   "responsibility": "Owns per-player visibility and delta fan-out."
+   "responsibility": "Owns per-player visibility and delta fan-out.",
+   "test": false
   },
   {
    "component": "world-server",
@@ -11013,6 +11286,7 @@
    ],
    "id": "world-server/intents",
    "metrics": {
+    "changes": 32,
     "fan_in": 1,
     "fan_out": 6,
     "files": 5,
@@ -11022,7 +11296,8 @@
    },
    "name": "Intent handling",
    "path": "crates/world-server/src/intents",
-   "responsibility": "Owns validation of player intents before they touch the simulation."
+   "responsibility": "Owns validation of player intents before they touch the simulation.",
+   "test": false
   },
   {
    "component": "world-server",
@@ -11057,6 +11332,7 @@
    ],
    "id": "world-server/runtime",
    "metrics": {
+    "changes": 16,
     "fan_in": 3,
     "fan_out": 5,
     "files": 4,
@@ -11066,7 +11342,8 @@
    },
    "name": "Runtime",
    "path": "crates/world-server/src/runtime",
-   "responsibility": "Owns process startup, content loading, and the tick driver."
+   "responsibility": "Owns process startup, content loading, and the tick driver.",
+   "test": false
   }
  ],
  "schema": "codemap.map/1",
@@ -11223,7 +11500,8 @@
    "client": 14,
    "server": 14,
    "shared": 6
-  }
+  },
+  "summary": "A classic Tibia-style MMORPG: a Rust server fleet streaming Worlds to a TypeScript client, plus the editors designers build content with."
  },
  "unresolved": [
   {

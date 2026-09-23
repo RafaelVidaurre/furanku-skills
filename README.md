@@ -188,11 +188,12 @@ First use walks you through approving which model tools may run on your machine.
 
 **Useful if:** you want to understand how a codebase is structured and what depends on what, at the altitude you need, without reading it file by file.
 
-**What it does:** builds a standalone HTML explorer of the code: a system picture (who uses it, the areas they use, the apps and services that run there, what they talk to and how), each area as a matrix of components by where they run (client, shared, server, CLI) and what they are (product code versus tooling, tests, content, docs), and modules with files as leaves. Health checks name cycles, core code reaching into adapters, and client code importing server code, each with its evidence. Scripts scan imports deterministically, your agent writes each card from repository evidence, and Jev (a typed-decision model through Vercel AI Gateway) makes every grouping call, cached by the state it saw, so the map stays the same across runs and agents. Requires a Gateway key, shared with `model-routing`.
+**What it does:** builds a standalone HTML explorer that opens on a start-here summary and lets you look at the same code through five lenses, each answering one question: **Purpose** (who uses it, the apps and services that run, and how they talk), **Layers** (where each part runs and which way its dependencies point), **Ships in** (which libraries end up inside each app, service, and command, so you can read a library's reach), **Size & activity** (where the code is and where work has happened recently), and **Contracts** (the shared schemas and interface files, such as protobuf, OpenAPI, or JSON Schema, and what uses each). Areas open into their parts, parts into modules, modules into files. Health checks name import loops, rules tied to an engine, and client code importing server code, each with its evidence. Scripts scan imports and git history deterministically, your agent writes each card from repository evidence, and Jev (a typed-decision model through Vercel AI Gateway) makes every grouping call, cached by the state it saw, so the map stays the same across runs and agents. Requires a Gateway key, shared with `model-routing`.
 
 ```text
 > Build a code map of this repo.
 > How is this codebase structured? What depends on what?
+> What would a change to the protocol crate reach? Where is work happening?
 > Update the code map, then open it.
 ```
 

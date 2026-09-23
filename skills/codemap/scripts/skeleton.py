@@ -9,7 +9,15 @@ unit's files, else the unit path); files directly under the root form
 ``<unit>/root``, a directory holding a single file folds into ``<unit>/root``,
 deeper directories collapse into their first-level ancestor, and a component
 with more than 16 modules keeps its 15 largest and folds the rest into
-``<unit>/other``. Every ordering is deterministic.
+``<unit>/other``. A flat source root (6 or more files directly under it holding
+at least 40% of the unit's lines, as in a Rust crate of ``step.rs``,
+``world.rs``, ...) splits instead: each root file becomes a module named after
+its stem, joining the directory of the same name when one exists, while entry
+files (``lib``, ``main``, ``mod``, ``index``, ``__init__``) stay in root. A
+module whose files are at least 80% tests carries ``test: true``; the root module
+and modules split from root files carry ``root_file: true``. Metrics carry
+``changes``: the scan's per-file commit counts summed over the node. Every
+ordering is deterministic.
 """
 
 from __future__ import annotations
@@ -27,6 +35,10 @@ EMPTY_HINTS = {
 }
 EXTERNAL_LIMIT = 10
 SRC_ROOT_SHARE = 0.5
+FLAT_ROOT_FILES = 6
+FLAT_ROOT_SHARE = 0.4
+ENTRY_STEMS = {"lib", "main", "mod", "index", "__init__"}
+TEST_MODULE_SHARE = 0.8
 
 
 
@@ -105,7 +117,7 @@ def _tarjan(nodes: list[str], adjacency: dict[str, set[str]]) -> list[list[str]]
     return sorted(result)
 
 
-def _metrics(node_ids, files_of, loc_of, edges):
+def _metrics(node_ids, files_of, loc_of, edges, changes_of):
     out = {n: set() for n in node_ids}
     inc = {n: set() for n in node_ids}
     for edge in edges:
@@ -124,6 +136,7 @@ def _metrics(node_ids, files_of, loc_of, edges):
             "fan_out": fan_out,
             "instability": round(fan_out / total, 3) if total else None,
             "in_cycle": n in cyclic,
+            "changes": changes_of[n],
         }
     return metrics, cycles
 
@@ -179,6 +192,22 @@ def skeleton(scan: dict) -> dict:
         for key in sorted(k for k in groups if k != "root"):
             if len(groups[key]["files"]) == 1:
                 groups.setdefault("root", {"files": [], "path": root})["files"].extend(groups.pop(key)["files"])
+        # A flat root splits into one module per file stem; a stem that names a directory joins it.
+        flat = groups.get("root", {"files": []})["files"]
+        unit_loc = sum(f["loc"] for f in unit_files) or 1
+        if len(flat) >= FLAT_ROOT_FILES and sum(f["loc"] for f in flat) >= unit_loc * FLAT_ROOT_SHARE:
+            keep = []
+            for f in flat:
+                stem = PurePosixPath(f["path"]).name.split(".", 1)[0]
+                if stem in ENTRY_STEMS or not stem:
+                    keep.append(f)
+                    continue
+                group = groups.setdefault(stem, {"files": [], "path": f"{groups['root']['path']}/{stem}".lstrip("/")})
+                group["files"].append(f)
+                group["root_file"] = True
+            groups["root"]["files"] = keep
+            if not keep:
+                groups.pop("root")
         # Cap: keep the largest MODULE_CAP - 1, fold the rest into other.
         if len(groups) > MODULE_CAP:
             ranked = sorted(groups, key=lambda k: (-sum(f["loc"] for f in groups[k]["files"]), k))
@@ -195,14 +224,18 @@ def skeleton(scan: dict) -> dict:
             records = sorted(group["files"], key=lambda f: f["path"])
             for f in records:
                 module_of[f["path"]] = module_id
+            tests = sum(1 for f in records if f.get("role") == "test")
             modules.append({
                 "id": module_id,
                 "component": unit_id,
                 "name": display_name(unit) if key == "root" else key,
                 "path": group["path"] or unit_path,
+                "test": bool(records) and tests >= len(records) * TEST_MODULE_SHARE,
+                "root_file": key == "root" or bool(group.get("root_file")),
                 "files": [{"path": f["path"], "loc": int(f.get("loc", 0)), "exports": []} for f in records],
             })
         components.append({
+            "contracts": [{"path": c["path"], "kind": c["kind"]} for c in scan.get("contracts", []) if c.get("unit") == unit_id],
             "id": unit_id,
             "name": display_name(unit),
             "path": unit_path,
@@ -218,6 +251,7 @@ def skeleton(scan: dict) -> dict:
     file_edges = [e for e in scan.get("edges", []) if e["from"] in known and e["to"] in known]
     file_edges.sort(key=lambda e: (e["from"], e.get("line", 0), e["to"]))
     role_of = {f["path"]: f.get("role", "source") for f in files}
+    changes_of = {f["path"]: int(f.get("changes", 0)) for f in files}
     module_edges = _aggregate(file_edges, module_of, role_of)
     component_edges = _aggregate(file_edges, component_of, role_of)
     # Metrics and cycles describe production structure; test-only edges are kept but do not count.
@@ -230,6 +264,7 @@ def skeleton(scan: dict) -> dict:
         {m["id"]: len(m["files"]) for m in modules},
         {m["id"]: sum(f["loc"] for f in m["files"]) for m in modules},
         production_module_edges,
+        {m["id"]: sum(changes_of.get(f["path"], 0) for f in m["files"]) for m in modules},
     )
     component_ids = [c["id"] for c in components]
     component_metrics, component_cycles = _metrics(
@@ -237,6 +272,7 @@ def skeleton(scan: dict) -> dict:
         {c["id"]: sum(len(m["files"]) for m in modules if m["component"] == c["id"]) for c in components},
         {c["id"]: sum(f["loc"] for m in modules if m["component"] == c["id"] for f in m["files"]) for c in components},
         production_component_edges,
+        {c["id"]: sum(changes_of.get(f["path"], 0) for m in modules if m["component"] == c["id"] for f in m["files"]) for c in components},
     )
     for m in modules:
         m["metrics"] = module_metrics[m["id"]]
@@ -259,7 +295,8 @@ def skeleton(scan: dict) -> dict:
 
     return {
         "schema": "codemap.skeleton/1",
-        "meta": {"repo": scan.get("repo", {}), "scanned_at": scan.get("scanned_at", "")},
+        "meta": {"repo": scan.get("repo", {}), "scanned_at": scan.get("scanned_at", ""), "activity": scan.get("activity"),
+                 "unowned_contracts": [{"path": c["path"], "kind": c["kind"]} for c in scan.get("contracts", []) if not c.get("unit") or c["unit"] not in units]},
         "components": components,
         "modules": modules,
         "edges": {"components": component_edges, "modules": module_edges},

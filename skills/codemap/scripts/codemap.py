@@ -66,35 +66,56 @@ def iso(timestamp: float) -> str:
 
 # --- draft -----------------------------------------------------------------
 
+FLOW_LABEL_MAX = 32
+
 SHAPES = {
     "actor": {"id": "", "name": "", "role": "", "uses": ["<runnable component id or area id, at most two>"]},
     "external": {"id": "", "name": "", "role": "", "kind": "datastore|service|runtime|devtool", "used_by": ["<component id>"]},
     "flow": {"from": "<runnable, actor, or external id>", "to": "<runnable, actor, or external id>",
-             "label": "<mechanism, e.g. WebSocket, binary protocol>", "kind": "network|file|process"},
+             "label": "<mechanism in at most 32 characters, e.g. WebSocket>",
+             "detail": "<what travels, e.g. intents up, filtered world deltas down>", "kind": "network|file|process"},
     "area": {"id": "", "name": "", "definition": "", "components": ["<product component ids expected here>"]},
 }
+
+
+MODULE_SUMMARY_SHARE = 0.1
+
+
+def summarized_modules(skeleton: dict) -> list[dict]:
+    """Modules big enough to need a one-line summary: a tenth or more of a multi-module component's lines."""
+    modules = skeleton.get("modules", [])
+    by_component = {}
+    for m in modules:
+        by_component.setdefault(m["component"], []).append(m)
+    out = []
+    for mods in by_component.values():
+        total = sum((m.get("metrics") or {}).get("loc", 0) for m in mods)
+        if len(mods) > 1:
+            out += [m for m in mods if (m.get("metrics") or {}).get("loc", 0) >= total * MODULE_SUMMARY_SHARE]
+    return sorted(out, key=lambda m: m["id"])
 
 
 def draft_template(skeleton: dict) -> dict:
     return {
         "schema": "codemap.draft/1",
-        "system": {"name": "", "purpose": "", "actors": [], "externals": [], "flows": []},
+        "system": {"name": "", "summary": "", "purpose": "", "actors": [], "externals": [], "flows": []},
         "areas": [],
         "components": {
-            c["id"]: {"responsibility": "", "why": "", "entry_points": [], "evidence": []}
+            c["id"]: {"summary": "", "responsibility": "", "runs": "", "why": "", "entry_points": [], "evidence": []}
             for c in skeleton.get("components", [])
         },
         "edge_reasons": {
             build_mod.edge_key(e["from"], e["to"]): "" for e in skeleton.get("edges", {}).get("components", [])
         },
         "module_names": {},
+        "module_summaries": {m["id"]: "" for m in summarized_modules(skeleton)},
     }
 
 
 def draft_gaps(draft: dict, skeleton: dict) -> list[str]:
     gaps = []
     system = draft.get("system") or {}
-    for field in ("name", "purpose"):
+    for field in ("name", "summary", "purpose"):
         if not system.get(field):
             gaps.append(f"system.{field}")
     for i, actor in enumerate(system.get("actors") or []):
@@ -105,14 +126,23 @@ def draft_gaps(draft: dict, skeleton: dict) -> list[str]:
             gaps.append(f"system.externals[{external.get('id') or i}].kind")
     if not system.get("flows"):
         gaps.append("system.flows")
+    for flow in system.get("flows") or []:
+        # the label is drawn on the arrow in full; what travels belongs in detail
+        if isinstance(flow, dict) and len(str(flow.get("label", ""))) > FLOW_LABEL_MAX:
+            gaps.append(f"system.flows[{flow.get('from')}->{flow.get('to')}].label longer than {FLOW_LABEL_MAX} characters: "
+                        "keep the mechanism, move the rest to detail")
     if not draft.get("areas"):
         gaps.append("areas")
     components = draft.get("components") or {}
     for comp in skeleton.get("components", []):
         card = components.get(comp["id"]) or {}
-        for field in ("responsibility", "why"):
+        for field in ("summary", "responsibility", "runs", "why"):
             if not card.get(field):
                 gaps.append(f"components.{comp['id']}.{field}")
+    summaries = draft.get("module_summaries") or {}
+    for module in summarized_modules(skeleton):
+        if not summaries.get(module["id"]):
+            gaps.append(f"module_summaries.{module['id']}")
     reasons = draft.get("edge_reasons") or {}
     for edge in skeleton.get("edges", {}).get("components", []):
         key = build_mod.edge_key(edge["from"], edge["to"])
@@ -133,11 +163,19 @@ def merge_draft(draft: dict, skeleton: dict) -> dict:
         system.setdefault(key, empty)
     draft.setdefault("areas", [])
     draft.setdefault("module_names", {})
+    module_summaries = draft.setdefault("module_summaries", {})
+    for mid in template["module_summaries"]:
+        module_summaries.setdefault(mid, "")
+    for mid in [m for m in module_summaries if m not in {x["id"] for x in skeleton.get("modules", [])}]:
+        del module_summaries[mid]  # the module vanished
     components = draft.setdefault("components", {})
     added = sorted(cid for cid in template["components"] if cid not in components)
     removed = sorted(cid for cid in components if cid not in template["components"])
     for cid in added:
         components[cid] = template["components"][cid]
+    for cid, card in components.items():
+        for key, empty in template["components"].get(cid, {}).items():
+            card.setdefault(key, empty)  # fields added to the card shape since the draft was written
     for cid in removed:
         del components[cid]
     reasons = draft.setdefault("edge_reasons", {})
@@ -363,6 +401,11 @@ def cmd_decide(args) -> dict:
         "findings": findings,
         "unresolved": unresolved,
     }
+    # what Jev still doubts, each with the two options the next evidence pass must separate
+    inner = decisions.get("summary") if isinstance(decisions, dict) else None
+    for key in ("calls_made", "calls_cached", "unresolved_nodes", "uncertain_nodes", "provider_failures"):
+        if isinstance(inner, dict) and key in inner:
+            summary[key] = inner[key]
     store.log(repo, "decide", "ok", count=summary["count"], unresolved=len(unresolved))
     return summary
 

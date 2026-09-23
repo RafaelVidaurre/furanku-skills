@@ -99,7 +99,7 @@ def test_pnpm_monorepo_units_and_resolution(tmp_path):
     assert not any("node_modules" in p or "/dist/" in p for p in paths)
     by_path = {f["path"]: f for f in doc["files"]}
     assert by_path["index.js"]["unit"] == "root"
-    assert by_path["tools/check.mjs"] == {"path": "tools/check.mjs", "lang": "js", "loc": 4, "role": "source", "unit": "tools"}
+    assert by_path["tools/check.mjs"] == {"path": "tools/check.mjs", "lang": "js", "loc": 4, "role": "source", "unit": "tools", "changes": 1}
     assert by_path["apps/web/src/main.ts"]["lang"] == "ts"
 
     assert edges_from(doc, "apps/web/src/main.ts") == [
@@ -386,5 +386,48 @@ def test_file_role_marks_tests_by_directory_and_basename():
     assert scan.file_role("crates/sim/src/lib.rs") == "source"
     assert scan.file_role("tools/gate/test_gate.py") == "test"
     assert scan.file_role("tools/gate/gate_test.py") == "test"
+    assert scan.file_role("tools/gate/gate_tests.py") == "test"
+    assert scan.file_role("crates/sim/src/progression_tests.rs") == "test"
+    assert scan.file_role("crates/sim/src/contests.rs") == "source"
     assert scan.file_role("tools/gate/conftest.py") == "test"
     assert scan.file_role("apps/web/src/testing-utils.ts") == "source"
+
+
+def test_changes_count_commits_in_the_window_before_the_scanned_commit(tmp_path, monkeypatch):
+    def commit(root, when, files):
+        for rel, content in files.items():
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_text(content, encoding="utf-8")
+        monkeypatch.setenv("GIT_AUTHOR_DATE", when)
+        monkeypatch.setenv("GIT_COMMITTER_DATE", when)
+        git(root, "add", "-A")
+        git(root, "commit", "-q", "-m", when)
+
+    root = tmp_path / "repo"
+    root.mkdir()
+    git(root, "init", "-q", "-b", "main")
+    commit(root, "2020-01-01T00:00:00+00:00", {"a.py": "x = 1\n", "b.py": "y = 1\n"})
+    commit(root, "2020-06-01T00:00:00+00:00", {"a.py": "x = 2\n"})
+    commit(root, "2020-06-20T00:00:00+00:00", {"a.py": "x = 3\n", "b.py": "y = 2\n"})
+    doc = scan.scan(root, now=NOW)
+    changes = {f["path"]: f["changes"] for f in doc["files"]}
+    # the January commit is outside the 90 days before the June 20 commit
+    assert changes == {"a.py": 2, "b.py": 1}
+    assert doc["activity"]["window_days"] == 90 and doc["activity"]["commits"] == 2
+    assert doc["activity"]["until"].startswith("2020-06-20")
+
+
+def test_contract_files_are_found_by_name_in_any_stack(tmp_path):
+    root = make_repo(tmp_path, "pnpm-monorepo", extra={
+        "packages/core/api/user.proto": "syntax = \"proto3\";\n",
+        "packages/core/openapi.yaml": "openapi: 3.1.0\n",
+        "schemas/event.schema.json": "{}\n",
+        "packages/core/src/notes.json": "{}\n",
+    })
+    doc = scan.scan(root, now=NOW)
+    found = {(c["path"], c["kind"]) for c in doc["contracts"]}
+    assert ("packages/core/api/user.proto", "protobuf") in found and ("packages/core/openapi.yaml", "openapi") in found
+    assert ("schemas/event.schema.json", "json-schema") in found
+    assert not any(c["path"] == "packages/core/src/notes.json" for c in doc["contracts"])
+    owners = {c["path"]: c["unit"] for c in doc["contracts"]}
+    assert owners["packages/core/api/user.proto"] == "core"

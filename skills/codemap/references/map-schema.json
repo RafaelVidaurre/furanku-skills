@@ -50,6 +50,20 @@
         },
         "instructions_version": {
           "type": "integer"
+        },
+        "activity": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "The git window behind metrics.changes: window_days, since, until, commits."
+        },
+        "unowned_contracts": {
+          "type": "array",
+          "description": "Contract files outside every component.",
+          "items": {
+            "type": "object"
+          }
         }
       }
     },
@@ -180,6 +194,10 @@
               "type": "integer"
             }
           }
+        },
+        "summary": {
+          "type": "string",
+          "description": "One sentence a newcomer could repeat: what the system is and who it is for."
         }
       }
     },
@@ -298,7 +316,8 @@
             "type": "string"
           },
           "label": {
-            "type": "string"
+            "type": "string",
+            "description": "The mechanism in a few words (HTTPS, WebSocket, writes content/worlds)."
           },
           "kind": {
             "type": "string",
@@ -307,10 +326,15 @@
               "file",
               "process"
             ]
+          },
+          "detail": {
+            "type": "string",
+            "description": "What travels over the flow, in one clause; shown on hover and in the card."
           }
         },
         "description": "Endpoints are runnable component ids, actor ids, or external ids; label names the mechanism."
-      }
+      },
+      "description": "Endpoints are runnable component ids, actor ids, or external ids; label names the mechanism, detail says what travels."
     },
     "components": {
       "type": "array",
@@ -468,6 +492,34 @@
                 "$ref": "#/definitions/provenance"
               }
             }
+          },
+          "runs": {
+            "type": "string",
+            "description": "Who or what starts it, when, and what uses its output."
+          },
+          "summary": {
+            "type": "string",
+            "description": "What it is, in one plain sentence of about 15 words."
+          },
+          "contracts": {
+            "type": "array",
+            "description": "Contract and schema files the component holds, found by name.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "kind"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
@@ -537,6 +589,10 @@
           },
           "metrics": {
             "$ref": "#/definitions/metrics"
+          },
+          "test": {
+            "type": "boolean",
+            "description": "At least 80% of the module's files are tests."
           }
         }
       }
@@ -816,6 +872,10 @@
         },
         "in_cycle": {
           "type": "boolean"
+        },
+        "changes": {
+          "type": "integer",
+          "description": "Commits touching the node's files in the activity window before the scanned commit, summed per file."
         }
       }
     },
