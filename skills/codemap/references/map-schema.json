@@ -576,7 +576,8 @@
               "required": [
                 "path",
                 "loc",
-                "exports"
+                "exports",
+                "test"
               ],
               "properties": {
                 "path": {
@@ -590,6 +591,10 @@
                   "items": {
                     "type": "string"
                   }
+                },
+                "test": {
+                  "type": "boolean",
+                  "description": "Whether the scan classified this file as test code."
                 }
               }
             }
@@ -712,9 +717,12 @@
                   "null"
                 ],
                 "enum": [
+                  "cycle",
                   "core-uses-adapter",
                   "crosses-the-wire",
                   "product-uses-support",
+                  "upward-dependency",
+                  "stability-inversion",
                   null
                 ],
                 "description": "The first check this edge fails, or null when it passes every check that applies (accepted true) or none applies (accepted null)."
@@ -769,8 +777,10 @@
           "check",
           "level",
           "nodes",
+          "headline",
           "meaning",
           "evidence",
+          "suggestion",
           "accepted",
           "confidence"
         ],
@@ -781,7 +791,11 @@
               "cycle",
               "core-uses-adapter",
               "crosses-the-wire",
-              "product-uses-support"
+              "product-uses-support",
+              "mixed-responsibility",
+              "upward-dependency",
+              "stability-inversion",
+              "hub-coupling"
             ]
           },
           "level": {
@@ -800,12 +814,44 @@
           "meaning": {
             "type": "string"
           },
+          "headline": {
+            "type": "string"
+          },
           "evidence": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Up to three example imports."
+            "description": "Up to three source paths or import examples."
+          },
+          "suggestion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "jobs": {
+            "type": "array",
+            "description": "Two path-backed jobs, only on confirmed mixed-responsibility findings.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "paths"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "paths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
           },
           "accepted": {
             "type": [

@@ -102,7 +102,8 @@ def draft_template(skeleton: dict) -> dict:
         "areas": [],
         "projects": [], "project_relations": [], "views": [], "evidence_excerpts": [],
         "components": {
-            c["id"]: {"summary": "", "responsibility": "", "runs": "", "why": "", "entry_points": [], "evidence": [], "loaded_by": []}
+            c["id"]: {"summary": "", "responsibility": "", "runs": "", "why": "", "entry_points": [], "evidence": [], "loaded_by": [],
+                      "mixed_jobs": []}
             for c in skeleton.get("components", [])
         },
         "edge_reasons": {
@@ -138,6 +139,7 @@ def draft_gaps(draft: dict, skeleton: dict) -> list[str]:
         for field in ("summary", "responsibility", "runs", "why"):
             if not card.get(field):
                 gaps.append(f"components.{comp['id']}.{field}")
+        gaps.extend(build_mod.mixed_jobs_errors(skeleton, comp["id"], card.get("mixed_jobs")))
     summaries = draft.get("module_summaries") or {}
     for module in summarized_modules(skeleton):
         if not summaries.get(module["id"]):
@@ -392,6 +394,9 @@ def cmd_decide(args) -> dict:
     values = lambda kind: sorted(e["value"] or "unresolved" for e in index[kind].values())
     findings = {}
     for (_src, _dst, check), verdict in sorted(index["checks"].items()):
+        if not verdict["accepted"]:
+            findings[check] = findings.get(check, 0) + 1
+    for (check, _nodes), verdict in sorted(index["quality"].items()):
         if not verdict["accepted"]:
             findings[check] = findings.get(check, 0) + 1
     summary = {

@@ -1,6 +1,6 @@
 # Levels, facts, and lenses
 
-The map answers one question per screen. There is more than one honest way to look at a codebase from above, so the whole system is shown through four **lenses**, each answering one question about the same components (five with Contracts); from there an engineer drills from an area to a component to a file without seeing more than about a dozen boxes at a time. Hue, selection, and the card stay the same across every screen.
+The map answers one question per screen. Five **lenses** show the same components from different angles; from there an engineer drills from an area to a component to a file without seeing more than about a dozen boxes at a time. The top-bar Code quality panel lists findings across those screens. Hue, selection, and the card stay the same everywhere.
 
 ## Lenses
 
@@ -20,7 +20,7 @@ An accepted landscape opens above the project system pictures; otherwise Purpose
 | --- | --- | --- | --- | --- |
 | L0 | System picture (the Purpose lens) | people on the left, areas with their runnable parts in the middle, the external systems the product touches on the right, runtime flows between them, Build & verify along the bottom | What is this, who uses it, what runs, what talks to what? | ≤ 6 people, 1–7 areas, ≤ 10 runnables, ≤ 8 externals |
 | L1 | Area | one area's components in the runtime × role matrix, ghosts for touched components of other areas, supporting tray beneath | Inside this area, what are the parts, where do they run, which feed which? | ≤ 12 product components per area |
-| L2 | Component | modules of one component, test modules in their own band beneath, files listed on the card | Inside this component, where does each responsibility live? | ≤ 16 modules |
+| L2 | Component | modules of one component, optional test modules in their own band beneath, files listed on the card | Inside this component, where does each responsibility live? | ≤ 16 modules |
 
 The map stops at files. A leaf links to a path; reading code is the editor's job.
 
@@ -40,7 +40,7 @@ One grouping cannot answer "what is it for", "where does it run", and "is this p
 - **Runtime** is where the code runs: `server` (a long-lived service process), `client` (a page or desktop app a person uses), `shared` (a library compiled into more than one runtime), `cli` (a command run by a person or a script), `build` (runs only while building or developing), `none` (not executable: content, docs).
 - **Nature** is what kind of code it is: `product` (runs as part of what users use, including the authoring tools designers operate), `tooling` (build, dev stack, quality gates, asset pipelines), `test` (harnesses, acceptance lanes, test support), `content` (data and scripts the product loads), `docs` (documentation and review evidence), `experiment` (prototypes and spikes).
 
-Product components also carry a **role**, their hexagonal position: `surface` (what a person or another system touches: UI, API handlers, CLI entry points, editor hosts), `adapter` (I/O and engines: persistence, transport, rendering, filesystem, OS and browser APIs), `core` (the system's own rules, models, sessions, workflows), `kernel` (types, schemas, utilities every role shares). Drawn top to bottom in that order, healthy dependencies point down; core reaching into an adapter is the one upward arrow that matters.
+Product components also carry a **role**, their hexagonal position: `surface` (what a person or another system touches: UI, API handlers, CLI entry points, editor hosts), `adapter` (I/O and engines: persistence, transport, rendering, filesystem, OS and browser APIs), `core` (the system's own rules, models, sessions, workflows), `kernel` (types, schemas, utilities every role shares). Drawn top to bottom in that order, dependencies normally point down. Upward imports are candidates for review; the core-to-adapter case has its own check.
 
 The viewer calls the role a **layer** and glosses each one on screen (surface: what people touch; adapter: I/O and engines; core: the rules; kernel: shared types).
 
@@ -48,11 +48,11 @@ Components and modules themselves are mechanical: units come from workspace mani
 
 ## Edges
 
-An edge exists only where an import exists. The scanner finds file-level imports; the builder aggregates them to modules, components, and areas with counts and example imports. Between areas and between components every edge carries a one-line reason you wrote from its examples; between modules the examples speak for themselves. Imports from test files (`tests/`, `*.test.ts`, `test_*.py`, `tests/*.rs`) are counted separately: an edge only tests create is drawn faint, never forms a cycle, and never raises a finding.
+An edge exists only where an import exists. The scanner finds file-level imports; the builder aggregates them to modules, components, and areas with counts and example imports. Between areas and between components every edge carries a one-line reason you wrote from its examples; between modules the examples speak for themselves. Imports from test files (`tests/`, `*.test.ts`, `test_*.py`, `tests/*.rs`) are counted separately. Test components, modules, files, and test-only edges are drawn when the reader turns on Tests; tests are hidden initially. A test-only edge never forms a cycle or raises a finding.
 
-## Health checks
+## Code quality
 
-Findings are named, explained, and evidenced; they are shown, never hidden and never silently fixed.
+Each finding has a plain-language headline, one sentence explaining its meaning, repository paths or imports as evidence, and a suggested separation when the evidence supports one. The panel groups open findings by criterion and links each to its place on the map. The reader can hide quality marks without removing findings from the map data or the panel. The [research note](code-quality-research.md) gives the primary sources, detection limits, and reasons for these criteria.
 
 | Check | What the reader is told | Decided by |
 | --- | --- | --- |
@@ -60,6 +60,12 @@ Findings are named, explained, and evidenced; they are shown, never hidden and n
 | `core-uses-adapter` | A core component imports an adapter, so its rules are tied to one storage, transport, or engine. | Jev: acceptable by design? |
 | `crosses-the-wire` | Client code imports server code (or the reverse) directly instead of a shared contract. | Jev: acceptable by design? |
 | `product-uses-support` | Product code imports tooling, test, or experiment code, which can ship or break the build. | scanner |
+| `mixed-responsibility` | One component owns two distinct jobs, with the files for each job named. | Jev: genuinely separate jobs? |
+| `upward-dependency` | A lower layer imports a higher one, pulling a shared or inner part toward an outer detail. | Jev: acceptable by design? |
+| `stability-inversion` | A component many others depend on imports a less structurally stable component. | Jev: concerning for these boundaries? |
+| `hub-coupling` | Many parts use this component, which also imports many peers; its boundary may spread changes. | Jev: incoherent or risky boundary? |
+
+The scanner proposes topology candidates from resolved production imports and distinct-neighbor counts; a high count alone is not a defect. Size and recent changes prioritize confirmed findings in Size & activity; neither alone proves bad design. Change coupling needs per-commit path sets that the current scan does not store.
 
 ## The card
 

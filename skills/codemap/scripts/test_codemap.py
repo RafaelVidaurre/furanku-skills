@@ -91,7 +91,7 @@ def test_draft_template_writes_fixed_shape_once_then_reports_gaps(repo, capsys):
     assert payload["shapes"] == codemap.SHAPES and set(payload["shapes"]) == {"actor", "external", "flow", "area"}
     assert payload["gaps"][:3] == ["system.name", "system.summary", "system.purpose"] and {"areas"} <= set(payload["gaps"])
     assert set(draft["components"]) == {"api", "cli", "web", "orchestrator", "rules", "store", "schema", "devtools", "harness", "lab", "content", "docs"}
-    assert draft["components"]["cli"] == {"summary": "", "responsibility": "", "runs": "", "why": "", "entry_points": [], "evidence": [], "loaded_by": []}
+    assert draft["components"]["cli"] == {"summary": "", "responsibility": "", "runs": "", "why": "", "entry_points": [], "evidence": [], "loaded_by": [], "mixed_jobs": []}
     assert draft["edge_reasons"]["cli->orchestrator"] == ""
     assert len(draft["edge_reasons"]) == 19
     assert "components.cli.responsibility" in payload["gaps"] and "edge_reasons.cli->store" in payload["gaps"]
@@ -108,6 +108,14 @@ def test_draft_template_writes_fixed_shape_once_then_reports_gaps(repo, capsys):
     assert "system.actors[operator].uses" in payload["gaps"] and "system.externals[sqlite].kind" in payload["gaps"]
     assert any(g.startswith("system.flows[cli->api].label longer than 32") for g in payload["gaps"])
     assert store.read_json(store.paths(repo)["draft"])["system"]["name"] == "Demo"
+    draft["components"]["rules"]["mixed_jobs"] = [
+        {"name": "engine", "paths": ["packages/rules/src/engine/compile.ts"]},
+        {"name": "values", "paths": ["outside/component.ts"]},
+    ]
+    store.write_json(store.paths(repo)["draft"], draft)
+    code, payload = run(capsys, "draft-template", "--repo", str(repo))
+    assert code == 0 and any(g.startswith("components.rules.mixed_jobs") for g in payload["gaps"])
+    assert store.read_json(store.paths(repo)["draft"])["components"]["rules"]["mixed_jobs"] == draft["components"]["rules"]["mixed_jobs"]
 
 
 def test_draft_template_refuses_a_domain_partitions_draft_and_leaves_it_untouched(repo, capsys):
@@ -136,7 +144,7 @@ def test_build_writes_map_html_snapshot_and_status_sees_fresh_map(repo, capsys, 
     assert payload["runnables"] == ["api", "cli", "web"] and payload["flows"] == 4
     assert payload["runtimes"] == {"cli": 1, "client": 1, "server": 3, "shared": 2}
     assert payload["natures"] == {"content": 1, "docs": 1, "experiment": 1, "product": 7, "test": 1, "tooling": 1}
-    assert payload["health"] == {"checks": 4, "findings": 4, "by_check": {"core-uses-adapter": 1, "cycle": 2, "product-uses-support": 1}}
+    assert payload["health"] == {"checks": 8, "findings": 4, "by_check": {"core-uses-adapter": 1, "cycle": 2, "product-uses-support": 1}}
     assert [(c["component"], c["question"]) for c in payload["contradictions"]] == [("lab", "nature")]
     assert payload["snapshot"]["status"] == "created"
     map_obj = store.read_json(paths["map"])
@@ -204,6 +212,27 @@ def test_all_stops_on_missing_or_incomplete_draft_then_runs_pipeline(repo, capsy
     assert code == 1 and "require-zdr" in payload["error"]
 
 
+def test_decide_summary_counts_new_quality_findings(repo, capsys, monkeypatch):
+    paths = store.paths(repo)
+    store.write_json(paths["skeleton"], {"schema": "codemap.skeleton/1"})
+    store.write_json(paths["draft"], json.loads((FIXTURES / "draft.json").read_text()))
+
+    def fake_decide(skeleton, draft, cache, **kwargs):
+        decisions = json.loads((FIXTURES / "decisions.json").read_text())
+        decisions["quality"] = {
+            "mixed-responsibility|rules": {"check": "mixed-responsibility", "nodes": ["rules"],
+                                           "accepted": False, "flag": None, "probability": 0.2},
+            "hub-coupling|rules": {"check": "hub-coupling", "nodes": ["rules"],
+                                   "accepted": True, "flag": None, "probability": 0.9},
+        }
+        return decisions
+
+    monkeypatch.setitem(sys.modules, "decide", types.SimpleNamespace(decide=fake_decide))
+    code, payload = run(capsys, "decide", "--repo", str(repo))
+    assert code == 0, payload
+    assert payload["findings"] == {"core-uses-adapter": 1, "mixed-responsibility": 1}
+
+
 def test_entry_point_runs_as_a_subprocess(repo, hermetic_home):
     env = {**os.environ, "FURANKU_SKILLS_HOME": str(hermetic_home), "PYTHONDONTWRITEBYTECODE": "1"}
     result = subprocess.run([sys.executable, str(SCRIPT), "path", "--repo", str(repo)], capture_output=True, text=True, env=env)
@@ -254,7 +283,7 @@ def test_update_records_changes_merges_draft_and_defers_decide_until_gaps_are_fi
     assert changes["components"]["rules"]["files_changed"] == [rules_file["path"]]
     assert changes["previous_sha"] != changes["current_sha"] == "b" * 40
     draft = store.read_json(paths["draft"])
-    assert draft["components"]["metrics"] == {"summary": "", "responsibility": "", "runs": "", "why": "", "entry_points": [], "evidence": [], "loaded_by": []}
+    assert draft["components"]["metrics"] == {"summary": "", "responsibility": "", "runs": "", "why": "", "entry_points": [], "evidence": [], "loaded_by": [], "mixed_jobs": []}
     assert draft["edge_reasons"]["metrics->schema"] == "" and draft["edge_reasons"]["cli->schema"] == ""
     assert draft["components"]["cli"]["responsibility"]  # existing prose untouched
     assert payload["draft"]["components_added"] == ["metrics"] and payload["draft"]["edges_added"] == ["cli->schema", "metrics->schema"]
