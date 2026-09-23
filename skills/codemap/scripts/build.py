@@ -400,7 +400,10 @@ def is_runnable(component: dict) -> bool:
     hints = component.get("hints") or {}
     if component["role"] != "surface":
         return False  # a library with a helper binary (a migration tool) is not what the system runs
-    return bool(hints.get("executable")) or component["runtime"] in RUNNABLE_RUNTIMES
+    if hints.get("declared_kind") == "library":
+        return False  # its own build configuration says it is a library, whatever it renders
+    # start evidence: an executable entry, a start/serve target or script, or a container image (see scan hints)
+    return bool(hints.get("executable")) and component["runtime"] in RUNNABLE_RUNTIMES + ("shared",)
 
 
 def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None) -> dict:

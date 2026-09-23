@@ -236,16 +236,18 @@ def test_area_answers_map_to_areas_and_old_drafts_are_refused(trio):
 
 
 def test_runnable_rule():
-    base = {"nature": "product", "role": "surface", "runtime": "shared", "hints": {"executable": False}}
-    assert not build.is_runnable(base)
-    assert build.is_runnable(dict(base, hints={"executable": True}))
-    assert build.is_runnable(dict(base, runtime="server"))
-    assert build.is_runnable(dict(base, runtime="client"))
-    assert build.is_runnable(dict(base, runtime="cli"))
-    # A library with a helper binary (a storage crate with a migration bin) is not what the system runs.
-    assert not build.is_runnable(dict(base, role="adapter", runtime="server", hints={"executable": True}))
-    assert not build.is_runnable(dict(base, role="core", runtime="server"))
-    assert not build.is_runnable(dict(base, nature="tooling", hints={"executable": True}))
+    base = {"nature": "product", "role": "surface", "runtime": "server", "hints": {"executable": True}}
+    assert build.is_runnable(base)
+    for runtime in ("client", "cli", "shared"):
+        assert build.is_runnable(dict(base, runtime=runtime))
+    # a runtime alone is not start evidence: a React component library rendered inside an app is not an app
+    assert not build.is_runnable(dict(base, runtime="client", hints={"executable": False}))
+    # its own build configuration saying "library" settles it
+    assert not build.is_runnable(dict(base, runtime="client", hints={"executable": True, "declared_kind": "library"}))
+    # a library with a helper binary (a storage crate with a migration bin) is not what the system runs
+    assert not build.is_runnable(dict(base, role="adapter"))
+    assert not build.is_runnable(dict(base, nature="tooling"))
+    assert not build.is_runnable(dict(base, runtime="build"))
 
 
 def test_bare_record_list_is_resolved_with_spec_thresholds(trio):

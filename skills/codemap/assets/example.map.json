@@ -211,7 +211,9 @@
     "tests/acceptance/README.md",
     "tools/architecture/inventory.json#acceptance"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "acceptance",
    "kind": "package",
    "metrics": {
@@ -264,6 +266,7 @@
     "tools/architecture/inventory.json#admin-api"
    ],
    "hints": {
+    "declared_kind": null,
     "executable": true,
     "server_libs": [
      "axum",
@@ -321,7 +324,9 @@
     "tools/asset-pipeline/README.md",
     "tools/architecture/inventory.json#asset-pipeline"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "asset-pipeline",
    "kind": "tool",
    "metrics": {
@@ -373,7 +378,9 @@
     "packages/audio/README.md",
     "tools/architecture/inventory.json#audio"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "audio",
    "kind": "package",
    "metrics": {
@@ -426,7 +433,9 @@
     "tools/architecture/inventory.json#client-core",
     "docs/adr/0011-client-prediction.md"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "client-core",
    "kind": "package",
    "metrics": {
@@ -480,7 +489,9 @@
     "packages/client-state/README.md",
     "tools/architecture/inventory.json#client-state"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "client-state",
    "kind": "package",
    "metrics": {
@@ -533,7 +544,9 @@
     "content/items/README.md",
     "tools/architecture/inventory.json#content-items"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "content-items",
    "kind": "package",
    "metrics": {
@@ -586,7 +599,9 @@
     "packages/content-loader/README.md",
     "tools/architecture/inventory.json#content-loader"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "content-loader",
    "kind": "package",
    "metrics": {
@@ -638,7 +653,9 @@
     "content/maps/README.md",
     "tools/architecture/inventory.json#content-maps"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "content-maps",
    "kind": "package",
    "metrics": {
@@ -691,7 +708,9 @@
     "content/monsters/README.md",
     "tools/architecture/inventory.json#content-monsters"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "content-monsters",
    "kind": "package",
    "metrics": {
@@ -745,7 +764,9 @@
     "tools/architecture/inventory.json#content-schema",
     "packages/content-schema/CODEGEN.md"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "content-schema",
    "kind": "package",
    "metrics": {
@@ -800,6 +821,7 @@
     "tools/architecture/inventory.json#content-validate"
    ],
    "hints": {
+    "declared_kind": null,
     "executable": true
    },
    "id": "content-validate",
@@ -853,9 +875,11 @@
     "tools/architecture/inventory.json#desktop-shell"
    ],
    "hints": {
+    "declared_kind": null,
     "desktop": [
      "electron"
-    ]
+    ],
+    "executable": true
    },
    "id": "desktop-shell",
    "kind": "app",
@@ -909,6 +933,7 @@
     "tools/architecture/inventory.json#devtools-cli"
    ],
    "hints": {
+    "declared_kind": null,
     "executable": true
    },
    "id": "devtools-cli",
@@ -961,7 +986,9 @@
     "packages/editor-core/README.md",
     "tools/architecture/inventory.json#editor-core"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "editor-core",
    "kind": "package",
    "metrics": {
@@ -1014,7 +1041,9 @@
     "crates/event-bus/README.md",
     "tools/architecture/inventory.json#event-bus"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "event-bus",
    "kind": "crate",
    "metrics": {
@@ -1068,6 +1097,7 @@
     "docs/adr/0006-gateway-topology.md"
    ],
    "hints": {
+    "declared_kind": null,
     "executable": true,
     "server_libs": [
      "axum",
@@ -1126,7 +1156,9 @@
     "packages/input/README.md",
     "tools/architecture/inventory.json#input"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "input",
    "kind": "package",
    "metrics": {
@@ -1178,7 +1210,9 @@
     "crates/legacy-bridge/README.md",
     "tools/architecture/inventory.json#legacy-bridge"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "legacy-bridge",
    "kind": "crate",
    "metrics": {
@@ -1231,6 +1265,7 @@
     "tools/architecture/inventory.json#login-server"
    ],
    "hints": {
+    "declared_kind": null,
     "executable": true,
     "server_libs": [
      "axum",
@@ -1292,7 +1327,9 @@
     "client_libs": [
      "vite",
      "react"
-    ]
+    ],
+    "declared_kind": null,
+    "executable": true
    },
    "id": "map-editor",
    "kind": "app",
@@ -1346,7 +1383,9 @@
     "packages/net-client/README.md",
     "tools/architecture/inventory.json#net-client"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "net-client",
    "kind": "package",
    "metrics": {
@@ -1398,7 +1437,9 @@
     "crates/persistence/README.md",
     "tools/architecture/inventory.json#persistence"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "persistence",
    "kind": "crate",
    "metrics": {
@@ -1452,7 +1493,9 @@
     "tools/architecture/inventory.json#protocol",
     "docs/adr/0002-protocol-versioning.md"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "protocol",
    "kind": "crate",
    "metrics": {
@@ -1505,7 +1548,9 @@
     "tools/protocol-codegen/README.md",
     "tools/architecture/inventory.json#protocol-codegen"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "protocol-codegen",
    "kind": "tool",
    "metrics": {
@@ -1557,7 +1602,9 @@
     "docs/protocol/README.md",
     "docs/adr/0002-protocol-versioning.md"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "protocol-docs",
    "kind": "directory",
    "metrics": {
@@ -1610,7 +1657,9 @@
     "tools/architecture/inventory.json#protocol-ts",
     "packages/protocol-ts/GENERATED.md"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "protocol-ts",
    "kind": "package",
    "metrics": {
@@ -1663,7 +1712,9 @@
     "tools/architecture/inventory.json#renderer",
     "docs/adr/0008-renderer-backends.md"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "renderer",
    "kind": "package",
    "metrics": {
@@ -1717,7 +1768,9 @@
     "tools/architecture/inventory.json#renderer-webgl",
     "docs/adr/0008-renderer-backends.md"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "renderer-webgl",
    "kind": "package",
    "metrics": {
@@ -1770,7 +1823,9 @@
     "crates/server-config/README.md",
     "tools/architecture/inventory.json#server-config"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "server-config",
    "kind": "crate",
    "metrics": {
@@ -1823,6 +1878,7 @@
     "tools/architecture/inventory.json#sim-bench"
    ],
    "hints": {
+    "declared_kind": null,
     "executable": true
    },
    "id": "sim-bench",
@@ -1875,7 +1931,9 @@
     "crates/sim-combat/README.md",
     "tools/architecture/inventory.json#sim-combat"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "sim-combat",
    "kind": "crate",
    "metrics": {
@@ -1929,7 +1987,9 @@
     "tools/architecture/inventory.json#sim-core",
     "docs/adr/0004-fixed-tick.md"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "sim-core",
    "kind": "crate",
    "metrics": {
@@ -1983,7 +2043,9 @@
     "crates/sim-economy/README.md",
     "tools/architecture/inventory.json#sim-economy"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "sim-economy",
    "kind": "crate",
    "metrics": {
@@ -2036,7 +2098,9 @@
     "crates/sim-pathing/README.md",
     "tools/architecture/inventory.json#sim-pathing"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "sim-pathing",
    "kind": "crate",
    "metrics": {
@@ -2090,7 +2154,9 @@
     "tools/architecture/inventory.json#sim-scripting",
     "docs/adr/0009-lua-scripting.md"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "sim-scripting",
    "kind": "crate",
    "metrics": {
@@ -2143,7 +2209,9 @@
     "crates/sim-testkit/README.md",
     "tools/architecture/inventory.json#sim-testkit"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "sim-testkit",
    "kind": "crate",
    "metrics": {
@@ -2195,7 +2263,9 @@
     "packages/sprite-atlas/README.md",
     "tools/architecture/inventory.json#sprite-atlas"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "sprite-atlas",
    "kind": "package",
    "metrics": {
@@ -2251,7 +2321,9 @@
     "client_libs": [
      "vite",
      "react"
-    ]
+    ],
+    "declared_kind": null,
+    "executable": true
    },
    "id": "sprite-editor",
    "kind": "app",
@@ -2304,7 +2376,9 @@
     "packages/ui-kit/README.md",
     "tools/architecture/inventory.json#ui-kit"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "ui-kit",
    "kind": "package",
    "metrics": {
@@ -2355,7 +2429,9 @@
    "evidence": [
     "prototypes/voxel-renderer/README.md"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "voxel-prototype",
    "kind": "package",
    "metrics": {
@@ -2411,7 +2487,9 @@
      "vite",
      "three",
      "react"
-    ]
+    ],
+    "declared_kind": null,
+    "executable": true
    },
    "id": "web-client",
    "kind": "app",
@@ -2465,7 +2543,9 @@
     "crates/wire/README.md",
     "tools/architecture/inventory.json#wire"
    ],
-   "hints": {},
+   "hints": {
+    "declared_kind": null
+   },
    "id": "wire",
    "kind": "crate",
    "metrics": {
@@ -2520,6 +2600,7 @@
     "docs/adr/0006-gateway-topology.md"
    ],
    "hints": {
+    "declared_kind": null,
     "executable": true,
     "server_libs": [
      "tokio"

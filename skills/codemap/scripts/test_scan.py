@@ -88,7 +88,7 @@ def test_pnpm_monorepo_units_and_resolution(tmp_path):
     assert units["root"]["path"] == ""
     assert units["web"]["hints"] == {
         "executable": True, "wasm": False, "server_libs": [], "client_libs": ["electron", "three", "vite"],
-        "desktop": True, "test_libs": ["vitest"], "directory_kind": None, "test_file_share": 0.0,
+        "desktop": True, "test_libs": ["vitest"], "directory_kind": None, "test_file_share": 0.0, "declared_kind": None,
     }
     assert units["ui"]["hints"]["client_libs"] == ["react"]  # observed external, no manifest dependency
     assert units["tools"]["hints"]["directory_kind"] == "tools" and units["tools"]["hints"]["executable"] is False
@@ -142,7 +142,7 @@ def test_cargo_workspace(tmp_path):
     assert all(f["path"].startswith("crates/") for f in doc["files"])
     assert units["server"]["hints"] == {
         "executable": True, "wasm": False, "server_libs": ["tokio"], "client_libs": [], "desktop": False,
-        "test_libs": [], "directory_kind": None, "test_file_share": 0.5,
+        "test_libs": [], "directory_kind": None, "test_file_share": 0.5, "declared_kind": None,
     }
     assert units["sim-core"]["hints"]["wasm"] is True and units["sim-core"]["hints"]["executable"] is False
 
@@ -336,7 +336,7 @@ def test_hints_cover_bin_targets_dev_dependencies_and_directory_kinds(tmp_path):
     # Cargo dev-dependencies are harness-only: tokio does not make the crate a server, insta is a test framework.
     assert hints["api"] == {
         "executable": True, "wasm": False, "server_libs": ["axum"], "client_libs": [], "desktop": False,
-        "test_libs": ["insta"], "directory_kind": None, "test_file_share": round(1 / 3, 3),
+        "test_libs": ["insta"], "directory_kind": None, "test_file_share": round(1 / 3, 3), "declared_kind": None,
     }
     assert hints["cli"]["executable"] is True and hints["cli"]["test_libs"] == ["@playwright/test"]
     assert hints["prototypes"]["directory_kind"] == "prototypes" and hints["prototypes"]["server_libs"] == ["flask"]
@@ -431,3 +431,27 @@ def test_contract_files_are_found_by_name_in_any_stack(tmp_path):
     assert not any(c["path"] == "packages/core/src/notes.json" for c in doc["contracts"])
     owners = {c["path"]: c["unit"] for c in doc["contracts"]}
     assert owners["packages/core/api/user.proto"] == "core"
+
+
+def test_nx_projects_become_units_with_their_declared_kind_and_start_evidence(tmp_path):
+    root = make_repo(tmp_path, extra={
+        "package.json": '{"name": "ws", "private": true, "workspaces": ["libs/watch"]}\n',
+        "apps/shop/project.json": '{"name": "shop", "projectType": "application", "sourceRoot": "apps/shop/src", "targets": {"build": {}, "serve": {}}}\n',
+        "apps/shop/src/main.tsx": "import { Button } from '../../../libs/ui/src/index';\nexport const app = Button;\n",
+        "libs/ui/project.json": '{"name": "ui", "projectType": "library", "targets": {"build": {}, "test": {}}}\n',
+        "libs/ui/src/index.ts": "export const Button = 1;\n",
+        "libs/ui/Dockerfile": "FROM scratch\n",
+        "libs/watch/package.json": '{"name": "@ws/watch", "main": "src/index.ts", "scripts": {"dev": "tsc --watch"}}\n',
+        "libs/watch/src/index.ts": "export const x = 1;\n",
+    })
+    doc = scan.scan(root, now=NOW)
+    units = {u["path"]: u for u in doc["units"]}
+    assert units["apps/shop"]["kind"] == "app" and units["apps/shop"]["manifest"] == "apps/shop/project.json"
+    assert units["apps/shop"]["hints"]["executable"] and units["apps/shop"]["hints"]["declared_kind"] == "application"
+    # a declared library never counts as startable, whatever sits beside it
+    assert units["libs/ui"]["kind"] == "package" and units["libs/ui"]["hints"]["declared_kind"] == "library"
+    assert not units["libs/ui"]["hints"]["executable"]
+    # a library's watch script is not start evidence
+    assert not units["libs/watch"]["hints"]["executable"]
+    # the Nx units own their files instead of a generic top-level directory bucket
+    assert {f["unit"] for f in doc["files"] if f["path"].startswith(("apps/", "libs/ui"))} == {units["apps/shop"]["id"], units["libs/ui"]["id"]}
