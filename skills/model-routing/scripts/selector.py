@@ -127,7 +127,7 @@ def route(compiled, args, runtime):
         payload, mapping, excluded = prepare_case(compiled, runtime, case, launchers)
     except jev.Error as exc:
         if "No eligible candidates" in str(exc) and any(
-            candidate.get("explicit", False)
+            candidate.get("enabled", True) and candidate.get("explicit", False)
             and candidate["launch"]["agent"] in launchers
             and (not args.allow_model or candidate["launch"]["model"] in args.allow_model)
             and (not args.allow_effort or candidate["launch"]["effort"] in args.allow_effort)

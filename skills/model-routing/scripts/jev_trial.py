@@ -24,9 +24,11 @@ from jev_context import candidate_profile, prepare_case
 
 def use_public_context(compiled):
     public_candidates = json.loads(router.CATALOG.read_text())["candidates"]
-    # Preserve effective removals/disablement locally, but send only public profiles.
+    # Preserve effective availability while replacing private profiles.
     compiled["candidates"] = {
-        key: dict(value, enabled=compiled["candidates"][key].get("enabled", True))
+        key: dict(value,
+                  enabled=compiled["candidates"][key].get("enabled", True),
+                  explicit=compiled["candidates"][key].get("explicit", False))
         for key, value in public_candidates.items() if key in compiled["candidates"]
     }
     compiled["preferences"] = PUBLIC_PREFERENCES

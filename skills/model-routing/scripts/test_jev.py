@@ -232,9 +232,9 @@ class JevTest(unittest.TestCase):
         self.assertNotIn("quota_acceptance", json.dumps(payload))
         self.assertEqual(mapping, {"c001": "worker"})
 
-    def test_public_context_drops_private_profiles_and_preferences_without_reenabling(self):
+    def test_public_context_drops_private_profiles_and_preserves_candidate_states(self):
         compiled = {"candidates": {
-            "codex/gpt-6-astra/high": {"enabled": True, "private": "PRIVATE_PROFILE"},
+            "codex/gpt-6-astra/high": {"enabled": True, "explicit": True, "private": "PRIVATE_PROFILE"},
             "codex/gpt-6-luna/max": {"enabled": False},
             "custom/private/high": {"private": "PRIVATE_CUSTOM"},
         }, "preferences": [{"scope": "global", "text": "PRIVATE_PREFERENCE"}]}
@@ -243,7 +243,10 @@ class JevTest(unittest.TestCase):
         self.assertEqual(set(compiled["candidates"]), {
             "codex/gpt-6-astra/high", "codex/gpt-6-luna/max"})
         self.assertFalse(compiled["candidates"]["codex/gpt-6-luna/max"]["enabled"])
+        self.assertTrue(compiled["candidates"]["codex/gpt-6-astra/high"]["explicit"])
         self.assertEqual(compiled["preferences"], jev_trial.PUBLIC_PREFERENCES)
+        with self.assertRaisesRegex(jev.Error, "No eligible candidates"):
+            jev_trial.prepare_case(compiled, {}, {"task": {"outcome": "Review code."}}, {"codex"})
 
 
 if __name__ == "__main__":

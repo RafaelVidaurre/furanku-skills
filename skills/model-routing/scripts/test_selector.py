@@ -89,6 +89,32 @@ class SelectorTests(unittest.TestCase):
         self.args.candidate = 'other'
         with self.assertRaises(jev.Error): self.run_route()
 
+    def test_jev_receives_only_enabled_ordinary_candidates(self):
+        self.enable()
+        self.compiled['candidates']['disabled'] = {
+            'launch': {'agent': 'codex', 'model': 'disabled', 'effort': 'high'},
+            'features': ['tools'], 'enabled': False}
+        self.compiled['candidates']['explicit'] = {
+            'launch': {'agent': 'codex', 'model': 'explicit', 'effort': 'high'},
+            'features': ['tools'], 'explicit': True}
+        def inspect(payload):
+            criteria = payload['questions']['route']['criteria']
+            offers = [json.loads(value)['launch']['model'] for key, value in criteria.items()
+                      if key != 'abstain']
+            self.assertEqual(offers, ['example', 'other'])
+            self.assertNotIn('disabled', json.dumps(criteria))
+            self.assertNotIn('explicit', json.dumps(criteria))
+            return self.evaluate(payload)
+        self.assertEqual(self.run_route(evaluate=inspect)['status'], 'selected')
+
+    def test_disabled_explicit_candidate_does_not_suggest_explicit_check(self):
+        self.enable()
+        self.compiled['candidates'] = {
+            'blocked': {'launch': {'agent': 'codex', 'model': 'blocked', 'effort': 'high'},
+                        'features': ['tools'], 'enabled': False, 'explicit': True}}
+        with self.assertRaisesRegex(jev.Error, 'No eligible candidates'):
+            self.run_route(evaluate=lambda _: self.fail('Jev was called'))
+
     def test_fresh_quota_refuses_or_requires_acceptance(self):
         self.enable()
         exhausted = {'candidates': {'worker': {'quota': {'status': 'exhausted'}}}}
