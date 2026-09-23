@@ -221,6 +221,30 @@ class PacketTest(unittest.TestCase):
         self.assertEqual("selected", saved["status"])
         self.assertIn("selected", saved)
 
+    def test_packet_carries_explicit_model_request_to_router_and_spec(self):
+        basis = "Use grok-4.7 at high for this review."
+        decision = {**GROK_SELECTED, "explicit_basis": basis}
+        with tempfile.TemporaryDirectory() as directory:
+            router = fake_router(Path(directory), ["--explicit-basis", basis], decision)
+            result = run(*BASE, "--candidate", "grok/grok-4.7/high",
+                         "--reason", decision["reason"], "--explicit-basis", basis,
+                         "--router", str(router))
+        self.assertEqual(0, result.returncode, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(basis, payload["routing"]["explicit_basis"])
+        self.assertIn(f'explicit_basis: "{basis}"', payload["spec"])
+
+    def test_packet_rejects_router_response_with_changed_explicit_basis(self):
+        basis = "Use grok-4.7 at high."
+        with tempfile.TemporaryDirectory() as directory:
+            router = fake_router(Path(directory), ["--explicit-basis", basis],
+                                 {**GROK_SELECTED, "explicit_basis": "Use Astra at high."})
+            result = run(*BASE, "--candidate", "grok/grok-4.7/high",
+                         "--reason", GROK_SELECTED["reason"], "--explicit-basis", basis,
+                         "--router", str(router))
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("different explicit basis", result.stderr)
+
     def test_packet_routes_exact_route_without_manual_gate_arguments(self):
         with tempfile.TemporaryDirectory() as directory:
             router = fake_router(
