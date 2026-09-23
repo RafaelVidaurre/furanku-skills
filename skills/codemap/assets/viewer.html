@@ -1760,7 +1760,8 @@ function lensList(current) {
 function firstSentence(t) { const m = (t || '').match(/^.*?[.!?](\s|$)/); return m ? m[0].trim() : t || ''; }
 function builtLine() {
   const meta = M.map.meta || {}, repo = meta.repo || {}, when = (meta.scanned_at || meta.built_at || '').slice(0, 10);
-  return h('p', { class: 'why' }, [repo.branch && repo.sha ? `${repo.branch} @ ${repo.sha.slice(0, 8)}` : repo.sha ? repo.sha.slice(0, 8) : null, when].filter(Boolean).join(' · ') || '—', h('br'), 'Structure from the code; descriptions from the repository\'s docs; groupings decided by ', h('span', { title: `${meta.jev_model || 'Jev'}, instructions v${meta.instructions_version || '?'}` }, 'Jev'), '.');
+  const wt = repo.worktree && repo.worktree.clean === false ? `plus ${repo.worktree.changed_paths} uncommitted change${repo.worktree.changed_paths === 1 ? '' : 's'}` : null;
+  return h('p', { class: 'why' }, [repo.branch && repo.sha ? `${repo.branch} @ ${repo.sha.slice(0, 8)}` : repo.sha ? repo.sha.slice(0, 8) : null, wt, when].filter(Boolean).join(' · ') || '—', h('br'), 'Structure from the code; descriptions from the repository\'s docs; groupings decided by ', h('span', { title: `${meta.jev_model || 'Jev'}, instructions v${meta.instructions_version || '?'}` }, 'Jev'), '.');
 }
 function systemCard() {
   const S = M.system, rc = M.runtimeCounts(), lead = S.summary || firstSentence(S.purpose), shown = new Set(visibleFlows()), flows = M.flowsInOrder().filter((f) => shown.has(f)), project = M.project || (!M.landscape && M.projects.length === 1 ? M.projects[0] : null);

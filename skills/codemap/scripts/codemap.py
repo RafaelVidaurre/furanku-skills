@@ -266,6 +266,9 @@ def cmd_status(args) -> dict:
     if artifacts["map"]["exists"]:
         map_sha = ((store.read_json(paths["map"]).get("meta") or {}).get("repo") or {}).get("sha")
     head = head_sha(repo)
+    scan_mod = _import("scan")
+    worktree_now = scan_mod.worktree_state(repo)
+    map_worktree = (((store.read_json(paths["map"]).get("meta") or {}).get("repo") or {}).get("worktree") or {}) if artifacts["map"]["exists"] else {}
     snapshots = sorted(p.name for p in paths["snapshots"].iterdir() if p.is_dir()) if paths["snapshots"].exists() else []
     try:
         jev_client = __import__("jev_client")
@@ -283,7 +286,9 @@ def cmd_status(args) -> dict:
         "head": head,
         "scan_sha": scan_sha,
         "map_sha": map_sha,
-        "stale": bool(map_sha and head and map_sha != head),
+        "worktree": worktree_now,
+        # stale when the commit moved or the uncommitted changes the map was read from differ from the checkout's now
+        "stale": bool(map_sha and head and (map_sha != head or (map_worktree and map_worktree.get("fingerprint") != worktree_now.get("fingerprint")))),
         "snapshots": snapshots,
         "jev": jev,
     }

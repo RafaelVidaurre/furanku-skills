@@ -455,3 +455,15 @@ def test_nx_projects_become_units_with_their_declared_kind_and_start_evidence(tm
     assert not units["libs/watch"]["hints"]["executable"]
     # the Nx units own their files instead of a generic top-level directory bucket
     assert {f["unit"] for f in doc["files"] if f["path"].startswith(("apps/", "libs/ui"))} == {units["apps/shop"]["id"], units["libs/ui"]["id"]}
+
+
+def test_uncommitted_changes_are_recorded_with_a_fingerprint(tmp_path):
+    root = make_repo(tmp_path, "pnpm-monorepo")
+    clean = scan.scan(root, now=NOW)["repo"]["worktree"]
+    assert clean == {"clean": True, "changed_paths": 0, "fingerprint": None}
+    target = root / "packages/core/src/util.ts"
+    target.write_text(target.read_text() + "export const extra = 1;\n")
+    first = scan.scan(root, now=NOW)["repo"]["worktree"]
+    assert first["clean"] is False and first["changed_paths"] == 1 and first["fingerprint"]
+    target.write_text(target.read_text() + "export const more = 2;\n")
+    assert scan.scan(root, now=NOW)["repo"]["worktree"]["fingerprint"] != first["fingerprint"]

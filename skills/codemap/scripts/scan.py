@@ -101,6 +101,28 @@ def _tracked_files(root: Path) -> list[str]:
     return sorted(p for p in out.stdout.decode("utf-8", "replace").split("\0") if p)
 
 
+def worktree_state(root: Path) -> dict:
+    """Uncommitted changes to tracked files, with a fingerprint of their contents.
+
+    The scan reads files from the working tree, so a map of a checkout with such
+    changes describes more than its HEAD commit; the fingerprint tells two such
+    states apart.
+    """
+    import hashlib
+    out = _git(root, "diff", "--name-only", "-z", "HEAD", check=False)
+    if out is None:
+        return {"clean": True, "changed_paths": 0, "fingerprint": None}
+    changed = sorted(p for p in out.split("\0") if p)
+    digest = hashlib.sha256()
+    for path in changed:
+        try:
+            content = (root / path).read_bytes()
+        except OSError:
+            content = b"<deleted>"
+        digest.update(path.encode() + b"\0" + hashlib.sha256(content).digest())
+    return {"clean": not changed, "changed_paths": len(changed), "fingerprint": digest.hexdigest() if changed else None}
+
+
 ACTIVITY_DAYS = 90
 # contract and schema files, recognized by name alone so any stack's interface definitions count
 CONTRACT_KINDS = (
@@ -1453,6 +1475,7 @@ def scan(repo_root: Path, ref: str = "HEAD", now: str | None = None) -> dict:
             "ref": ref,
             "sha": sha_value,
             "branch": branch.strip() if branch else None,
+            "worktree": worktree_state(root),
         },
         "scanned_at": now,
         "activity": activity,
