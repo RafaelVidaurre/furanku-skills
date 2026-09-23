@@ -80,7 +80,10 @@ def test_fixture_trio_builds_a_valid_deterministic_map(trio, valid_map):
     assert by_check["crosses-the-wire"]["meaning"] == build.MEANINGS["crosses-the-wire"]
     assert by_check["product-uses-support"]["evidence"] == ["packages/orchestrator/src/flows/ingest.ts:3 → prototypes/lab/quick-ingest.ts"]
     assert len(valid_map["health"][0]["evidence"]) == 3  # the component cycle quotes one import per inner edge
-    assert build.health_summary(valid_map) == {"checks": 4, "findings": 4, "by_check": {"core-uses-adapter": 1, "cycle": 2, "product-uses-support": 1}}
+    assert build.health_summary(valid_map) == {"checks": 8, "findings": 4, "by_check": {"core-uses-adapter": 1, "cycle": 2, "product-uses-support": 1}}
+    assert all(h["headline"] == build.HEADLINES[h["check"]] and h["evidence"] for h in valid_map["health"])
+    assert all((h["suggestion"] is None) if h["accepted"] else isinstance(h["suggestion"], str)
+               for h in valid_map["health"])
     assert areas["processing"]["counts"] == {"product": 5, "supporting": 2, "runtimes": {"client": 0, "shared": 2, "server": 3, "cli": 0, "build": 0, "none": 0}}
     assert valid_map["system"]["runtime_counts"] == {"client": 1, "shared": 2, "server": 3, "cli": 1, "build": 0, "none": 0}
     area_edges = {(e["from"], e["to"]): e for e in valid_map["edges"]["areas"]}
@@ -99,6 +102,72 @@ def test_fixture_trio_builds_a_valid_deterministic_map(trio, valid_map):
     assert mods["rules/model"]["responsibility_source"] == "draft"  # a module summary from module_summaries
     small = [m for m in valid_map["modules"] if m["responsibility_source"] == "generated"]
     assert small and all(m["responsibility"] for m in small)  # modules too small to need a summary get a generated line
+
+
+def test_confirmed_quality_results_keep_paths_jobs_and_accepted_exceptions(trio):
+    sk, draft, decisions = (copy.deepcopy(part) for part in trio)
+    draft["components"]["rules"]["mixed_jobs"] = [
+        {"name": "rule compilation", "paths": ["packages/rules/src/engine/compile.ts"]},
+        {"name": "domain values", "paths": ["packages/rules/src/model/value.ts"]},
+    ]
+    sk["edges"]["components"].append({"from": "store", "to": "api", "count": 1, "test_count": 0,
+                                       "test_only": False, "examples": ["packages/store/src/sqlite/connection.ts:9 → apps/api/src/server.ts"]})
+    decisions["quality"] = {
+        "mixed-responsibility|rules": {"check": "mixed-responsibility", "nodes": ["rules"], "accepted": False,
+                                        "flag": None, "probability": 0.1},
+        "hub-coupling|orchestrator": {"check": "hub-coupling", "nodes": ["orchestrator"], "accepted": True,
+                                       "flag": None, "probability": 0.9},
+        "upward-dependency|store->api": {"check": "upward-dependency", "nodes": ["store", "api"], "accepted": False,
+                                          "flag": None, "probability": 0.2},
+        "stability-inversion|rules->store": {"check": "stability-inversion", "nodes": ["rules", "store"],
+                                             "accepted": True, "flag": None, "probability": 0.8},
+        "upward-dependency|harness->web": {"check": "upward-dependency", "nodes": ["harness", "web"],
+                                            "accepted": False, "flag": None, "probability": 0.1},
+        "upward-dependency|api->schema": {"check": "upward-dependency", "nodes": ["api", "schema"],
+                                           "accepted": False, "flag": None, "probability": 0.1},
+        "stability-inversion|store->rules": {"check": "stability-inversion", "nodes": ["store", "rules"],
+                                              "accepted": False, "flag": None, "probability": 0.1},
+        "hub-coupling|rules": {"check": "hub-coupling", "nodes": ["rules"],
+                                "accepted": False, "flag": None, "probability": 0.1},
+    }
+    result = build.build(sk, draft, decisions)
+    assert build.validate(result) == []
+    by_check = {(h["check"], tuple(h["nodes"])): h for h in result["health"]}
+    mixed = by_check[("mixed-responsibility", ("rules",))]
+    assert mixed["jobs"] == draft["components"]["rules"]["mixed_jobs"]
+    assert mixed["evidence"] == ["packages/rules/src/engine/compile.ts", "packages/rules/src/model/value.ts"]
+    assert "rule compilation" in mixed["suggestion"] and "domain values" in mixed["suggestion"]
+    assert by_check[("hub-coupling", ("orchestrator",))]["accepted"] is True
+    assert by_check[("hub-coupling", ("orchestrator",))]["suggestion"] is None
+    assert by_check[("upward-dependency", ("store", "api"))]["accepted"] is False
+    assert by_check[("stability-inversion", ("rules", "store"))]["accepted"] is True
+    assert ("upward-dependency", ("harness", "web")) not in by_check
+    assert ("upward-dependency", ("api", "schema")) not in by_check
+    assert ("stability-inversion", ("store", "rules")) not in by_check
+    assert ("hub-coupling", ("rules",)) not in by_check
+    edges = {(e["from"], e["to"]): e for e in result["edges"]["components"]}
+    assert edges[("store", "api")]["finding"] == "upward-dependency"
+    assert edges[("harness", "web")]["finding"] is None and edges[("harness", "web")]["accepted"] is None
+    file_roles = {f["path"]: f["test"] for module in result["modules"] for f in module["files"]}
+    assert file_roles["tests/harness/src/flows.test.ts"] is True
+    assert file_roles["packages/rules/src/engine/compile.ts"] is False
+    uncertain = copy.deepcopy(decisions)
+    uncertain["quality"]["mixed-responsibility|rules"].update(flag="uncertain", probability=0.5)
+    assert not any(h["check"] == "mixed-responsibility" for h in build.build(sk, draft, uncertain)["health"])
+
+
+def test_new_schema_fields_and_example_fixture_are_valid(valid_map):
+    example = json.loads((Path(__file__).resolve().parent.parent / "assets" / "example.map.json").read_text())
+    assert build.validate(example) == []
+    assert any(h["accepted"] is True for h in example["health"])
+    assert all(isinstance(f["test"], bool) for module in example["modules"] for f in module["files"])
+    for key in ("headline", "suggestion"):
+        broken = copy.deepcopy(valid_map)
+        del broken["health"][0][key]
+        assert any(f"missing required '{key}'" in error for error in build.validate(broken))
+    broken = copy.deepcopy(valid_map)
+    del broken["modules"][0]["files"][0]["test"]
+    assert any("missing required 'test'" in error for error in build.validate(broken))
 
 
 def test_unresolved_components_fall_back_flagged_without_crashing(trio):

@@ -1,6 +1,7 @@
 """Contract tests for the codemap viewer template and its example fixture."""
 import json
 import re
+import subprocess
 from pathlib import Path
 
 SKILL = Path(__file__).resolve().parent.parent
@@ -10,7 +11,8 @@ PLACEHOLDER = "/*__CODEMAP_JSON__*/"
 RUNTIMES = {"server", "client", "shared", "cli", "build", "none"}
 NATURES = {"product", "tooling", "test", "content", "docs", "experiment"}
 ROLES = {"surface", "adapter", "core", "kernel", "none"}
-CHECKS = {"cycle", "core-uses-adapter", "crosses-the-wire", "product-uses-support"}
+BASE_CHECKS = {"cycle", "core-uses-adapter", "crosses-the-wire", "product-uses-support"}
+CHECKS = BASE_CHECKS | {"mixed-responsibility", "upward-dependency", "stability-inversion", "hub-coupling"}
 EXTERNAL_KINDS = {"datastore", "service", "runtime", "devtool"}
 FLOW_KINDS = {"network", "file", "process"}
 SPECIAL_AREAS = {"build-verify", "unsorted"}
@@ -22,6 +24,15 @@ def render(template: str, map_json: str) -> str:
 
 def load():
     return json.loads(FIXTURE.read_text())
+
+
+def run_viewer_logic(program: str, data: dict):
+    """Run the template's real model and layout functions without a browser profile."""
+    script = TEMPLATE.read_text().rsplit("<script>", 1)[1].split("</script>", 1)[0]
+    model = script.split("const M = (() =>", 1)[0]
+    source = f"const assert = require('node:assert/strict');\n{model}\nconst input = {json.dumps(data)};\n{program}\n}})();"
+    result = subprocess.run(["node", "-"], input=source, text=True, capture_output=True, check=False)
+    assert result.returncode == 0, result.stderr
 
 
 def test_placeholder_appears_exactly_once():
@@ -104,7 +115,7 @@ def test_fixture_areas_hold_runnables_and_supporting_code_sits_in_build_verify()
         counts = a["counts"]
         assert counts["product"] == sum(c["nature"] == "product" for c in members)
         assert counts["supporting"] == len(members) - counts["product"]
-        assert set(counts["runtimes"]) <= RUNTIMES - {"none"}
+        assert set(counts["runtimes"]) == RUNTIMES
         if a["id"] == "build-verify":
             assert a["hue"] is None and counts["product"] == 0 and counts["supporting"] > 0
         elif a["id"] == "unsorted":
@@ -136,7 +147,7 @@ def test_fixture_carries_the_three_facts():
     assert {"client", "server"} <= {c["runtime"] for c in product}
     flagged = [c for c in comps if any(q["flag"] == "uncertain" for q in c["decision"].values())]
     assert len(flagged) == 1
-    assert set(data["system"]["runtime_counts"]) == RUNTIMES - {"none"}
+    assert set(data["system"]["runtime_counts"]) == RUNTIMES
 
 
 def test_fixture_people_externals_and_flows():
@@ -173,7 +184,7 @@ def test_fixture_health_covers_every_check():
     comps = {c["id"] for c in data["components"]}
     mods = {m["id"] for m in data["modules"]}
     health = data["health"]
-    assert {f["check"] for f in health} == CHECKS
+    assert BASE_CHECKS <= {f["check"] for f in health} <= CHECKS
     for f in health:
         assert f["level"] in ("components", "modules")
         assert set(f["nodes"]) <= (mods if f["level"] == "modules" else comps)
@@ -181,12 +192,86 @@ def test_fixture_health_covers_every_check():
         assert isinstance(f["accepted"], bool)
         assert f["confidence"] is None or 0 <= f["confidence"] <= 1
     assert any(f["accepted"] for f in health) and any(not f["accepted"] for f in health)
-    flagged_edges = {(e["from"], e["to"]): e for e in data["edges"]["components"] if e["finding"]}
+    imports = {level: {(e["from"], e["to"]) for e in data["edges"][level] if e["count"] > 0 and not e["test_only"]} for level in ("components", "modules")}
     for f in health:
-        if f["level"] != "components":
+        if len(f["nodes"]) < 2:
             continue
         pairs = [(a, b) for a in f["nodes"] for b in f["nodes"] if a != b] if f["check"] == "cycle" else [tuple(f["nodes"])]
-        assert any(p in flagged_edges and flagged_edges[p]["finding"] == f["check"] for p in pairs), f
+        assert any(p in imports[f["level"]] for p in pairs), f
+
+
+def test_viewer_marks_only_embedded_open_findings():
+    run_viewer_logic("""
+      const M = buildModel(input), state = { tests: false };
+      const open = input.health.filter(f => !f.accepted);
+      assert.equal(M.findings.length, open.length);
+      const edge = input.edges.components.find(e => e.finding && M.edgeFinding('components', e));
+      assert.ok(edge);
+      assert.ok(M.edgeFinding('components', edge));
+      const accepted = input.edges.components.find(e => M.edgeFinding('components', e)?.accepted);
+      assert.ok(accepted);
+      const acceptedLayout = layoutMatrix(M, M.areaOf(M.byComp.get(accepted.from)));
+      assert.ok(!acceptedLayout.edges.find(e => e.from === accepted.from && e.to === accepted.to).finding, 'accepted imports stay ordinary');
+      const oldFlags = JSON.parse(JSON.stringify(input));
+      oldFlags.health = [];
+      const noResults = buildModel(oldFlags);
+      assert.equal(noResults.edgeFinding('components', edge), null, 'edge flags cannot invent a finding');
+      const freshEdge = input.edges.components.find(e => e.count > 0 && !e.test_only && !e.finding && M.isProduct(M.byComp.get(e.from)) && M.isProduct(M.byComp.get(e.to)));
+      const newResult = { check: 'upward-dependency', level: 'components', nodes: [freshEdge.from, freshEdge.to], accepted: false };
+      const withNew = buildModel({ ...oldFlags, health: [newResult] });
+      assert.equal(withNew.edgeFinding('components', freshEdge), newResult, 'new findings come from map.health');
+      const newLayout = layoutMatrix(withNew, withNew.areaOf(withNew.byComp.get(freshEdge.from)));
+      assert.equal(newLayout.edges.find(e => e.from === freshEdge.from && e.to === freshEdge.to).finding, 'upward-dependency');
+      const oneNode = { check: 'mixed-responsibility', level: 'components', nodes: [edge.from], accepted: false };
+      const nodeResult = buildModel({ ...oldFlags, health: [oneNode] });
+      assert.equal(nodeResult.findings[0], oneNode);
+      assert.equal(nodeResult.edgeFinding('components', edge), null, 'one-part findings belong on the node');
+    """, load())
+
+
+def test_viewer_test_visibility_filters_layouts_edges_and_files():
+    run_viewer_logic("""
+      const product = input.components.find(c => c.nature === 'product' && input.modules.some(m => m.component === c.id));
+      const code = input.modules.find(m => m.component === product.id);
+      const test = { id: product.id + '/viewer-test', component: product.id, name: 'viewer-test', path: 'tests/viewer', test: true, files: [{ path: 'tests/viewer/smoke.test.ts', test: true }] };
+      input.modules.push(test);
+      input.edges.modules.push({ from: test.id, to: code.id, count: 0, test_count: 1, test_only: true, examples: [] });
+      const M = buildModel(input), state = { tests: false };
+      const testComp = input.components.find(c => c.nature === 'test');
+      const testEdge = input.edges.components.find(e => e.test_only);
+      assert.ok(testComp && testEdge);
+      assert.equal(visibleComp(testComp), false);
+      assert.equal(visibleMod(test), false);
+      assert.equal(visibleEdge(testEdge, 'components'), false);
+      assert.equal(visibleFile(test.files[0], test), false);
+      assert.equal(visibleFile({ path: 'src/worker.spec.ts' }, code), false, 'old maps still identify named test files');
+      assert.ok(!layoutMatrix(M, 'build-verify').nodes.some(n => n.id === testComp.id));
+      assert.ok(!layoutModules(M, product.id).nodes.some(n => n.id === test.id));
+      assert.ok(!layoutSize(M).nodes.some(n => n.id === testComp.id));
+      state.tests = true;
+      assert.equal(visibleComp(testComp), true);
+      assert.equal(visibleMod(test), true);
+      assert.equal(visibleEdge(testEdge, 'components'), true);
+      assert.equal(visibleFile(test.files[0], test), true);
+      assert.ok(layoutMatrix(M, 'build-verify').nodes.some(n => n.id === testComp.id));
+      assert.ok(layoutModules(M, product.id).nodes.some(n => n.id === test.id));
+      assert.ok(layoutSize(M).nodes.some(n => n.id === testComp.id));
+    """, load())
+
+
+def test_viewer_preferences_work_when_storage_is_unavailable():
+    run_viewer_logic("""
+      let localStorage = { getItem: () => { throw Error('blocked'); }, setItem: () => { throw Error('blocked'); } };
+      assert.equal(readPref('codemap.tests', false), false);
+      assert.equal(readPref('codemap.qualityMarks', true), true);
+      assert.doesNotThrow(() => writePref('codemap.tests', true));
+      const saved = new Map();
+      localStorage = { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value) };
+      writePref('codemap.tests', true);
+      assert.equal(readPref('codemap.tests', false), true);
+      writePref('codemap.tests', false);
+      assert.equal(readPref('codemap.tests', true), false);
+    """, load())
 
 
 def test_screens_describe_state_and_never_hand_the_reader_pipeline_steps():

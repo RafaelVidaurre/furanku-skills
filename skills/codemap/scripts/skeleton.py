@@ -232,7 +232,8 @@ def skeleton(scan: dict) -> dict:
                 "path": group["path"] or unit_path,
                 "test": bool(records) and tests >= len(records) * TEST_MODULE_SHARE,
                 "root_file": key == "root" or bool(group.get("root_file")),
-                "files": [{"path": f["path"], "loc": int(f.get("loc", 0)), "exports": []} for f in records],
+                "files": [{"path": f["path"], "loc": int(f.get("loc", 0)), "exports": [],
+                           "test": f.get("role") == "test"} for f in records],
             })
         components.append({
             "contracts": [{"path": c["path"], "kind": c["kind"]} for c in scan.get("contracts", []) if c.get("unit") == unit_id],
