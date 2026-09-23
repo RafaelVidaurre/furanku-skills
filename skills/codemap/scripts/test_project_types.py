@@ -129,7 +129,7 @@ def test_shared_membership_and_rejected_or_stale_graphs_cannot_leak(trio, propos
 
 @pytest.mark.parametrize("question,value,status", [("repository_shape", "abstain", "unresolved"),
     ("view_support", .5, "uncertain"), ("view_support", .1, "rejected"), ("project_kind", "abstain", "unresolved")])
-def test_uncertainty_is_explicit_and_only_accepted_views_publish(repository, proposals, question, value, status):
+def test_uncertainty_is_explicit_and_unsure_views_publish_marked(repository, proposals, question, value, status):
     sk = skeleton.skeleton(scan.scan(repository))
     draft = proposal_draft(sk, proposals)
     decisions = decide.decide(sk, draft, None, evaluate=RepositoryJev({question: value}))
@@ -140,7 +140,12 @@ def test_uncertainty_is_explicit_and_only_accepted_views_publish(repository, pro
     elif question == "project_kind":
         assert result["projects"][0]["decision"]["status"] == status and result["projects"][0]["kind"] == "other"
     else:
-        assert result["views"] == [] and all(v["decision"]["status"] == status for v in result["view_decisions"])
+        assert all(v["decision"]["status"] == status for v in result["view_decisions"])
+        if status == "uncertain":
+            # shown with an unsure mark, like an unsure component; the decision travels with the view
+            assert result["views"] and all(v["decision"]["status"] == "uncertain" for v in result["views"])
+        else:
+            assert result["views"] == []
 
 
 def test_cache_covers_full_graph_relations_revision_and_instruction_version(repository, proposals, monkeypatch):

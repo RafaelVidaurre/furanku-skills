@@ -569,7 +569,7 @@ function buildModel(map) {
   };
   M.projects = Array.isArray(map.projects) ? map.projects : [];
   M.byProject = new Map(M.projects.map((p) => [p.id, p]));
-  M.views = (map.views || []).filter((v) => M.byProject.has(v.project) && VIEW_KIND[v.kind] && (!v.decision || (v.decision.status === 'accepted' && v.decision.value !== false)));
+  M.views = (map.views || []).filter((v) => M.byProject.has(v.project) && VIEW_KIND[v.kind] && (!v.decision || (v.decision.status === 'accepted' && v.decision.value !== false) || v.decision.status === 'uncertain'));
   M.byView = new Map(M.views.map((v) => [v.id, v]));
   M.landscape = !!(map.landscape && map.landscape.enabled && M.projects.length);
   return M;
@@ -1071,16 +1071,35 @@ function layoutSize(M) {
 }
 
 // One bounded graph renderer: explicit edges carry semantics, including branches and repeats.
+// the nodes in cycle order when the relations form one loop through every node (a game loop, a request/response round), else null
+function singleCycle(nodes, relations) {
+  if (nodes.length < 3 || relations.length !== nodes.length) return null;
+  const next = new Map();
+  for (const e of relations) { if (next.has(e.from) || e.from === e.to) return null; next.set(e.from, e.to); }
+  const order = [nodes[0].id]; while (order.length < nodes.length) { const n = next.get(order[order.length - 1]); if (!n || order.includes(n)) return null; order.push(n); }
+  return next.get(order[order.length - 1]) === order[0] ? order : null;
+}
 function layoutGraph(nodes, relations, frame, title, lens) {
-  const rank = rankByLongestPath(nodes.map((n) => n.id), relations), columns = new Map();
+  const cycle = lens === 'behavior' ? singleCycle(nodes, relations) : null, rank = rankByLongestPath(nodes.map((n) => n.id), relations), columns = new Map();
+  if (cycle) {
+    // a loop reads as a ring, clockwise from the top, so its repetition is visible
+    const r = Math.max(220, (cycle.length * 260) / (2 * Math.PI)), byIdCycle = new Map(nodes.map((n) => [n.id, n]));
+    cycle.forEach((id, i) => { const a = -Math.PI / 2 + (2 * Math.PI * i) / cycle.length, n = byIdCycle.get(id); n.x = Math.cos(a) * r * 1.35; n.y = Math.sin(a) * r; });
+    const edges = relations.map((e, i) => { const a = byIdCycle.get(e.from), b = byIdCycle.get(e.to); return { id: 'graph:' + i, from: e.from, to: e.to, kind: 'behavior', fkind: e.kind, label: e.label, data: e, d: pathBetween(a, b, 'generic') }; });
+    return { level: 1, lens, nodes, edges, bounds: bounds(nodes), title, frame };
+  }
   for (const n of nodes) { const r = rank.get(n.id) || 0; if (!columns.has(r)) columns.set(r, []); columns.get(r).push(n); }
-  for (const [r, col] of columns) col.forEach((n, i) => { n.x = r * 340; n.y = (i - (col.length - 1) / 2) * 150; });
+  // a long chain wraps into rows (left to right, then the next row) so it fits a screen instead of one thin line
+  const depth = columns.size, perRow = depth > 4 ? Math.ceil(Math.sqrt(depth * 1.6)) : depth;
+  for (const [r, col] of columns) col.forEach((n, i) => { const row = Math.floor(r / perRow), c = r % perRow, h = Math.max(...[...columns.values()].map((x) => x.length)) * 150 + 90; n.x = c * 340; n.y = row * h + (i - (col.length - 1) / 2) * 150; });
   const byId = new Map(nodes.map((n) => [n.id, n])), edges = [], rects = [];
   const top = bounds(nodes).y; let lane = 0;
   relations.forEach((e, i) => {
     const a = byId.get(e.from), b = byId.get(e.to); if (!a || !b) return;
     const edge = { id: 'graph:' + i, from: e.from, to: e.to, kind: lens === 'landscape' ? 'relation' : 'behavior', fkind: e.kind, label: e.label, data: e };
-    if (a === b || b.x <= a.x || b.x - a.x > 340) {
+    const wrapped = (rank.get(e.to) || 0) - (rank.get(e.from) || 0) === 1 && b.y > a.y + 100;
+    if (wrapped) edge.d = pathBetween(a, b, 'generic');  // the step onto the next row of a wrapped chain
+    else if (a === b || b.x <= a.x || b.x - a.x > 340) {
       const y = top - 60 - lane++ * 30, x1 = a.x + a.w / 2 - 18, x2 = b.x - b.w / 2 + 18;
       edge.d = `M${x1},${a.y - a.h / 2} V${y} H${x2} V${b.y - b.h / 2}`;
       rects.push({ x: Math.min(x1, x2), y, w: Math.abs(x2 - x1), h: 1 });
@@ -1661,7 +1680,7 @@ function evidenceCard(paths) {
 }
 function viewLinks(projectId = M.project && M.project.id) {
   const views = repositoryModel.views.filter((v) => !projectId || v.project === projectId);
-  return views.length ? [h('h3', {}, 'Explore behavior'), h('ul', { class: 'list' }, views.map((v) => h('li', { class: 'item', onclick: () => go({ level: 1, view: v.id, project: v.project }) }, h('span'), h('span', { class: 'name' }, v.title), h('span', { class: 'count' }, VIEW_KIND[v.kind]), h('span', { class: 'reason' }, v.question))))] : null;
+  return views.length ? [h('h3', {}, 'Explore behavior'), h('ul', { class: 'list' }, views.map((v) => h('li', { class: 'item', onclick: () => go({ level: 1, view: v.id, project: v.project }) }, h('span'), h('span', { class: 'name' }, viewUnsure(v) ? h('span', { class: 'badge', title: 'the classifier was not sure every step is supported' }, 'unsure') : null, v.title), h('span', { class: 'count' }, VIEW_KIND[v.kind]), h('span', { class: 'reason' }, v.question))))] : null;
 }
 function landscapeCard() {
   return h('div', {}, h('div', { class: 'kind' }, 'Repository landscape'), h('h2', {}, repositoryModel.system.name || 'Projects'), h('p', { class: 'lead' }, 'Choose a project to see its purpose, parts, and behavior.'),
@@ -1677,8 +1696,11 @@ function projectCard(project, node) {
     relations.length ? [h('h3', {}, 'Relationships'), h('ul', { class: 'list' }, relations.map((e) => h('li', { class: 'item', onclick: () => select({ kind: 'edge', id: e.id }) }, h('span'), h('span', { class: 'name' }, repositoryModel.byProject.get(e.from).name + ' → ' + repositoryModel.byProject.get(e.to).name), h('span', { class: 'count' }, e.label), h('span', { class: 'reason' }, e.data.detail))))] : null,
     viewLinks(project.id), evidenceCard(project.evidence));
 }
+const viewUnsure = (view) => view.decision && view.decision.status === 'uncertain';
 function viewCard(view) {
-  return h('div', {}, h('div', { class: 'kind' }, VIEW_KIND[view.kind]), h('h2', {}, view.title), h('p', { class: 'lead' }, view.question), h('h3', {}, view.kind === 'infrastructure' ? 'Declared environment' : 'Scope'), h('p', {}, view.scope), h('p', {}, view.summary),
+  const unsure = viewUnsure(view), conf = unsure && Number.isFinite(view.decision.confidence) ? `${pct(view.decision.confidence)} confident` : null;
+  return h('div', {}, h('div', { class: 'kind' }, VIEW_KIND[view.kind]), h('h2', {}, view.title, unsure ? h('span', { class: 'badge', title: conf }, 'unsure') : null), h('p', { class: 'lead' }, view.question),
+    unsure ? h('p', { class: 'conf', title: conf }, 'The classifier was not sure every step is supported by the code quoted for it, so read this as a draft: each part and arrow names its evidence.') : null, h('h3', {}, view.kind === 'infrastructure' ? 'Declared environment' : 'Scope'), h('p', {}, view.scope), h('p', {}, view.summary),
     view.kind === 'infrastructure' ? h('p', { class: 'conf' }, 'Repository declarations describe this environment; they do not establish what is deployed now.') : null,
     h('p', { class: 'why' }, 'Arrows show the recorded relationships. Select a part or an arrow for its explanation and evidence.'), evidenceCard(view.evidence), viewLinks(view.project));
 }
