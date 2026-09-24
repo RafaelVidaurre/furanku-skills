@@ -59,8 +59,21 @@ CAUSE = {
     "no_problem_visible": "No failure or meaningful rework is visible for the first deliverable.",
     "unclear": "A problem is visible, but its cause cannot be attributed from the available evidence.",
 }
+CHECK_RELATION = {
+    "direct": "The shown check result verifies a main behavior or acceptance criterion in the first requested deliverable.",
+    "partial": "The check covers only a nearby or narrow behavior; the main requested outcome still needs another check.",
+    "unrelated": "The check exercises a different task, pre-existing behavior, or environment and says nothing about the first deliverable.",
+    "unclear": "The command and result do not reveal what behavior was checked, or the task contract is unavailable.",
+    "none": "No check result is supplied for the first deliverable.",
+}
+OUTPUT_FORM = {
+    "complete_inline_deliverable": "The response itself contains the complete first deliverable, so its requested qualities can be inspected here.",
+    "partial_or_metrics": "The response gives an excerpt, measurements, or a table about the deliverable, but the main artifact or behavior is elsewhere.",
+    "summary_or_link": "The response mainly claims completion or points to a file, commit, image, or other artifact that is not shown.",
+    "absent": "No substantive first deliverable is visible in the response.",
+}
 CONTROL_REQUEST = re.compile(r"(?is)^\s*(?:reply\s+(?:with\s+)?exactly\b|say\s+exactly\b|return\s+exactly\b|retry\s*$|continue\s*$|go on\s*$|\$\()")
-RUBRIC = "first_outcome_estimate_v3"
+RUBRIC = "first_outcome_estimate_v5"
 
 
 def clip(value, limit):
@@ -260,6 +273,8 @@ def questions_for(index, domains):
         f"{index}_domain": {"type": "choice", "instructions": f"Case {index}: choose the ONE primary domain of the FIRST requested deliverable. Use the request, not the assistant's self-description. A task packet reference alone is unresolved.", "criteria": domain_choices},
         f"{index}_quality": {"type": "choice", "instructions": f"Case {index}: estimate quality of the FIRST deliverable in its PRIMARY requested domain, based only on the provided response, first follow-up, and related tool evidence. Choose unverified when there is substantive output but its correctness or acceptance cannot be judged. Score 2 requires a visible meaningful defect; missing verification alone is unverified. Judge the final state of any tests, not a failed interim run. Score 3 can rest on inspectable output, but never on a summary-only completion claim. Choose unknown if the task contract or substantive output is missing.", "criteria": QUALITY},
         f"{index}_evidence": {"type": "choice", "instructions": f"Case {index}: choose the strongest available evidence for the FIRST deliverable. A tool result is independent only if it directly checks the requested outcome. A coordinator's feedback counts as direct feedback but provenance remains distinct.", "criteria": EVIDENCE},
+        f"{index}_check_relation": {"type": "choice", "instructions": f"Case {index}: compare the supplied test command AND result with the main acceptance criteria in the first request. A passing test for a different subsystem, an adjacent slice, or a broad suite without a visible link does not verify the requested outcome. Choose direct only when the link is visible in this packet.", "criteria": CHECK_RELATION},
+        f"{index}_output_form": {"type": "choice", "instructions": f"Case {index}: describe what the response itself exposes for the first requested deliverable. A table of reported metrics, completion claim, or file/commit link is not the complete artifact or independently observed behavior.", "criteria": OUTPUT_FORM},
         f"{index}_cause": {"type": "choice", "instructions": f"Case {index}: attribute the FIRST deliverable's visible defect, rework, or failure. A failed interim test followed by a passing final test is not a failure. A new style preference is changed_requirement unless the original request specified that style. Choose no_problem_visible if no material problem is shown; choose unclear if a problem exists but the cause is not established.", "criteria": CAUSE},
     }
 
@@ -275,6 +290,8 @@ def evaluate_batch(batch, domains, require_zdr=True):
         domain = response["answers"][f"{i}_domain"]
         quality = response["answers"][f"{i}_quality"]
         evidence = response["answers"][f"{i}_evidence"]
+        check_relation = response["answers"][f"{i}_check_relation"]
+        output_form = response["answers"][f"{i}_output_form"]
         cause = response["answers"][f"{i}_cause"]
         reasons = []
         if domain["choice"] == "unresolved":
@@ -284,6 +301,10 @@ def evaluate_batch(batch, domains, require_zdr=True):
             reasons.append("explicit_translation_domain")
         if evidence["choice"] in ("self_report", "insufficient") and quality["choice"] in ("0", "1", "2", "3", "4"):
             reasons.append("no_direct_quality_evidence")
+        if evidence["choice"] == "independent_check" and check_relation["choice"] != "direct" and quality["choice"] in ("0", "1", "2", "3", "4"):
+            reasons.append("check_not_tied_to_first_task")
+        if evidence["choice"] == "visible_output" and output_form["choice"] != "complete_inline_deliverable" and quality["choice"] in ("3", "4"):
+            reasons.append("deliverable_not_visible")
         if quality["choice"] in ("0", "1", "2") and cause["choice"] in (
                 "instruction_violation", "external_blocker", "changed_requirement", "unclear"):
             reasons.append("non_domain_cause")
@@ -295,7 +316,9 @@ def evaluate_batch(batch, domains, require_zdr=True):
             reasons.append("quality_feedback_conflict")
         effective = quality["choice"]
         if any(reason != "explicit_translation_domain" for reason in reasons):
-            effective = "unverified" if "no_direct_quality_evidence" in reasons else "unknown"
+            effective = "unverified" if any(reason in reasons for reason in
+                                             ("no_direct_quality_evidence", "check_not_tied_to_first_task",
+                                              "deliverable_not_visible")) else "unknown"
         results.append({
             "source_key": row["source_key"], "provider": row["provider"],
             "model": row["model"], "effort": row["effort"],
@@ -307,6 +330,8 @@ def evaluate_batch(batch, domains, require_zdr=True):
             "effective_domain": effective_domain,
             "quality": quality,
             "evidence": evidence,
+            "check_relation": check_relation,
+            "output_form": output_form,
             "cause": cause,
             "tool_evidence": row["tool_evidence"],
             "effective_quality": effective,
