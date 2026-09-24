@@ -130,6 +130,52 @@ class JevTest(unittest.TestCase):
         self.assertIn("401", str(caught.exception))
         self.assertNotIn("test-key", str(caught.exception))
 
+    def test_429_retries_quickly_and_returns_attempt_count(self):
+        jev.store_key("test-key")
+        limited = urllib.error.HTTPError(jev.ENDPOINT, 429, "private body",
+                                         {}, io.BytesIO(b"private body"))
+        response = io.BytesIO(json.dumps(RESPONSE).encode())
+        with mock.patch("urllib.request.OpenerDirector.open", side_effect=[limited, response]) as transport, \
+             mock.patch("jev.time.sleep") as sleep:
+            result = jev.evaluate(PAYLOAD)
+        self.assertEqual(transport.call_count, 2)
+        sleep.assert_called_once_with(0.25)
+        self.assertEqual(result["attempts"], 2)
+
+    def test_429_respects_retry_after_and_fails_fast_when_it_exceeds_budget(self):
+        jev.store_key("test-key")
+        limited = urllib.error.HTTPError(jev.ENDPOINT, 429, "private body",
+                                         {"Retry-After": "45"}, io.BytesIO(b"private body"))
+        with mock.patch("urllib.request.OpenerDirector.open", side_effect=limited) as transport, \
+             mock.patch("jev.time.sleep") as sleep, self.assertRaises(jev.RateLimitError) as caught:
+            jev.evaluate(PAYLOAD)
+        transport.assert_called_once()
+        sleep.assert_not_called()
+        self.assertEqual(caught.exception.retry_after_seconds, 45)
+        self.assertNotIn("private body", str(caught.exception))
+
+    def test_429_without_header_stops_after_three_attempts(self):
+        jev.store_key("test-key")
+        def limited(*_args, **_kwargs):
+            raise urllib.error.HTTPError(jev.ENDPOINT, 429, "private body", {},
+                                         io.BytesIO(b"private body"))
+        with mock.patch("urllib.request.OpenerDirector.open", side_effect=limited) as transport, \
+             mock.patch("jev.time.sleep") as sleep, self.assertRaises(jev.RateLimitError) as caught:
+            jev.evaluate(PAYLOAD)
+        self.assertEqual(transport.call_count, 3)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [0.25, 1.0])
+        self.assertIsNone(caught.exception.retry_after_seconds)
+
+    def test_bounded_client_preserves_retry_after_for_router(self):
+        failure = {"status": "error", "code": "rate_limited", "attempts": 1,
+                   "retry_after_seconds": 45, "error": "Gateway HTTP 429"}
+        completed = subprocess.CompletedProcess([], 1, "", json.dumps(failure))
+        with mock.patch("jev.subprocess.run", return_value=completed), \
+             self.assertRaises(jev.RateLimitError) as caught:
+            jev.evaluate_bounded(PAYLOAD)
+        self.assertEqual(caught.exception.retry_after_seconds, 45)
+        self.assertEqual(caught.exception.attempts, 1)
+
     def test_redirect_is_refused(self):
         self.assertIsNone(jev.NoRedirect().redirect_request(None, None, 302, "", {}, "https://elsewhere.invalid"))
 

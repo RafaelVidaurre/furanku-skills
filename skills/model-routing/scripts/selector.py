@@ -153,7 +153,8 @@ def route(compiled, args, runtime):
                     'probabilities': {mapping.get(option, option): probability
                                       for option, probability in answer['probabilities'].items()},
                     'confidence': answer['confidence'], 'elapsed_seconds': result['elapsed_seconds'],
-                    'usage': result['usage'], 'cost_usd': result['cost_usd']}
+                    'usage': result['usage'], 'cost_usd': result['cost_usd'],
+                    'gateway_attempts': result.get('attempts', 1)}
         if alias == 'abstain':
             return {'status': 'refused', 'reasons': ['Jev abstained: no offered candidate can carry out the scope, or a prerequisite prevents starting.'], 'selector': evidence}
         candidate_id = mapping[alias]
