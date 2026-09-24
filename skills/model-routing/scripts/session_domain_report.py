@@ -128,7 +128,8 @@ def main():
              "| Model / effort | Projectable | Assessed | Errors | Older rubric | Pending |", "| --- | ---: | ---: | ---: | ---: | ---: |"]
     for route in routes:
         lines.append(f"| {route[0]}/{route[1]} | {projected[route]} | {assessed[route]} | {errors[route]} | {older[route]} | {projected[route] - assessed[route] - errors[route]} |")
-    lines += ["", "## Domain scores", "",
+    lines += ["", "Pending sessions have not been assessed. An empty score cell cannot be read as a lack of useful history until its route's pending count reaches zero.",
+              "", "## Domain scores", "",
               "Each cell is mean /4 (numeric / strong-central sessions). A dash means no numeric score; an asterisk marks fewer than five numeric sessions or three task families. One task family contributes at most five effective observations. Numeric labels remain provisional because transcript visibility and task selection vary by model.",
               "", "| Domain | " + " | ".join(f"{m}/{e}" for m, e in routes) + " |",
               "| --- | " + " | ".join("---:" for _ in routes) + " |"]
