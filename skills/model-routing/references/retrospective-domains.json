@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "scale": {
     "absent": "The domain is not part of the requested deliverable.",
     "supporting": "The domain affects the deliverable, but success is mainly judged elsewhere.",
@@ -21,8 +21,8 @@
     {"id": "ui_visual", "description": "Design the visible layout, typography, colors, iconography, or visual hierarchy of an interface."},
     {"id": "ux_interaction", "description": "Design user journeys, controls, information architecture, accessibility, or interaction behavior."},
     {"id": "visual_art", "description": "Create or direct illustration, concept art, graphic assets, textures, or game visual style."},
-    {"id": "spatial_3d", "description": "Create or reason about 3D models, geometry, rigging, spatial composition, or physical form."},
-    {"id": "animation", "description": "Create or direct motion, poses, keyframes, timing, or transitions."},
+    {"id": "spatial_3d", "description": "Create or reason about 3D models, geometry, rigging, spatial composition, or physical form. A 2D reference counts when its views specify 3D form or proportions; visual style alone belongs to visual art."},
+    {"id": "animation", "description": "Create or direct motion, poses changing over time, keyframes, timing, or transitions. Static multi-angle reference sheets are outside this domain."},
     {"id": "audio", "description": "Create, edit, select, or evaluate sound, music, speech, or audio behavior."},
     {"id": "writing", "description": "Write or edit general prose, copy, narrative, or communication for a human audience. Technical instructions and specifications belong to documentation."},
     {"id": "localization", "description": "Deliver translated or culturally adapted text while preserving meaning and voice. Clarifying the meaning of an incidental foreign word is outside this domain."},
