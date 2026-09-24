@@ -90,6 +90,34 @@ class LinkedCoverageTest(unittest.TestCase):
             with patch.object(routing_log, "LOGS", logs):
                 self.assertEqual(len(routing_log.retrospective_events()), 201)
 
+    def test_dispatch_state_and_shared_session_gate_assessment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / f"{SESSION}.jsonl"
+            path.write_text("{}\n")
+            events = [decision(), link(), decision("b"), link(request_id="b")]
+            completed = [{"decision_id": "a", "status": "proved", "session_id": SESSION,
+                          "dispatch_status": "completed", "worker_state": "succeeded"},
+                         {"decision_id": "b", "status": "proved", "session_id": SESSION,
+                          "dispatch_status": "completed", "worker_state": "succeeded"}]
+            rows, counts = linked_coverage.analyze(events, [inventory(path)], completed)
+            self.assertEqual(counts, {"shared_session": 2})
+            self.assertTrue(all(row["shared_session"] for row in rows))
+            failed = [{"decision_id": "a", "status": "proved", "session_id": SESSION,
+                       "dispatch_status": "failed", "worker_state": "failed"}]
+            _, counts = linked_coverage.analyze([decision(), link()], [inventory(path)], failed)
+            self.assertEqual(counts, {"dispatch_incomplete": 1})
+            _, counts = linked_coverage.analyze([decision(), link()], [inventory(path)],
+                                                [{"decision_id": "a", "status": "unresolved"}])
+            self.assertEqual(counts, {"dispatch_unverified": 1})
+            _, counts = linked_coverage.analyze([decision(), link("ctx_123"), link()], [inventory(path)])
+            self.assertEqual(counts, {"dispatch_unverified": 1})
+            mixed = [{"decision_id": "a", "status": "proved", "session_id": SESSION,
+                      "dispatch_status": "completed", "worker_state": "succeeded"},
+                     {"decision_id": "b", "status": "unresolved"}]
+            rows, counts = linked_coverage.analyze(events, [inventory(path)], mixed)
+            self.assertEqual(counts, {"shared_session": 1, "dispatch_unverified": 1})
+            self.assertTrue(all(row["shared_session"] for row in rows))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -34,6 +34,21 @@ python3 <skill-dir>/scripts/linked_coverage.py --inventory "$routing_inventory_f
   --output "$HOME/.furanku-skills/model-routing/retrospectives/linked-coverage-$(date +%Y%m%d-%H%M%S).json"
 ```
 
-The inventory reads local Codex, Claude Code, and Grok stores. The coverage check scans the retained journal up to its explicit 100,000-event bound, prints aggregate dispositions, and writes private per-decision evidence. It includes selected and exact-route verdicts. `unlinked` means no worker link was recorded; it does not prove a launch occurred. `transcript_found` establishes an exact ID, matching agent/model/effort, a raw exchange, and a session with activity after the routing decision; it does not grade the task. `unresolved_reference` includes terminal and dispatch IDs as well as session IDs absent from the local inventory. `context_variant_unverified` means Claude's logged base model cannot prove its configured `[1m]` context variant. Review each proposed outcome against its original task, artifacts, tests, and user follow-ups before assigning quality.
+The inventory reads local Codex, Claude Code, and Grok stores. On macOS it also discovers Orca-managed Codex account homes; pass `--codex-home <path>` for additional homes on other systems. It counts mirrored copies of one native session once, choosing the fullest valid local file. The coverage check scans the retained journal up to its explicit 100,000-event bound, prints aggregate dispositions, and writes private per-decision evidence. It includes selected and exact-route verdicts. `unlinked` means no worker link was recorded; it does not prove a launch occurred. `transcript_found` establishes an exact ID, matching agent/model/effort, a raw exchange, and a session with activity after the routing decision; it does not grade the task. `unresolved_reference` includes terminal and dispatch IDs as well as session IDs absent from the local inventory. `context_variant_unverified` means Claude's logged base model cannot prove its configured `[1m]` context variant. Review each proposed outcome against its original task, artifacts, tests, and user follow-ups before assigning quality.
 
-**Complete when:** every selected or exact-route verdict in the retained journal has a disposition, and only `transcript_found` decisions are considered for linked-outcome assessment.
+When Orca Agent Session History is enabled and the `orca-cli` skill is available, resolve recorded Orca dispatch IDs through its public CLI. Select the executable as directed by that skill, then run:
+
+```sh
+orca_proofs_file="$HOME/.furanku-skills/model-routing/retrospectives/orca-links-$(date +%Y%m%d-%H%M%S).json"
+python3 <skill-dir>/scripts/resolve_orca_links.py \
+  --inventory "$routing_inventory_file" \
+  --output "$orca_proofs_file" \
+  --orca-command <selected-orca-cli> --link
+python3 <skill-dir>/scripts/linked_coverage.py --inventory "$routing_inventory_file" \
+  --orca-proofs "$orca_proofs_file" \
+  --output "$HOME/.furanku-skills/model-routing/retrospectives/linked-coverage-$(date +%Y%m%d-%H%M%S).json"
+```
+
+This checks Orca's dispatch, assigned terminal and worktree against the worker session's own initial dispatch preamble and model. It also checks the local inventory for another session with the same dispatch preamble, so an incomplete Orca search index alone cannot establish uniqueness. It appends only locally unique native session IDs to the journal. The private output retains dispatch state, including failed or still-running work. While Orca's index is still indexing, absent search hits remain unresolved. Terminal-only references have no dispatch preamble and remain for manual investigation. Refresh the inventory and resolver report before the coverage check when sessions may have started or finished since the previous scan. `dispatch_incomplete`, `dispatch_unverified`, `shared_session`, and `context_variant_unverified` are not calibration observations. Completion is checked mechanically for Orca dispatches with a proof report; direct session links and terminal-only links require an independent completion check.
+
+**Complete when:** every selected or exact-route verdict in the retained journal has a disposition, and only uniquely linked `transcript_found` decisions whose completion, task, artifacts, and user feedback have been checked are considered for quality assessment.

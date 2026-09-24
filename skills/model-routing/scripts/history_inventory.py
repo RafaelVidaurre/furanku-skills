@@ -13,7 +13,12 @@ import os
 from pathlib import Path
 import stat
 
+import linked_coverage
 import retrospect
+
+
+def session_key(path, provider):
+    return (provider, linked_coverage.agent_session_id({"provider": provider, "path": str(path)}) or str(path))
 
 
 def json_lines(path):
@@ -85,23 +90,44 @@ def summarize(path, provider):
             "first_event_at": first_event_at, "last_event_at": last_event_at}
 
 
-def inventory(home):
-    roots = (
+def inventory(home, extra_codex_homes=()):
+    roots = [
         ("codex", home / ".codex/sessions", "*.jsonl"),
         ("codex", home / ".codex/archived_sessions", "*.jsonl"),
         ("claude", home / ".claude/projects", "*.jsonl"),
         ("grok", home / ".grok/sessions", "summary.json"),
-    )
+    ]
+    codex_homes = sorted((home / "Library/Application Support/orca/codex-accounts").glob("*/home"))
+    codex_homes.extend(extra_codex_homes)
+    for codex_home in codex_homes:
+        roots.extend((
+            ("codex", codex_home / "sessions", "*.jsonl"),
+            ("codex", codex_home / "archived_sessions", "*.jsonl"),
+        ))
+    choices = {}
     for provider, root, pattern in roots:
         if root.is_dir():
             for path in sorted(root.rglob(pattern)):
                 if path.is_file():
-                    yield summarize(path, provider)
+                    key = session_key(path, provider)
+                    choices.setdefault(key, []).append((path.stat().st_size, provider, path))
+    for options in choices.values():
+        for _size, provider, path in sorted(options, reverse=True):
+            row = summarize(path, provider)
+            if not row["error"]:
+                row["copies"] = [str(candidate) for _, _, candidate in options]
+                yield row
+                break
+        else:
+            row["copies"] = [str(candidate) for _, _, candidate in options]
+            yield row
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--home", type=Path, default=Path.home())
+    parser.add_argument("--codex-home", type=Path, action="append", default=[],
+                        help="Additional Codex home, including Orca-managed homes outside macOS")
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     private = retrospect.PRIVATE_ROOT
@@ -112,7 +138,7 @@ def main():
     fd = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     counts = Counter()
     with os.fdopen(fd, "w", encoding="utf-8") as stream:
-        for row in inventory(args.home.expanduser()):
+        for row in inventory(args.home.expanduser(), [path.expanduser() for path in args.codex_home]):
             stream.write(json.dumps(row, ensure_ascii=False) + "\n")
             counts[row["provider"]] += 1
             counts["with_model"] += bool(row["models"])

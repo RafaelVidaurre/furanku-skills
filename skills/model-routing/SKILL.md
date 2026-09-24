@@ -83,6 +83,6 @@ For requests to inspect, explain, add, change, or remove routing configurationâ€
 
 For `/model-routing list` or `/model-routing models`, run `python3 <skill-dir>/scripts/config.py models --repo <root>`. For `/model-routing set <enabled|disabled|explicit> <model> <effort>`, use `config.py set` as documented in Configuration. An explicit candidate is available only when the principal requested that model and effort for the task; pass the verbatim request to `check --explicit-basis`. An exact route name alone does not supply this basis. Ordinary agent and Jev selection, including public-context trials, exclude disabled and explicit candidates.
 
-For `/model-routing logs status|on|off|tail`, read [Private routing journal](references/logging.md) and run the matching `routing_log.py` command. `off` is the machine-wide opt-out for future events. For a linked-outcome coverage audit, run that reference's local-history census and exact-link check before asking Jev to assess sessions.
+For `/model-routing logs status|on|off|tail`, read [Private routing journal](references/logging.md) and run the matching `routing_log.py` command. `off` is the machine-wide opt-out for future events. For a linked-outcome coverage audit, run that reference's deduplicated local-history census, Orca dispatch resolution when available, and exact-link check before asking Jev to assess sessions.
 
 **Complete when:** a view shows effective routes and the brief with provenance, or a change is validated in its intended scope and visible in the regenerated brief.
