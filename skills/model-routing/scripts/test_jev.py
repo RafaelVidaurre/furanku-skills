@@ -224,6 +224,9 @@ class JevTest(unittest.TestCase):
         normalized = jev.validate_request(required)
         self.assertTrue(normalized["providerOptions"]["gateway"]["zeroDataRetention"])
         self.assertEqual(normalized["providerOptions"]["gateway"]["only"], ["typesafe-ai"])
+        required["providerOptions"] = {"gateway": {"disallowPromptTraining": True}}
+        normalized = jev.validate_request(required)
+        self.assertTrue(normalized["providerOptions"]["gateway"]["disallowPromptTraining"])
 
     def test_trial_filters_with_real_gates_and_omits_private_runtime_and_labels(self):
         candidate = {

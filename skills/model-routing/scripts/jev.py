@@ -11,6 +11,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import stat
 import subprocess
 import sys
@@ -142,6 +143,8 @@ def validate_request(payload):
     gateway = {"only": ["typesafe-ai"]}
     if payload.get("providerOptions", {}).get("gateway", {}).get("zeroDataRetention") is True:
         gateway["zeroDataRetention"] = True
+    if payload.get("providerOptions", {}).get("gateway", {}).get("disallowPromptTraining") is True:
+        gateway["disallowPromptTraining"] = True
     return {"model": MODEL, "state": payload["state"], "questions": questions,
             "providerOptions": {"gateway": gateway}}
 
@@ -258,9 +261,13 @@ def evaluate(payload, *, timeout=15):
             try:
                 failure = json.loads(exc.read(16384))
                 error = failure.get("error", {}) if isinstance(failure, dict) else {}
-                verification = isinstance(error, dict) and error.get("type") == "customer_verification_required"
+                error_type = error.get("type") if isinstance(error, dict) else None
+                if not isinstance(error_type, str) or not re.fullmatch(r"[a-z0-9_-]{1,64}", error_type):
+                    error_type = None
+                verification = error_type == "customer_verification_required"
             except (OSError, ValueError, UnicodeError):
                 verification = False
+                error_type = None
             finally:
                 exc.close()
             if verification:
@@ -272,7 +279,8 @@ def evaluate(payload, *, timeout=15):
                 ) from None
             hints = {401: "check the saved Gateway key", 403: "check Gateway access",
                      402: "check Gateway credits or budget"}
-            raise Error(f"Gateway HTTP {exc.code}: {hints.get(exc.code, 'evaluation failed')}; no fallback was used.") from None
+            detail = f" ({error_type})" if error_type else ""
+            raise Error(f"Gateway HTTP {exc.code}{detail}: {hints.get(exc.code, 'evaluation failed')}; no fallback was used.") from None
         except (urllib.error.URLError, TimeoutError, OSError):
             raise Error("Gateway connection failed or timed out; no fallback was used.") from None
         except (UnicodeError, json.JSONDecodeError):

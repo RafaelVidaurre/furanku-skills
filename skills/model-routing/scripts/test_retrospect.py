@@ -2,11 +2,125 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import retrospect
 
 
 class SessionProjectionTest(unittest.TestCase):
+    def test_retrospective_payload_requests_zdr_and_redacts_common_secrets(self):
+        payload = retrospect.private_jev_payload("task", {"q": {"type": "choice", "instructions": "pick", "criteria": {"a": "A", "b": "B"}}})
+        self.assertTrue(payload["providerOptions"]["gateway"]["zeroDataRetention"])
+        fallback = retrospect.private_jev_payload("task", payload["questions"], require_zdr=False)
+        self.assertTrue(fallback["providerOptions"]["gateway"]["disallowPromptTraining"])
+        self.assertNotIn("zeroDataRetention", fallback["providerOptions"]["gateway"])
+        text = "env OPENAI_API_KEY=sk-abcdefghijklmnop pytest -q; Authorization: Bearer abcdefghijklmnop"
+        redacted = retrospect.redact_sensitive(text)
+        self.assertNotIn("abcdefghijklmnop", redacted)
+        self.assertIn("[REDACTED]", redacted)
+        self.assertEqual(retrospect.redact_sensitive("max_output_tokens: 1000"), "max_output_tokens: 1000")
+        self.assertNotIn("very-secret-value", retrospect.redact_sensitive('{"api_key": "very-secret-value"}'))
+        self.assertNotIn("abcdefghijklmnopqrstuvwxyz1234567890", retrospect.redact_sensitive(
+            "AIzaabcdefghijklmnopqrstuvwxyz1234567890"))
+
+    def test_secret_is_removed_before_long_turn_is_clipped(self):
+        secret = "Bearer abcdefghijklmnopqrstuvwxyz"
+        state = retrospect.render_state(
+            [{"user": "A" * 690 + secret + "B" * 1800,
+              "assistant": ["Completed with " + secret + "C" * 2300]}],
+            [("gpt-6-sol", "high")])
+        self.assertNotIn("abcdefghijklmnopqrstuvwxyz", json.dumps(state))
+
+    def test_census_jobs_cover_all_projectable_sessions_and_prioritize_multiturn(self):
+        rows = [
+            {"source_key": "a", "disposition": "projected", "answered_turns": 1,
+             "matching_models": [{"model": "m1", "effort": "high"}]},
+            {"source_key": "b", "disposition": "projected", "answered_turns": 3,
+             "matching_models": [{"model": "m1", "effort": "high"}]},
+            {"source_key": "c", "disposition": "projected", "answered_turns": 2,
+             "matching_models": [{"model": "m2", "effort": "high"}]},
+            {"source_key": "d", "disposition": "projected", "answered_turns": 20,
+             "matching_models": [{"model": "m2", "effort": "high"}]},
+            {"source_key": "e", "disposition": "mixed_unattributed", "answered_turns": 5,
+             "matching_models": [{"model": "m2", "effort": "high"}]},
+        ]
+        self.assertEqual([row["source_key"] for row in retrospect.census_jobs(rows)], ["b", "c", "a", "d"])
+
+    def test_retry_errors_does_not_skip_codex_source_via_legacy_name(self):
+        rows = [{"source_key": "new", "provider": "codex", "session": "same.jsonl",
+                 "error": "projection_ValueError"},
+                {"source_key": "good", "provider": "codex", "session": "good.jsonl",
+                 "quality_rubric_version": retrospect.QUALITY_RUBRIC_VERSION},
+                {"provider": "codex", "session": "old.jsonl",
+                 "quality_rubric_version": retrospect.QUALITY_RUBRIC_VERSION}]
+        previous, legacy = retrospect.completed_sources(rows, retry_errors=True)
+        self.assertEqual(previous, {"good"})
+        self.assertEqual(legacy, {"old.jsonl"})
+        older = [{"source_key": "old", "quality_rubric_version": 2, "session": "old.jsonl"}]
+        self.assertEqual(retrospect.completed_sources(older)[0], set())
+
+    def test_delegation_is_detected_before_model_quality_attribution(self):
+        events = [{"type": "response_item", "payload": {"type": "custom_tool_call",
+                   "name": "exec", "input": "collaboration.spawn_agent({task_name:'worker'})"}}]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "session.jsonl"
+            path.write_text("\n".join(json.dumps(event) for event in events) + "\n")
+            self.assertTrue(retrospect.delegation_detected(path, "codex"))
+            path.write_text(json.dumps({"type": "response_item", "payload": {"type": "custom_tool_call",
+                                 "name": "exec", "input": "tools.exec_command({cmd:'orca orchestration worker-start --task t'})"}}) + "\n")
+            self.assertTrue(retrospect.delegation_detected(path, "codex"))
+            path.write_text(json.dumps({"type": "response_item", "payload": {"type": "custom_tool_call",
+                                 "name": "send_message", "input": "status to parent"}}) + "\n")
+            self.assertFalse(retrospect.delegation_detected(path, "codex"))
+            path.write_text(json.dumps({"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "name": "Bash", "input": {"command": "orca orchestration worker-start --task t"}}]}}) + "\n")
+            self.assertTrue(retrospect.delegation_detected(path, "claude"))
+
+    def test_later_delegation_does_not_erase_first_outcome(self):
+        events = [
+            {"type": "response_item", "payload": {"type": "message", "role": "user", "content": "Write code."}},
+            {"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": "Done."}},
+            {"type": "response_item", "payload": {"type": "message", "role": "user", "content": "Next task."}},
+            {"type": "response_item", "payload": {"type": "custom_tool_call", "name": "spawn_agent", "input": "{}"}},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "session.jsonl"
+            path.write_text("\n".join(json.dumps(event) for event in events) + "\n")
+            self.assertFalse(retrospect.delegation_detected(path, "codex", turn_index=0))
+            self.assertTrue(retrospect.delegation_detected(path, "codex", turn_index=1))
+
+    def test_gateway_failure_stops_census_without_marking_sessions_failed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            census = root / "census.jsonl"
+            census.write_text(json.dumps({"source_key": "one", "provider": "codex",
+                                          "path": str(root / "session.jsonl"),
+                                          "disposition": "projected", "answered_turns": 2,
+                                          "matching_models": [{"model": "gpt-6-sol", "effort": "high"}]}) + "\n")
+            output = root / "results.jsonl"
+            with patch.object(retrospect, "PRIVATE_ROOT", root), \
+                 patch("sys.argv", ["retrospect.py", "--census", str(census), "--output", str(output)]), \
+                 patch.object(retrospect, "classify", side_effect=retrospect.jev.Error("Gateway HTTP 402")):
+                self.assertEqual(retrospect.main(), 2)
+            self.assertEqual(output.read_text(), "")
+
+    def test_one_inconsistent_jev_answer_is_recorded_for_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            census = root / "census.jsonl"
+            census.write_text(json.dumps({"source_key": "one", "provider": "codex",
+                                          "path": str(root / "session.jsonl"),
+                                          "disposition": "projected", "answered_turns": 2,
+                                          "matching_models": [{"model": "gpt-6-sol", "effort": "high"}]}) + "\n")
+            output = root / "results.jsonl"
+            with patch.object(retrospect, "PRIVATE_ROOT", root), \
+                 patch("sys.argv", ["retrospect.py", "--census", str(census), "--output", str(output)]), \
+                 patch.object(retrospect, "classify", side_effect=retrospect.jev.Error(
+                     "Jev returned an inconsistent option distribution.")):
+                self.assertEqual(retrospect.main(), 0)
+            row = json.loads(output.read_text())
+            self.assertEqual(row["error"], "jev_inconsistent_distribution")
+
     def test_excludes_injected_context_and_keeps_actual_request(self):
         events = [
             {"type": "turn_context", "payload": {"model": "gpt-6-sol", "effort": "high"}},
@@ -31,6 +145,13 @@ class SessionProjectionTest(unittest.TestCase):
         self.assertEqual(len(state["turns"]), 2)
         self.assertEqual(state["turns"][0]["request"], "Build the feature.")
         self.assertEqual(state["turns"][1]["response"], "Fixed the button.")
+
+    def test_first_followup_keeps_unanswered_interruption(self):
+        turns = [{"user": "Build it.", "assistant": ["Built."]},
+                 {"user": "Stop; wrong scope.", "assistant": []},
+                 {"user": "Next task.", "assistant": ["Done."]}]
+        state = retrospect.render_state(turns, [("gpt-6-sol", "high")])
+        self.assertEqual(state["turns"][0]["followup_request"], "Stop; wrong scope.")
 
     def test_rejects_mixed_model_sessions(self):
         events = [
@@ -112,7 +233,8 @@ class SessionProjectionTest(unittest.TestCase):
             state = retrospect.session_state(path, "claude")
         self.assertEqual((state["model"], state["effort"]), ("claude-opus-5-5", "high"))
         self.assertEqual(state["turns"], [{"request": "Review the patch.",
-                                          "response": "Found two defects."}])
+                                          "response": "Found two defects.",
+                                          "raw_turn_index": 0, "followup_request": ""}])
 
     def test_claude_model_called_skill_is_not_a_new_user_turn(self):
         events = [
@@ -166,6 +288,14 @@ class SessionProjectionTest(unittest.TestCase):
         self.assertEqual(len(state["turns"]), 1)
         self.assertEqual(state["trailing_user_messages"], ["The feature fails on launch."])
 
+    def test_long_answer_keeps_final_result(self):
+        response = "Start " + ("detail " * 500) + "Final verification passed."
+        state = retrospect.render_state(
+            [{"user": "Build the feature.", "assistant": [response]}],
+            [("gpt-6-sol", "high")])
+        self.assertIn("Final verification passed.", state["turns"][0]["response"])
+        self.assertIn("[Middle response text omitted]", state["turns"][0]["response"])
+
     def test_grok_session_reads_string_assistant_content(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
@@ -179,7 +309,8 @@ class SessionProjectionTest(unittest.TestCase):
             state = retrospect.session_state(path, "grok")
         self.assertEqual((state["model"], state["effort"]), ("grok-4.7", "high"))
         self.assertEqual(state["turns"], [{"request": "Fix the bug.",
-                                          "response": "Fixed and tested."}])
+                                          "response": "Fixed and tested.",
+                                          "raw_turn_index": 0, "followup_request": ""}])
 
     def test_missing_model_metadata_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
