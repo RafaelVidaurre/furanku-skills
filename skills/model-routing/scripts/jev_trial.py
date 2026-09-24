@@ -17,7 +17,7 @@ CASES = Path(__file__).resolve().parent.parent / "references/jev-trial-cases.jso
 PUBLIC_PREFERENCES = [
     {"scope": "trial", "text": "Use adequate low-cost capability for fully specified mechanical work."},
     {"scope": "trial", "text": "Prefer Grok high for known-pattern implementation, Astra high for novel architecture, and Astra or Fable high for visual design. Grok is excluded from aesthetic work."},
-    {"scope": "trial", "text": "Use higher-than-high effort only for a material task-specific advantage. Missing task context warrants abstention."},
+    {"scope": "trial", "text": "Use higher-than-high effort only for a material task-specific advantage."},
 ]
 from jev_context import candidate_profile, prepare_case
 
@@ -41,6 +41,8 @@ def score(case, result, mapping, compiled):
     selected_id = mapping.get(alias)
     return {"case": case["id"], "candidate": selected_id, "abstained": alias == "abstain",
             "choice_probability": answer["probabilities"][alias], "confidence": answer["confidence"],
+            "probabilities": {mapping.get(option, option): probability
+                              for option, probability in answer["probabilities"].items()},
             "elapsed_seconds": result["elapsed_seconds"], "usage": result["usage"], "cost_usd": result["cost_usd"]}
 
 
@@ -61,6 +63,7 @@ def main(argv=None):
     parser.add_argument("--case", action="append", default=[], help="run only these case IDs")
     parser.add_argument("--live", action="store_true", help="make Gateway requests, rather than only prepare inputs")
     parser.add_argument("--public-context", action="store_true", help="use public catalog and synthetic policy instead of private preferences/overrides")
+    parser.add_argument("--allow-abstain", action="store_true", help="offer Jev an abstain choice in each trial")
     parser.add_argument("--require-zdr", action="store_true", help="require Gateway Zero Data Retention (plan access required)")
     parser.add_argument("--output", type=Path, default=Path(".furanku-skills/model-routing/jev-trial"))
     args = parser.parse_args(argv)
@@ -80,7 +83,10 @@ def main(argv=None):
         for case in cases:
             if args.case and case["id"] not in args.case:
                 continue
-            payload, mapping, excluded = prepare_case(compiled, runtime, case, launchers)
+            payload, mapping, excluded = prepare_case(
+                compiled, runtime, case, launchers, allow_abstain=args.allow_abstain)
+            if payload is None:
+                raise jev.Error("Only one eligible candidate; add --allow-abstain to make a Jev Choice trial.")
             if args.require_zdr:
                 payload["providerOptions"]["gateway"]["zeroDataRetention"] = True
             write_private(args.output / (case["id"] + ".request.json"), payload)
@@ -96,7 +102,8 @@ def main(argv=None):
             write_private(args.output / "results.json", {
                 "status": "trial", "launch_authorized": False,
                 "context_mode": "public" if args.public_context else "configured",
-                "require_zdr": args.require_zdr, "cases": rows})
+                "require_zdr": args.require_zdr, "allow_abstain": args.allow_abstain,
+                "cases": rows})
             print(json.dumps(row), flush=True)
         return 0
     except (jev.Error, router.Error, router.exact_config.Error) as exc:

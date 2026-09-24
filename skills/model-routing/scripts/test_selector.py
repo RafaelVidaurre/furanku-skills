@@ -33,7 +33,8 @@ class SelectorTests(unittest.TestCase):
         self.args = argparse.Namespace(repo='.', task_file=str(self.task), exact_route=None,
             candidate=None, reason=None, route_basis=None, use_quota_fallback=None, require_zdr=False,
             launchable_via=['codex'], require_feature=[], minimum_context=None, max_effort_basis=None,
-            allow_model=[], allow_effort=[], accept_quota_unknown=None, quota_axi=False, runtime_file=None)
+            allow_model=[], allow_effort=[], allow_abstain=False,
+            accept_quota_unknown=None, quota_axi=False, runtime_file=None)
         self.runtime = {'candidates': {c: {'quota': {'status': 'known', 'effective_percent_remaining': 50}}
                                        for c in self.compiled['candidates']}}
 
@@ -64,6 +65,9 @@ class SelectorTests(unittest.TestCase):
             self.assertEqual(selector.status()['selector'], 'agent')
             self.args.candidate, self.args.reason = 'worker', 'Adequate for supplied patch.'
             self.assertEqual(selector.route(self.compiled, self.args, self.runtime)['status'], 'selected')
+            self.args.allow_abstain = True
+            with self.assertRaisesRegex(jev.Error, 'only to ordinary Jev'):
+                selector.route(self.compiled, self.args, self.runtime)
         result = subprocess.run([sys.executable, str(Path(router.__file__)), 'status'], cwd=self.root,
                                 text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -86,6 +90,7 @@ class SelectorTests(unittest.TestCase):
         self.assertEqual(decision['status'], 'selected')
         self.assertEqual(decision['selected']['id'], 'worker')
         self.assertEqual(decision['selector']['confidence'], .6)
+        self.assertEqual(decision['selector']['probabilities'], {'worker': 1.0, 'other': 0.0})
         self.args.candidate = 'other'
         with self.assertRaises(jev.Error): self.run_route()
 
@@ -99,9 +104,9 @@ class SelectorTests(unittest.TestCase):
             'features': ['tools'], 'explicit': True}
         def inspect(payload):
             criteria = payload['questions']['route']['criteria']
-            offers = [json.loads(value)['launch']['model'] for key, value in criteria.items()
-                      if key != 'abstain']
+            offers = [json.loads(value)['launch']['model'] for value in criteria.values()]
             self.assertEqual(offers, ['example', 'other'])
+            self.assertNotIn('abstain', criteria)
             self.assertNotIn('disabled', json.dumps(criteria))
             self.assertNotIn('explicit', json.dumps(criteria))
             return self.evaluate(payload)
@@ -132,13 +137,31 @@ class SelectorTests(unittest.TestCase):
 
     def test_abstention_and_provider_failure_have_no_agent_fallback(self):
         self.enable()
+        self.args.allow_abstain = True
         def abstain(payload):
             result = self.evaluate(payload)
-            result['answers']['route'].update(choice='abstain', probabilities={'abstain': 1})
+            self.assertIn('abstain', payload['questions']['route']['criteria'])
+            result['answers']['route'].update(choice='abstain', probabilities={
+                key: 1.0 if key == 'abstain' else 0.0
+                for key in payload['questions']['route']['criteria']})
             return result
-        self.assertEqual(self.run_route(evaluate=abstain)['status'], 'refused')
+        decision = self.run_route(evaluate=abstain)
+        self.assertEqual(decision['status'], 'refused')
+        self.assertEqual(decision['selector']['probabilities']['abstain'], 1.0)
         with self.assertRaises(jev.Error):
             self.run_route(evaluate=lambda _: (_ for _ in ()).throw(jev.Error('unavailable')))
+
+    def test_single_eligible_candidate_is_checked_without_gateway_call(self):
+        self.enable()
+        self.args.allow_model = ['other']
+        decision = self.run_route(evaluate=lambda _: self.fail('Jev was called'))
+        self.assertEqual(decision['status'], 'selected')
+        self.assertEqual(decision['selected']['id'], 'other')
+        self.assertEqual(decision['selector']['name'], 'single-eligible')
+        self.args.allow_abstain = True
+        decision = self.run_route()
+        self.assertEqual(decision['selector']['name'], 'jev')
+        self.assertEqual(set(decision['selector']['probabilities']), {'other', 'abstain'})
 
     def test_principal_model_constraint_filters_before_call(self):
         self.enable()

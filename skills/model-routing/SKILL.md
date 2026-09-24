@@ -32,7 +32,7 @@ The quota-axi package version and normalized schema contract are pinned together
 
 ## Select with Jev when enabled
 
-Read [Jev setup and routing](references/jev.md), prepare task facts, and call `router.py route --task-file <file> --launchable-via <agents> --quota-axi` with the outcome's hard requirements. This returns a gate-checked decision; consume it directly. The agent supplies facts and principal constraints, while Jev chooses the model and effort. Do not replace its choice merely because it differs from an agent's prediction. If the brief's exact-route activation rule applies, use the principal-requested exact-route check below instead.
+Read [Jev setup and routing](references/jev.md), prepare task facts, and call `router.py route --task-file <file> --launchable-via <agents> --quota-axi` with the outcome's hard requirements. This returns a gate-checked decision; consume it directly. The agent supplies facts and principal constraints, while Jev chooses among eligible model and effort offers when more than one exists. Do not replace its choice merely because it differs from an agent's prediction. If the brief's exact-route activation rule applies, use the principal-requested exact-route check below instead.
 
 **Complete when:** Jev's decision passes the gates below, or its abstention/provider failure is surfaced. There is no implicit fallback to agent selection. Skip the agent judgment step while Jev is enabled.
 
