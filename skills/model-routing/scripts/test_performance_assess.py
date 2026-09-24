@@ -8,6 +8,37 @@ import performance_assess
 
 
 class PerformanceAssessTest(unittest.TestCase):
+    def test_unrelated_check_cannot_support_positive_quality(self):
+        row = {"source_key": "one", "provider": "codex", "model": "gpt-6-sol", "effort": "high",
+               "first_request": "Reduce web boot size below 60 MB.",
+               "first_response": "Boot size reduced.", "first_followup": "",
+               "tool_evidence": [{"command": "pytest tests/test_audio.py", "summary": ["2 passed"]}],
+               "requester_provenance": "unverified", "delegated_work": False,
+               "task_family": "family", "first_followup_relation": None}
+
+        def answer(check_relation):
+            choices = {"domain": "implementation", "quality": "3", "evidence": "independent_check",
+                       "check_relation": check_relation, "output_form": "summary_or_link",
+                       "cause": "no_problem_visible"}
+            return {"answers": {f"0_{key}": {"choice": value, "probabilities": {value: 1}, "confidence": 1}
+                                for key, value in choices.items()}, "cost_usd": 0}
+
+        with patch.object(performance_assess.jev, "evaluate_bounded", return_value=answer("unrelated")):
+            results, _ = performance_assess.evaluate_batch([row], [{"id": "implementation", "description": "Code"}])
+        self.assertEqual(results[0]["effective_quality"], "unverified")
+        self.assertIn("check_not_tied_to_first_task", results[0]["evidence_rules"])
+        with patch.object(performance_assess.jev, "evaluate_bounded", return_value=answer("direct")):
+            results, _ = performance_assess.evaluate_batch([row], [{"id": "implementation", "description": "Code"}])
+        self.assertEqual(results[0]["effective_quality"], "3")
+
+        output_claim = answer("partial")
+        output_claim["answers"]["0_evidence"]["choice"] = "visible_output"
+        output_claim["answers"]["0_output_form"]["choice"] = "partial_or_metrics"
+        with patch.object(performance_assess.jev, "evaluate_bounded", return_value=output_claim):
+            results, _ = performance_assess.evaluate_batch([row], [{"id": "implementation", "description": "Code"}])
+        self.assertEqual(results[0]["effective_quality"], "unverified")
+        self.assertIn("deliverable_not_visible", results[0]["evidence_rules"])
+
     def test_repeated_template_is_one_task_family(self):
         a = "You are the loremaster. " * 35 + "Kanji: 木"
         b = "You are the loremaster. " * 35 + "Kanji: 山"

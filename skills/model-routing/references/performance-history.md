@@ -57,11 +57,24 @@ python3 <skill-dir>/scripts/performance_report.py \
   --sessions-csv "$HOME/.furanku-skills/model-routing/retrospectives/domain-sessions-$report_tag.csv"
 ```
 
-The report lists all 21 domain rows, route-level coverage, each cell's score and evidence-weighted count, and every assessed session's status and cause. It caps repeated task templates and marks sparse cells; it does not manufacture missing scores with a prior. Jev probabilities are audit information, not calibrated success odds. Self-reports, unrelated tests, changed preferences, external outages, and unseen visual artifacts do not become domain scores. Absent domains and model/effort combinations stay empty.
+The report lists all 21 domain rows, route-level coverage, each cell's score and evidence-weighted count, and every assessed session's status and cause. It caps repeated task templates and marks sparse cells; it does not manufacture missing scores with a prior. Jev probabilities are audit information, not calibrated success odds. The first-outcome rubric separately checks whether a test covers the first requested deliverable and whether the response exposes a complete inline artifact; a nearby passing test or a reported metric cannot support a positive score by itself. Self-reports, unrelated tests, changed preferences, external outages, and unseen visual artifacts do not become domain scores. Absent domains and model/effort combinations stay empty.
 
 **Complete when:** the private report contains one row per assessed session, every numeric observation records its evidence level, low scores have a checked cause, and cells with too little or correlated evidence remain marked sparse rather than used as routing capability claims.
 
 ## Decide what can be scored
+
+For proved Orca dispatches, assemble a private task packet before judging the routed worker. This is a **routing-policy audit subset**; keep using the full Codex, Claude Code, and Grok census for model-performance history. The packet builder joins the dispatch proof, routing decision, exact worker transcript, task preamble, worker check summaries, and any located parent-session context. Parent user-channel messages may be orchestration notices or a coordinator's words; their presence does not establish human feedback or acceptance.
+
+```sh
+python3 <skill-dir>/scripts/task_outcome_packets.py \
+  --inventory <private-deduplicated-inventory.jsonl> \
+  --orca-proofs <private-proved-dispatches.json> \
+  --output "$HOME/.furanku-skills/model-routing/retrospectives/task-packets-$(date +%Y%m%d-%H%M%S).json"
+```
+
+The builder leaves quality null. Review each packet's task contract, exact model and effort, checks, parent context provenance, and missing artifacts. Resolve parent messages to the same task before treating them as feedback. A completed dispatch or a worker's completion statement alone is not a quality result.
+
+**Complete when:** every proved dispatch has a packet or an explicit attribution/projection gap, and no packet is counted as a numeric quality observation without task-specific outcome evidence.
 
 Split projected conversations by requested work outcome; attribute model and effort at the work-turn level before scoring mixed sessions. Resolve a task packet, issue, or external work reference before classifying its domain. Keep injected skill instructions, notifications, and transport events out of the request. Tie tests and artifacts to the requested outcome; an assistant completion claim, a passing-test marker, or silence alone does not establish acceptance. Treat images and 3D outputs as requiring visual evidence; the text-only Jev projection cannot judge their craft directly.
 
