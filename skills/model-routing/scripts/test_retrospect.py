@@ -70,6 +70,18 @@ class SessionProjectionTest(unittest.TestCase):
         self.assertEqual(retrospect.clean_user(
             "This session is being continued from a previous conversation that ran out of context.\nSummary: older work"), "")
 
+    def test_claude_skill_invocation_projects_arguments_only(self):
+        self.assertEqual(retrospect.clean_user(
+            "Base directory for this skill: /tmp/skills/review\n"
+            "# Review skill\nUse evidence.\nARGUMENTS: Review the patch for regressions."),
+            "Review the patch for regressions.")
+        self.assertEqual(retrospect.clean_user(
+            "Base directory for this skill: /tmp/skills/review\n# Review skill\nUse evidence."), "")
+        self.assertEqual(retrospect.clean_user(
+            "[SYSTEM NOTIFICATION - NOT USER INPUT] Background agent completed."), "")
+        self.assertEqual(retrospect.clean_user(
+            "# Claude in Chrome browser automation\nTool-use instructions"), "")
+
     def test_stacked_and_trailing_context_keeps_the_request(self):
         self.assertEqual(retrospect.clean_user(
             "<system-reminder>A</system-reminder>\n<system-reminder>B</system-reminder>\nReview the patch."),
@@ -101,6 +113,58 @@ class SessionProjectionTest(unittest.TestCase):
         self.assertEqual((state["model"], state["effort"]), ("claude-opus-5-5", "high"))
         self.assertEqual(state["turns"], [{"request": "Review the patch.",
                                           "response": "Found two defects."}])
+
+    def test_claude_model_called_skill_is_not_a_new_user_turn(self):
+        events = [
+            {"type": "user", "message": {"content": "Review the patch."}},
+            {"type": "assistant", "effort": "high", "message": {
+                "model": "claude-opus-5-5", "content": [{"type": "text", "text": "Reading guidance."}]}},
+            {"type": "user", "isMeta": True, "sourceToolUseID": "toolu_1", "message": {
+                "content": "Base directory for this skill: /tmp/review\nARGUMENTS: Review the patch."}},
+            {"type": "assistant", "effort": "high", "message": {
+                "model": "claude-opus-5-5", "content": [{"type": "text", "text": "Found two defects."}]}},
+            {"type": "user", "message": {"content": "Please fix the first defect."}},
+            {"type": "assistant", "effort": "high", "message": {
+                "model": "claude-opus-5-5", "content": [{"type": "text", "text": "Fixed."}]}},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "session.jsonl"
+            path.write_text("\n".join(json.dumps(event) for event in events) + "\n")
+            state = retrospect.session_state(path, "claude")
+        self.assertEqual(len(state["turns"]), 2)
+        self.assertEqual(state["turns"][0]["request"], "Review the patch.")
+        self.assertEqual(state["turns"][0]["response"], "Found two defects.")
+
+    def test_claude_coordinator_meta_message_can_be_real_work(self):
+        events = [
+            {"type": "user", "isMeta": True, "message": {
+                "content": "The coordinator sent a message while you were working: Repair the failing test."}},
+            {"type": "assistant", "effort": "high", "message": {
+                "model": "claude-opus-5-5", "content": [{"type": "text", "text": "Repaired and checked."}]}},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "session.jsonl"
+            path.write_text("\n".join(json.dumps(event) for event in events) + "\n")
+            state = retrospect.session_state(path, "claude")
+        self.assertEqual(state["turns"][0]["request"],
+                         "The coordinator sent a message while you were working: Repair the failing test.")
+
+    def test_unanswered_final_user_correction_is_retained(self):
+        events = [
+            {"type": "turn_context", "payload": {"model": "gpt-6-sol", "effort": "high"}},
+            {"type": "response_item", "payload": {"type": "message", "role": "user",
+                 "content": [{"type": "input_text", "text": "Build the feature."}]}},
+            {"type": "response_item", "payload": {"type": "message", "role": "assistant",
+                 "content": [{"type": "output_text", "text": "Feature built."}]}},
+            {"type": "response_item", "payload": {"type": "message", "role": "user",
+                 "content": [{"type": "input_text", "text": "The feature fails on launch."}]}},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "session.jsonl"
+            path.write_text("\n".join(json.dumps(event) for event in events) + "\n")
+            state = retrospect.session_state(path)
+        self.assertEqual(len(state["turns"]), 1)
+        self.assertEqual(state["trailing_user_messages"], ["The feature fails on launch."])
 
     def test_grok_session_reads_string_assistant_content(self):
         with tempfile.TemporaryDirectory() as directory:

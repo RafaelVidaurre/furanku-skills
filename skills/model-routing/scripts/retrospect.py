@@ -20,13 +20,14 @@ import jev
 
 DOMAINS = Path(__file__).resolve().parents[1] / "references/retrospective-domains.json"
 PRIVATE_ROOT = Path.home() / ".furanku-skills/model-routing/retrospectives"
+QUALITY_RUBRIC_VERSION = 2
 QUALITY = {
     "unknown": "The visible transcript does not establish output quality in this domain. Missing artifacts and unverified assistant claims count as unknown.",
     "0": "Visible evidence shows the domain work failed or was abandoned because of model error.",
     "1": "Visible evidence shows major domain mistakes or repeated repair was needed.",
     "2": "Visible evidence shows a usable but incomplete domain result with meaningful corrections.",
-    "3": "Visible evidence shows a good domain result accepted with at most minor corrections.",
-    "4": "Visible evidence shows an excellent domain result, explicitly accepted and requiring no meaningful correction."
+    "3": "Visible evidence shows the main request was met, with independent checks or explicit acceptance and at most minor corrections.",
+    "4": "Visible evidence shows exceptional quality beyond ordinary acceptance, independently checked and explicitly praised, with no meaningful correction. Acceptance or passing tests alone are not enough."
 }
 AMBIENT_TAGS = {"recommended_plugins", "environment_context", "in-app-browser-context",
                 "system-reminder", "user_info", "rules", "task-notification",
@@ -38,6 +39,12 @@ OPEN_TAG = re.compile(r"^<([a-z][a-z0-9_-]*)(?:\s+[^>]*)?>")
 def clean_user(value):
     value = value.strip()
     if value.startswith("This session is being continued from a previous conversation that ran out of context."):
+        return ""
+    if value.startswith("Base directory for this skill:"):
+        return value.rsplit("ARGUMENTS:", 1)[1].strip() if "ARGUMENTS:" in value else ""
+    if value.startswith(("[SYSTEM NOTIFICATION - NOT USER INPUT]",
+                         "# Claude in Chrome browser automation",
+                         "You can continue now. Continue the task you were working on when the usage limit was reached")):
         return ""
     while value:
         opened = OPEN_TAG.match(value)
@@ -87,6 +94,12 @@ def render_state(turns, models):
     if count < len(models):
         raise ValueError("Session changed model/effort; split it by turn before assessment")
     rendered = []
+    trailing_user_messages = []
+    for turn in reversed(turns):
+        if turn["assistant"]:
+            break
+        trailing_user_messages.append(turn["user"])
+    trailing_user_messages.reverse()
     for turn in turns:
         if not turn["assistant"]:
             continue
@@ -101,7 +114,8 @@ def render_state(turns, models):
     else:
         selected = rendered
     return {"model": model[0], "effort": model[1], "turns": selected,
-            "omitted_turns": len(rendered) - len(selected)}
+            "omitted_turns": len(rendered) - len(selected),
+            "trailing_user_messages": trailing_user_messages}
 
 
 def codex_session_state(path):
@@ -138,6 +152,8 @@ def claude_session_state(path):
             role = item.get("type")
             message = item.get("message") or {}
             if role == "user":
+                if item.get("sourceToolUseID"):
+                    continue
                 content = clean_user(text_content(message.get("content")))
                 if content:
                     current = {"user": content, "assistant": []}
@@ -237,7 +253,9 @@ def classify(path, provider="codex"):
             "provider": provider,
             "model": state["model"], "effort": state["effort"],
             "turns": len(state["turns"]), "omitted_turns": state["omitted_turns"],
-            "taxonomy_version": taxonomy["version"], "involvement": involvement["answers"],
+            "taxonomy_version": taxonomy["version"],
+            "quality_rubric_version": QUALITY_RUBRIC_VERSION,
+            "involvement": involvement["answers"],
             "quality": quality["answers"],
             "usage": {"involvement": involvement.get("usage"), "quality": quality.get("usage")},
             "cost_usd": (involvement.get("cost_usd") or 0) + (quality.get("cost_usd") or 0)}
