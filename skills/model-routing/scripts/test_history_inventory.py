@@ -13,10 +13,10 @@ class HistoryInventoryTest(unittest.TestCase):
             codex = home / ".codex/sessions/year/month/session.jsonl"
             codex.parent.mkdir(parents=True)
             codex.write_text("\n".join(json.dumps(row) for row in (
-                {"type": "turn_context", "payload": {"model": "gpt-6-sol", "effort": "high"}},
+                {"timestamp": "2026-09-24T10:00:00Z", "type": "turn_context", "payload": {"model": "gpt-6-sol", "effort": "high"}},
                 {"type": "turn_context", "payload": {"model": "gpt-6-astra", "effort": "high"}},
                 {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Build"}]}},
-                {"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Done"}]}},
+                {"timestamp": "2026-09-24T10:05:00Z", "type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Done"}]}},
             )) + "\n")
             claude = home / ".claude/projects/project/session.jsonl"
             claude.parent.mkdir(parents=True)
@@ -36,6 +36,7 @@ class HistoryInventoryTest(unittest.TestCase):
         by_provider = {row["provider"]: row for row in rows}
         self.assertTrue(by_provider["codex"]["mixed"])
         self.assertEqual(len(by_provider["codex"]["models"]), 2)
+        self.assertEqual(by_provider["codex"]["last_event_at"], "2026-09-24T10:05:00Z")
         self.assertEqual(by_provider["claude"]["models"], [{"model": "claude-opus-5-5", "effort": "high"}])
         self.assertEqual(by_provider["grok"]["assistant_messages"], 1)
         self.assertTrue(all(row["user_messages"] and row["assistant_messages"] for row in rows))
