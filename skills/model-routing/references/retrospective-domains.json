@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "scale": {
     "absent": "The domain is not part of the requested deliverable.",
     "supporting": "The domain affects the deliverable, but success is mainly judged elsewhere.",
@@ -12,10 +12,11 @@
     {"id": "architecture", "description": "Design component boundaries, data flows, interfaces, infrastructure, or a technical migration."},
     {"id": "operations", "description": "Deploy, release, configure, monitor, or operate a running system and its automation."},
     {"id": "security", "description": "Assess or implement security, privacy, authentication, authorization, or abuse controls."},
-    {"id": "research", "description": "Deliver a sourced synthesis, comparison, or factual investigation of external or repository information. Routine code reading during implementation or review is outside this domain."},
-    {"id": "quantitative", "description": "Calculate, analyze data, model uncertainty, or draw statistical conclusions."},
+    {"id": "research", "description": "Deliver a sourced synthesis, comparison, or factual investigation of external or repository information, including current purchasing options. Routine code reading during implementation or review is outside this domain."},
+    {"id": "quantitative", "description": "Calculate, analyze data, model uncertainty, or draw statistical conclusions. Applying a simple numeric filter to search results is outside this domain."},
     {"id": "science", "description": "Reason through explicit scientific, mathematical, or engineering concepts beyond routine arithmetic. Visual depiction of physical objects alone is outside this domain."},
-    {"id": "product", "description": "Define product goals, requirements, priorities, tradeoffs, or acceptance criteria."},
+    {"id": "product", "description": "Define a product's goals, requirements, priorities, features, tradeoffs, or acceptance criteria. Selecting existing items to buy is outside this domain."},
+    {"id": "procurement", "description": "Choose existing goods or services to buy under constraints such as price, quantity, availability, ratings, or delivery. Designing a new product is outside this domain."},
     {"id": "game_design", "description": "Design game mechanics, levels, progression, balance, or player learning and engagement."},
     {"id": "ui_visual", "description": "Design the visible layout, typography, colors, iconography, or visual hierarchy of an interface."},
     {"id": "ux_interaction", "description": "Design user journeys, controls, information architecture, accessibility, or interaction behavior."},
@@ -24,7 +25,7 @@
     {"id": "animation", "description": "Create or direct motion, poses, keyframes, timing, or transitions."},
     {"id": "audio", "description": "Create, edit, select, or evaluate sound, music, speech, or audio behavior."},
     {"id": "writing", "description": "Write or edit general prose, copy, narrative, or communication for a human audience. Technical instructions and specifications belong to documentation."},
-    {"id": "localization", "description": "Translate or adapt language and cultural context while preserving intended meaning and voice."},
+    {"id": "localization", "description": "Deliver translated or culturally adapted text while preserving meaning and voice. Clarifying the meaning of an incidental foreign word is outside this domain."},
     {"id": "documentation", "description": "Write instructions, specifications, or explanatory reference material for a system or process. Visual reference images alone are outside this domain."}
   ]
 }

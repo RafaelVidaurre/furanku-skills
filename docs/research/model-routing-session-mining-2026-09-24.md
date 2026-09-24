@@ -1,6 +1,6 @@
 # Historical session mining pilot
 
-Date: 2026-09-24. This is a **pilot**, not a calibrated model leaderboard. Seventeen selected local Codex sessions were assessed live with Jev via the existing Vercel AI Gateway client. They were chosen to cover different deliverables and model/effort settings, not sampled randomly. The private per-question distributions and session filenames remain in the machine-global retrospective file; no transcript or session ID is committed.
+Date: 2026-09-24. This is a **selected Codex-only pilot**, not a complete history assessment or calibrated model leaderboard. Seventeen selected local Codex sessions were assessed live with Jev via the existing Vercel AI Gateway client. They were chosen to cover different deliverables and model/effort settings, not sampled randomly. The private per-question distributions and session filenames remain in the machine-global retrospective file; no transcript or session ID is committed. [The later labeling and full-history audit](model-routing-labeling-and-history-audit-2026-09-24.md) documents false positives, extraction defects, and the unassessed Claude Code and Grok history; use that audit before interpreting these rows.
 
 ## Exact domain rubric passed to Jev
 
@@ -55,47 +55,47 @@ For each non-absent domain, a second Jev Choice question asked for **actual perf
 
 ## Every domain result
 
-Cells combine involvement and quality: `C2` = central, quality 2/4; `S?` = supporting, quality unknown; `—` = Jev chose absent. These are Jev’s modal answers, not verified outcomes. The private file retains all option distributions. Abbreviations map to the domain IDs above.
+Each cell spells out Jev’s involvement label and its quality choice. “Unknown” means the transcript did not establish actual output quality; “absent” means the domain was not part of the deliverable. These are Jev’s modal answers, not verified outcomes. The private file retains all option distributions.
 
 | Session | Impl | Debug | Verify | Arch | Ops | Sec | Research | Quant | Science | Product |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| S01 | — | — | — | — | — | — | — | — | — | — |
-| S02 | — | — | S? | C? | — | — | C? | — | — | C? |
-| S03 | C? | — | S? | S? | S? | — | — | — | — | — |
-| S04 | — | — | — | — | — | — | C? | — | — | — |
-| S05 | — | — | — | — | — | — | — | — | — | — |
-| S06 | — | — | — | — | — | — | — | C2 | — | — |
-| S07 | S? | — | S? | S? | — | — | C? | — | S? | C? |
-| S08 | — | — | — | — | — | — | — | — | — | — |
-| S09 | — | — | — | — | — | — | — | — | — | — |
-| S10 | C? | C? | C? | — | — | — | — | — | — | — |
-| S11 | — | C? | C? | — | S? | — | S? | — | — | — |
-| S12 | C? | — | C? | S? | — | — | — | S? | S? | — |
-| S13 | C? | C? | C? | S? | — | — | S? | S? | C? | S? |
-| S14 | C? | S? | C? | S? | — | — | S? | — | — | C? |
-| S15 | — | — | — | — | — | — | C2 | — | — | — |
-| S16 | — | — | — | — | — | — | C2 | — | — | — |
-| S17 | — | — | — | — | — | — | C? | S? | — | C? |
+| S01 | absent | absent | absent | absent | absent | absent | absent | absent | absent | absent |
+| S02 | absent | absent | supporting; quality unknown | central; quality unknown | absent | absent | central; quality unknown | absent | absent | central; quality unknown |
+| S03 | central; quality unknown | absent | supporting; quality unknown | supporting; quality unknown | supporting; quality unknown | absent | absent | absent | absent | absent |
+| S04 | absent | absent | absent | absent | absent | absent | central; quality unknown | absent | absent | absent |
+| S05 | absent | absent | absent | absent | absent | absent | absent | absent | absent | absent |
+| S06 | absent | absent | absent | absent | absent | absent | absent | central; quality 2/4 | absent | absent |
+| S07 | supporting; quality unknown | absent | supporting; quality unknown | supporting; quality unknown | absent | absent | central; quality unknown | absent | supporting; quality unknown | central; quality unknown |
+| S08 | absent | absent | absent | absent | absent | absent | absent | absent | absent | absent |
+| S09 | absent | absent | absent | absent | absent | absent | absent | absent | absent | absent |
+| S10 | central; quality unknown | central; quality unknown | central; quality unknown | absent | absent | absent | absent | absent | absent | absent |
+| S11 | absent | central; quality unknown | central; quality unknown | absent | supporting; quality unknown | absent | supporting; quality unknown | absent | absent | absent |
+| S12 | central; quality unknown | absent | central; quality unknown | supporting; quality unknown | absent | absent | absent | supporting; quality unknown | supporting; quality unknown | absent |
+| S13 | central; quality unknown | central; quality unknown | central; quality unknown | supporting; quality unknown | absent | absent | supporting; quality unknown | supporting; quality unknown | central; quality unknown | supporting; quality unknown |
+| S14 | central; quality unknown | supporting; quality unknown | central; quality unknown | supporting; quality unknown | absent | absent | supporting; quality unknown | absent | absent | central; quality unknown |
+| S15 | absent | absent | absent | absent | absent | absent | central; quality 2/4 | absent | absent | absent |
+| S16 | absent | absent | absent | absent | absent | absent | central; quality 2/4 | absent | absent | absent |
+| S17 | absent | absent | absent | absent | absent | absent | central; quality unknown | supporting; quality unknown | absent | central; quality unknown |
 
 | Session | Game | UI | UX | Art | 3D | Motion | Audio | Writing | Locale | Docs |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| S01 | — | — | — | C? | C? | — | — | — | — | — |
-| S02 | — | S? | S? | — | S? | — | — | S? | — | C? |
-| S03 | — | C? | C? | — | — | — | — | — | — | — |
-| S04 | — | — | — | — | — | — | — | — | — | C? |
-| S05 | — | — | — | — | — | — | — | C3 | C3 | — |
-| S06 | — | — | — | — | — | — | — | — | — | — |
-| S07 | C? | — | C? | — | — | — | — | — | — | C? |
-| S08 | — | — | — | C? | — | — | — | — | — | — |
-| S09 | — | — | — | C2 | C2 | C2 | — | — | — | — |
-| S10 | — | — | — | — | — | — | — | — | — | S? |
-| S11 | — | — | — | — | — | — | — | — | — | — |
-| S12 | — | — | — | S? | S? | S? | — | — | — | — |
-| S13 | — | — | — | — | C? | C? | — | — | — | S? |
-| S14 | — | — | — | C? | C? | S? | — | — | — | S? |
-| S15 | — | — | — | — | — | — | — | C2 | C2 | C2 |
-| S16 | — | — | — | — | — | — | — | S2 | — | — |
-| S17 | — | — | — | — | — | — | — | — | S? | — |
+| S01 | absent | absent | absent | central; quality unknown | central; quality unknown | absent | absent | absent | absent | absent |
+| S02 | absent | supporting; quality unknown | supporting; quality unknown | absent | supporting; quality unknown | absent | absent | supporting; quality unknown | absent | central; quality unknown |
+| S03 | absent | central; quality unknown | central; quality unknown | absent | absent | absent | absent | absent | absent | absent |
+| S04 | absent | absent | absent | absent | absent | absent | absent | absent | absent | central; quality unknown |
+| S05 | absent | absent | absent | absent | absent | absent | absent | central; quality 3/4 | central; quality 3/4 | absent |
+| S06 | absent | absent | absent | absent | absent | absent | absent | absent | absent | absent |
+| S07 | central; quality unknown | absent | central; quality unknown | absent | absent | absent | absent | absent | absent | central; quality unknown |
+| S08 | absent | absent | absent | central; quality unknown | absent | absent | absent | absent | absent | absent |
+| S09 | absent | absent | absent | central; quality 2/4 | central; quality 2/4 | central; quality 2/4 | absent | absent | absent | absent |
+| S10 | absent | absent | absent | absent | absent | absent | absent | absent | absent | supporting; quality unknown |
+| S11 | absent | absent | absent | absent | absent | absent | absent | absent | absent | absent |
+| S12 | absent | absent | absent | supporting; quality unknown | supporting; quality unknown | supporting; quality unknown | absent | absent | absent | absent |
+| S13 | absent | absent | absent | absent | central; quality unknown | central; quality unknown | absent | absent | absent | supporting; quality unknown |
+| S14 | absent | absent | absent | central; quality unknown | central; quality unknown | supporting; quality unknown | absent | absent | absent | supporting; quality unknown |
+| S15 | absent | absent | absent | absent | absent | absent | absent | central; quality 2/4 | central; quality 2/4 | central; quality 2/4 |
+| S16 | absent | absent | absent | absent | absent | absent | absent | supporting; quality 2/4 | absent | absent |
+| S17 | absent | absent | absent | absent | absent | absent | absent | absent | supporting; quality unknown | absent |
 
 ## What can be mined now
 
@@ -118,4 +118,4 @@ These results **cannot support a model/effort ranking or a catalog score change*
 - S01 and S08 illustrate missing visual evidence: Jev identified visual domains but returned `unknown` quality. S15’s research score is nearly tied with `unknown`. Use neither as a confident capability estimate.
 - A useful production assessment must link the routed worker session and delivered artifacts, split multi-task sessions, expose factual/test/user acceptance evidence, and audit a stratified sample of Jev labels. Subject-matter facets such as finance, legal, medical, and pedagogy are not yet separately measured by this work-domain rubric.
 
-The reproducible pilot code is `skills/model-routing/scripts/retrospect.py`; it writes only to an explicitly supplied output path. The work-domain taxonomy is `skills/model-routing/references/retrospective-domains.json`. This pilot does not change live routing or the catalog.
+The version 3 pilot code and taxonomy are pinned by commit `2aebc52`; current `retrospect.py` and `retrospective-domains.json` have evolved and will produce different projections and labels. The pilot wrote only to an explicitly supplied private output path. This pilot does not change live routing or the catalog.
