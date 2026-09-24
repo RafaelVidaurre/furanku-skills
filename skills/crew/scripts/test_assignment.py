@@ -413,6 +413,12 @@ class PacketTest(unittest.TestCase):
         )
         self.assertEqual(0, result.returncode, result.stderr)
 
+    def test_packet_preserves_routing_decision_id_for_worker_link(self):
+        decision = {**SELECTED, "decision_id": "a" * 32}
+        result = run(*packet_args(decision))
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["routing"]["decision_id"], "a" * 32)
+
     def test_worker_packet_carries_work_ref_routing_and_mechanism(self):
         result = run(*packet_args(SELECTED))
         self.assertEqual(0, result.returncode, result.stderr)

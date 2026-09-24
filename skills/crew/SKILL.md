@@ -70,6 +70,8 @@ Omit `--manifest` when the active configured mechanism supplies one; pass a mani
 
 Translate the packet through the selected mechanism's field mapping in Seams, apply any selected `launch_note`, and deliver its `spec` unchanged as part of that launch; packet field names do not imply same-named launch API parameters. A communication send or receipt is not dispatch evidence, and an unrelated existing session is not a launch target. If dispatch fails, distinguish an invalid invocation from a capability refusal: correct malformed or mis-mapped parameters and retry the same mechanism with the same gate-checked decision and unchanged constraints. Apply the refusal rules above only after a valid invocation demonstrates that the selected surface cannot honor the decision.
 
+When dispatch returns a session or job ID, link it to the model-routing `decision_id` using `routing_log.py link` as described in model-routing's private routing journal. Preserve the decision ID in the private handoff when the mechanism provides its ID later.
+
 **Complete when:** the owner is launched with the intended role, principal, work pointer, and packet built from a gate-checked decision carrying its task judgment or principal route basis; launch evidence identifies the mechanism-created owner and coordination pointer, satisfies any principal-named mechanism, harness, or executable, and shows the selected agent capability, model, and effort were honored; any malformed dispatch is followed by a corrected retry on the same mechanism before a capability refusal or mechanism change; communication to the principal is live per the manifest; and the resources the assignment created are tracked by exact pointer.
 
 ## Wait for owners
