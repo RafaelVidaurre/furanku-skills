@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 import getpass
 import json
 import math
@@ -26,6 +28,17 @@ MAX_BYTES = 1_000_000
 
 class Error(Exception):
     """An actionable diagnostic that contains no credential or response body."""
+
+
+class RateLimitError(Error):
+    """A bounded Jev call could not clear a Gateway 429."""
+
+    def __init__(self, attempts, retry_after_seconds=None):
+        self.attempts = attempts
+        self.retry_after_seconds = retry_after_seconds
+        timing = (f"retry after {retry_after_seconds:g} seconds"
+                  if retry_after_seconds is not None else "retry later")
+        super().__init__(f"Gateway HTTP 429: rate limited after {attempts} attempt(s); {timing}.")
 
 
 def credential_path():
@@ -190,6 +203,23 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def retry_after_seconds(headers):
+    """Parse RFC 9110 Retry-After; ignore invalid or negative values."""
+    raw = headers.get("Retry-After") if headers else None
+    if raw is None:
+        return None
+    raw = raw.strip()
+    if raw.isascii() and raw.isdecimal():
+        return float(raw)
+    try:
+        when = parsedate_to_datetime(raw)
+        if when.tzinfo is None:
+            return None
+        return max(0.0, (when - datetime.now(timezone.utc)).total_seconds())
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
 def evaluate(payload, *, timeout=15):
     payload = validate_request(payload)
     body = json.dumps(payload, allow_nan=False).encode()
@@ -199,37 +229,54 @@ def evaluate(payload, *, timeout=15):
     request = urllib.request.Request(ENDPOINT, data=body, method="POST", headers={
         "Authorization": "Bearer " + key, "Content-Type": "application/json"})
     started = time.monotonic()
-    try:
-        with urllib.request.build_opener(NoRedirect()).open(request, timeout=timeout) as response:
-            raw = response.read(MAX_BYTES + 1)
-        if len(raw) > MAX_BYTES:
-            raise Error("Gateway response exceeded the 1 MB size limit.")
-        result = validate_result(json.loads(raw), payload["questions"])
-    except urllib.error.HTTPError as exc:
-        # Recognize a known actionable error, without echoing provider text,
-        # which can contain credentials or private account information.
+    deadline = started + min(timeout + 3, 18)
+    opener = urllib.request.build_opener(NoRedirect())
+    for attempt in range(1, 4):
         try:
-            failure = json.loads(exc.read(16384))
-            error = failure.get("error", {}) if isinstance(failure, dict) else {}
-            verification = isinstance(error, dict) and error.get("type") == "customer_verification_required"
-        except (OSError, ValueError, UnicodeError):
-            verification = False
-        if verification:
-            raise Error(
-                f"Gateway HTTP {exc.code} (customer_verification_required): "
-                "Vercel requires a valid payment card on the team associated with "
-                "this key before serving requests, including free credits. "
-                "Complete the team's billing verification, then rerun the trial."
-            ) from None
-        hints = {401: "check the saved Gateway key", 403: "check Gateway access",
-                 402: "check Gateway credits or budget", 429: "rate limited; retry later"}
-        raise Error(f"Gateway HTTP {exc.code}: {hints.get(exc.code, 'evaluation failed')}; no fallback was used.") from None
-    except (urllib.error.URLError, TimeoutError, OSError):
-        raise Error("Gateway connection failed or timed out; no fallback was used.") from None
-    except (UnicodeError, json.JSONDecodeError):
-        raise Error("Gateway returned invalid JSON.") from None
-    result["elapsed_seconds"] = round(time.monotonic() - started, 3)
-    return result
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise Error("Gateway evaluation exceeded its 18-second retry budget.")
+            with opener.open(request, timeout=min(timeout, remaining)) as response:
+                raw = response.read(MAX_BYTES + 1)
+            if len(raw) > MAX_BYTES:
+                raise Error("Gateway response exceeded the 1 MB size limit.")
+            result = validate_result(json.loads(raw), payload["questions"])
+            result["elapsed_seconds"] = round(time.monotonic() - started, 3)
+            result["attempts"] = attempt
+            return result
+        except urllib.error.HTTPError as exc:
+            if exc.code == 429:
+                server_delay = retry_after_seconds(exc.headers)
+                exc.close()
+                delay = server_delay if server_delay is not None else (0.25, 1.0, 2.0)[attempt - 1]
+                remaining = deadline - time.monotonic()
+                if attempt == 3 or delay + 0.5 >= remaining:
+                    raise RateLimitError(attempt, server_delay) from None
+                time.sleep(delay)
+                continue
+            # Do not echo provider bodies: they can contain credentials or account data.
+            try:
+                failure = json.loads(exc.read(16384))
+                error = failure.get("error", {}) if isinstance(failure, dict) else {}
+                verification = isinstance(error, dict) and error.get("type") == "customer_verification_required"
+            except (OSError, ValueError, UnicodeError):
+                verification = False
+            finally:
+                exc.close()
+            if verification:
+                raise Error(
+                    f"Gateway HTTP {exc.code} (customer_verification_required): "
+                    "Vercel requires a valid payment card on the team associated with "
+                    "this key before serving requests, including free credits. "
+                    "Complete the team's billing verification, then rerun the trial."
+                ) from None
+            hints = {401: "check the saved Gateway key", 403: "check Gateway access",
+                     402: "check Gateway credits or budget"}
+            raise Error(f"Gateway HTTP {exc.code}: {hints.get(exc.code, 'evaluation failed')}; no fallback was used.") from None
+        except (urllib.error.URLError, TimeoutError, OSError):
+            raise Error("Gateway connection failed or timed out; no fallback was used.") from None
+        except (UnicodeError, json.JSONDecodeError):
+            raise Error("Gateway returned invalid JSON.") from None
 
 
 def evaluate_bounded(payload):
@@ -245,9 +292,13 @@ def evaluate_bounded(payload):
         raise Error("Gateway evaluation exceeded 20 seconds; no fallback was used.") from None
     if completed.returncode:
         try:
-            message = json.loads(completed.stderr)["error"]
+            failure = json.loads(completed.stderr)
+            message = failure["error"]
         except (ValueError, KeyError, TypeError):
             message = "Gateway evaluation failed; no fallback was used."
+            failure = {}
+        if failure.get("code") == "rate_limited":
+            raise RateLimitError(failure["attempts"], failure.get("retry_after_seconds"))
         raise Error(message)
     try:
         return json.loads(completed.stdout)
@@ -276,7 +327,11 @@ def main(argv=None):
         print(json.dumps(result, indent=2, allow_nan=False))
         return 0
     except Error as exc:
-        print(json.dumps({"status": "error", "error": str(exc)}), file=sys.stderr)
+        failure = {"status": "error", "error": str(exc)}
+        if isinstance(exc, RateLimitError):
+            failure.update(code="rate_limited", attempts=exc.attempts,
+                           retry_after_seconds=exc.retry_after_seconds)
+        print(json.dumps(failure), file=sys.stderr)
         return 1
     except (OSError, ValueError, UnicodeError):
         print('{"status":"error","error":"Cannot read or write the requested file."}', file=sys.stderr)
