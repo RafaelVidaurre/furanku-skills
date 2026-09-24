@@ -28,9 +28,19 @@ def summarize(path, provider):
     users = 0
     assistants = 0
     error = None
+    first_event_at = None
+    last_event_at = None
+    def note_time(value):
+        nonlocal first_event_at, last_event_at
+        if isinstance(value, str) and value:
+            if first_event_at is None or value < first_event_at:
+                first_event_at = value
+            if last_event_at is None or value > last_event_at:
+                last_event_at = value
     try:
         if provider == "codex":
             for item in json_lines(path):
+                note_time(item.get("timestamp"))
                 payload = item.get("payload") or {}
                 if item.get("type") == "turn_context" and payload.get("model") and payload.get("effort"):
                     models.add((payload["model"], payload["effort"]))
@@ -41,6 +51,7 @@ def summarize(path, provider):
                     assistants += bool(content) if role == "assistant" else 0
         elif provider == "claude":
             for item in json_lines(path):
+                note_time(item.get("timestamp"))
                 role = item.get("type")
                 message = item.get("message") or {}
                 content = retrospect.text_content(message.get("content"))
@@ -53,11 +64,14 @@ def summarize(path, provider):
         else:
             directory = path.parent
             summary = json.loads(path.read_text(encoding="utf-8"))
+            note_time(summary.get("created_at"))
+            note_time(summary.get("last_active_at"))
             model = summary.get("current_model_id")
             effort = summary.get("reasoning_effort")
             if model and effort:
                 models.add((model, effort))
             for item in json_lines(directory / "chat_history.jsonl"):
+                note_time(item.get("timestamp"))
                 role = item.get("type")
                 content = retrospect.text_content(item.get("content"))
                 users += bool(content) if role == "user" else 0
@@ -67,7 +81,8 @@ def summarize(path, provider):
     return {"provider": provider, "path": str(path),
             "models": [{"model": model, "effort": effort} for model, effort in sorted(models)],
             "user_messages": users, "assistant_messages": assistants,
-            "mixed": len(models) > 1, "error": error}
+            "mixed": len(models) > 1, "error": error,
+            "first_event_at": first_event_at, "last_event_at": last_event_at}
 
 
 def inventory(home):

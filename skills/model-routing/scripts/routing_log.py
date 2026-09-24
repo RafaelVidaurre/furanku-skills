@@ -19,6 +19,7 @@ SETTINGS = BASE / "logging.json"
 LOGS = BASE / "logs"
 RETENTION_DAYS = 180
 MAX_TAIL = 200
+MAX_RETROSPECTIVE_EVENTS = 100000
 SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
 
 
@@ -234,6 +235,24 @@ def tail(limit=50, decision_id=None, session_ref=None):
             if len(rows) >= limit:
                 return list(reversed(rows))
     return list(reversed(rows))
+
+
+def retrospective_events():
+    """Read the retained journal for offline coverage, with an explicit size bound."""
+    if not LOGS.exists():
+        return []
+    rows = []
+    for path in sorted(LOGS.glob("????-??-??.jsonl")):
+        if path.is_symlink():
+            raise Error("Routing log file must not be a symlink.")
+        with path.open(encoding="utf-8") as stream:
+            for line in stream:
+                if not line.strip():
+                    continue
+                if len(rows) >= MAX_RETROSPECTIVE_EVENTS:
+                    raise Error("Routing journal exceeds the retrospective event bound.")
+                rows.append(json.loads(line))
+    return rows
 
 
 def main(argv=None):
