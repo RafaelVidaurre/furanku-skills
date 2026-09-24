@@ -41,6 +41,53 @@ class HistoryInventoryTest(unittest.TestCase):
         self.assertEqual(by_provider["grok"]["assistant_messages"], 1)
         self.assertTrue(all(row["user_messages"] and row["assistant_messages"] for row in rows))
 
+    def test_discovers_orca_codex_account_home(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            session = home / "Library/Application Support/orca/codex-accounts/account/home/sessions/2026/09/24/rollout-id.jsonl"
+            session.parent.mkdir(parents=True)
+            session.write_text("\n".join(json.dumps(row) for row in (
+                {"timestamp": "2026-09-24T10:00:00Z", "type": "turn_context", "payload": {"model": "gpt-6-sol", "effort": "high"}},
+                {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Build"}]}},
+                {"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Done"}]}},
+            )) + "\n")
+            rows = list(history_inventory.inventory(home))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["path"], str(session))
+        self.assertEqual(rows[0]["models"], [{"model": "gpt-6-sol", "effort": "high"}])
+
+    def test_mirrored_codex_session_is_counted_once_using_fuller_copy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            name = "rollout-01234567-89ab-cdef-0123-456789abcdef.jsonl"
+            standard = home / ".codex/sessions" / name
+            mirrored = home / "Library/Application Support/orca/codex-accounts/account/home/sessions" / name
+            standard.parent.mkdir(parents=True)
+            mirrored.parent.mkdir(parents=True)
+            standard.write_text(json.dumps({"type": "turn_context", "payload": {"model": "gpt-6-sol", "effort": "high"}}) + "\n")
+            mirrored.write_text(standard.read_text() + json.dumps({"type": "response_item", "payload": {
+                "type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Done"}]}}) + "\n")
+            rows = list(history_inventory.inventory(home))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["path"], str(mirrored))
+        self.assertEqual(rows[0]["assistant_messages"], 1)
+        self.assertEqual(set(rows[0]["copies"]), {str(standard), str(mirrored)})
+
+    def test_corrupt_larger_mirror_falls_back_to_valid_copy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            name = "rollout-01234567-89ab-cdef-0123-456789abcdef.jsonl"
+            standard = home / ".codex/sessions" / name
+            mirrored = home / "Library/Application Support/orca/codex-accounts/account/home/sessions" / name
+            standard.parent.mkdir(parents=True)
+            mirrored.parent.mkdir(parents=True)
+            standard.write_text(json.dumps({"type": "turn_context", "payload": {"model": "gpt-6-sol", "effort": "high"}}) + "\n")
+            mirrored.write_text("{" + "x" * 100)
+            rows = list(history_inventory.inventory(home))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["path"], str(standard))
+        self.assertIsNone(rows[0]["error"])
+
 
 if __name__ == "__main__":
     unittest.main()

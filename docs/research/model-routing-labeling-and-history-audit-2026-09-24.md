@@ -1,6 +1,6 @@
 # Routing retrospective: labeling and local-history audit
 
-Date: 2026-09-24. This document distinguishes a **metadata census** from a **Jev assessment**. The census read every discoverable local Codex, Claude Code, and Grok session record in their standard stores. The only completed multi-session Jev assessment remains the earlier 17-session, selected Codex pilot. No provider-wide quality scores or routing-table changes follow from it.
+Date: 2026-09-24. This document distinguishes a **metadata census** from a **Jev assessment**. The initial census covered the standard Codex, Claude Code, and Grok stores; a later section expands it to Orca-managed Codex homes and deduplicates mirrored sessions. The only completed multi-session Jev assessment remains the earlier 17-session, selected Codex pilot. No provider-wide quality scores or routing-table changes follow from it.
 
 ## Why the pilot labels were weak
 
@@ -12,7 +12,7 @@ The first Claude Code and Grok diagnostic calls exposed a second parser defect: 
 
 The old report used `C` for **central**, `S` for **supporting**, `?` for **quality unknown**, and an em dash for **absent**. Its tables now spell these words out. A numeric quality choice runs from 0 (failed through model error) to 4 (excellent with explicit acceptance); a silent user or the assistant's own completion claim does not establish quality. The old scores should not be used for model ranking.
 
-## Full local-file census
+## Initial standard-store census
 
 | Provider | Local session records scanned | Records with model metadata | Records with a raw user/assistant exchange | Mixed model/effort records |
 | --- | ---: | ---: | ---: | ---: |
@@ -54,3 +54,42 @@ The first exact-link coverage check read 80 retained routing-journal events at 1
 For future decisions, link the actual agent session ID when available. An earlier terminal or dispatch link can remain as launch evidence; the coverage check uses a unique reference that matches a local agent session. The remaining workflow is: resolve links; split each session into delegated outcomes; verify outcome evidence including artifacts, tests, and user follow-ups; audit Jev's domain and feedback labels; then estimate model/effort performance with uncertainty. Historical sessions without routing links may support a separate descriptive pilot, but they cannot validate the router's choices.
 
 After Opus 5.5 reviewed the coverage check, a corrected run at 13:06 UTC scanned all 87 retained journal events and included exact-route verdicts. It found **48 routable verdicts**: 23 without a recorded worker link and 25 whose references could not be matched to a local agent session. A missing link does not prove a launch; an unresolved reference does not prove the transcript is unavailable. The number of safely attributable routed outcomes remained **zero**. The private report records each disposition for later repair.
+
+## Expanded Orca history and recovered links
+
+After Orca Agent Session History was enabled, its search found recent worker and coordinator sessions. That exposed a census omission: Orca keeps Codex sessions in separate account homes. An initial raw scan of those homes plus the standard stores found over 40,000 files, but many Codex files were mirrored across accounts as hard links or older copies. A later scan counted each native session once and kept its local copies for link validation. It yielded **9,981 session records**: 8,348 Codex, 755 Claude Code, and 878 Grok. Of these, 9,919 had model metadata, 8,760 had a raw user/assistant exchange, and 206 contained more than one model/effort tuple. This is a local snapshot, not an account-wide or cloud census.
+
+| Configured model and effort | Distinct local sessions | Raw exchange | Mixed model/effort |
+| --- | ---: | ---: | ---: |
+| GPT-6 Sol / high | 102 | 102 | 5 |
+| GPT-6 Sol / max | 6 | 6 | 1 |
+| GPT-6 Astra / high | 498 | 498 | 8 |
+| GPT-6 Astra / xhigh | 2 | 2 | 0 |
+| GPT-5.6 Terra / max | 1,031 | 1,017 | 14 |
+| Claude Opus 5.5 / high | 134 | 134 | 0 |
+| Claude Fable 5.1 base model / high | 128 | 128 | 9 |
+| Grok 4.7 / high | 9 | 6 | 0 detected |
+
+The configured GPT-6 Sol/xhigh and GPT-6 Luna/max routes had no matching local records in this snapshot. Fable's transcript identifies its base model, not whether the configured 1M context variant was active. The row counts can overlap when a session changed model or effort. Historical matches do not prove that model routing selected those sessions.
+
+The Orca resolver checks a dispatch's assigned terminal and worktree, then requires a worker preamble with the exact dispatch ID, Task ID, and terminal handle. Opus 5.5 adversarial review found that the first pass could accept a preamble after earlier assistant work and could treat an incomplete search index as proof of uniqueness. The corrected resolver checks opening messages across every local copy of each native session and records dispatch state. One earlier append-only link failed this stricter proof and is now gated `dispatch_unverified`. At the 14:05 UTC retained-window snapshot, Orca's index was current and 58 selected or exact verdicts had these dispositions:
+
+| Disposition | Decisions | Meaning |
+| --- | ---: | --- |
+| Exact transcript match | 18 | Agent, model, effort, session ID, exchange, and timing matched; no incomplete dispatch was recorded. |
+| Fable base model matched; 1M context unverified | 4 | Worker identity was proved, but the context variant was not. |
+| Dispatch failed or remains running | 1 | Transcript exists but the dispatched work is not a completed quality observation. |
+| Dispatch proof unverified | 1 | An earlier link did not pass the stricter opening-preamble check. |
+| Terminal or dispatch reference unresolved | 11 | No unique worker session was proved. |
+| No worker link recorded | 23 | May include decisions that were never launched. |
+
+The corrected resolver proved 22 dispatches: 21 completed and one failed when inspected. The journal also contains one direct review session link and one earlier link that failed revalidation. All 24 linked decisions point to distinct native sessions in this snapshot. A transcript match establishes identity; it does not by itself establish work quality. The journal and per-decision proof report remain private.
+
+Three linked sessions were then passed through the current version 4 Jev pilot. One Opus worker received ten active domain labels and one Fable worker received seven; **all 17 domain quality choices were `unknown`**. A Sol worker initially received no domain labels because its transcript's task text was a Crew envelope pointing to a Beads work record. Feeding Jev that actual work description changed the result to four central domains: implementation, verification, UI visual design, and UX interaction. This is direct evidence that linked sessions still need task-source resolution before domain classification. It is not a validated quality score. The current Jev transcript projection omits artifacts and tool results; until the task contract, output evidence, and user follow-ups are attached per routed outcome, numeric model/domain scores would be misleading.
+
+| Linked pilot session | Central domains | Supporting domains | Quality result |
+| --- | --- | --- | --- |
+| Claude Opus 5.5 / high | Implementation, debugging, verification, operations, UI visual, UX interaction | Architecture, security, writing, documentation | Unknown in all ten active domains. |
+| Claude Fable 5.1 base / high | Debugging, verification, operations, security, research | Writing, documentation | Unknown in all seven active domains; 1M context variant unverified. |
+| GPT-6 Sol / high, transcript only | None | None | No domain quality question was asked. |
+| Same GPT-6 Sol task with its work record | Implementation, verification, UI visual, UX interaction | None | Domain correction only; quality not assessed. |
