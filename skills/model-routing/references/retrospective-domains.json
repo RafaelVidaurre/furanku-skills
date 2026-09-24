@@ -1,0 +1,30 @@
+{
+  "version": 3,
+  "scale": {
+    "absent": "The domain is not part of the requested deliverable.",
+    "supporting": "The domain affects the deliverable, but success is mainly judged elsewhere.",
+    "central": "The deliverable would fail its main acceptance criteria if this domain were done poorly."
+  },
+  "domains": [
+    {"id": "implementation", "description": "Write or change executable software, scripts, APIs, integrations, or configuration."},
+    {"id": "debugging", "description": "Find causes of software or system defects or incidents and verify a repair. Ordinary creative revisions are outside this domain."},
+    {"id": "verification", "description": "Design or run software/system tests, audit behavior, review code, or check an implementation against a specification. Ordinary source fact checking belongs to research."},
+    {"id": "architecture", "description": "Design component boundaries, data flows, interfaces, infrastructure, or a technical migration."},
+    {"id": "operations", "description": "Deploy, release, configure, monitor, or operate a running system and its automation."},
+    {"id": "security", "description": "Assess or implement security, privacy, authentication, authorization, or abuse controls."},
+    {"id": "research", "description": "Deliver a sourced synthesis, comparison, or factual investigation of external or repository information. Routine code reading during implementation or review is outside this domain."},
+    {"id": "quantitative", "description": "Calculate, analyze data, model uncertainty, or draw statistical conclusions."},
+    {"id": "science", "description": "Reason through explicit scientific, mathematical, or engineering concepts beyond routine arithmetic. Visual depiction of physical objects alone is outside this domain."},
+    {"id": "product", "description": "Define product goals, requirements, priorities, tradeoffs, or acceptance criteria."},
+    {"id": "game_design", "description": "Design game mechanics, levels, progression, balance, or player learning and engagement."},
+    {"id": "ui_visual", "description": "Design the visible layout, typography, colors, iconography, or visual hierarchy of an interface."},
+    {"id": "ux_interaction", "description": "Design user journeys, controls, information architecture, accessibility, or interaction behavior."},
+    {"id": "visual_art", "description": "Create or direct illustration, concept art, graphic assets, textures, or game visual style."},
+    {"id": "spatial_3d", "description": "Create or reason about 3D models, geometry, rigging, spatial composition, or physical form."},
+    {"id": "animation", "description": "Create or direct motion, poses, keyframes, timing, or transitions."},
+    {"id": "audio", "description": "Create, edit, select, or evaluate sound, music, speech, or audio behavior."},
+    {"id": "writing", "description": "Write or edit general prose, copy, narrative, or communication for a human audience. Technical instructions and specifications belong to documentation."},
+    {"id": "localization", "description": "Translate or adapt language and cultural context while preserving intended meaning and voice."},
+    {"id": "documentation", "description": "Write instructions, specifications, or explanatory reference material for a system or process. Visual reference images alone are outside this domain."}
+  ]
+}
