@@ -120,7 +120,7 @@ def validate_request(payload):
             raise Error("This client supports Choice questions only.")
         criteria = question.get("criteria")
         if not isinstance(criteria, dict) or not 2 <= len(criteria) <= 255:
-            raise Error("Each Choice needs 2–255 options, including abstain when appropriate.")
+            raise Error("Each Choice needs 2–255 options.")
         if any(not isinstance(v, str) or not v for v in criteria.values()):
             raise Error("Every option needs a nonempty description.")
         if not isinstance(question.get("instructions"), str) or not question["instructions"]:

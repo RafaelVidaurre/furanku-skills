@@ -196,7 +196,8 @@ class JevTest(unittest.TestCase):
         }}
         case = {"id": "example", "task": {"outcome": "Implement the supplied function."},
                 "expected_models": ["PRIVATE_EXPECTATION"], "expectation_basis": "PRIVATE_LABEL"}
-        payload, mapping, excluded = jev_trial.prepare_case(compiled, runtime, case, {"codex"})
+        payload, mapping, excluded = jev_trial.prepare_case(
+            compiled, runtime, case, {"codex"}, allow_abstain=True)
         self.assertEqual(mapping, {"c001": "ok"})
         self.assertEqual(set(excluded), {"disabled", "exhausted"})
         self.assertNotIn("PRIVATE_", json.dumps(payload))
@@ -226,11 +227,24 @@ class JevTest(unittest.TestCase):
     def test_trial_keeps_unknown_quota_visible_without_accepting_it(self):
         compiled = {"candidates": {"worker": {"launch": {"agent": "codex", "model": "example", "effort": "high"},
                                             "features": ["tools"]}}, "accounts": {}, "preferences": []}
-        payload, mapping, _excluded = jev_trial.prepare_case(compiled, {}, {"task": {"outcome": "Review code."}}, {"codex"})
+        payload, mapping, _excluded = jev_trial.prepare_case(
+            compiled, {}, {"task": {"outcome": "Review code."}}, {"codex"},
+            allow_abstain=True)
         profile = json.loads(payload["questions"]["route"]["criteria"]["c001"])
         self.assertEqual(profile["quota"]["status"], "unknown")
         self.assertNotIn("quota_acceptance", json.dumps(payload))
         self.assertEqual(mapping, {"c001": "worker"})
+
+    def test_ordinary_choice_has_no_abstain_option_or_instruction(self):
+        candidate = {"launch": {"agent": "codex", "model": "example", "effort": "high"},
+                     "features": ["tools"]}
+        compiled = {"candidates": {"first": candidate, "second": dict(candidate)},
+                    "accounts": {}, "preferences": []}
+        payload, mapping, _ = jev_context.prepare_case(
+            compiled, {}, {"task": {"outcome": "Review code."}}, {"codex"})
+        self.assertEqual(set(mapping), {"c001", "c002"})
+        self.assertEqual(set(payload["questions"]["route"]["criteria"]), set(mapping))
+        self.assertNotIn("abstain", payload["questions"]["route"]["instructions"].lower())
 
     def test_public_context_drops_private_profiles_and_preserves_candidate_states(self):
         compiled = {"candidates": {

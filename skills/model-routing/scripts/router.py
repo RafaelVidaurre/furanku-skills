@@ -1741,6 +1741,7 @@ def main(argv=None):
     parser.add_argument("--task-file", help="Jev task context JSON")
     parser.add_argument("--allow-model", action="append", default=[], help="principal-required model, repeatable")
     parser.add_argument("--allow-effort", action="append", default=[], help="principal-required effort, repeatable")
+    parser.add_argument("--allow-abstain", action="store_true", help="let Jev decline when no candidate can start or carry out the scope")
     parser.add_argument("--require-zdr", action="store_true", help="require Gateway zero data retention")
     parser.add_argument("--repo", default=".")
     parser.add_argument("--candidate", help="candidate ID chosen from the brief")
@@ -1801,6 +1802,8 @@ def main(argv=None):
     import selector
     import jev
     try:
+        if args.allow_abstain and args.command != "route":
+            raise jev.Error("--allow-abstain applies only to route.")
         if args.command in ("setup", "status"):
             result = selector.setup(args.selector) if args.command == "setup" else selector.status()
             emit(result, args.compact)

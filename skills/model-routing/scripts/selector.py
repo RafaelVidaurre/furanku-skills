@@ -111,6 +111,8 @@ def route(compiled, args, runtime):
     settings = read_settings()
     if settings is None:
         raise jev.Error('One-time setup required: ask whether the user wants Jev, then run router.py setup --selector agent|jev.')
+    if getattr(args, 'allow_abstain', False) and (args.exact_route or settings['selector'] != 'jev'):
+        raise jev.Error('--allow-abstain applies only to ordinary Jev route calls.')
     if args.exact_route:
         return router.check(compiled, args, runtime)
     if settings['selector'] == 'agent':
@@ -124,7 +126,9 @@ def route(compiled, args, runtime):
             'minimum_context': args.minimum_context, 'max_effort_basis': args.max_effort_basis,
             'allowed_models': args.allow_model, 'allowed_efforts': args.allow_effort}
     try:
-        payload, mapping, excluded = prepare_case(compiled, runtime, case, launchers)
+        payload, mapping, excluded = prepare_case(
+            compiled, runtime, case, launchers,
+            allow_abstain=getattr(args, 'allow_abstain', False))
     except jev.Error as exc:
         if "No eligible candidates" in str(exc) and any(
             candidate.get("enabled", True) and candidate.get("explicit", False)
@@ -135,24 +139,32 @@ def route(compiled, args, runtime):
         ):
             raise jev.Error("Only explicit candidates match; use check --candidate --explicit-basis with the principal's model and effort request.") from exc
         raise
-    if args.require_zdr:
-        payload['providerOptions']['gateway']['zeroDataRetention'] = True
-    result = jev.evaluate_bounded(payload)
-    answer = result['answers']['route']
-    alias = answer['choice']
-    evidence = {'name': 'jev', 'model': jev.MODEL, 'choice_probability': answer['probabilities'][alias],
-                'confidence': answer['confidence'], 'elapsed_seconds': result['elapsed_seconds'],
-                'usage': result['usage'], 'cost_usd': result['cost_usd']}
-    if alias == 'abstain':
-        return {'status': 'refused', 'reasons': ['Jev abstained: clarify task facts or candidate adequacy before rerouting.'], 'selector': evidence}
-    candidate_id = mapping[alias]
+    if payload is None:
+        candidate_id = next(iter(mapping.values()))
+        evidence = {'name': 'single-eligible', 'candidate': candidate_id}
+    else:
+        if args.require_zdr:
+            payload['providerOptions']['gateway']['zeroDataRetention'] = True
+        result = jev.evaluate_bounded(payload)
+        answer = result['answers']['route']
+        alias = answer['choice']
+        evidence = {'name': 'jev', 'model': jev.MODEL,
+                    'choice_probability': answer['probabilities'][alias],
+                    'probabilities': {mapping.get(option, option): probability
+                                      for option, probability in answer['probabilities'].items()},
+                    'confidence': answer['confidence'], 'elapsed_seconds': result['elapsed_seconds'],
+                    'usage': result['usage'], 'cost_usd': result['cost_usd']}
+        if alias == 'abstain':
+            return {'status': 'refused', 'reasons': ['Jev abstained: no offered candidate can carry out the scope, or a prerequisite prevents starting.'], 'selector': evidence}
+        candidate_id = mapping[alias]
     # Reload both configuration and runtime; the selected offer cannot change during evaluation.
     fresh = router.compile_brief(args.repo)
     if fresh['candidates'].get(candidate_id) != compiled['candidates'][candidate_id] or fresh['preferences'] != compiled['preferences'] or read_settings() != settings:
         return {'status': 'refused', 'reasons': ['Routing configuration changed during evaluation; rerun route.'], 'selector': evidence}
     checked = deepcopy(args)
     checked.candidate = candidate_id
-    checked.reason = 'Jev selected this offer from eligible candidates using task facts, preferences, capability evidence and quota.'
+    checked.reason = ('Jev selected this offer from eligible candidates using task facts, preferences, capability evidence and quota.'
+                      if payload is not None else 'Only one candidate passed the routing eligibility gates.')
     decision = router.check(fresh, checked, router.load_runtime(args, fresh['candidates']))
     decision['selector'] = evidence
     return decision
