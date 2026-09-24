@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pilot: ask Jev for domain involvement and evidenced quality in a Codex session.
+"""Pilot: ask Jev for domain involvement and evidenced quality in an agent session.
 
 Results contain private session metadata. Write them outside the public repository.
 """
@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -27,49 +28,60 @@ QUALITY = {
     "3": "Visible evidence shows a good domain result accepted with at most minor corrections.",
     "4": "Visible evidence shows an excellent domain result, explicitly accepted and requiring no meaningful correction."
 }
+AMBIENT_TAGS = {"recommended_plugins", "environment_context", "in-app-browser-context",
+                "system-reminder", "user_info", "rules", "task-notification",
+                "fork-boilerplate", "skill", "subagent_notification", "hook_prompt"}
+CONTENT_TAGS = {"user_query", "pasted_content"}
+OPEN_TAG = re.compile(r"^<([a-z][a-z0-9_-]*)(?:\s+[^>]*)?>")
 
 
 def clean_user(value):
     value = value.strip()
-    if value.startswith("You are working inside Orca") and "=== TASK ===" in value:
+    if value.startswith("This session is being continued from a previous conversation that ran out of context."):
+        return ""
+    while value:
+        opened = OPEN_TAG.match(value)
+        if not opened or opened.group(1) not in AMBIENT_TAGS | CONTENT_TAGS:
+            break
+        tag = opened.group(1)
+        closed = re.search(rf"</{re.escape(tag)}(?:\s+[^>]*)?>", value[opened.end():])
+        if not closed:
+            return "" if tag in AMBIENT_TAGS else value[opened.end():].strip()
+        end = opened.end() + closed.end()
+        if tag in AMBIENT_TAGS:
+            value = value[end:].strip()
+        else:
+            inner = value[opened.end():opened.end() + closed.start()].strip()
+            rest = value[end:].strip()
+            value = "\n".join(part for part in (inner, rest) if part)
+    for tag in AMBIENT_TAGS:
+        matches = list(re.finditer(rf"\s*<{re.escape(tag)}(?:\s+[^>]*)?>.*?</{re.escape(tag)}(?:\s+[^>]*)?>\s*$",
+                                   value, flags=re.DOTALL))
+        if matches:
+            value = value[:matches[-1].start()].strip()
+    if value.startswith("You are working inside Orca"):
+        if "=== TASK ===" not in value:
+            return ""
         value = value.split("=== TASK ===", 1)[1].strip()
     if value.startswith("# AGENTS.md instructions") and "</INSTRUCTIONS>" in value:
         value = value.split("</INSTRUCTIONS>", 1)[1].strip()
-    for tag in ("recommended_plugins", "environment_context", "in-app-browser-context", "skill"):
-        if value.startswith(f"<{tag}") and f"</{tag}>" in value:
-            value = value.split(f"</{tag}>", 1)[1].strip()
-    if value.startswith(("<recommended_plugins>", "<environment_context>",
-                         "<in-app-browser-context", "<subagent_notification>",
-                         "<skill>", "<hook_prompt")):
-        return ""
     if value.startswith("<send_user_message_question_reply>"):
         return "User answered a clarification question. " + value[:700]
     return value
 
 
-def session_state(path):
-    turns = []
-    models = []
-    current = None
-    with path.open(encoding="utf-8") as stream:
-        for line in stream:
-            item = json.loads(line)
-            payload = item.get("payload", {})
-            if item.get("type") == "turn_context":
-                models.append((payload.get("model"), payload.get("effort")))
-            if item.get("type") != "response_item" or payload.get("type") != "message":
-                continue
-            role = payload.get("role")
-            content = "\n".join(part.get("text", "") for part in payload.get("content", [])
-                                if part.get("type") in ("input_text", "output_text"))
-            if role == "user":
-                content = clean_user(content)
-                if content:
-                    current = {"user": content, "assistant": []}
-                    turns.append(current)
-            elif role == "assistant" and current is not None and content:
-                current["assistant"].append(content)
-    if not models or not turns:
+def text_content(content):
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(part.get("text", "") for part in content
+                         if isinstance(part, dict) and part.get("type") in
+                         ("text", "input_text", "output_text"))
+    return ""
+
+
+def render_state(turns, models):
+    if not models or not turns or any(not model or not effort for model, effort in models):
         raise ValueError("Session has no model/effort or work turns")
     model, count = Counter(models).most_common(1)[0]
     if count < len(models):
@@ -84,13 +96,104 @@ def session_state(path):
         rendered.append({"request": request, "response": turn["assistant"][-1][:2200]})
     if not rendered:
         raise ValueError("Session has no assistant responses")
-    return {"model": model[0], "effort": model[1], "turns": rendered[:20],
-            "omitted_turns": max(0, len(rendered) - 20)}
+    if len(rendered) > 20:
+        selected = rendered[:10] + rendered[-10:]
+    else:
+        selected = rendered
+    return {"model": model[0], "effort": model[1], "turns": selected,
+            "omitted_turns": len(rendered) - len(selected)}
 
 
-def classify(path):
+def codex_session_state(path):
+    turns = []
+    models = []
+    current = None
+    with path.open(encoding="utf-8") as stream:
+        for line in stream:
+            item = json.loads(line)
+            payload = item.get("payload", {})
+            if item.get("type") == "turn_context":
+                models.append((payload.get("model"), payload.get("effort")))
+            if item.get("type") != "response_item" or payload.get("type") != "message":
+                continue
+            role = payload.get("role")
+            content = text_content(payload.get("content"))
+            if role == "user":
+                content = clean_user(content)
+                if content:
+                    current = {"user": content, "assistant": []}
+                    turns.append(current)
+            elif role == "assistant" and current is not None and content:
+                current["assistant"].append(content)
+    return render_state(turns, models)
+
+
+def claude_session_state(path):
+    turns = []
+    models = []
+    current = None
+    with path.open(encoding="utf-8") as stream:
+        for line in stream:
+            item = json.loads(line)
+            role = item.get("type")
+            message = item.get("message") or {}
+            if role == "user":
+                content = clean_user(text_content(message.get("content")))
+                if content:
+                    current = {"user": content, "assistant": []}
+                    turns.append(current)
+            elif role == "assistant" and current is not None:
+                model = message.get("model")
+                effort = item.get("effort")
+                if isinstance(model, str) and model != "<synthetic>" and effort:
+                    models.append((model, effort))
+                content = text_content(message.get("content"))
+                if content:
+                    current["assistant"].append(content)
+    return render_state(turns, models)
+
+
+def grok_session_state(path):
+    directory = path if path.is_dir() else path.parent
+    summary = json.loads((directory / "summary.json").read_text(encoding="utf-8"))
+    model = summary.get("current_model_id")
+    effort = summary.get("reasoning_effort")
+    turns = []
+    current = None
+    with (directory / "chat_history.jsonl").open(encoding="utf-8") as stream:
+        for line in stream:
+            item = json.loads(line)
+            role = item.get("type")
+            if role == "user" and not item.get("synthetic_reason"):
+                content = clean_user(text_content(item.get("content")))
+                if content:
+                    current = {"user": content, "assistant": []}
+                    turns.append(current)
+            elif role == "assistant" and current is not None:
+                content = text_content(item.get("content"))
+                if content:
+                    current["assistant"].append(content)
+    return render_state(turns, [(model, effort)])
+
+
+def session_state(path, provider="codex"):
+    if provider == "codex":
+        return codex_session_state(path)
+    if provider == "claude":
+        return claude_session_state(path)
+    if provider == "grok":
+        return grok_session_state(path)
+    raise ValueError(f"Unknown session provider: {provider}")
+
+
+def source_key(path, provider):
+    source = path.parent if provider == "grok" and path.is_file() else path
+    return hashlib.sha256(f"{provider}\0{source.resolve()}".encode()).hexdigest()
+
+
+def classify(path, provider="codex"):
     taxonomy = json.loads(DOMAINS.read_text(encoding="utf-8"))
-    state = session_state(path)
+    state = session_state(path, provider)
     scale = taxonomy["scale"]
     domain_questions = {
         domain["id"]: {
@@ -129,7 +232,10 @@ def classify(path):
     quality = (jev.evaluate_bounded({"model": jev.MODEL, "state": state,
                                     "questions": quality_questions})
                if quality_questions else {"answers": {}, "usage": {}, "cost_usd": 0})
-    return {"session": path.name, "model": state["model"], "effort": state["effort"],
+    session_name = path.parent.name if provider == "grok" and path.is_file() else path.name
+    return {"session": session_name, "source_key": source_key(path, provider),
+            "provider": provider,
+            "model": state["model"], "effort": state["effort"],
             "turns": len(state["turns"]), "omitted_turns": state["omitted_turns"],
             "taxonomy_version": taxonomy["version"], "involvement": involvement["answers"],
             "quality": quality["answers"],
@@ -140,6 +246,7 @@ def classify(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("sessions", nargs="+", type=Path)
+    parser.add_argument("--provider", choices=("codex", "claude", "grok"), default="codex")
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     if args.output.parent != PRIVATE_ROOT:
@@ -154,14 +261,19 @@ def main():
         parser.error("Private retrospective output must be a regular file owned by this user")
     args.output.chmod(0o600)
     previous = set()
+    old_codex_names = set()
     for line in args.output.read_text(encoding="utf-8").splitlines():
-        previous.add(json.loads(line)["session"])
+        row = json.loads(line)
+        if row.get("source_key"):
+            previous.add(row["source_key"])
+        elif row.get("provider", "codex") == "codex":
+            old_codex_names.add(row["session"])
     with args.output.open("a", encoding="utf-8") as stream:
         for path in args.sessions:
-            if path.name in previous:
+            if source_key(path, args.provider) in previous or (args.provider == "codex" and path.name in old_codex_names):
                 continue
             try:
-                result = classify(path)
+                result = classify(path, args.provider)
             except (jev.Error, ValueError, OSError, json.JSONDecodeError) as exc:
                 print(json.dumps({"session": path.name, "error": str(exc)}), flush=True)
                 continue
