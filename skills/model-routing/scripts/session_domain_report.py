@@ -20,7 +20,7 @@ def involvement_status(answer):
     return "central" if answer.get("probabilities", {}).get("central", 0) >= 0.75 else "central_uncertain"
 
 
-def score_status(row, domain):
+def score_status(row, domain, context_variant_unverified=False):
     if row.get("error"):
         return "error"
     if row.get("quality_rubric_version") != retrospect.QUALITY_RUBRIC_VERSION:
@@ -28,6 +28,8 @@ def score_status(row, domain):
     status = involvement_status(row.get("involvement", {}).get(domain, {}))
     if status != "central":
         return status
+    if context_variant_unverified:
+        return "context_variant_unverified"
     if row.get("delegated_work") is not False:
         return "delegated_or_unchecked"
     if row.get("attribution") != "turn_verified":
@@ -43,7 +45,7 @@ def score_status(row, domain):
     return "numeric"
 
 
-def aggregate(results, domains):
+def aggregate(results, domains, context_variant_unverified=frozenset()):
     latest = {(row.get("source_key") or f"{row.get('provider', 'codex')}:{row['session']}"): row
               for row in results}
     groups = defaultdict(list)
@@ -71,7 +73,7 @@ def aggregate(results, domains):
             active[key] += 1
             if row.get("requester_provenance") == "agent_or_coordinator":
                 agent_requested[key] += 1
-            status = score_status(row, domain)
+            status = score_status(row, domain, row.get("source_key") in context_variant_unverified)
             if status != "numeric":
                 exclusions[(key, status)] += 1
                 unknown[key] += 1
@@ -104,9 +106,16 @@ def main():
     domains = [item["id"] for item in taxonomy["domains"]]
     census = [json.loads(line) for line in args.census.open() if line.strip()]
     projected_keys = {row["source_key"] for row in census if row["disposition"] == "projected"}
+    context_variant_unverified = {row["source_key"] for row in census
+        if row["disposition"] == "projected" and row.get("configured_routes") and
+        all(route.get("context_variant_unverified") for route in row["configured_routes"])}
+    variant_counts = Counter((row["matching_models"][0]["model"],
+                              row["matching_models"][0]["effort"])
+                             for row in census if row["source_key"] in context_variant_unverified)
     results = [row for line in args.assessments.open() if line.strip()
                if (row := json.loads(line)).get("source_key") in projected_keys]
-    latest, cells, active, unknown, supporting, uncertain, exclusions, agent_requested = aggregate(results, domains)
+    latest, cells, active, unknown, supporting, uncertain, exclusions, agent_requested = aggregate(
+        results, domains, context_variant_unverified)
     routes = sorted({(match["model"], match["effort"]) for row in census
                      for match in row["matching_models"]})
     projected = Counter((row["matching_models"][0]["model"], row["matching_models"][0]["effort"])
@@ -125,12 +134,12 @@ def main():
     lines = ["# Whole-session domain estimates", "",
              "Exploratory Jev labels for the full conversation in each assessed Codex, Claude Code, or Grok session. A session can contribute to several domains. Means use central labels with selected-choice probability at least 0.75 and quality-choice probability at least 0.60. These are ambiguity filters, not calibrated confidence. Delegated work, summary-only model attribution, and truncated conversations are excluded from means; their labels remain in the audit CSV. The pilot prioritizes feedback-rich sessions and is not a random sample. Scores are visible-outcome estimates on a 0–4 scale, not calibrated model capability or routing scores.",
              "", "## Coverage", "",
-             "| Model / effort | Projectable | Assessed | Errors | Older rubric | Pending |", "| --- | ---: | ---: | ---: | ---: | ---: |"]
+             "| Model / effort | Projectable | Assessed | Errors | Older rubric | Pending | Context variant unverified |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: |"]
     for route in routes:
-        lines.append(f"| {route[0]}/{route[1]} | {projected[route]} | {assessed[route]} | {errors[route]} | {older[route]} | {projected[route] - assessed[route] - errors[route]} |")
+        lines.append(f"| {route[0]}/{route[1]} | {projected[route]} | {assessed[route]} | {errors[route]} | {older[route]} | {projected[route] - assessed[route] - errors[route]} | {variant_counts[route]} |")
     lines += ["", "Pending sessions have not been assessed. An empty score cell cannot be read as a lack of useful history until its route's pending count reaches zero.",
               "", "## Domain scores", "",
-              "Each cell is mean /4 (numeric / strong-central sessions). A dash means no numeric score; an asterisk marks fewer than five numeric sessions or three task families. One task family contributes at most five effective observations. Numeric labels remain provisional because transcript visibility and task selection vary by model.",
+              "Each cell is mean /4 (numeric / strong-central sessions). A dash means no numeric score; an asterisk marks fewer than five numeric sessions or three task families. One task family contributes at most five effective observations. Base-model transcripts cannot score a configured context variant when its context setting is unverified. Numeric labels remain provisional because transcript visibility and task selection vary by model.",
               "", "| Domain | " + " | ".join(f"{m}/{e}" for m, e in routes) + " |",
               "| --- | " + " | ".join("---:" for _ in routes) + " |"]
     for domain in domains:
@@ -190,7 +199,7 @@ def main():
                                  "involvement": involvement, "involvement_status": status,
                                  "quality": quality.get("choice", "unknown"),
                                  "quality_confidence": quality.get("confidence"),
-                                 "status": score_status(row, domain),
+                                 "status": score_status(row, domain, row.get("source_key") in context_variant_unverified),
                                  "delegated_work": row.get("delegated_work", ""),
                                  "requester_provenance": row.get("requester_provenance", ""),
                                  "attribution": row.get("attribution", ""),

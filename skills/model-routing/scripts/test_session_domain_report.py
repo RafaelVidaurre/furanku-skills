@@ -32,6 +32,18 @@ class SessionDomainReportTest(unittest.TestCase):
         self.assertEqual(session_domain_report.involvement_status(
             {"choice": "central", "probabilities": {"central": 0.68}}), "central_uncertain")
 
+    def test_unverified_context_variant_is_not_a_route_score(self):
+        row = {"source_key": "base", "provider": "claude", "model": "claude-fable-5-1", "effort": "high",
+               "quality_rubric_version": retrospect.QUALITY_RUBRIC_VERSION,
+               "delegated_work": False, "attribution": "turn_verified", "omitted_turns": 0,
+               "involvement": {"implementation": {"choice": "central", "probabilities": {"central": 0.9}}},
+               "quality": {"implementation": {"choice": "3", "probabilities": {"3": 0.9}}}}
+        _, cells, active, unknown, _, _, exclusions, _ = session_domain_report.aggregate(
+            [row], ["implementation"], {"base"})
+        key = ("claude-fable-5-1", "high", "implementation")
+        self.assertEqual((cells, active[key], unknown[key]), ({}, 1, 1))
+        self.assertEqual(exclusions[(key, "context_variant_unverified")], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
