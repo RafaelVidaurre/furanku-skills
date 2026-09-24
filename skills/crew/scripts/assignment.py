@@ -685,6 +685,8 @@ def routing_summary(decision):
         "warnings": decision.get("warnings", []),
         "quota": decision.get("quota"),
     }
+    if decision.get("decision_id"):
+        summary["decision_id"] = decision["decision_id"]
     if decision["status"] == "selected":
         summary["candidate"] = selected["id"]
         summary["reason"] = decision["reason"]

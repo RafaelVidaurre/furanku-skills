@@ -24,6 +24,10 @@ Groups live in `.claude-plugin/marketplace.json`, not in the directory tree: a s
 
 Work is tracked in [Beads](https://github.com/gastownhall/beads) (`bd`): `.beads/issues.jsonl` is the shared record, the Dolt database beside it is local-only. This repo is public — keep personal data out of anything tracked there.
 
+## Logs
+
+Model-routing CLI decisions append private JSONL at `~/.furanku-skills/model-routing/logs/YYYY-MM-DD.jsonl` (UTC day, 180-day retention). Read only through `python3 skills/model-routing/scripts/routing_log.py tail --limit 50` or its bounded `--decision-id` / `--session-ref` filters. `routing_log.py status|off|on` controls machine-wide recording. Each event uses `request_id` as the decision correlation ID; tests validate a real sample with `skills/agent-readable-logs/scripts/check_log_shape.py`.
+
 ## When editing an existing skill
 
 Prune before you add: hunt no-ops (lines the model already obeys by default) and stale layers, and cut them. A skill that only ever grows is decaying.

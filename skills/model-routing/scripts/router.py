@@ -11,12 +11,14 @@ from __future__ import annotations
 
 import argparse
 from copy import deepcopy
+import hashlib
 import json
 import math
 from pathlib import Path
 import re
 import subprocess
 import sys
+import time
 
 try:
     import config as exact_config
@@ -1796,11 +1798,14 @@ def main(argv=None):
     )
     parser.add_argument("--format", choices=("markdown", "json"), default=None)
     parser.add_argument("--compact", action="store_true")
+    parser.add_argument("--session-ref", help="opaque ID of the spawning session for the private routing journal")
     args = parser.parse_args(argv)
     # Extensions import router; keep CLI and imported exception types identical.
     sys.modules.setdefault("router", sys.modules[__name__])
     import selector
     import jev
+    import routing_log
+    started = time.monotonic()
     try:
         if args.allow_abstain and args.command != "route":
             raise jev.Error("--allow-abstain applies only to route.")
@@ -1826,6 +1831,23 @@ def main(argv=None):
             return 0
         runtime = load_runtime(args, compiled["candidates"])
         decision = selector.route(compiled, args, runtime) if args.command == "route" else check(compiled, args, runtime)
+        config_hash = hashlib.sha256(json.dumps({
+            "candidates": compiled["candidates"],
+            "preferences": compiled["preferences"],
+            "exact": compiled["exact"]["config"],
+        }, sort_keys=True, default=str).encode()).hexdigest()[:24]
+        decision["decision_id"] = routing_log.decision(
+            decision, command=args.command, repo=repo_root,
+            elapsed_ms=round((time.monotonic() - started) * 1000),
+            session_ref=args.session_ref, config_hash=config_hash,
+            allow_abstain=args.allow_abstain, constraints={
+                "routing.candidate_count": len(compiled["candidates"]),
+                "routing.launchable_via": ",".join(sorted(parse_allowed_launchers(args.launchable_via) or ())),
+                "routing.required_features": ",".join(sorted(args.require_feature)),
+                "routing.minimum_context": args.minimum_context,
+                "routing.allowed_models": ",".join(sorted(args.allow_model)),
+                "routing.allowed_efforts": ",".join(sorted(args.allow_effort)),
+            })
         emit(decision, args.compact)
         if decision["status"] == "refused":
             return 1
@@ -1833,7 +1855,18 @@ def main(argv=None):
             return 2
         return 0
     except (Error, exact_config.Error, jev.Error, OSError, json.JSONDecodeError) as exc:
+        if args.command in ("check", "route"):
+            try:
+                routing_log.failure(
+                    command=args.command, repo=args.repo, error=exc,
+                    elapsed_ms=round((time.monotonic() - started) * 1000),
+                    session_ref=args.session_ref)
+            except (routing_log.Error, OSError) as log_exc:
+                print(f"model-routing: routing journal failed: {log_exc}", file=sys.stderr)
         print(f"model-routing: {exc}", file=sys.stderr)
+        return 1
+    except routing_log.Error as exc:
+        print(f"model-routing: routing journal failed: {exc}", file=sys.stderr)
         return 1
 
 
