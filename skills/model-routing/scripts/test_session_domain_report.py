@@ -10,6 +10,7 @@ class SessionDomainReportTest(unittest.TestCase):
             {"source_key": "a", "provider": "codex", "model": "gpt-6-sol", "effort": "high",
              "quality_rubric_version": retrospect.QUALITY_RUBRIC_VERSION,
              "delegated_work": False, "attribution": "turn_verified", "omitted_turns": 0,
+             "turns": 1, "tool_checks": [{"command": "pytest", "exit_code": 0}],
              "task_family": "one", "involvement": {
                  "implementation": {"choice": "central", "probabilities": {"central": 0.9}},
                  "ux_interaction": {"choice": "supporting"}},
@@ -17,6 +18,7 @@ class SessionDomainReportTest(unittest.TestCase):
             {"source_key": "b", "provider": "codex", "model": "gpt-6-sol", "effort": "high",
              "quality_rubric_version": retrospect.QUALITY_RUBRIC_VERSION,
              "delegated_work": False, "attribution": "turn_verified", "omitted_turns": 0,
+             "failure_cause": {"implementation": "model_domain_defect"},
              "task_family": "two", "involvement": {"implementation": {"choice": "central", "probabilities": {"central": 0.8}}},
              "quality": {"implementation": {"choice": "1", "probabilities": {"1": 0.8}}}},
         ]
@@ -43,6 +45,21 @@ class SessionDomainReportTest(unittest.TestCase):
         key = ("claude-fable-5-1", "high", "implementation")
         self.assertEqual((cells, active[key], unknown[key]), ({}, 1, 1))
         self.assertEqual(exclusions[(key, "context_variant_unverified")], 1)
+
+    def test_one_turn_positive_without_check_is_unverified(self):
+        row = {"quality_rubric_version": retrospect.QUALITY_RUBRIC_VERSION,
+               "delegated_work": False, "attribution": "turn_verified", "omitted_turns": 0,
+               "turns": 1, "tool_checks": [],
+               "involvement": {"writing": {"choice": "central", "probabilities": {"central": 0.9}}},
+               "quality": {"writing": {"choice": "3", "probabilities": {"3": 0.9}}}}
+        self.assertEqual(session_domain_report.score_status(row, "writing"), "unverified_positive")
+
+    def test_low_label_without_verified_model_cause_is_unscored(self):
+        row = {"quality_rubric_version": retrospect.QUALITY_RUBRIC_VERSION,
+               "delegated_work": False, "attribution": "turn_verified", "omitted_turns": 0,
+               "involvement": {"debugging": {"choice": "central", "probabilities": {"central": 0.9}}},
+               "quality": {"debugging": {"choice": "0", "probabilities": {"0": 0.9}}}}
+        self.assertEqual(session_domain_report.score_status(row, "debugging"), "cause_unverified")
 
 
 if __name__ == "__main__":

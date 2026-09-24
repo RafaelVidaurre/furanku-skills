@@ -42,6 +42,10 @@ def score_status(row, domain, context_variant_unverified=False):
         return "unknown_quality"
     if quality.get("probabilities", {}).get(choice, 0) < 0.6:
         return "quality_ambiguous"
+    if choice in ("0", "1", "2") and (row.get("failure_cause") or {}).get(domain) != "model_domain_defect":
+        return "cause_unverified"
+    if choice in ("3", "4") and row.get("turns", 0) <= 1 and not row.get("tool_checks"):
+        return "unverified_positive"
     return "numeric"
 
 
@@ -137,9 +141,12 @@ def main():
              "| Model / effort | Projectable | Assessed | Errors | Older rubric | Pending | Context variant unverified |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: |"]
     for route in routes:
         lines.append(f"| {route[0]}/{route[1]} | {projected[route]} | {assessed[route]} | {errors[route]} | {older[route]} | {projected[route] - assessed[route] - errors[route]} | {variant_counts[route]} |")
+    minimum_coverage_cells = sum(cell["scored"] >= 5 and cell["families"] >= 3
+                                 for cell in cells.values())
     lines += ["", "Pending sessions have not been assessed. An empty score cell cannot be read as a lack of useful history until its route's pending count reaches zero.",
               "", "## Domain scores", "",
-              "Each cell is mean /4 (numeric / strong-central sessions). A dash means no numeric score; an asterisk marks fewer than five numeric sessions or three task families. One task family contributes at most five effective observations. Base-model transcripts cannot score a configured context variant when its context setting is unverified. Numeric labels remain provisional because transcript visibility and task selection vary by model.",
+              "Each cell is mean /4 (numeric / strong-central sessions). A dash means no numeric score; an asterisk marks fewer than five numeric sessions or three task families. One task family contributes at most five effective observations. Low labels need an independently established model-domain cause; one-turn positive labels need a linked check. Base-model transcripts cannot score a configured context variant when its context setting is unverified. Numeric labels remain provisional because transcript visibility and task selection vary by model.",
+              f"Only {minimum_coverage_cells} model/effort/domain cells meet the minimum of five numeric sessions from three task families; that minimum alone does not establish a calibrated model score.",
               "", "| Domain | " + " | ".join(f"{m}/{e}" for m, e in routes) + " |",
               "| --- | " + " | ".join("---:" for _ in routes) + " |"]
     for domain in domains:
@@ -205,6 +212,7 @@ def main():
                                  "attribution": row.get("attribution", ""),
                                  "privacy_mode": row.get("privacy_mode", "")})
     print(json.dumps({"assessed": sum(assessed.values()), "numeric_cells": len(cells),
+                      "minimum_coverage_cells": minimum_coverage_cells,
                       "domains_with_numeric": len({key[2] for key in cells})}))
 
 

@@ -33,6 +33,8 @@ python3 <skill-dir>/scripts/session_domain_report.py \
 
 The report shows all 21 domains, each route's census, assessed, error and pending counts, score exclusions, family-capped means, and a private per-session/domain CSV. Means use only Jev's central labels with selected-choice probability at least 0.75 and quality labels with probability at least 0.60; these are ambiguity filters, not calibrated confidence. Delegated work, summary-only model attribution, and truncated conversations stay in the audit rows but outside means. A long conversation can contain several unrelated tasks, and `unknown` is the correct label if one session-level score would hide mixed outcomes. Linked images and complete code diffs are not inspected. Do not feed these means into routing until task-level outcomes and evidence sources have been audited.
 
+The report also excludes a positive label from a one-turn session with no linked check, and excludes low labels until a separate outcome audit establishes a model-domain cause. Jev can describe such output, but the transcript alone cannot verify success or distinguish a model error from an external blocker. Repeated prompts from one template form one task family even when they generate many session files.
+
 Read `Pending` as unassessed work, not as proof that the route has no usable history. Report both the assessed denominator and numeric score count before describing coverage or comparing routes.
 
 **Complete when:** every projectable census source key has one result or recorded error; every involved domain has a numeric or unknown row; the report shows the assessed denominator and unknown share beside each score.
