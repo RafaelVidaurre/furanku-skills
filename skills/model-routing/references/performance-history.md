@@ -1,83 +1,146 @@
 # Historical model performance
 
-Use this branch when studying how configured model and effort combinations performed, including disabled and explicit routes. A session does not need a Jev selection or routing-journal link. Exact links are for the separate [routing-policy audit](logging.md#audit-retrospective-coverage).
+This branch is experimental. Develop and validate in a checkout before publishing
+or updating installed skills. Retrospective results never change routing scores
+automatically.
 
-## Census the local corpus
+## Inventory all configured models
 
-Create a private inventory with `history_inventory.py` as documented in [Private routing journal](logging.md#audit-retrospective-coverage), then run:
+Use `history_inventory.py` as documented in [Private routing journal](logging.md#audit-retrospective-coverage), then run `performance_census.py --repo <root>
+--inventory <private-inventory.jsonl> --output <private-census.jsonl>`.
 
-```sh
-python3 <skill-dir>/scripts/performance_census.py --repo <root> \
-  --inventory <private-inventory.jsonl> \
-  --output "$HOME/.furanku-skills/model-routing/retrospectives/performance-census-$(date +%Y%m%d-%H%M%S).jsonl"
-```
+Include Codex, Claude Code, and Grok sessions for every configured model and effort,
+including disabled and explicit combinations. Jev involvement, routing logs, and
+Beads are not eligibility conditions. The inventory covers local files, not cloud
+history. Preserve its discovery scope and timestamp.
 
-The census includes every configured state, records model/effort matches once per native session, and reports `projected`, `mixed_unattributed`, `no_exchange`, `unprojectable`, or `inventory_error`. It counts unanswered final user messages separately from answered work turns. The private output is new and user-only. Claude base-model logs do not prove a configured context variant such as `[1m]`; Grok's current-model summary may not prove every earlier turn used it.
+**Complete when:** every matching native session appears once with its source and
+recorded model/effort; missing or ambiguous metadata is reported separately.
 
-**Complete when:** every matching inventory row has one disposition, and every `inventory_error`, `unprojectable`, or `mixed_unattributed` row is listed as missing evidence or queued for repair rather than counted as a quality observation.
+## Classify every task and domain
 
-## Estimate domain outcomes from sessions
-
-Run the whole-session domain pass when the question is which work domains each model handled. It reads every projectable Codex, Claude Code, and Grok session from the census, regardless of Jev routing. Conversations with two to six work turns go first because they are more likely to show feedback on one task without concealing much work; routes are interleaved. `--selection-file` can move a private list of `source_key` values to the front without dropping the rest. The result can contain several domains per session; each domain gets a 0–4 or `unknown` Jev label. `--limit` permits a resumable pilot, and `--retry-errors` revisits recorded projection failures. Gateway 429 responses are retried using their retry hint when present; other Gateway failures stop the run. Redacted transcript excerpts and bounded check results are sent to Jev through Vercel AI Gateway. Zero data retention is requested by default; `--allow-no-zdr` explicitly selects no prompt training when the account lacks ZDR and the user has authorized Jev processing. Results remain in the private machine directory.
-
-```sh
-python3 <skill-dir>/scripts/retrospect.py --census <private-census.jsonl> \
-  --output "$HOME/.furanku-skills/model-routing/retrospectives/whole-sessions.jsonl"
-report_tag=$(date +%Y%m%d-%H%M%S)
-python3 <skill-dir>/scripts/session_domain_report.py \
-  --assessments "$HOME/.furanku-skills/model-routing/retrospectives/whole-sessions.jsonl" \
-  --census <private-census.jsonl> \
-  --markdown "$HOME/.furanku-skills/model-routing/retrospectives/whole-domains-$report_tag.md" \
-  --sessions-csv "$HOME/.furanku-skills/model-routing/retrospectives/whole-domain-sessions-$report_tag.csv"
-```
-
-The report shows all 21 domains, each route's census, assessed, error and pending counts, score exclusions, family-capped means, and a private per-session/domain CSV. Means use only Jev's central labels with selected-choice probability at least 0.75 and quality labels with probability at least 0.60; these are ambiguity filters, not calibrated confidence. Delegated work, summary-only model attribution, and truncated conversations stay in the audit rows but outside means. A long conversation can contain several unrelated tasks, and `unknown` is the correct label if one session-level score would hide mixed outcomes. Linked images and complete code diffs are not inspected. Do not feed these means into routing until task-level outcomes and evidence sources have been audited.
-
-The report also excludes a positive label from a one-turn session with no linked check, and excludes low labels until a separate outcome audit establishes a model-domain cause. Jev can describe such output, but the transcript alone cannot verify success or distinguish a model error from an external blocker. Repeated prompts from one template form one task family even when they generate many session files.
-
-Read `Pending` as unassessed work, not as proof that the route has no usable history. Report both the assessed denominator and numeric score count before describing coverage or comparing routes.
-
-**Complete when:** every projectable census source key has one result or recorded error; every involved domain has a numeric or unknown row; the report shows the assessed denominator and unknown share beside each score.
-
-## Estimate first outcomes with stronger evidence
-
-For an exploratory historical estimate, run the resumable first-outcome assessor against the private census. It skips control turns and asks Jev for the primary domain, 0–4 quality or `unverified`/`unknown`, evidence type, and failure cause of the first substantive outcome in each session. Subsequent independent work in the same chat is outside this pass. `--followups` supplies previously classified first reactions when available. `--selection-file` prioritizes a private JSONL list of `source_key` values, then processes the remaining sessions; it does not tell Jev the domain. The output keeps raw choices, related test-command summaries, and explicit adjustments. `--retry-errors` reassesses prior error rows.
-
-This pass uses the same redaction and Gateway privacy modes as the whole-session pass: ZDR by default, or explicit `--allow-no-zdr` with no prompt training when Jev processing is authorized and the account lacks ZDR.
+Run the experimental task assessor against the census:
 
 ```sh
-python3 <skill-dir>/scripts/performance_assess.py \
-  --census <private-census.jsonl> --followups <private-followups.jsonl> \
-  --output "$HOME/.furanku-skills/model-routing/retrospectives/first-outcomes.jsonl"
-report_tag=$(date +%Y%m%d-%H%M%S)
-python3 <skill-dir>/scripts/performance_report.py \
-  --estimates "$HOME/.furanku-skills/model-routing/retrospectives/first-outcomes.jsonl" \
-  --census <private-census.jsonl> \
-  --markdown "$HOME/.furanku-skills/model-routing/retrospectives/domain-estimates-$report_tag.md" \
-  --sessions-csv "$HOME/.furanku-skills/model-routing/retrospectives/domain-sessions-$report_tag.csv"
+python3 <skill-dir>/scripts/task_retrospect.py --census <private-census.jsonl> \
+  --output "$HOME/.furanku-skills/model-routing/retrospectives/tasks.jsonl"
 ```
 
-The report lists all 21 domain rows, route-level coverage, each cell's score and evidence-weighted count, and every assessed session's status and cause. It caps repeated task templates and marks sparse cells; it does not manufacture missing scores with a prior. Jev probabilities are audit information, not calibrated success odds. The first-outcome rubric separately checks whether a test covers the first requested deliverable and whether the response exposes a complete inline artifact; a nearby passing test or a reported metric cannot support a positive score by itself. Self-reports, unrelated tests, changed preferences, external outages, and unseen visual artifacts do not become domain scores. Absent domains and model/effort combinations stay empty.
+`--prepare-only` inventories readable work turns without Jev calls; prepared rows
+are never reported as assessments. `--limit` bounds a pilot; zero (the default)
+processes the entire census. `--selection-file` prioritizes a JSONL list of source
+keys without excluding the remainder. A rerun skips sessions with a terminal result
+for the same analysis, source file, and linked Beads records, and processes
+never-attempted sessions first, so `--limit` always advances. Terminal results are
+`assessed`, `assessed_with_pending` (some domains stay pending), and non-retryable
+`error`; `--retry-pending` reprocesses the last two. Transport, rate-limit, and
+authentication failures stop with the diagnostic and any retry hint; completed
+calls remain cached. Use the same command to resume after recovery. An invalid
+Jev answer for one call is recorded as that domain's pending exclusion instead.
+There is no substitute evaluator on failure.
 
-**Complete when:** the private report contains one row per assessed session, every numeric observation records its evidence level, low scores have a checked cause, and cells with too little or correlated evidence remain marked sparse rather than used as routing capability claims.
+Jev processing uses Gateway zero data retention by default. Use `--allow-no-zdr`
+only under the user's existing authorization for processing without ZDR; it still
+requests no prompt training. Outputs and caches remain private on this machine.
 
-## Decide what can be scored
+The sequence is:
 
-For proved Orca dispatches, assemble a private task packet before judging the routed worker. This is a **routing-policy audit subset**; keep using the full Codex, Claude Code, and Grok census for model-performance history. The packet builder joins the dispatch proof, routing decision, exact worker transcript, task preamble, worker check summaries, and any located parent-session context. Parent user-channel messages may be orchestration notices or a coordinator's words; their presence does not establish human feedback or acceptance.
+1. Parse every work turn, preserving requests, responses, per-response model/effort,
+   recorded tool events, and original line references. Long tool bodies remain at
+   source; recognized checks retain their command/result summaries. Tool summaries
+   and source pointers are identified as such, never presented as complete artifacts.
+2. Ask Jev to link each request to its task. Corrections, approvals, abandonment,
+   and later feedback stay with that task. Housekeeping can carry task evidence.
+   Up to 50 earlier requests are offered; each boundary records the first one
+   offered and whether size forced a shorter window. A new task chosen under a
+   shortened window, and every unresolved link, is boundary-uncertain.
+3. Ask Jev about every domain in `retrospective-domains.json`: absent, supporting,
+   or central. Each answer option includes the domain's definition. Long requests
+   are paged; later pages repeat the task's opening request part, and every page
+   is retained. A page's unresolved answer is used only when no page resolves the
+   domain. Tasks by models outside the census are classified but not scored.
+4. Judge each recorded model/effort contribution using anonymized actor identifiers.
+   Other actors' work supplies context rather than credit. Every request is always
+   supplied whole. When events do not fit, Jev screens every event fragment for
+   positive evidence, negative evidence, and deliverables, then re-screens the
+   selection until the final call fits. The final call receives labelled fragments
+   (part k of n) with source line IDs; retain every screening round.
+5. Ask separate questions about domain quality, evidence, ownership, and cause.
+   Retain the raw 0–4/unknown estimates and citations independently of eligibility.
+   Supporting domains receive scores too. Refusal and instruction failures affect
+   performance when directly evidenced; external outages and changed requirements
+   remain separate causes. Artifact, behavior, and check evidence must cite the
+   target actor's own event; a requester message supports only feedback, and a
+   tool body left at source cannot be cited as an inspected artifact.
+6. Produce the adjacent Markdown report and per-session/task/domain CSV. The report
+   states its census digest, analysis signature, privacy mode, Beads status, run
+   status, and each census session's disposition. It counts distinct tasks and
+   reports raw estimates, evidence-eligible observations, exclusions, unassessed
+   work, and model/effort counts separately. These are exploratory observations,
+   not a calibrated capability ranking.
 
-```sh
-python3 <skill-dir>/scripts/task_outcome_packets.py \
-  --inventory <private-deduplicated-inventory.jsonl> \
-  --orca-proofs <private-proved-dispatches.json> \
-  --output "$HOME/.furanku-skills/model-routing/retrospectives/task-packets-$(date +%Y%m%d-%H%M%S).json"
-```
+Every judge call, questions included, is checked against the byte bounds before
+network use. Unknown effort stays unknown. Grok's summary model alone does not
+prove historical turn attribution; use per-turn metadata when present.
+Boundary-uncertain tasks cannot supply numeric routing evidence. Sensory quality
+needs actual perceptual evidence or specific feedback: a text-only judge cannot
+inspect referenced images, audio, or 3D artifacts. A task whose requests alone
+exceed the judge input keeps its domain labels, and its estimates remain pending
+as `task_requests_exceed_judge_input`.
 
-The builder leaves quality null. Review each packet's task contract, exact model and effort, checks, parent context provenance, and missing artifacts. Resolve parent messages to the same task before treating them as feedback. A completed dispatch or a worker's completion statement alone is not a quality result.
+Review a diverse pilot's requests, boundaries, labels, and cited source evidence
+before scaling. Compare labels to requested deliverables, rather than incidental
+technical words. Test negative examples as well as successful outcomes. Jev's
+choice probabilities are uncertainty signals, not calibrated worker-success odds.
 
-**Complete when:** every proved dispatch has a packet or an explicit attribution/projection gap, and no packet is counted as a numeric quality observation without task-specific outcome evidence.
+**Complete when:** every census session has a recorded disposition, every substantive
+request is assigned or marked unresolved, every involved domain has an estimate or
+an explicit reason for missing one, and the report's coverage matches the census.
+A limited pilot does not satisfy full-corpus completion.
 
-Split projected conversations by requested work outcome; attribute model and effort at the work-turn level before scoring mixed sessions. Resolve a task packet, issue, or external work reference before classifying its domain. Keep injected skill instructions, notifications, and transport events out of the request. Tie tests and artifacts to the requested outcome; an assistant completion claim, a passing-test marker, or silence alone does not establish acceptance. Treat images and 3D outputs as requiring visual evidence; the text-only Jev projection cannot judge their craft directly.
+## Optional Beads evidence
 
-Classify requested work domains separately from outcome cause. A scope or instruction violation is process reliability; a changed preference is rework without proof that the original request was violated; a transport or service failure is external. Score only the domain that the available evidence actually evaluates, and retain `unknown` for the rest. Multiple turns or workers on one original task are correlated observations, not independent trials. Include unscored counts beside numeric observations.
+When the project uses Beads and the user selects issue enrichment, read
+[Beads retrospective](beads-retrospective.md). Finalized issues can supply missing
+requirements, acceptance criteria, closure reasons, and review comments. Record
+successful, rejected, abandoned, duplicate, and superseded outcomes separately.
+A closed status or closing agent's claims alone do not establish success or model
+identity. Exact issue mentions locate candidate evidence; they do not prove
+who authored the result.
 
-**Complete when:** every proposed numeric score names one work outcome, its verified model and effort, a domain-specific evidence source, and an outcome cause; every excluded or unknown observation has a recorded reason.
+Pass `--beads-census <private-finalized-issues.jsonl>` to the task assessor to add
+records linked to that session whose exact ID appears in the task's requests or
+its own tool calls. Each task records where each ID matched; each session records
+how many linked records were available and used. Issue requirements inform domain
+classification; closure and review claims remain labelled tracker context. Issue
+context yields to the judge budget: claims are dropped first, then the whole
+context, and the domain records which context it received. Missing or malformed
+optional artifacts are recorded as unavailable enrichment while session analysis
+continues. Omitting the flag loads no Beads data and requires no Beads installation.
+
+Keep this adapter optional in the published feature. Projects without Beads use
+the session procedure above. Missing or failed Beads access is reported as an
+enrichment gap, without dropping their sessions or emulating the failed tool.
+
+**Complete when:** optional evidence is traced to its source and author/provenance,
+issue closure is distinguished from verified outcomes, and the session census
+remains identical with enrichment enabled or disabled.
+
+## Calibration and legacy experiments
+
+Audit outcome attribution and task-specific evidence before using observations
+for routing. Repeated task templates and multiple workers on one original request
+are correlated. Confidence and score updates require task-family controls,
+difficulty comparisons, evidence weights, and an outlier-resistant estimator;
+the experimental task report does not implement that calibration yet.
+
+`retrospect.py` / `session_domain_report.py` reproduce the older bounded whole-session
+experiment. `performance_assess.py` / `performance_report.py` reproduce the first-
+outcome diagnostic. Neither covers every task in a long session. Preserve their
+results as historical experiments, not as a substitute for the task census.
+`task_outcome_packets.py` is the separate routing-policy audit for exactly linked
+dispatches; it is not a requirement for learning from ordinary sessions.
+
+**Complete when:** audited observations, uncalibrated estimates, and validated
+routing score updates are reported as distinct stages, with the user reviewing
+calibration before any score update.
