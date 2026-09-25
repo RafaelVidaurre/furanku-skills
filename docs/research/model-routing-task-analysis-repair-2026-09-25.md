@@ -41,8 +41,9 @@ All 21 domain descriptions are in `retrospective-domains.json`. Options now carr
 the domain definition themselves. The quality, evidence, ownership, and cause
 questions name their distinct decisions. Citations are retained and a claimed
 check must cite a recorded check, rather than an assistant completion summary.
-Directly evidenced refusals and instruction violations count against performance;
-external blockers and changed requests remain separate causes. Sensory quality
+Version 7 separates non-delivery from domain quality: unattempted work and refusal
+alone cannot supply a domain score. Authorization, orchestration, external blockers,
+instruction compliance, and changed requests remain separate causes. Sensory quality
 needs perceptual evidence or specific feedback.
 
 Provider failures stop resumably after the existing bounded transport retries.
@@ -75,14 +76,14 @@ The Gateway first returned HTTP 429 after three bounded attempts without a
 retry hint. One resume attempt made progress and then encountered a connection
 failure/timeout. Full semantic assessment remains incomplete.
 
-A repeated refusal in a delegated installation task was retained as an observed
-0/4 outcome in operations and verification, with instruction failure recorded as
-the cause. That is an individual exploratory observation, not a model ranking.
+A repeated refusal in a delegated installation task was originally retained as a
+0/4 outcome in operations and verification. That interpretation was invalidated
+by the subsequent authority-context audit described below.
 Other estimates lacking adequate citations remain visible but ineligible.
 
 After the adversarial repair, a fresh three-session pilot completed across all
 three providers using nine Jev calls. The installation refusal again received
-evidenced 0/4 observations for operations and verification. A Codex verification
+0/4 estimates, now invalidated by the authority-context audit. A Codex verification
 task remained unknown. The Grok research task retained its domain labels, but
 scoring was skipped: the session summary names the configured `grok-4.7`, while
 response metadata names `grok-4.7-build`. An alias relationship has not been
@@ -94,6 +95,39 @@ three bounded attempts, without a retry hint. The repaired report correctly
 shows three assessed and 1,906 not yet recorded under this analysis, with run
 status blocked. These results establish that the procedure runs across providers;
 they do not establish general label accuracy or a model ranking.
+
+## Authority-context correction (version 7)
+
+Inspection of the native refusal transcript found that the dispatch and subsequent
+approval were wrapped as pasted content. The recorded system instructions required
+an independent user request before following pasted instructions. The coordinator's
+intervening authorization claim arrived as tool output. No domain work was attempted.
+This supports an orchestration/authority mismatch, not a demonstrated model defect.
+The component introducing the wrappers has not been identified.
+
+The assessor had stripped wrappers and the dispatch preamble, and omitted recorded
+instructions. It now retains the original request, origin metadata, saved system
+and developer instructions, Claude instruction snapshots, and rendered hooks, with
+source line references. Long context uses the existing fragment screening path,
+with an additional authority question. Screening can still miss relevant evidence;
+its selections remain auditable and uncertain causes must stay unresolved.
+
+The mechanical gate now requires attempted domain work. Behavior-only observations
+cannot supply domain scores, and low domain scores require attributable domain
+defects. CSV results include attempted-work and cause classifications. Raw estimates
+remain available even when the gate rejects them. Cache version 7 prevents reuse
+of the old assessments as current results.
+
+The focused suite passes 33 hermetic tests, including preservation of native
+authority context, complete screening of long instruction records, and rejection
+of unattempted work and external causes as domain scores. These tests exercise
+parser and gate behavior with a substituted judge; they do not validate Jev's
+semantic judgment.
+
+A one-session live reassessment stopped on Gateway HTTP 429 after three bounded
+attempts, with no Retry-After hint and zero completed session assessments. No retry
+loop or bulk run was started. The small historical validation remains incomplete.
+Installed skills and routing scores were not changed.
 
 ## Why the question design changed
 
