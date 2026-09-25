@@ -37,6 +37,9 @@ class JevTest(unittest.TestCase):
             "HOME": str(self.home), "CODEX_HOME": str(self.home / "codex")}, clear=True)
         self.environment.start()
         self.addCleanup(self.environment.stop)
+        jitter = mock.patch("jev_backoff.random.uniform", side_effect=lambda low, high: low)
+        jitter.start()
+        self.addCleanup(jitter.stop)
 
     def test_setup_stores_key_for_other_working_directories_without_echo(self):
         script = Path(jev.__file__).resolve()
@@ -139,7 +142,8 @@ class JevTest(unittest.TestCase):
              mock.patch("jev.time.sleep") as sleep:
             result = jev.evaluate(PAYLOAD)
         self.assertEqual(transport.call_count, 2)
-        sleep.assert_called_once_with(0.25)
+        self.assertEqual(sleep.call_count, 1)
+        self.assertAlmostEqual(sleep.call_args.args[0], 1.0, delta=0.1)
         self.assertEqual(result["attempts"], 2)
 
     def test_429_respects_retry_after_and_fails_fast_when_it_exceeds_budget(self):
@@ -151,7 +155,7 @@ class JevTest(unittest.TestCase):
             jev.evaluate(PAYLOAD)
         transport.assert_called_once()
         sleep.assert_not_called()
-        self.assertEqual(caught.exception.retry_after_seconds, 45)
+        self.assertAlmostEqual(caught.exception.retry_after_seconds, 45, delta=0.1)
         self.assertNotIn("private body", str(caught.exception))
 
     def test_429_without_header_stops_after_three_attempts(self):
@@ -163,18 +167,120 @@ class JevTest(unittest.TestCase):
              mock.patch("jev.time.sleep") as sleep, self.assertRaises(jev.RateLimitError) as caught:
             jev.evaluate(PAYLOAD)
         self.assertEqual(transport.call_count, 3)
-        self.assertEqual([call.args[0] for call in sleep.call_args_list], [0.25, 1.0])
-        self.assertIsNone(caught.exception.retry_after_seconds)
+        self.assertEqual(len(sleep.call_args_list), 2)
+        for call, expected in zip(sleep.call_args_list, (1.0, 2.0)):
+            self.assertAlmostEqual(call.args[0], expected, delta=0.1)
+        self.assertAlmostEqual(caught.exception.retry_after_seconds, 4.0, delta=0.1)
 
     def test_bounded_client_preserves_retry_after_for_router(self):
         failure = {"status": "error", "code": "rate_limited", "attempts": 1,
-                   "retry_after_seconds": 45, "error": "Gateway HTTP 429"}
+                   "retry_after_seconds": 45, "error": "Gateway HTTP 429",
+                   "diagnostics": {"code": "rate_limit_exceeded"}, "delay_source": "server"}
         completed = subprocess.CompletedProcess([], 1, "", json.dumps(failure))
         with mock.patch("jev.subprocess.run", return_value=completed), \
              self.assertRaises(jev.RateLimitError) as caught:
             jev.evaluate_bounded(PAYLOAD)
-        self.assertEqual(caught.exception.retry_after_seconds, 45)
+        self.assertAlmostEqual(caught.exception.retry_after_seconds, 45, delta=0.1)
         self.assertEqual(caught.exception.attempts, 1)
+        self.assertEqual(caught.exception.diagnostics, failure['diagnostics'])
+        self.assertEqual(caught.exception.delay_source, 'server')
+
+    def test_cooldown_survives_process_restart_and_prevents_another_http_call(self):
+        jev.store_key('test-key')
+        error = urllib.error.HTTPError(jev.ENDPOINT, 429, '', {'Retry-After': '45'}, io.BytesIO(b'{}'))
+        with mock.patch('urllib.request.OpenerDirector.open', side_effect=error), self.assertRaises(jev.RateLimitError):
+            jev.evaluate(PAYLOAD)
+        script = '''
+import json, sys
+from unittest.mock import patch
+import jev
+with patch('urllib.request.OpenerDirector.open', side_effect=AssertionError('HTTP forbidden')):
+    try:
+        jev.evaluate(json.loads(sys.stdin.read()))
+    except jev.RateLimitError as error:
+        print(json.dumps({'attempts': error.attempts, 'delay': error.retry_after_seconds}))
+'''
+        child = subprocess.run([sys.executable, '-c', script], input=json.dumps(PAYLOAD),
+                               cwd=Path(jev.__file__).parent, capture_output=True, text=True, timeout=5)
+        self.assertEqual(child.returncode, 0, child.stderr)
+        result = json.loads(child.stdout)
+        self.assertEqual(result['attempts'], 0)
+        self.assertGreater(result['delay'], 35)
+        self.assertLessEqual(result['delay'], 45)
+
+    def test_new_call_continues_backoff_and_success_resets_it(self):
+        jev.store_key('test-key')
+        def limited(*args, **kwargs):
+            raise urllib.error.HTTPError(jev.ENDPOINT, 429, '', {}, io.BytesIO(b'{}'))
+        with mock.patch('urllib.request.OpenerDirector.open', side_effect=limited), mock.patch('jev.time.sleep'):
+            with mock.patch('jev_backoff.time.time', return_value=100), self.assertRaises(jev.RateLimitError):
+                jev.evaluate(PAYLOAD)
+            with mock.patch('jev_backoff.time.time', return_value=200), self.assertRaises(jev.RateLimitError) as caught:
+                jev.evaluate(PAYLOAD)
+        self.assertEqual(caught.exception.retry_after_seconds, 30)
+        path = next((self.home / '.furanku-skills/model-routing/gateway-backoff').glob('*.json'))
+        self.assertEqual(json.loads(path.read_text())['failures'], 6)
+        with mock.patch('jev_backoff.time.time', return_value=300), mock.patch(
+                'urllib.request.OpenerDirector.open', return_value=io.BytesIO(json.dumps(RESPONSE).encode())):
+            jev.evaluate(PAYLOAD)
+        self.assertEqual(json.loads(path.read_text()), {})
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        self.assertNotIn('test-key', path.name + path.read_text())
+
+    def test_concurrent_client_cannot_make_duplicate_network_attempt(self):
+        jev.store_key('test-key')
+        with jev.jev_backoff.admission('test-key', jev.ENDPOINT):
+            with mock.patch('urllib.request.OpenerDirector.open') as transport, self.assertRaises(jev.RateLimitError) as caught:
+                jev.evaluate(PAYLOAD)
+        transport.assert_not_called()
+        self.assertEqual(caught.exception.reason, 'in_flight')
+        self.assertEqual(caught.exception.attempts, 0)
+        self.assertNotIn('HTTP 429', str(caught.exception))
+
+    def test_429_diagnostics_cannot_echo_secrets_or_arbitrary_error_text(self):
+        jev.store_key('test-key')
+        body = {'error': {'type': 'rate_limit_error', 'code': 'test-key',
+                          'message': 'Token rate limit exceeded: 1000 tokens per minute for private test-key', 'api_key': 'test-key'}}
+        error = urllib.error.HTTPError(jev.ENDPOINT, 429, '',
+            {'Retry-After': '60', 'x-ratelimit-limit-tokens': '1000', 'x-ratelimit-remaining': 'test-key'},
+            io.BytesIO(json.dumps(body).encode()))
+        with mock.patch('urllib.request.OpenerDirector.open', side_effect=error), self.assertRaises(jev.RateLimitError) as caught:
+            jev.evaluate(PAYLOAD)
+        self.assertEqual(caught.exception.diagnostics, {'type': 'rate_limit_error', 'code': 'unrecognized',
+                         'message_category': 'token_rate', 'x-ratelimit-limit-tokens': 1000,
+                         'stated_limit': {'count': 1000, 'unit': 'token', 'window_count': 1, 'window_unit': 'minute'}})
+        path = next((self.home / '.furanku-skills/model-routing/gateway-backoff').glob('*.json'))
+        self.assertNotIn('test-key', path.read_text() + str(caught.exception))
+
+    def test_separate_keys_have_separate_cooldowns(self):
+        with jev.jev_backoff.admission('key-a', jev.ENDPOINT) as cooldown:
+            cooldown.limited(100, {})
+        with jev.jev_backoff.admission('key-b', jev.ENDPOINT) as cooldown:
+            self.assertEqual(cooldown.remaining(), 0)
+        with jev.jev_backoff.admission('key-a', jev.ENDPOINT) as cooldown:
+            self.assertGreater(cooldown.remaining(), 90)
+
+    def test_cooldown_storage_failure_is_not_reported_as_a_network_failure(self):
+        jev.store_key('test-key')
+        body = io.BytesIO(b'{}')
+        error = urllib.error.HTTPError(jev.ENDPOINT, 429, '', {}, body)
+        with mock.patch('urllib.request.OpenerDirector.open', side_effect=error), \
+             mock.patch('jev_backoff.os.replace', side_effect=OSError('private disk details')), \
+             self.assertRaises(jev.Error) as caught:
+            jev.evaluate(PAYLOAD)
+        self.assertIn('shared Gateway cooldown', str(caught.exception))
+        self.assertNotIn('private disk details', str(caught.exception))
+        self.assertTrue(body.closed)
+
+    def test_exponential_jitter_is_bounded_and_server_delay_takes_precedence(self):
+        with jev.jev_backoff.admission('test-key', jev.ENDPOINT) as cooldown:
+            with mock.patch('jev_backoff.random.uniform', side_effect=lambda low, high: high) as jitter:
+                delays = [cooldown.limited(None, {}) for _ in range(9)]
+                self.assertEqual(delays, [2, 4, 8, 16, 32, 60, 60, 60, 60])
+                self.assertEqual(jitter.call_args_list[0], mock.call(1, 2))
+                self.assertEqual(jitter.call_args_list[-1], mock.call(30, 60))
+                self.assertEqual(cooldown.limited(120, {}), 120)
+                self.assertEqual(jitter.call_count, 9)
 
     def test_redirect_is_refused(self):
         self.assertIsNone(jev.NoRedirect().redirect_request(None, None, 302, "", {}, "https://elsewhere.invalid"))

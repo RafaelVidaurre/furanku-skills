@@ -35,7 +35,11 @@ never-attempted sessions first, so `--limit` always advances. Terminal results a
 `assessed`, `assessed_with_pending` (some domains stay pending), and non-retryable
 `error`; `--retry-pending` reprocesses the last two. Transport, rate-limit, and
 authentication failures stop with the diagnostic and any retry hint; completed
-calls remain cached. Use the same command to resume after recovery. An invalid
+calls remain cached. Use the same command to resume after recovery. Add
+`--rate-limit-wait 120` to wait automatically through the shared Gateway cooldown,
+with a total additional wait budget of 120 seconds for the run (maximum 300).
+Each wait reports its duration and safe diagnostics; a delay beyond the remaining
+budget stops resumably. The default, zero, returns the cooldown immediately. An invalid
 Jev answer for one call is recorded as that domain's pending exclusion instead.
 There is no substitute evaluator on failure.
 

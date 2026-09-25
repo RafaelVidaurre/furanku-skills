@@ -21,6 +21,8 @@ import urllib.error
 import urllib.request
 import warnings
 
+import jev_backoff
+
 
 MODEL = "typesafe-ai/jev"
 ENDPOINT = "https://ai-gateway.vercel.sh/v1/evaluate"
@@ -34,12 +36,19 @@ class Error(Exception):
 class RateLimitError(Error):
     """A bounded Jev call could not clear a Gateway 429."""
 
-    def __init__(self, attempts, retry_after_seconds=None):
+    def __init__(self, attempts, retry_after_seconds=None, *, diagnostics=None, reason="rate_limit", delay_source=None):
         self.attempts = attempts
         self.retry_after_seconds = retry_after_seconds
+        self.diagnostics = diagnostics or {}
+        self.reason = reason
+        self.delay_source = delay_source
         timing = (f"retry after {retry_after_seconds:g} seconds"
                   if retry_after_seconds is not None else "retry later")
-        super().__init__(f"Gateway HTTP 429: rate limited after {attempts} attempt(s); {timing}.")
+        description = ("Another local Jev request is in progress; no HTTP request sent"
+                       if reason == "in_flight" else
+                       f"Gateway HTTP 429 cooldown: {attempts} HTTP attempt(s) in this call")
+        detail = f" Diagnostics: {json.dumps(self.diagnostics, sort_keys=True)}" if self.diagnostics else ""
+        super().__init__(f"{description}; {timing}.{detail}")
 
 
 def credential_path():
@@ -213,7 +222,8 @@ def retry_after_seconds(headers):
         return None
     raw = raw.strip()
     if raw.isascii() and raw.isdecimal():
-        return float(raw)
+        delay = float(raw)
+        return delay if math.isfinite(delay) else None
     try:
         when = parsedate_to_datetime(raw)
         if when.tzinfo is None:
@@ -223,16 +233,78 @@ def retry_after_seconds(headers):
         return None
 
 
+def rate_limit_diagnostics(exc):
+    """Retain useful categories and numeric headers, never arbitrary provider text."""
+    known = {"rate_limit_exceeded", "rate_limit_error", "rate_limited", "too_many_requests",
+             "insufficient_quota", "quota_exceeded", "provider_error", "concurrency_limit_exceeded",
+             "tokens_limit_exceeded", "requests_limit_exceeded", "usage_limit_exceeded"}
+    diagnostics = {}
+    try:
+        raw = exc.read(16384)
+        failure = json.loads(raw)
+        error = failure.get("error", {}) if isinstance(failure, dict) else {}
+        if isinstance(error, dict):
+            for field in ("type", "code"):
+                value = error.get(field)
+                if isinstance(value, str):
+                    diagnostics[field] = value if value in known else "unrecognized"
+            message = error.get("message", "")
+        else:
+            message = error if isinstance(error, str) else ""
+        # Fixed labels only: even a message that echoes a key cannot disclose it.
+        if isinstance(message, str):
+            limit = re.search(r"\b([0-9]{1,9})\s+(requests?|tokens?)\s+(?:per|/)\s*(?:(\d{1,6})\s+)?(second|minute|hour|day)s?\b", message, re.IGNORECASE)
+            if limit:
+                diagnostics["stated_limit"] = {"count": int(limit[1]), "unit": limit[2].lower().rstrip("s"),
+                                               "window_count": int(limit[3] or 1), "window_unit": limit[4].lower()}
+            for category, pattern in (
+                ("token_rate", r"tokens? per|token.{0,25}(?:rate|limit)|\btpm\b"),
+                ("request_rate", r"requests? per|request.{0,25}(?:rate|limit)|\brpm\b"),
+                ("concurrency", r"concurren|simultaneous"),
+                ("budget", r"credits?|billing|budget|spend limit"),
+                ("capacity", r"overload|capacity"),
+                ("rate_limit", r"rate.?limit|too many requests"),
+            ):
+                if re.search(pattern, message, re.IGNORECASE):
+                    diagnostics["message_category"] = category
+                    break
+    except (OSError, ValueError, UnicodeError):
+        diagnostics["body_format"] = "unavailable_or_non_json"
+    for name in ("x-ratelimit-limit", "x-ratelimit-remaining", "x-ratelimit-reset",
+                 "x-ratelimit-limit-requests", "x-ratelimit-remaining-requests",
+                 "x-ratelimit-limit-tokens", "x-ratelimit-remaining-tokens"):
+        value = exc.headers.get(name) if exc.headers else None
+        if isinstance(value, str) and re.fullmatch(r"[0-9]{1,16}(?:\.[0-9]{1,6})?", value):
+            diagnostics[name] = float(value)
+    return diagnostics
+
+
 def evaluate(payload, *, timeout=15):
     payload = validate_request(payload)
     body = json.dumps(payload, allow_nan=False).encode()
     if len(body) > MAX_BYTES:
         raise Error("Jev request exceeds the 1 MB transport limit.")
     key, _source = load_key()
+    try:
+        with jev_backoff.admission(key, ENDPOINT) as cooldown:
+            return evaluate_admitted(payload, body, key, cooldown, timeout)
+    except jev_backoff.Busy:
+        raise RateLimitError(0, 1, reason="in_flight", delay_source="local_lock") from None
+    except (jev_backoff.StorageError, OSError):
+        raise Error("Cannot read or save shared Gateway cooldown; repair the private gateway-backoff directory.") from None
+
+
+def evaluate_admitted(payload, body, key, cooldown, timeout):
     request = urllib.request.Request(ENDPOINT, data=body, method="POST", headers={
         "Authorization": "Bearer " + key, "Content-Type": "application/json"})
     started = time.monotonic()
     deadline = started + min(timeout + 3, 18)
+    delay = cooldown.remaining()
+    if delay:
+        if delay + 0.5 >= deadline - time.monotonic():
+            raise RateLimitError(0, delay, diagnostics=cooldown.state.get("diagnostics"),
+                                 delay_source=cooldown.state.get("delay_source"))
+        time.sleep(delay)
     opener = urllib.request.build_opener(NoRedirect())
     for attempt in range(1, 4):
         try:
@@ -244,17 +316,26 @@ def evaluate(payload, *, timeout=15):
             if len(raw) > MAX_BYTES:
                 raise Error("Gateway response exceeded the 1 MB size limit.")
             result = validate_result(json.loads(raw), payload["questions"])
+            cooldown.success()
             result["elapsed_seconds"] = round(time.monotonic() - started, 3)
             result["attempts"] = attempt
             return result
         except urllib.error.HTTPError as exc:
             if exc.code == 429:
-                server_delay = retry_after_seconds(exc.headers)
-                exc.close()
-                delay = server_delay if server_delay is not None else (0.25, 1.0, 2.0)[attempt - 1]
+                try:
+                    server_delay = retry_after_seconds(exc.headers)
+                    # Persist admission control before reading a potentially slow body.
+                    cooldown.limited(server_delay, {})
+                    diagnostics = rate_limit_diagnostics(exc)
+                finally:
+                    exc.close()
+                cooldown.state["diagnostics"] = diagnostics
+                cooldown.save()
+                delay = cooldown.remaining()
                 remaining = deadline - time.monotonic()
                 if attempt == 3 or delay + 0.5 >= remaining:
-                    raise RateLimitError(attempt, server_delay) from None
+                    raise RateLimitError(attempt, delay, diagnostics=diagnostics,
+                                         delay_source=cooldown.state["delay_source"]) from None
                 time.sleep(delay)
                 continue
             # Do not echo provider bodies: they can contain credentials or account data.
@@ -306,7 +387,9 @@ def evaluate_bounded(payload):
             message = "Gateway evaluation failed; no fallback was used."
             failure = {}
         if failure.get("code") == "rate_limited":
-            raise RateLimitError(failure["attempts"], failure.get("retry_after_seconds"))
+            raise RateLimitError(failure["attempts"], failure.get("retry_after_seconds"),
+                                 diagnostics=failure.get("diagnostics"), reason=failure.get("reason", "rate_limit"),
+                                 delay_source=failure.get("delay_source"))
         raise Error(message)
     try:
         return json.loads(completed.stdout)
@@ -338,7 +421,8 @@ def main(argv=None):
         failure = {"status": "error", "error": str(exc)}
         if isinstance(exc, RateLimitError):
             failure.update(code="rate_limited", attempts=exc.attempts,
-                           retry_after_seconds=exc.retry_after_seconds)
+                           retry_after_seconds=exc.retry_after_seconds, diagnostics=exc.diagnostics,
+                           reason=exc.reason, delay_source=exc.delay_source)
         print(json.dumps(failure), file=sys.stderr)
         return 1
     except (OSError, ValueError, UnicodeError):

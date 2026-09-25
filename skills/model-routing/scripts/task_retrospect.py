@@ -21,6 +21,7 @@ from pathlib import Path
 import re
 import sys
 import tempfile
+import time
 
 import jev
 import retrospect
@@ -321,10 +322,11 @@ class JudgeError(ValueError):
 
 
 class Evaluator:
-    def __init__(self, cache, require_zdr=True):
+    def __init__(self, cache, require_zdr=True, rate_limit_wait=0):
         self.cache = Path(cache)
         self.require_zdr = require_zdr
         self.calls = self.hits = 0
+        self.wait_remaining = rate_limit_wait
 
     def __call__(self, state, questions):
         if not fits(state, questions):
@@ -342,15 +344,27 @@ class Evaluator:
                 key: {**value, "type": "choice"} for key, value in result["answers"].items()}}, questions)
             self.hits += 1
             return result["answers"]
-        try:
-            result = jev.evaluate_bounded(payload)
-        except jev.Error as error:
-            # Answer-validation failures are specific to this call. Record them as
-            # pending instead of blocking every later session; transport stops.
-            code = retrospect.SESSION_EVAL_ERRORS.get(str(error))
-            if code is None or isinstance(error, jev.RateLimitError):
-                raise
-            raise JudgeError("judge_answer_invalid:" + code) from None
+        while True:
+            try:
+                result = jev.evaluate_bounded(payload)
+                break
+            except jev.RateLimitError as error:
+                delay = error.retry_after_seconds
+                if delay is None or delay <= 0 or delay > self.wait_remaining:
+                    raise
+                print(json.dumps({"status": "rate_limit_wait", "seconds": round(delay, 3),
+                                  "delay_source": error.delay_source, "diagnostics": error.diagnostics}), flush=True)
+                remaining = delay
+                while remaining > 0:
+                    step = min(30, remaining)
+                    time.sleep(step)
+                    remaining -= step
+                self.wait_remaining -= delay
+            except jev.Error as error:
+                code = retrospect.SESSION_EVAL_ERRORS.get(str(error))
+                if code is None:
+                    raise
+                raise JudgeError("judge_answer_invalid:" + code) from None
         self.calls += 1
         self.cache.mkdir(parents=True, exist_ok=True, mode=0o700)
         with tempfile.NamedTemporaryFile(mode="w", dir=self.cache, delete=False) as stream:
@@ -879,8 +893,12 @@ def main():
     parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument("--retry-pending", action="store_true",
                         help="Also reprocess sessions whose current result has pending domains or an error")
+    parser.add_argument("--rate-limit-wait", type=float, default=0,
+                        help="Total additional rate-limit wait budget in seconds for this run (0–300); default stops resumably")
     parser.add_argument("--beads-census", type=Path, help="Optional finalized-issue artifact; never affects session eligibility")
     args = parser.parse_args()
+    if not 0 <= args.rate_limit_wait <= 300:
+        parser.error("--rate-limit-wait must be between 0 and 300 seconds")
     root = retrospect.PRIVATE_ROOT
     if args.output.parent != root or args.output.is_symlink() or root.is_symlink():
         parser.error(f"Output must be directly inside {root}")
@@ -938,7 +956,7 @@ def main():
     pending.sort(key=lambda row: row["source_key"] in latest)
     if args.limit: pending = pending[:args.limit]
     if not args.output.exists(): write_private(args.output, "")
-    evaluate = Evaluator(root / "task-call-cache", not args.allow_no_zdr)
+    evaluate = Evaluator(root / "task-call-cache", not args.allow_no_zdr, args.rate_limit_wait)
     code = 0
     with args.output.open("a") as stream:
         for index, row in enumerate(pending, 1):
@@ -955,6 +973,8 @@ def main():
                 # minutes or manufacturing a result for a failed provider.
                 print(json.dumps({"status": "provider_blocked", "error": str(error),
                                   "completed_this_run": index - 1, "pending_session": row["source_key"],
+                                  "diagnostics": getattr(error, "diagnostics", {}),
+                                  "delay_source": getattr(error, "delay_source", None),
                                   "retry_after_seconds": getattr(error, "retry_after_seconds", None)}), flush=True)
                 code = 2
                 break

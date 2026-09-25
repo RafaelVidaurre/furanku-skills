@@ -237,6 +237,27 @@ class TaskRetrospectTest(unittest.TestCase):
             self.assertEqual(len(list((Path(directory) / "cache").glob("*.json"))), 1)
             self.assertEqual(next((Path(directory) / "cache").glob("*.json")).stat().st_mode & 0o777, 0o600)
 
+    def test_opt_in_wait_resumes_same_payload_and_never_exceeds_budget(self):
+        questions = {'q': {'type': 'choice', 'instructions': 'Choose', 'criteria': {'a': 'A', 'b': 'B'}}}
+        reply = {'model': task.jev.MODEL, 'answers': {'q': answer('a', questions['q']['criteria'])}}
+        for delay, completes in ((5, True), (6, False)):
+            with tempfile.TemporaryDirectory() as directory:
+                evaluate = task.Evaluator(Path(directory), rate_limit_wait=5)
+                with patch.object(task.jev, 'evaluate_bounded', side_effect=[task.jev.RateLimitError(1, delay), reply]) as live, \
+                     patch.object(task.time, 'sleep') as sleep, contextlib.redirect_stdout(io.StringIO()):
+                    if completes:
+                        self.assertEqual(evaluate('same state', questions), reply['answers'])
+                        self.assertEqual(evaluate('same state', questions), reply['answers'])
+                        self.assertEqual(live.call_count, 2)
+                        self.assertEqual(live.call_args_list[0], live.call_args_list[1])
+                        sleep.assert_called_once_with(5)
+                    else:
+                        with self.assertRaises(task.jev.RateLimitError):
+                            evaluate('same state', questions)
+                        live.assert_called_once()
+                        sleep.assert_not_called()
+                        self.assertEqual(list(Path(directory).glob('*.json')), [])
+
     def test_cli_resume_rechecks_changed_sessions_and_writes_domain_rows(self):
         def evaluate(payload):
             result = {}

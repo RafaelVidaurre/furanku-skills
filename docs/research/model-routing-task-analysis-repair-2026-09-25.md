@@ -129,6 +129,32 @@ attempts, with no Retry-After hint and zero completed session assessments. No re
 loop or bulk run was started. The small historical validation remains incomplete.
 Installed skills and routing scores were not changed.
 
+## Shared rate-limit recovery
+
+The short per-call retry schedule has been replaced with a credential/endpoint
+scoped lock and persistent cooldown. HTTP 429 honors Retry-After when present;
+otherwise equal-jitter exponential delays grow to a 30–60 second range. Successful
+responses reset the count. Safe diagnostic categories survive the subprocess
+boundary, and retrospective jobs can opt into a bounded additional wait budget.
+The focused affected suites cover 115 tests, including cross-process cooldown
+reuse, concurrent admission, reset after success, retry bounds, diagnostic
+redaction, and preserving partial assessment results.
+
+A live one-session pilot using a 120-second additional wait budget recovered after
+reported waits of 7.150 and 26.880 seconds and completed with seven newly successful
+evaluator calls and five cache hits. The cooldown state reset to zero. Safe error
+diagnostics showed type rate_limit_exceeded and request-rate wording; no exact cap
+or enforcement layer was established.
+
+The resulting assessment marks the refusal as authorization-related and the work
+as not attempted. All domain estimates are ineligible. However, Jev classified the
+opening dispatch as control traffic, then left its follow-ups unresolved; it also
+returned one contradictory quality-3 estimate for unattempted verification work.
+Mechanical gates rejected that estimate. This validates rate-limit recovery and
+the rejection gate, not historical task grouping or scoring calibration. The next
+assessment repair must retain the opening work assignment and validate task links
+before a larger pilot. Installed skills and routing scores remain unchanged.
+
 ## Why the question design changed
 
 TypeSafe documents a 32k-token state-plus-longest-question limit and a 64k total
