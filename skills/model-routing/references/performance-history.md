@@ -46,7 +46,11 @@ requests no prompt training. Outputs and caches remain private on this machine.
 The sequence is:
 
 1. Parse every work turn, preserving requests, responses, per-response model/effort,
-   recorded tool events, and original line references. Long tool bodies remain at
+   recorded tool events, and original line references. Keep message wrappers and
+   origin metadata; preserve recorded system/developer instructions and Claude
+   instruction snapshots and rendered hooks as historical context. Transport
+   metadata does not establish user authorization. Internal reasoning is excluded.
+   Long tool bodies remain at
    source; recognized checks retain their command/result summaries. Tool summaries
    and source pointers are identified as such, never presented as complete artifacts.
 2. Ask Jev to link each request to its task. Corrections, approvals, abandonment,
@@ -61,17 +65,25 @@ The sequence is:
    domain. Tasks by models outside the census are classified but not scored.
 4. Judge each recorded model/effort contribution using anonymized actor identifiers.
    Other actors' work supplies context rather than credit. Every request is always
-   supplied whole. When events do not fit, Jev screens every event fragment for
-   positive evidence, negative evidence, and deliverables, then re-screens the
+   supplied whole. When events and recorded instructions do not fit, Jev screens
+   every fragment for positive evidence, negative evidence, deliverables, and
+   authority context, then re-screens the
    selection until the final call fits. The final call receives labelled fragments
    (part k of n) with source line IDs; retain every screening round.
-5. Ask separate questions about domain quality, evidence, ownership, and cause.
+5. Ask separate questions about attempted work, domain quality, evidence, ownership,
+   and cause. Establish attempted work and cause before accepting a domain score.
    Retain the raw 0–4/unknown estimates and citations independently of eligibility.
-   Supporting domains receive scores too. Refusal and instruction failures affect
-   performance when directly evidenced; external outages and changed requirements
-   remain separate causes. Artifact, behavior, and check evidence must cite the
+   Supporting domains receive scores too. Unattempted work remains unassessed;
+   refusal alone establishes non-delivery, not domain quality or model fault.
+   Distinguish domain mistakes, authorization conflicts, orchestration failures,
+   external outages, instruction compliance, and changed requests. Low scores
+   require an attributable domain mistake; delivery/compliance observations remain
+   separate from domain scores. Artifact, behavior, and check evidence must cite the
    target actor's own event; a requester message supports only feedback, and a
    tool body left at source cannot be cited as an inspected artifact.
+   Screening can omit relevant instructions: retain its selections and leave an
+   uncertain cause unresolved rather than interpreting missing authority as refusal
+   of an authorized task.
 6. Produce the adjacent Markdown report and per-session/task/domain CSV. The report
    states its census digest, analysis signature, privacy mode, Beads status, run
    status, and each census session's disposition. It counts distinct tasks and
