@@ -59,11 +59,15 @@ The sequence is:
    and source pointers are identified as such, never presented as complete artifacts.
 2. Ask Jev to link each request to its task. Corrections, approvals, abandonment,
    and later feedback stay with that task. Housekeeping can carry task evidence.
+   Grouping and domain classification use normalized task text; outcome judgments
+   retain original messages and authority context. An opening request labeled
+   housekeeping is retained as unresolved, never discarded.
    Up to 50 earlier requests are offered; each boundary records the first one
    offered and whether size forced a shorter window. A new task chosen under a
    shortened window, and every unresolved link, is boundary-uncertain.
 3. Ask Jev about every domain in `retrospective-domains.json`: absent, supporting,
-   or central. Each answer option includes the domain's definition. Long requests
+   or central. Each answer option includes the domain's definition. Include work
+   later canceled, superseded, or reverted when classifying domains. Long requests
    are paged; later pages repeat the task's opening request part, and every page
    is retained. A page's unresolved answer is used only when no page resolves the
    domain. Tasks by models outside the census are classified but not scored.
@@ -143,6 +147,14 @@ issue closure is distinguished from verified outcomes, and the session census
 remains identical with enrichment enabled or disabled.
 
 ## Calibration and legacy experiments
+
+A five-session source-audited pilot retained all 12 requests but yielded zero
+evidence-eligible scores from ten raw numeric estimates, two invalid answers, and
+one unknown. It exposed omitted decisive tool results, unsupported domain labels,
+and inconsistent quality/evidence/cause answers. The procedure is not validated.
+Repair evidence preparation and coherent outcome assessment, then compare a
+diverse pilot against source-based expectations fixed before judging. Include
+unseen cases before expanding the corpus; rejected estimates are not model scores.
 
 Audit outcome attribution and task-specific evidence before using observations
 for routing. Repeated task templates and multiple workers on one original request

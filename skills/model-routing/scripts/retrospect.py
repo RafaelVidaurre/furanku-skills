@@ -38,7 +38,7 @@ OPEN_TAG = re.compile(r"^<([a-z][a-z0-9_-]*)(?:\s+[^>]*)?>")
 SECRET_BLOCK = re.compile(r"-----BEGIN [^-]*(?:PRIVATE KEY|CERTIFICATE)-----.*?-----END [^-]*(?:PRIVATE KEY|CERTIFICATE)-----", re.DOTALL)
 SECRET_TOKEN = re.compile(
     r"(?i)\b(?:Bearer\s+\S+|(?:sk-|sk_live_|ghp_|github_pat_|glpat-|hf_|npm_|xox[baprs]-)[A-Za-z0-9_-]{10,}|"
-    r"AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{20,}|eyJ[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{8,})\b"
+    r"dcap_[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{20,}|eyJ[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{8,})\b"
 )
 SECRET_ASSIGNMENT = re.compile(r"(?i)\b((?:api[_-]?key|access[_-]?token|auth[_-]?token|secret|password|credential|private[_-]?key)\s*[:=]\s*)[^\s,;]+")
 SECRET_ENV = re.compile(r"\b([A-Z][A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH)[A-Z0-9_]*\s*=\s*)[^\s,;]+")
