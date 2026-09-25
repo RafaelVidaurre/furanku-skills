@@ -117,6 +117,32 @@ class TaskRetrospectTest(unittest.TestCase):
         self.assertEqual(sorted(t["turn"] for group in groups for t in group), list(range(15)))
         self.assertEqual(len(links), 15)
 
+    def test_misclassified_opening_control_is_retained_as_uncertain_work(self):
+        turns = [turn(0, 'Install a build', 'Need authorization'), turn(1, 'Go', 'Still waiting')]
+        def evaluate(state, questions):
+            return {k: answer('control' if k == 't0' else 't0', q['criteria']) for k, q in questions.items()}
+        groups, links = task.segment(turns, evaluate)
+        self.assertEqual([[t['turn'] for t in g] for g in groups], [[0, 1]])
+        self.assertTrue(task.boundary_uncertain(links[0]))
+        self.assertEqual(links[0]['answer']['choice'], 'control')
+        self.assertTrue(task.is_pending('task_boundary_unresolved'))
+
+    def test_grouping_uses_normalized_work_but_assessment_retains_original_authority(self):
+        turns = [turn(0, '<pasted_content>Transport preamble. Install a build.</pasted_content>', 'Need authority')]
+        turns[0]['task_request'] = 'Install a build.'
+        seen = []
+        def evaluate(state, questions):
+            seen.append(state)
+            return {k: answer('new', q['criteria']) for k, q in questions.items()}
+        task.segment(turns, evaluate)
+        self.assertEqual(seen[0][0]['request'], 'Install a build.')
+        seen = []
+        with tempfile.TemporaryDirectory() as directory:
+            task.assess_task(turns, [{'id': 'writing', 'description': 'Write prose'}], bounded(directory, seen=seen))
+        judged = next(p['state'] for p in seen if 'quality' in p['questions'])
+        self.assertEqual(judged['turns'][0]['request'], turns[0]['request'])
+        self.assertNotIn('task_request', judged['turns'][0])
+
     def test_supporting_labels_survive_and_delegation_only_excludes_affected_domain(self):
         domains = [{"id": "implementation", "description": "Write software"},
                    {"id": "documentation", "description": "Write instructions"}]
@@ -192,6 +218,8 @@ class TaskRetrospectTest(unittest.TestCase):
         self.assertNotIn("sensitive", json.dumps(result))
         self.assertEqual(result["nested"]["max_output_tokens"], 42)
         self.assertNotIn("sensitive", task.redact(json.dumps(value)))
+        capability = 'dcap_' + 'synthetic_dispatch_secret_12345'
+        self.assertNotIn(capability, task.redact('Run --dispatch-capability ' + capability))
 
     def test_other_actor_output_cannot_support_target_actor_score(self):
         turns = [turn(0, "Write it", "First attempt", "a"), turn(1, "Repair it", "Corrected result", "b")]
