@@ -71,7 +71,35 @@ The chosen candidate is rechecked against fresh configuration/runtime after eval
 
 For Crew, save the successful decision privately and supply `packet --decision-json <file>`; use the manifest's launchable agents for the route call. Exact routes remain principal-controlled via `check --exact-route ... --route-basis ...` and do not call Jev.
 
-Transport is fixed to `typesafe-ai/jev` through Vercel `/v1/evaluate`, with TypeSafe-only routing, no redirects, bounded payload/response size, and a 20-second whole-call deadline. A Gateway 429 gets at most two automatic retries: the client honors `Retry-After` when it fits the 18-second retry budget. Without that header, it tries after 0.25 and 1 second. A longer server delay is returned immediately with its duration; without a header, three 429s stop with `rate_limited`. Other HTTP failures do not retry, and no alternate provider or selector is used. Resume the same decision after the stated delay when one is supplied. If no delay is supplied and the bounded retries failed, retry once after two seconds; if that also fails, report a sustained routing block with the attempt count and continue independent work. Do not leave the launch in an indefinite “retry when available” state. `--require-zdr` requests Gateway zero data retention when the user's policy requires it; Gateway plan access is required. Keep this flag on failures. Without it, provider/Gateway defaults apply.
+Transport is fixed to `typesafe-ai/jev` through Vercel `/v1/evaluate`, with
+TypeSafe-only routing, no redirects, bounded payload/response size, and a 20-second
+whole-call deadline. Calls sharing a Gateway credential and endpoint coordinate
+through private machine-wide state in `~/.furanku-skills/model-routing/gateway-backoff/`.
+A file lock admits one request at a time; an occupied lock returns `in_flight`
+with zero HTTP attempts and a short retry delay. Process exit releases the lock.
+
+HTTP 429 persists a cooldown before reading the diagnostic body. `Retry-After`
+controls the delay when supplied. Otherwise equal-jitter exponential backoff uses
+ranges of 1–2, 2–4, 4–8, 8–16, 16–32, then 30–60 seconds. The failure count
+survives separate calls and process restarts; a successful validated response
+resets it. The client makes at most three HTTP attempts and waits only within its
+18-second transport budget. A longer cooldown returns immediately with the
+remaining delay, its source, and zero HTTP attempts when the call was held locally.
+No alternate provider or selector is used. This coordination applies to copies
+running this client; older installed clients do not observe its cooldown.
+
+Diagnostics retain allowlisted error codes, numeric rate-limit headers, a fixed
+message category, and a numerical limit explicitly stated in recognized message
+wording. Raw provider bodies, free-form messages, and credentials are never saved
+or echoed. A request-rate category alone does not identify whether Gateway or the
+upstream provider enforces the limit. Other HTTP failures remain distinct.
+
+Resume after the returned delay. Retrospective jobs can opt into a bounded waiting
+budget as described in [Historical model performance](performance-history.md);
+interactive launches surface the cooldown when it exceeds the short call budget.
+Keep the same task constraints and privacy mode on retries. `--require-zdr`
+requests Gateway zero data retention when the user's policy requires it; Gateway
+plan access is required. Without it, provider/Gateway defaults apply.
 
 **Complete when:** a fresh gate-checked launchable decision is available, or abstention, quota acceptance, or provider failure is surfaced with its next action.
 
