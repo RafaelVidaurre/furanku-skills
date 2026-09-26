@@ -2,10 +2,12 @@
 
 ## Decision
 
-Stop scaling the Jev-only retrospective scorer. The current approach is not
-suitable as an unattended source of routing scores. This is a method-selection
-result, not a claim that learning from history is impossible. A reasoning reviewer
-with source access is the proposed replacement; that replacement is unvalidated.
+**Amended after the [integration audit](jev-retrospective-integration-audit-2026-09-26.md):**
+stop scaling the current retrospective scorer. The tested procedure is unreliable,
+but input loss, contradictory acceptance rules, and uncalibrated classification
+prevent a sound conclusion that Jev itself is unsuitable. Correct those defects
+and validate on unseen cases before choosing an evaluator. A reasoning reviewer
+with source access is a comparison candidate; that alternative is unvalidated.
 Installed skills, model configuration, and routing scores were unchanged.
 
 ## What was tested
@@ -74,7 +76,7 @@ our observations; the Gateway alias does not prove which exact upstream version
 served this run. The result establishes unsuitability of the tested procedure,
 not impossibility for every future Jev version or prompt.
 
-## Proposed replacement
+## Alternative to compare
 
 This is a design for the next experiment, not an implemented or validated scorer.
 
@@ -128,5 +130,5 @@ identifying session data are published here.
 
 There is no validated aggregate model/effort/domain table from this experiment.
 The full historical corpus was not scored by the new procedure. Preserve these
-negative and mixed results; resume implementation only with a revised evaluator
-design rather than scaling the failed scoring procedure.
+negative and mixed results. The integration audit supplies the next bounded
+validation plan; these findings do not establish a necessary evaluator replacement.
