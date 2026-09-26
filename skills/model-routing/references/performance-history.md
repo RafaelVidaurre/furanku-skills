@@ -4,6 +4,13 @@ This branch is experimental. Develop and validate in a checkout before publishin
 or updating installed skills. Retrospective results never change routing scores
 automatically.
 
+**Current decision:** the Jev-only scorer failed source-audited validation,
+including a follow-up with selected complete evidence and new-session label tests.
+Keep bulk scoring stopped. The commands below reproduce experimental results;
+they are not a validated procedure for updating routing scores. For the findings
+and proposed reasoning-reviewer replacement, read the
+[feasibility report](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/retrospective-evaluator-feasibility-2026-09-26.md).
+
 ## Inventory all configured models
 
 Use `history_inventory.py` as documented in [Private routing journal](logging.md#audit-retrospective-coverage), then run `performance_census.py --repo <root>
@@ -147,14 +154,6 @@ issue closure is distinguished from verified outcomes, and the session census
 remains identical with enrichment enabled or disabled.
 
 ## Calibration and legacy experiments
-
-A five-session source-audited pilot retained all 12 requests but yielded zero
-evidence-eligible scores from ten raw numeric estimates, two invalid answers, and
-one unknown. It exposed omitted decisive tool results, unsupported domain labels,
-and inconsistent quality/evidence/cause answers. The procedure is not validated.
-Repair evidence preparation and coherent outcome assessment, then compare a
-diverse pilot against source-based expectations fixed before judging. Include
-unseen cases before expanding the corpus; rejected estimates are not model scores.
 
 Audit outcome attribution and task-specific evidence before using observations
 for routing. Repeated task templates and multiple workers on one original request
