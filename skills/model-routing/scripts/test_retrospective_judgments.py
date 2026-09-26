@@ -46,6 +46,37 @@ class JudgmentTest(unittest.TestCase):
         self.assertIsNone(record['eligible_score'])
         self.assertIn('quality_unknown', record['exclusions'])
 
+    def test_uncited_supplied_check_can_support_summary_but_missing_or_other_actor_check_cannot(self):
+        for actor, supplied, support, accepted in [('m', True, 'supports', True), ('other', True, 'supports', False),
+                                                   ('m', False, 'supports', False), ('m', True, 'insufficient', False)]:
+            with self.subTest(actor=actor, supplied=supplied, support=support):
+                turns = [turn(0, 'Run tests and report', 'Tests passed')]
+                turns[0]['events'].append({'id': 'log', 'kind': 'tool_result', 'model': actor, 'effort': 'high',
+                                          'output': '5 passed' if supplied else {'body_at_source': 'log'}})
+                base = self.evaluator(support=support)
+                def evaluate(state, questions):
+                    result = base(state, questions)
+                    if 'evidence' in questions:
+                        result['evidence'] = answer('check', questions['evidence']['criteria'])
+                    return result
+                result = task.assess_task(turns, [{'id': 'writing', 'description': 'Write test report'}],
+                                          evaluate, focus=('m', 'high'))['domains'][0]
+                self.assertEqual(result['eligible_score'] is not None, accepted)
+                if actor != 'm' or not supplied:
+                    self.assertIn('citation_is_not_a_recorded_check', result['exclusions'])
+
+    def test_fragment_body_pointer_is_not_supplied_evidence(self):
+        self.assertFalse(task.body_supplied({'value': {'output': {'body_at_source': 'source'}}}))
+        state = {'turns': [{'events': [{'id': 'log', 'actor': 'actor0', 'kind': 'tool_result',
+                                      'output': {'body_at_source': 'log'}, 'metadata': 'x' * 3000}]}]}
+        fragments = task.fragments_of(state)
+        self.assertGreater(len(fragments), 1)
+        self.assertFalse(any(task.check_body_supplied(e) for e in fragments))
+        state['turns'][0]['events'][0]['output'] = 'Actual test results ' * 100
+        fragments = task.fragments_of(state)
+        self.assertTrue(any(task.check_body_supplied(e) for e in fragments))
+        self.assertTrue(all(not task.check_body_supplied(e) for e in fragments if e['field_path'][0] != 'output'))
+
     def test_observed_repair_survives_unknown_final_quality(self):
         record = task.assess_task([turn(0, 'Write prose', 'An observed local repair')],
             [{'id': 'writing', 'description': 'Write prose'}], self.evaluator(assessable=False))['domains'][0]

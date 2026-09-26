@@ -4,8 +4,11 @@ This branch is experimental. Develop and validate in a checkout before publishin
 or updating installed skills. Retrospective results never change routing scores
 automatically.
 
-**Current decision:** two reviewed development cases now meet their reference
-checks, but the procedure has not passed held-out validation.
+**Current decision:** all four fresh native historical cases failed their frozen
+references, with zero accepted positive scores. See the
+[native validation report](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-native-heldout-validation-2026-09-26.md).
+The earlier two development successes did not generalize through native segmentation
+and retrieval. Follow-up mechanical fixes have not been validated semantically.
 The current implementation repairs evidence retention, separates final quality
 from repair burden, supports typed questions, and verifies citation support.
 Semantic accuracy and coverage still need validation; keep bulk scoring stopped
@@ -53,7 +56,10 @@ calls remain cached. Use the same command to resume after recovery. Add
 with a total additional wait budget of 120 seconds for the run (maximum 300).
 Each wait reports its duration and safe diagnostics; a delay beyond the remaining
 budget stops resumably. The default, zero, returns the cooldown immediately. An invalid
-Jev answer for one call is recorded as that domain's pending exclusion instead.
+Jev answer is recorded as a pending domain/task exclusion. If it prevents task
+segmentation, the session records a retryable error and resumes on the next run.
+Distribution consistency failures retain safe numeric diagnostics and a request
+digest; failed responses are never cached as valid answers.
 There is no substitute evaluator on failure.
 
 Jev processing uses Gateway zero data retention by default. Use `--allow-no-zdr`
