@@ -1,23 +1,24 @@
 {
-  "version": 6,
+  "version": 7,
   "scale": {
-    "absent": "The domain is not part of the requested deliverable.",
-    "supporting": "The domain affects the deliverable, but success is mainly judged elsewhere.",
-    "central": "The deliverable would fail its main acceptance criteria if this domain were done poorly."
+    "unresolved": "The request depends on missing requirements, so domain involvement cannot be established.",
+    "absent": "No requested deliverable falls within the defined domain. Excluded and incidental activities do not count.",
+    "supporting": "A requested deliverable requires a subordinate contribution within the defined domain.",
+    "central": "A main requested deliverable falls within the defined domain."
   },
   "domains": [
     {"id": "implementation", "description": "Author or modify executable software, scripts, APIs, integrations, or configuration. Running existing build, signing, installation, or deployment commands without changing software belongs to operations.", "name": "Software implementation"},
     {"id": "debugging", "description": "Diagnose the cause of an observed software or system defect or incident and verify a repair. Reviewing code for possible defects belongs to verification; ordinary creative revisions are outside this domain.", "name": "Debugging"},
     {"id": "verification", "description": "Design or run software/system tests, audit behavior, review code, or check an implementation against a specification. Ordinary source fact checking belongs to research.", "name": "Testing and code review"},
     {"id": "architecture", "description": "Design component boundaries, data flows, interfaces, infrastructure, or a technical migration.", "name": "Architecture and systems design"},
-    {"id": "operations", "description": "Deploy, release, configure, monitor, or operate a running system and its automation.", "name": "Deployment and operations"},
+    {"id": "operations", "description": "Deploy, release, install, configure, monitor, maintain, or operate software systems or local machines, including storage and cache cleanup. Authoring software belongs to implementation.", "name": "Deployment and operations"},
     {"id": "security", "description": "Assess or implement security, privacy, authentication, authorization, or abuse controls.", "name": "Security and privacy"},
     {"id": "research", "description": "Deliver a sourced synthesis, comparison, or factual investigation of external or repository information, including current purchasing options. Routine code reading during implementation or review is outside this domain.", "name": "Research"},
     {"id": "quantitative", "description": "Calculate, analyze data, model uncertainty, or draw statistical conclusions. Applying a simple numeric filter to search results is outside this domain.", "name": "Data analysis and statistics"},
     {"id": "science", "description": "Reason through explicit scientific, mathematical, or engineering concepts beyond routine arithmetic. Visual depiction of physical objects alone is outside this domain.", "name": "Scientific and mathematical reasoning"},
     {"id": "product", "description": "Define a product's goals, requirements, priorities, features, tradeoffs, or acceptance criteria. Selecting existing items to buy is outside this domain.", "name": "Product planning"},
     {"id": "procurement", "description": "Choose existing goods or services to buy under constraints such as price, quantity, availability, ratings, or delivery. Designing a new product is outside this domain.", "name": "Purchasing decisions"},
-    {"id": "game_design", "description": "Design game mechanics, levels, progression, balance, or player learning and engagement.", "name": "Game design"},
+    {"id": "game_design", "description": "Design game mechanics, level structure, progression, balance, or systems for player learning and engagement. Authoring prose, lessons, dialogue, or visual assets within an already specified game design belongs to the corresponding content domain; a game setting alone does not establish game design work.", "name": "Game design"},
     {"id": "ui_visual", "description": "Design the visible layout, typography, colors, iconography, or visual hierarchy of an interface.", "name": "UI visual design"},
     {"id": "ux_interaction", "description": "Design user journeys, controls, information architecture, accessibility, or interaction behavior.", "name": "UX and interaction design"},
     {"id": "visual_art", "description": "Create or direct illustration, concept art, graphic assets, textures, or game visual style.", "name": "Art and visual assets"},

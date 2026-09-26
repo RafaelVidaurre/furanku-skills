@@ -30,6 +30,7 @@ def json_lines(path):
 
 def summarize(path, provider):
     models = set()
+    provider_metadata = {}
     users = 0
     assistants = 0
     error = None
@@ -63,7 +64,7 @@ def summarize(path, provider):
                 users += bool(content) if role == "user" else 0
                 assistants += bool(content) if role == "assistant" else 0
                 model = message.get("model")
-                effort = item.get("effort")
+                effort = item.get("effort") or item.get("perTurnEffort")
                 if role == "assistant" and model and model != "<synthetic>" and effort:
                     models.add((model, effort))
         else:
@@ -71,19 +72,29 @@ def summarize(path, provider):
             summary = json.loads(path.read_text(encoding="utf-8"))
             note_time(summary.get("created_at"))
             note_time(summary.get("last_active_at"))
-            model = summary.get("current_model_id")
-            effort = summary.get("reasoning_effort")
-            if model and effort:
-                models.add((model, effort))
+            summary_model = summary.get("current_model_id")
+            summary_effort = summary.get("reasoning_effort")
+            provider_metadata = {"summary_model": {"model": summary_model, "effort": summary_effort},
+                                 "summary_fallback_used": False}
             for item in json_lines(directory / "chat_history.jsonl"):
                 note_time(item.get("timestamp"))
                 role = item.get("type")
                 content = retrospect.text_content(item.get("content"))
                 users += bool(content) if role == "user" else 0
                 assistants += bool(content) if role == "assistant" else 0
+                if role == "assistant":
+                    # Match native task attribution: a mutable session summary
+                    # supplies missing fields, never replaces recorded actors.
+                    model = item.get("model_id") or item.get("model") or summary_model
+                    effort = item.get("reasoning_effort") or summary_effort
+                    if model and effort:
+                        models.add((model, effort))
+                    if not (item.get("model_id") or item.get("model")) or not item.get("reasoning_effort"):
+                        provider_metadata["summary_fallback_used"] = True
     except (OSError, UnicodeError, ValueError, TypeError) as exc:
         error = type(exc).__name__
     return {"provider": provider, "path": str(path),
+            **provider_metadata,
             "models": [{"model": model, "effort": effort} for model, effort in sorted(models)],
             "user_messages": users, "assistant_messages": assistants,
             "mixed": len(models) > 1, "error": error,

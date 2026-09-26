@@ -326,7 +326,7 @@ class Evaluator:
             raise ValueError("evidence_exceeds_call_limit")
         payload = retrospect.private_jev_payload(state, questions, self.require_zdr)
         try:
-            jev.validate_request(payload)
+            payload = jev.validate_request(payload)
         except jev.Error:
             raise JudgeError("judge_request_invalid") from None
         key = digest({"version": VERSION, "payload": payload})
@@ -457,11 +457,8 @@ def boundary_uncertain(boundary):
 
 
 def domain_questions(domains):
-    return {d["id"]: {"type": "choice", "criteria": {
-        "unresolved": "The request depends on missing requirements, so domain involvement cannot be established.",
-        "absent": "No requested deliverable falls within the defined domain. Excluded and incidental activities do not count.",
-        "supporting": "A requested deliverable requires a subordinate contribution within the defined domain.",
-        "central": "A main requested deliverable falls within the defined domain."},
+    scale = json.loads(retrospect.DOMAINS.read_text())["scale"]
+    return {d["id"]: {"type": "choice", "criteria": scale,
         "instructions": f"Classify involvement of this exact work domain: {d['description']} Apply its exclusions literally. Read requests and any supplied task requirements. Judge requested deliverables, including earlier work later canceled, rather than background terms or the medium used to report results. task_start repeats opening context."}
         for d in domains}
 
@@ -684,11 +681,15 @@ def outcome_sources(packet, citations):
     selected = set(citations)
     if "turns" in packet:
         requests = [{"id": t["request_id"], "text": retrospect.clean_user(t["request"])} for t in packet["turns"]]
-        sources = [e for t in packet["turns"] for e in t["events"] if e["id"] in selected]
+        all_sources = [e for t in packet["turns"] for e in t["events"]]
+        sources = [e for e in all_sources if e["id"] in selected]
     else:
         requests = [{"id": r["id"], "text": retrospect.clean_user(r["text"])} for r in packet["requests"]]
-        sources = [e for e in packet["events"] if e["source_id"] in selected]
+        all_sources = [e for e in packet["events"] if e["kind"] != "instruction_context"]
+        sources = [e for e in all_sources if e["source_id"] in selected]
     return {"target_actor": packet["target_actor"], "requests": requests, "cited_sources": sources,
+            "other_observed_sources": [e for e in all_sources if e not in sources],
+            "source_order": [e["id"] for e in all_sources],
             "evidence_scope": "Selected observed work only. Missing history and completion claims do not establish success or a clean attempt."}
 
 
@@ -773,6 +774,14 @@ def assess_task(turns, domains, evaluate, focus=None, context=(), classification
         outcome_state["repair_source_ids"] = repair_citations
         if context:
             outcome_state["requirements"] = [{"issue_ref": r["issue_ref"], "requirements": r["requirements"]} for r in context]
+        if fits(outcome_state, judgments.quality_questions(domain)):
+            outcome_state["evidence_scope"] = (
+                "All parsed task events are supplied; cited sources are locators, not the exclusive evidence."
+                if "turns" in evidence_state else
+                "All retrieved fragments are supplied; retrieval may have omitted relevant task evidence.")
+        else:
+            outcome_state.pop("other_observed_sources")
+        retrieval = {**retrieval, "outcome_scope": outcome_state["evidence_scope"]}
         if answers["attempt"]["choice"] != "performed" or answers["ownership"]["choice"] != "direct" or not (citations or repair_citations):
             reasons = []
             if answers["attempt"]["choice"] != "performed": reasons.append("domain_work_not_established")
@@ -792,6 +801,7 @@ def assess_task(turns, domains, evaluate, focus=None, context=(), classification
                             "exclusions": [str(error)]})
             continue
         quality = answers["quality"]["score"]
+        quality_level = int(judgments.dominant_level(answers["quality"]))
         reasons = []
         if answers["assessable"]["probability"] < judgments.MIN_BOOLEAN_PROBABILITY: reasons.append("quality_unknown")
         if not judgments.score_is_local(answers["quality"]): reasons.append("quality_uncertain")
@@ -810,13 +820,13 @@ def assess_task(turns, domains, evaluate, focus=None, context=(), classification
         if attribution != "verified_target": reasons.append("model_attribution_unverified")
         if answers["attempt"]["choice"] != "performed":
             reasons.append("domain_work_not_established")
-        if quality < 2.5 and answers["cause"]["choice"] != "model_error":
+        if quality_level < 3 and answers["cause"]["choice"] != "model_error":
             reasons.append("failure_cause_not_model")
         if evidence == "behavior":
             reasons.append("behavior_alone_cannot_measure_domain_quality")
         if name in {"ui_visual", "visual_art", "spatial_3d", "animation", "audio"} and evidence != "feedback":
             reasons.append("sensory_artifact_not_inspected")
-        for field in ("attempt", "ownership") + (("cause",) if quality < 2.5 else ()):
+        for field in ("attempt", "ownership") + (("cause",) if quality_level < 3 else ()):
             if not judgments.certain_choice(answers[field]):
                 reasons.append(field + "_uncertain")
         # Repair is an independent observation: an unresolved final result does
@@ -855,11 +865,12 @@ def assess_task(turns, domains, evaluate, focus=None, context=(), classification
                 if "rework_support" in requested_support: repair_reasons.append(str(error))
         records.append({"domain": name, "involvement": involvement[name],
                         "assessment": answers, "support_assessment": support, "repair_citations": repair_citations,
-                        "eligible_rework": answers["rework"]["score"] if not repair_reasons else None,
+                        "eligible_rework": int(judgments.dominant_level(answers["rework"])) if not repair_reasons else None,
+                        "score_basis": "semantically_supported_ordinal_level",
                         "rework_exclusions": repair_reasons, "citations": citations,
                         "retrieval": retrieval, "issue_context": issue_mode,
                         "estimated_score": quality,
-                        "eligible_score": quality if not reasons else None,
+                        "eligible_score": quality_level if not reasons else None,
                         "exclusions": reasons})
     return {"turns": [t["turn"] for t in turns], "actors": [target] if target else known_actors,
             "attribution": attribution, "involvement": involvement,

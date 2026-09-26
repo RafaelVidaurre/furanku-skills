@@ -82,9 +82,9 @@ def support_questions(answers):
     repair = int(dominant_level(answers["rework"]))
     return {
         "quality_support": {"type": "choice", "instructions":
-            "Do the final_source_ids in cited_sources or requests establish this final-quality claim for target_actor's requested domain? Read the domain and requests in state. Require an actual result/check or specific independent feedback. Source existence, another domain's tests, completion claims, and missing artifacts are insufficient. Claim: " + QUALITY[level],
+            "Does the supplied evidence establish this final-quality claim for target_actor's requested domain? Read the domain and requests, cited_sources and other_observed_sources, including contrary or later evidence. final_source_ids are locators, not an exclusive evidence restriction. A supplied prose or code artifact can be evaluated directly against its requirements; external approval is not required for directly observable properties. A completion claim without the artifact, another domain's tests, and missing artifacts are insufficient. Claim: " + QUALITY[level],
             "criteria": {"supports": "Cited evidence directly supports the domain claim.",
                          "contradicts": "Cited evidence conflicts with the domain claim.",
                          "insufficient": "Cited evidence does not establish this domain claim."}},
-        "rework_support": yes("Do the repair_source_ids in cited_sources or requests establish this repair-burden claim for target_actor in the domain and requested work given in state? Infer no clean history from silence or omitted events. Claim: " + REWORK[repair]),
+        "rework_support": yes("Does the supplied evidence establish this repair-burden claim for target_actor in the domain and requested work given in state? Inspect repair_source_ids with requests, cited_sources and other_observed_sources, including contrary or later evidence. Infer no clean history from silence or omitted events. Claim: " + REWORK[repair]),
     }

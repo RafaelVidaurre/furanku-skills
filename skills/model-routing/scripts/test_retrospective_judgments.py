@@ -53,6 +53,21 @@ class JudgmentTest(unittest.TestCase):
         self.assertEqual(record['eligible_rework'], 1)
         self.assertEqual(record['rework_exclusions'], [])
 
+    def test_only_supported_ordinal_is_published_not_unverified_probability_tail(self):
+        base = self.evaluator()
+        def evaluate(state, questions):
+            result = base(state, questions)
+            if 'quality' in result:
+                result['quality'] = {'score': 2.25, 'probabilities': {'0': .25, '1': 0, '2': 0, '3': .75, '4': 0}, 'confidence': .5}
+                result['rework'] = {'score': 1.5, 'probabilities': {'0': 0, '1': .75, '2': 0, '3': .25}, 'confidence': .5}
+            return result
+        record = task.assess_task([turn(0, 'Write prose', 'Final draft')],
+            [{'id': 'writing', 'description': 'Write prose'}], evaluate)['domains'][0]
+        self.assertEqual(record['estimated_score'], 2.25)
+        self.assertEqual(record['eligible_score'], 3)
+        self.assertEqual(record['eligible_rework'], 1)
+        self.assertEqual(record['score_basis'], 'semantically_supported_ordinal_level')
+
     def test_another_actors_repair_cannot_supply_target_repair_score(self):
         turns = [turn(0, 'Write prose', 'Final draft')]
         turns[0]['events'].append({'id': 'other', 'kind': 'response', 'text': 'Fixed my own draft',
@@ -102,9 +117,43 @@ class JudgmentTest(unittest.TestCase):
                 self.assertEqual(first, evaluate('input', questions))
                 live.assert_called_once()
                 self.assertEqual(first['quality']['confidence'], 1)
+                cached = json.loads(next(Path(directory).glob('*.json')).read_text())
+                self.assertEqual(cached['request'], live.call_args.args[0])
+                self.assertEqual(cached['request']['providerOptions']['gateway']['only'], ['typesafe-ai'])
 
 
 class BenchmarkComparisonTest(unittest.TestCase):
+    def test_score_outside_reference_scope_is_not_silently_accepted(self):
+        from retrospective_validate import compare
+        case = {'expected': {'required_domains': ['writing'], 'allowed_domains': ['writing', 'documentation'], 'scores': {'writing': [2, 4]}}}
+        result = {'involvement': {'writing': {'choice': 'central'}, 'documentation': {'choice': 'supporting'}},
+                  'domains': [{'domain': 'writing', 'eligible_score': 3}, {'domain': 'documentation', 'eligible_score': 3}]}
+        self.assertIn('unjudged_accepted_score:documentation', compare(case, result)['failures'])
+        result['domains'][0]['eligible_rework'] = 1
+        self.assertIn('unjudged_accepted_rework:writing', compare(case, result)['failures'])
+        case['expected']['rework'] = {'writing': [1, 1]}
+        self.assertNotIn('unjudged_accepted_rework:writing', compare(case, result)['failures'])
+
+    def test_zero_positive_requirement_and_invalid_scope_are_rejected(self):
+        from retrospective_validate import validate_benchmark
+        benchmark = {'status': 'frozen', 'minimum_supported_scores': 0, 'cases': [{'id': 'x'}]}
+        with self.assertRaises(ValueError): validate_benchmark(benchmark, {'writing'})
+        benchmark.update(minimum_supported_scores=1, cases=[{'id': 'x', 'expected': {
+            'required_domains': ['writing'], 'allowed_domains': [], 'scores': {}}}])
+        with self.assertRaises(ValueError): validate_benchmark(benchmark, {'writing'})
+
+    def test_development_success_is_not_heldout_validation(self):
+        from retrospective_validate import validation_status
+        cases = [{'split': 'development', 'comparison': {'passed': True, 'supported_scores_accepted': 1, 'negative_score_checks': 1}}]
+        self.assertEqual(validation_status(cases, True, 1), 'passed_checks_unvalidated')
+        self.assertEqual(validation_status(cases, False, 1), 'passed_requested_subset')
+        cases[0]['split'] = 'heldout'
+        self.assertEqual(validation_status(cases, True, 1), 'passed')
+        cases[0]['split'] = 'held_out'
+        self.assertEqual(validation_status(cases, True, 1), 'passed')
+        cases[0]['split'] = 'unknown'
+        with self.assertRaises(ValueError): validation_status(cases, True, 1)
+
     def test_unknown_does_not_count_as_successful_positive_score_and_unexpected_domains_fail(self):
         from retrospective_validate import compare
         case = {'expected': {'required_domains': ['writing'], 'scores': {'writing': [2.5, 3.5]}}}
@@ -125,7 +174,24 @@ class BenchmarkComparisonTest(unittest.TestCase):
 
 
 class FocusedEvidenceTest(unittest.TestCase):
-    def test_quality_receives_cited_work_without_historical_policy_or_unrelated_results(self):
+    def test_fragment_quality_bundle_excludes_authority_even_when_cited(self):
+        fragments = task.fragments_of({'turns': [turn(0, 'Write prose', 'Actual draft')],
+            'instruction_context': [{'id': 'policy', 'kind': 'developer', 'content': 'Private authority rule'}]})
+        packet = task.outcome_sources({'requests': [{'id': 'request', 'text': 'Write prose'}],
+            'events': fragments, 'target_actor': 'actor0'}, ['policy', 'L1'])
+        self.assertNotIn('Private authority rule', json.dumps(packet))
+        self.assertTrue(packet['cited_sources'])
+
+    def test_final_check_selection_preserves_artifact_and_later_contradiction(self):
+        turns = [turn(0, 'Implement a function', 'Actual implementation')]
+        turns[0]['events'] += [
+            {'id': 'check', 'kind': 'tool_result', 'output': 'Tests pass', 'actor': 'actor0'},
+            {'id': 'later', 'kind': 'response', 'text': 'A required edge case still fails', 'actor': 'actor0'}]
+        packet = task.outcome_sources({'turns': turns, 'target_actor': 'actor0'}, ['check'])
+        self.assertEqual(packet['source_order'], ['L1', 'check', 'later'])
+        self.assertEqual([e['id'] for e in packet['other_observed_sources']], ['L1', 'later'])
+
+    def test_quality_retains_other_observations_without_historical_policy(self):
         turns = [turn(0, 'Write prose', 'A final draft')]
         turns[0]['instruction_context'] = [{'id': 'policy', 'kind': 'developer', 'content': 'Only modify files after approval.'}]
         turns[0]['events'].append({'id': 'noise', 'kind': 'tool_result', 'output': 'unrelated terminal output', 'model': 'm', 'effort': 'high'})
@@ -139,8 +205,9 @@ class FocusedEvidenceTest(unittest.TestCase):
         quality = next(s for s, q in seen if 'quality' in q)
         self.assertIn('Only modify files after approval.', json.dumps(facts))
         self.assertNotIn('Only modify files after approval.', json.dumps(quality))
-        self.assertNotIn('unrelated terminal output', json.dumps(quality))
+        self.assertIn('unrelated terminal output', json.dumps(quality))
         self.assertEqual([x['id'] for x in quality['cited_sources']], ['L1'])
+        self.assertEqual([x['id'] for x in quality['other_observed_sources']], ['noise'])
 
     def test_unattempted_work_never_requests_a_quality_score(self):
         seen = []
