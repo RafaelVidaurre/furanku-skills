@@ -4,11 +4,14 @@ This branch is experimental. Develop and validate in a checkout before publishin
 or updating installed skills. Retrospective results never change routing scores
 automatically.
 
-**Current decision:** the Jev-only scorer failed source-audited validation,
-including a follow-up with selected complete evidence and new-session label tests.
-Keep bulk scoring stopped. The commands below reproduce experimental results;
-they are not a validated procedure for updating routing scores. For the findings
-and proposed reasoning-reviewer replacement, read the
+**Current decision:** the tested scorer failed source-audited validation.
+An integration audit found input loss, contradictory acceptance rules, and
+uncalibrated classification; Jev's suitability remains unresolved. Keep bulk
+scoring stopped until those defects are corrected and unseen cases validate the
+procedure. The commands below reproduce experimental results; they are not a
+validated procedure for updating routing scores. Read the
+[integration audit](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-retrospective-integration-audit-2026-09-26.md)
+and the amended
 [feasibility report](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/retrospective-evaluator-feasibility-2026-09-26.md).
 
 ## Inventory all configured models
