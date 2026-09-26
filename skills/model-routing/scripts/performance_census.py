@@ -43,6 +43,7 @@ def inspect(row, routes, session_reader=retrospect.session_state):
         "matching_models": matches,
         "configured_routes": [candidate for m in matches
                               for candidate in routes[(m["model"], m["effort"])]],
+        **{key: row[key] for key in ("summary_model", "summary_fallback_used") if key in row},
     }
     if row.get("error"):
         result["disposition"] = "inventory_error"

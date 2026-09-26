@@ -4,9 +4,72 @@ import tempfile
 import unittest
 
 import history_inventory
+import performance_census
+import task_retrospect
 
 
 class HistoryInventoryTest(unittest.TestCase):
+    def native_assessment(self, path, provider, model, effort):
+        """Real inventory/census/parser; semantic grouping alone is controlled."""
+        row = history_inventory.summarize(path, provider)
+        routes = performance_census.route_index([{
+            "candidate": "configured", "model": model, "effort": effort,
+            "agent": provider, "state": "enabled"}])
+        census = performance_census.inspect(row, routes)
+        self.assertIsNotNone(census, "An actual configured actor disappeared from the census")
+
+        def evaluate(state, questions):
+            return {key: {"choice": "new" if key.startswith("t") else "absent",
+                          "probabilities": {option: int(option == ("new" if key.startswith("t") else "absent"))
+                                            for option in question["criteria"]}, "confidence": 1}
+                    for key, question in questions.items()}
+
+        result = task_retrospect.analyze(census, evaluate, [{"id": "writing", "description": "Write prose"}])
+        self.assertEqual(result["tasks"][0]["actors"], [(model, effort)])
+        self.assertNotIn("scoring_skipped", result["tasks"][0])
+        return row, census, result["tasks"][0]
+
+    def test_grok_turn_actor_survives_stale_summary_and_fallback_stays_unverified(self):
+        for metadata, expected_model, expected_attribution, fallback in (
+            ({"model_id": "actual", "reasoning_effort": "high"}, "actual", "verified_target", False),
+            ({"model": "alias", "reasoning_effort": "high"}, "alias", "mixed_or_unverified", False),
+            ({"model_id": "actual"}, "actual", "mixed_or_unverified", True),
+            ({}, "summary", "mixed_or_unverified", True),
+        ):
+            with self.subTest(metadata=metadata), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "summary.json"
+                path.write_text(json.dumps({"current_model_id": "summary", "reasoning_effort": "high"}))
+                (path.parent / "chat_history.jsonl").write_text("\n".join(json.dumps(row) for row in (
+                    {"type": "user", "content": "Write prose"},
+                    {"type": "assistant", "content": "A short draft", **metadata})))
+                row, census, task = self.native_assessment(path, "grok", expected_model, "high")
+                self.assertEqual(row["models"], [{"model": expected_model, "effort": "high"}])
+                self.assertEqual(census["summary_model"], {"model": "summary", "effort": "high"})
+                self.assertEqual(census["summary_fallback_used"], fallback)
+                self.assertEqual(task["attribution"], expected_attribution)
+
+    def test_grok_turn_model_changes_remain_distinct_from_summary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "summary.json"
+            path.write_text(json.dumps({"current_model_id": "summary", "reasoning_effort": "high"}))
+            (path.parent / "chat_history.jsonl").write_text("\n".join(json.dumps(row) for row in (
+                {"type": "user", "content": "Write prose"},
+                {"type": "assistant", "content": "Draft", "model_id": "first", "reasoning_effort": "low"},
+                {"type": "assistant", "content": "Revision", "model_id": "second", "reasoning_effort": "high"})))
+            row = history_inventory.summarize(path, "grok")
+        self.assertEqual(row["models"], [{"model": "first", "effort": "low"}, {"model": "second", "effort": "high"}])
+        self.assertTrue(row["mixed"])
+
+    def test_claude_per_turn_effort_survives_inventory_and_census(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "claude.jsonl"
+            path.write_text("\n".join(json.dumps(row) for row in (
+                {"type": "user", "message": {"content": "Write prose"}},
+                {"type": "assistant", "perTurnEffort": "high",
+                 "message": {"model": "actual", "content": [{"type": "text", "text": "A draft"}]}})))
+            _row, _census, task = self.native_assessment(path, "claude", "actual", "high")
+        self.assertEqual(task["attribution"], "verified_target")
+
     def test_discovers_three_providers_and_preserves_mixed_metadata(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)

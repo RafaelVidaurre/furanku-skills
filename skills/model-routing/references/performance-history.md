@@ -4,13 +4,15 @@ This branch is experimental. Develop and validate in a checkout before publishin
 or updating installed skills. Retrospective results never change routing scores
 automatically.
 
-**Current decision:** the tested scorer failed source-audited validation.
+**Current decision:** two reviewed development cases now meet their reference
+checks, but the procedure has not passed held-out validation.
 The current implementation repairs evidence retention, separates final quality
 from repair burden, supports typed questions, and verifies citation support.
 Semantic accuracy and coverage still need validation; keep bulk scoring stopped
 until a frozen historical benchmark passes and its errors are independently reviewed. The commands below reproduce experimental results; they are not a
 validated procedure for updating routing scores. Read the
 [integration audit](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-retrospective-integration-audit-2026-09-26.md)
+and the [Astra review follow-up](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-astra-review-2026-09-26.md),
 the [typed-integration validation](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-typed-validation-2026-09-26.md),
 and the amended
 [feasibility report](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/retrospective-evaluator-feasibility-2026-09-26.md).
@@ -97,10 +99,13 @@ The sequence is:
    evidence fits. Keep historical authority context in these judgments. Select
    final-result and repair citations separately. Unattempted or unowned work does
    not receive a numeric quality question.
-   Then send requested work and the selected source evidence to Boolean questions
+   Then send requested work and observed source evidence to Boolean questions
    about assessability and observed repair, and separate Score scales: final
    requirement satisfaction (0–4) and model-caused repair burden (0–3).
-   Historical policy and unrelated events stay out of this quality packet.
+   Keep all observed task events when the bounded packet fits, with source order;
+   selected citations are locators, not an exclusive evidence restriction.
+   Historical policy stays out of this quality packet, including retrieved policy
+   fragments. Larger packets record the restricted evidence scope explicitly.
    A repaired mistake can coexist with a good final result. Missing evidence
    invalidates a rating; silence does not establish a clean attempt. Inspect
    source IDs, actor attribution and supplied bodies mechanically, then ask whether
@@ -109,6 +114,9 @@ The sequence is:
    acceptance exclusions and raw estimates remain visible independently. Repair
    eligibility has its own citations, attribution checks, and exclusions: unknown
    final quality does not erase observed model-caused repair.
+   Eligible quality and repair values are the particular ordinal levels verified
+   by the source-support question. Raw probability-weighted means remain estimates;
+   supporting one level does not verify every level contributing to that mean.
 6. Produce the adjacent Markdown report and per-session/task/domain CSV. The report
    states its census digest, analysis signature, privacy mode, Beads status, run
    status, and each census session's disposition. It counts distinct tasks and
@@ -142,8 +150,12 @@ for a frozen source-audited task benchmark. Inputs and output live within the
 machine-global retrospective directory. Each case contains `id`, `split`, parsed
 `turns`, source `provenance`, optional `focus` and Beads `context`, and `expected`:
 `required_domains`, optional `allowed_domains`, and `scores` mapping domains to
-an acceptable numeric range or `null` for no supported score. The document has
+an acceptable numeric range or `null` for no supported score; optional `rework`
+maps domains to repair-burden ranges (0–3) or `null`. Accepted quality or repair
+outcomes outside these reference maps are unjudged failures. The document has
 `status: "frozen"`, `cases`, and `minimum_supported_scores` (default 1).
+The minimum must be a positive integer. Splits are `heldout` (`held_out` alias),
+`development`, `development_after_first_observation`, or `development_after_review`.
 
 Fix references before evaluating. Development cases may guide changes; once an
 unseen case informs a change, label it development and reserve fresh cases.
@@ -155,6 +167,17 @@ cached with their request bodies, so a blocked run resumes without resending the
 Use repeatable `--case <id>` to investigate specific failures; a selected subset
 never reports full benchmark completion. This harness tests prepared task
 assessment, not native discovery or task segmentation end to end.
+An accepted score outside the reference's score scope is reported as unjudged
+and prevents a pass. Full `passed` status requires positive score coverage and
+negative score checks on held-out cases. Passing development checks yields
+`passed_checks_unvalidated` with a nonzero exit status. Domain abstentions are
+reported separately; unknown non-required domains do not count as false positives.
+
+Rebuild native inventory and census after changing attribution extraction.
+Grok's actual assistant-turn metadata takes precedence over its mutable session
+summary; summary fallback stays explicit and unverified. Claude `perTurnEffort`
+is included alongside `effort`. Distinct model IDs remain distinct unless an
+authoritative mapping establishes equivalence.
 
 Thresholds in `retrospective_judgments.py` are provisional pilot policy, not
 calibrated correctness probabilities. Assess domain errors, evidence-support
