@@ -48,6 +48,12 @@ DELEGATION_COMMAND = re.compile(
     r"\b(?:codex\s+exec|claude\s+(?:-p|--print)|grok\s+--model)\b"
 )
 SESSION_EVAL_ERRORS = {
+    "Gateway returned an unexpected answer type.": "jev_answer_type",
+    "Jev returned invalid Boolean probability.": "jev_boolean_probability",
+    "Jev returned an invalid Score.": "jev_score_range",
+    "Jev returned a Score inconsistent with its distribution.": "jev_score_distribution",
+    "Jev returned invalid probabilities.": "jev_probabilities",
+    "Jev returned invalid confidence.": "jev_confidence",
     "Jev returned an inconsistent option distribution.": "jev_inconsistent_distribution",
     "Jev did not return a complete option distribution.": "jev_incomplete_distribution",
     "Gateway answer IDs do not match the request.": "jev_answer_ids",

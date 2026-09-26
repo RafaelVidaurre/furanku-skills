@@ -418,5 +418,51 @@ with patch('urllib.request.OpenerDirector.open', side_effect=AssertionError('HTT
             jev_trial.prepare_case(compiled, {}, {"task": {"outcome": "Review code."}}, {"codex"})
 
 
+
+
+class TypedEvaluationTest(unittest.TestCase):
+    def payload(self):
+        return {'model': jev.MODEL, 'state': {'result': 'All checks passed'}, 'questions': {
+            'passed': {'type': 'boolean', 'instructions': 'Did the checks pass?'},
+            'quality': {'type': 'score', 'instructions': 'Rate final quality.',
+                        'criteria': ['Unusable result', 'Partly usable result', 'Requirements met']},
+            'kind': {'type': 'choice', 'instructions': 'Classify the observed result.',
+                     'criteria': {'test': 'Test output', 'prose': 'Prose artifact'}}}}
+
+    def response(self):
+        return {'model': jev.MODEL, 'answers': {
+            'passed': {'type': 'boolean', 'probability': .98},
+            'quality': {'type': 'score', 'score': 1.8, 'probabilities': {'0': 0, '1': .2, '2': .8}},
+            'kind': {'type': 'choice', 'choice': 'test', 'probabilities': {'test': .9, 'prose': .1}}},
+            'providerMetadata': {'typesafe': {'confidence': {'quality': .7, 'kind': .6}}}}
+
+    def test_gateway_types_round_trip_without_conflating_score_probability_and_confidence(self):
+        payload = jev.validate_request(self.payload())
+        result = jev.validate_result(self.response(), payload['questions'])['answers']
+        self.assertEqual(result['passed'], {'probability': .98})
+        self.assertEqual(result['quality']['score'], 1.8)
+        self.assertEqual(result['quality']['confidence'], .7)
+        self.assertEqual(result['kind']['choice'], 'test')
+
+    def test_invalid_types_levels_and_boolean_criteria_fail_before_transport(self):
+        for change in ({'type': 'noul'}, {'type': 'score', 'criteria': ['Only one']},
+                       {'type': 'score', 'criteria': ['valid', ' ']},
+                       {'type': 'boolean', 'criteria': {'true': 'One side only'}}):
+            with self.subTest(change=change):
+                payload = self.payload()
+                payload['questions']['passed'].update(change)
+                with self.assertRaises(jev.Error): jev.validate_request(payload)
+
+    def test_malformed_typed_answers_are_rejected(self):
+        for key, change in [('passed', {'probability': True}), ('passed', {'probability': float('nan')}),
+                            ('quality', {'score': 3}), ('quality', {'score': .2}),
+                            ('quality', {'probabilities': {'0': 0, '1': 1}}),
+                            ('passed', {'type': 'choice'})]:
+            with self.subTest(key=key, change=change):
+                response = self.response()
+                response['answers'][key].update(change)
+                with self.assertRaises(jev.Error): jev.validate_result(response, self.payload()['questions'])
+
+
 if __name__ == "__main__":
     unittest.main()
