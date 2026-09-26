@@ -32,6 +32,10 @@ machine-global retrospective store under `jev-docs-audit-2026-09-26/`.
 
 ## Confirmed implementation findings
 
+These findings describe the pre-repair implementation. The subsequent
+[typed integration report](jev-typed-validation-2026-09-26.md) records the code
+changes, failed live validation, and outstanding review.
+
 | Finding | Code evidence | Consequence |
 | --- | --- | --- |
 | Choice is the only supported primitive | `scripts/jev.py`, `validate_request` and `validate_result` | Ordered quality levels and yes/no checks never exercise the documented Score and Boolean primitives. This is an untested alternative, not proof that switching fixes accuracy. |

@@ -137,16 +137,31 @@ def validate_request(payload):
         raise Error("The request needs text or structured state.")
     questions = payload.get("questions")
     if not isinstance(questions, dict) or not questions:
-        raise Error("The request needs named Choice questions.")
-    for question in questions.values():
-        if not isinstance(question, dict) or question.get("type") != "choice":
-            raise Error("This client supports Choice questions only.")
+        raise Error("The request needs named evaluation questions.")
+    for name, question in questions.items():
+        if not isinstance(name, str) or not name or not isinstance(question, dict):
+            raise Error("Every question needs a nonempty name and object value.")
+        kind = question.get("type")
         criteria = question.get("criteria")
-        if not isinstance(criteria, dict) or not 2 <= len(criteria) <= 255:
-            raise Error("Each Choice needs 2–255 options.")
-        if any(not isinstance(v, str) or not v for v in criteria.values()):
-            raise Error("Every option needs a nonempty description.")
-        if not isinstance(question.get("instructions"), str) or not question["instructions"]:
+        if kind == "choice":
+            if not isinstance(criteria, dict) or not 2 <= len(criteria) <= 255:
+                raise Error("Each Choice needs 2–255 options.")
+            if any(not isinstance(k, str) or not k for k in criteria):
+                raise Error("Every Choice option needs a nonempty name.")
+            descriptions = criteria.values()
+        elif kind == "score":
+            if not isinstance(criteria, list) or not 2 <= len(criteria) <= 10:
+                raise Error("Each Score needs 2–10 ordered descriptions.")
+            descriptions = criteria
+        elif kind == "boolean":
+            if criteria is not None and (not isinstance(criteria, dict) or set(criteria) != {"true", "false"}):
+                raise Error("Boolean criteria must describe true and false.")
+            descriptions = criteria.values() if criteria is not None else []
+        else:
+            raise Error("Supported Gateway question types are choice, score, and boolean (TypeSafe Noul).")
+        if any(not isinstance(v, str) or not v.strip() for v in descriptions):
+            raise Error("Every criterion needs a nonempty description.")
+        if not isinstance(question.get("instructions"), str) or not question["instructions"].strip():
             raise Error("Every question needs instructions.")
     # No model/provider fallbacks or alternate destinations.
     gateway = {"only": ["typesafe-ai"]}
@@ -178,23 +193,44 @@ def validate_result(result, questions):
     clean = {}
     for name, question in questions.items():
         answer = answers[name]
-        if not isinstance(answer, dict) or answer.get("type") != "choice":
-            raise Error("Gateway returned a non-Choice answer.")
-        choice = answer.get("choice")
-        if not isinstance(choice, str) or choice not in question["criteria"]:
-            raise Error("Jev selected an option outside the offered set.")
+        kind = question["type"]
+        if not isinstance(answer, dict) or answer.get("type") != kind:
+            raise Error("Gateway returned an unexpected answer type.")
+        if kind == "boolean":
+            value = answer.get("probability")
+            if not probability(value):
+                raise Error("Jev returned invalid Boolean probability.")
+            clean[name] = {"probability": value}
+            continue
+        options = question["criteria"] if kind == "choice" else [str(i) for i in range(len(question["criteria"]))]
         distribution = answer.get("probabilities")
-        if not isinstance(distribution, dict) or set(distribution) != set(question["criteria"]):
+        if not isinstance(distribution, dict) or set(distribution) != set(options):
             raise Error("Jev did not return a complete option distribution.")
         if not all(probability(v) for v in distribution.values()):
             raise Error("Jev returned invalid probabilities.")
-        # Conservative trial tolerance; reject rather than renormalize a mismatch.
-        if abs(sum(distribution.values()) - 1) > 0.02 or distribution[choice] < max(distribution.values()):
+        if abs(sum(distribution.values()) - 1) > 0.02:
             raise Error("Jev returned an inconsistent option distribution.")
         certainty = confidence.get(name)
         if certainty is not None and not probability(certainty):
             raise Error("Jev returned invalid confidence.")
-        clean[name] = {"choice": choice, "probabilities": distribution, "confidence": certainty}
+        if kind == "choice":
+            choice = answer.get("choice")
+            if not isinstance(choice, str) or choice not in options:
+                raise Error("Jev selected an option outside the offered set.")
+            if distribution[choice] < max(distribution.values()):
+                raise Error("Jev returned an inconsistent option distribution.")
+            value = {"choice": choice}
+        else:
+            score = answer.get("score")
+            upper = len(options) - 1
+            if type(score) not in (int, float) or not math.isfinite(score) or not 0 <= score <= upper:
+                raise Error("Jev returned an invalid Score.")
+            # Gateway rounds probabilities; allow their bounded rounding error.
+            expected = sum(int(k) * v for k, v in distribution.items())
+            if abs(score - expected) > 0.02 * max(1, upper):
+                raise Error("Jev returned a Score inconsistent with its distribution.")
+            value = {"score": score}
+        clean[name] = {**value, "probabilities": distribution, "confidence": certainty}
     usage = result.get("usage") or {}
     clean_usage = {k: v for k, v in usage.items() if k in {"inputTokens", "outputTokens"} and type(v) is int and v >= 0} if isinstance(usage, dict) else {}
     gateway = metadata.get("gateway") or {}
@@ -403,7 +439,7 @@ def main(argv=None):
     setup_parser = commands.add_parser("setup", help="save a user-provided key machine-wide")
     setup_parser.add_argument("--stdin", action="store_true", help="read a key from a secret-manager pipe")
     commands.add_parser("status", help="report credential readiness without making a request")
-    probe = commands.add_parser("evaluate", help="send a prepared Choice request; never launches")
+    probe = commands.add_parser("evaluate", help="send prepared Choice, Boolean, or Score questions; never launches")
     probe.add_argument("--request", required=True, type=Path)
     args = parser.parse_args(argv)
     try:

@@ -10,7 +10,25 @@ import task_retrospect as task
 
 
 def answer(choice, criteria):
+    if isinstance(criteria, list):
+        index = int(choice) if str(choice).isdigit() else 0
+        return {"score": float(index), "probabilities": {str(i): float(i == index) for i in range(len(criteria))}, "confidence": 1}
+    if set(criteria) == {"true", "false"}:
+        return {"probability": 0.0 if choice == "false" else 1.0}
     return {"choice": choice, "probabilities": {c: float(c == choice) for c in criteria}, "confidence": 1}
+
+
+def fixture_batches(evaluate):
+    """Apply controlled per-domain fixture answers to the batched API contract."""
+    def wrapped(state, questions):
+        if not any('__' in key for key in questions):
+            return evaluate(state, questions)
+        answers = {}
+        for domain in dict.fromkeys(key.split('__')[0] for key in questions):
+            subset = {k.split('__', 1)[1]: q for k, q in questions.items() if k.startswith(domain + '__')}
+            answers.update({domain + '__' + k: v for k, v in evaluate(state, subset).items()})
+        return answers
+    return wrapped
 
 
 def turn(index, request, response, model="m", effort="high"):
@@ -78,7 +96,7 @@ class TaskRetrospectTest(unittest.TestCase):
             turns = task.read_turns(path, 'claude')
             seen = []
             task.assess_task(turns, [{"id": "writing", "description": "Write prose"}], bounded(directory, seen=seen))
-        state = next(p['state'] for p in seen if 'quality' in p['questions'])
+        state = next(p['state'] for p in seen if 'cause' in p['questions'])
         self.assertEqual(state['turns'][0]['request'], request)
         self.assertEqual(state['turns'][0]['origin']['promptSource'], 'typed')
         self.assertIn(rule, json.dumps(state['instruction_context']))
@@ -109,6 +127,7 @@ class TaskRetrospectTest(unittest.TestCase):
 
     def test_task_links_preserve_later_feedback_and_return_to_earlier_task(self):
         turns = [turn(i, f"request {i}", "result") for i in range(15)]
+        @fixture_batches
         def evaluate(state, questions):
             return {key: answer("t0" if key in ("t1", "t14") else "new", q["criteria"])
                     for key, q in questions.items()}
@@ -119,6 +138,7 @@ class TaskRetrospectTest(unittest.TestCase):
 
     def test_misclassified_opening_control_is_retained_as_uncertain_work(self):
         turns = [turn(0, 'Install a build', 'Need authorization'), turn(1, 'Go', 'Still waiting')]
+        @fixture_batches
         def evaluate(state, questions):
             return {k: answer('control' if k == 't0' else 't0', q['criteria']) for k, q in questions.items()}
         groups, links = task.segment(turns, evaluate)
@@ -131,6 +151,7 @@ class TaskRetrospectTest(unittest.TestCase):
         turns = [turn(0, '<pasted_content>Transport preamble. Install a build.</pasted_content>', 'Need authority')]
         turns[0]['task_request'] = 'Install a build.'
         seen = []
+        @fixture_batches
         def evaluate(state, questions):
             seen.append(state)
             return {k: answer('new', q['criteria']) for k, q in questions.items()}
@@ -139,7 +160,7 @@ class TaskRetrospectTest(unittest.TestCase):
         seen = []
         with tempfile.TemporaryDirectory() as directory:
             task.assess_task(turns, [{'id': 'writing', 'description': 'Write prose'}], bounded(directory, seen=seen))
-        judged = next(p['state'] for p in seen if 'quality' in p['questions'])
+        judged = next(p['state'] for p in seen if 'cause' in p['questions'])
         self.assertEqual(judged['turns'][0]['request'], turns[0]['request'])
         self.assertNotIn('task_request', judged['turns'][0])
 
@@ -147,19 +168,20 @@ class TaskRetrospectTest(unittest.TestCase):
         domains = [{"id": "implementation", "description": "Write software"},
                    {"id": "documentation", "description": "Write instructions"}]
         calls = []
+        @fixture_batches
         def evaluate(state, questions):
             calls.append(state)
             if "implementation" in questions:
                 return {key: answer("central" if key == "implementation" else "supporting", q["criteria"])
                         for key, q in questions.items()}
-            delegated = "Write software" in questions["quality"]["instructions"]
+            delegated = "Write software" in next(iter(questions.values()))["instructions"]
             choices = {"quality": "3", "evidence": "artifact", "cause": "none",
                        "ownership": "delegated" if delegated else "direct", "attempt": "performed", "citation0": "L1"}
-            return {key: answer(choices[key], q["criteria"]) for key, q in questions.items()}
+            return {key: answer(choices.get(key, {"rework": "0", "quality_support": "supports"}.get(key, "true")), q["criteria"]) for key, q in questions.items()}
         result = task.assess_task([turn(0, "Build and document", "Complete instructions")], domains, evaluate)
         by_domain = {d["domain"]: d for d in result["domains"]}
         self.assertIsNone(by_domain["implementation"]["eligible_score"])
-        self.assertEqual(by_domain["implementation"]["estimated_score"], 3)
+        self.assertIsNone(by_domain["implementation"]["estimated_score"])
         self.assertEqual(by_domain["documentation"]["eligible_score"], 3)
         self.assertEqual(by_domain["documentation"]["involvement"]["choice"], "supporting")
         self.assertNotIn('"model"', json.dumps(calls))
@@ -170,45 +192,49 @@ class TaskRetrospectTest(unittest.TestCase):
             ("3", "claim", "none", "no_observed_outcome"),
             ("1", "check", "external", "failure_cause_not_model"),
         ]:
+            @fixture_batches
             def evaluate(state, questions):
                 choices = {"debugging": "central", "quality": quality, "evidence": evidence,
                            "cause": cause, "ownership": "direct", "attempt": "performed", "citation0": "L1"}
-                return {key: answer(choices[key], q["criteria"]) for key, q in questions.items()}
+                return {key: answer(choices.get(key, {"rework": "0", "quality_support": "supports"}.get(key, "true")), q["criteria"]) for key, q in questions.items()}
             result = task.assess_task([turn(0, "Fix", "Done")], domains, evaluate)
             self.assertIsNone(result["domains"][0]["eligible_score"])
             self.assertIn(reason, result["domains"][0]["exclusions"])
 
     def test_refusal_cannot_measure_unattempted_domain_quality(self):
         domains = [{"id": "operations", "description": "Install a build"}]
+        @fixture_batches
         def evaluate(state, questions):
             choices = {"operations": "central", "quality": "0", "evidence": "behavior",
                        "cause": "instruction", "ownership": "direct", "attempt": "not_attempted", "citation0": "L1"}
-            return {key: answer(choices[key], q["criteria"]) for key, q in questions.items()}
+            return {key: answer(choices.get(key, {"rework": "0", "quality_support": "supports"}.get(key, "true")), q["criteria"]) for key, q in questions.items()}
         result = task.assess_task([turn(0, "Install the authorized build", "I refuse to start")], domains, evaluate)
         self.assertIsNone(result["domains"][0]["eligible_score"])
         self.assertIn("domain_work_not_established", result["domains"][0]["exclusions"])
-        self.assertIn("failure_cause_not_model", result["domains"][0]["exclusions"])
+        self.assertIsNone(result["domains"][0]["estimated_score"])
 
     def test_only_attempted_model_defects_support_low_domain_scores(self):
         for cause in ('model_error', 'authorization', 'orchestration', 'external', 'instruction', 'unknown'):
             with self.subTest(cause=cause):
+                @fixture_batches
                 def evaluate(state, questions):
                     choices = {'writing': 'central', 'quality': '1', 'evidence': 'artifact',
                                'cause': cause, 'ownership': 'direct', 'attempt': 'performed', 'citation0': 'L1'}
-                    return {k: answer(choices[k], q['criteria']) for k, q in questions.items()}
+                    return {k: answer(choices.get(k, {'rework': '0', 'quality_support': 'supports'}.get(k, 'true')), q['criteria']) for k, q in questions.items()}
                 record = task.assess_task([turn(0, 'Write prose', 'A flawed draft')],
                     [{'id': 'writing', 'description': 'Write prose'}], evaluate)['domains'][0]
                 self.assertEqual(record['eligible_score'], 1 if cause == 'model_error' else None)
 
     def test_attempt_gate_also_rejects_contradictory_success_estimates(self):
         for attempt in ('not_attempted', 'unknown'):
+            @fixture_batches
             def evaluate(state, questions):
                 choices = {'writing': 'central', 'quality': '3', 'evidence': 'artifact',
                            'cause': 'none', 'ownership': 'direct', 'attempt': attempt, 'citation0': 'L1'}
-                return {k: answer(choices[k], q['criteria']) for k, q in questions.items()}
+                return {k: answer(choices.get(k, {'rework': '0', 'quality_support': 'supports'}.get(k, 'true')), q['criteria']) for k, q in questions.items()}
             record = task.assess_task([turn(0, 'Write prose', 'A draft')],
                 [{'id': 'writing', 'description': 'Write prose'}], evaluate)['domains'][0]
-            self.assertEqual(record['estimated_score'], 3)
+            self.assertIsNone(record['estimated_score'])
             self.assertEqual(record['exclusions'], ['domain_work_not_established'])
             self.assertIsNone(record['eligible_score'])
 
@@ -223,10 +249,11 @@ class TaskRetrospectTest(unittest.TestCase):
 
     def test_other_actor_output_cannot_support_target_actor_score(self):
         turns = [turn(0, "Write it", "First attempt", "a"), turn(1, "Repair it", "Corrected result", "b")]
+        @fixture_batches
         def evaluate(state, questions):
             choices = {"writing": "central", "quality": "3", "evidence": "artifact",
                        "cause": "none", "ownership": "direct", "attempt": "performed", "citation0": "L3"}
-            return {key: answer(choices[key], q["criteria"]) for key, q in questions.items()}
+            return {key: answer(choices.get(key, {"rework": "0", "quality_support": "supports"}.get(key, "true")), q["criteria"]) for key, q in questions.items()}
         result = task.assess_task(turns, [{"id": "writing", "description": "Write prose"}], evaluate, ("a", "high"))
         self.assertIsNone(result["domains"][0]["eligible_score"])
         self.assertIn("citation_actor_unverified", result["domains"][0]["exclusions"])
@@ -243,6 +270,7 @@ class TaskRetrospectTest(unittest.TestCase):
     def test_large_request_keeps_all_domain_pages_and_records_unresolved_task_link(self):
         turns = [turn(0, "x" * 30000 + "final request marker", "answer")]
         observed = []
+        @fixture_batches
         def evaluate(state, questions):
             observed.append(state)
             return {key: answer("central", q["criteria"]) for key, q in questions.items()}
@@ -291,7 +319,11 @@ class TaskRetrospectTest(unittest.TestCase):
             result = {}
             for key, question in payload["questions"].items():
                 choices = question["criteria"]
-                if "new" in choices:
+                if question["type"] != "choice":
+                    result[key] = answer("3" if key == "quality" else "0", choices)
+                    continue
+                if key == "quality_support": choice = "supports"
+                elif "new" in choices:
                     choice = "new" if key == "t0" else "t0"
                 elif "absent" in choices:
                     choice = "central" if key == "writing" else "absent"
@@ -341,6 +373,9 @@ class TaskRetrospectTest(unittest.TestCase):
 def choose(key, criteria):
     """A deterministic stand-in judge: writing is central and evidence is a target artifact."""
     options = [c for c in criteria if c != "none"]
+    if isinstance(criteria, list): return "3" if key == "quality" else "0"
+    if set(criteria) == {"true", "false"}: return "true"
+    if key == "quality_support": return "supports"
     if "new" in criteria: return "new"
     if "absent" in criteria: return "central" if key == "writing" else "absent"
     fixed = {"quality": "3", "evidence": "artifact", "cause": "none", "ownership": "direct", "attempt": "performed"}
@@ -386,9 +421,9 @@ class BoundedEvidenceTest(unittest.TestCase):
                      if f['source_id'] == 'L99'}
         self.assertEqual(len(fragments), fragments[1]['parts'])
         self.assertTrue(all(f['kind'] == 'instruction_context' for f in fragments.values()))
-        reconstructed = json.loads(''.join(fragments[i]['content'] for i in sorted(fragments)))
-        self.assertEqual(reconstructed['content'], turns[0]['instruction_context'][0]['content'])
-        final = next(p['state'] for p in seen if 'quality' in p['questions'])
+        reconstructed = ''.join(fragments[i].get('content', '') for i in sorted(fragments) if fragments[i].get('field_path') == ['content'])
+        self.assertEqual(reconstructed, turns[0]['instruction_context'][0]['content'])
+        final = next(p['state'] for p in seen if 'cause' in p['questions'])
         self.assertEqual(final['requests'][0]['context_ids'], ['L99'])
         self.assertEqual(final['requests'][0]['text'], turns[0]['request'])
 
@@ -408,7 +443,7 @@ class BoundedEvidenceTest(unittest.TestCase):
             self.assertEqual(record["estimated_score"], 3)
             self.assertEqual(record["retrieval"]["mode"], "jev_retrieval")
             self.assertTrue(record["retrieval"]["rounds"])
-            final = next(p["state"] for p in seen if "quality" in p["questions"])
+            final = next(p["state"] for p in seen if "cause" in p["questions"])
             self.assertEqual([r["id"] for r in final["requests"]], [t["request_id"] for t in turns])
             self.assertTrue(all({"source_id", "part", "parts"} <= f.keys() for f in final["events"]))
 
@@ -467,6 +502,7 @@ class BoundedEvidenceTest(unittest.TestCase):
             for i in range(100, 299)]
         turns[0]["events"].append({"id": "L999", "kind": "tool_result", "model": "b", "effort": "high",
                                      "check": {"summary": "passed"}})
+        @fixture_batches
         def evaluate(state, questions):
             return {k: answer("check" if k == "evidence" else "L1" if k == "citation0"
                               else "L999" if k == "citation1" else choose(k, q["criteria"]), q["criteria"])
@@ -478,9 +514,10 @@ class BoundedEvidenceTest(unittest.TestCase):
         self.assertIsNone(domain["eligible_score"])
         self.assertIn("citation_is_not_a_recorded_check", domain["exclusions"])
 
-    def test_continuation_pages_repeat_task_start_and_cannot_mark_absent_unresolved(self):
+    def test_continuation_pages_repeat_task_start_and_preserve_uncertainty(self):
         domains = self.WRITING + [{"id": "audio", "description": "Sound"}]
         states = []
+        @fixture_batches
         def evaluate(state, questions):
             states.append(state)
             self.assertTrue(task.fits(state, questions))
@@ -489,11 +526,12 @@ class BoundedEvidenceTest(unittest.TestCase):
                     for k, q in questions.items()}
         involvement, pages = task.classify_requests([turn(0, "Write a poem. " + "detail " * 6000, "ok")], domains, evaluate)
         self.assertGreater(len(pages), 1)
-        self.assertEqual({k: v["choice"] for k, v in involvement.items()}, {"writing": "central", "audio": "absent"})
+        self.assertEqual({k: v["choice"] for k, v in involvement.items()}, {"writing": "central", "audio": "unresolved"})
         self.assertTrue(all(s["task_start"]["request"].startswith("Write a poem.") for s in states[1:]))
 
     def test_segmentation_shrinks_batch_before_antecedents_and_records_window(self):
         offered = {}
+        @fixture_batches
         def evaluate(state, questions):
             self.assertTrue(task.fits(state, questions))
             offered.update({k: [c for c in q["criteria"] if c.startswith("t")] for k, q in questions.items()})
@@ -516,7 +554,7 @@ class BoundedEvidenceTest(unittest.TestCase):
                 {"type": "tool_result", "tool_call_id": "c1", "content": "5 passed"}]))
             call, result = task.read_turns(root / "summary.json", "grok")[0]["events"]
         self.assertEqual(call["call_id"], "c1")
-        self.assertIn("body_at_source", call["input"])
+        self.assertEqual(len(json.loads(call["input"])["pad"]), 9000)
         self.assertEqual((result["model"], result["effort"]), ("g", "high"))
         self.assertEqual(result["check"]["command"], "pytest")
 
@@ -553,7 +591,7 @@ class BoundedEvidenceTest(unittest.TestCase):
                       "scoring_skipped": "no_matching_actor", "involvement": involvement, "domains": []})
         markdown, table = task.report([{"source_key": "s", "provider": "codex", "tasks": tasks}], self.WRITING)
         self.assertIn("Distinct tasks: 2. Per-actor assessments: 2.", markdown)
-        self.assertIn("| writing | Write prose | 2 | 0 | 0 | 2 | 0 |", markdown)
+        self.assertIn("| writing | Write prose | 2 | 0 | 0 | 0 | 2 | 0 |", markdown)
         self.assertIn("| old | low | writing | 1 | 0 | 0 | — |", markdown)
         self.assertIn("scoring_skipped:no_matching_actor", table)
 

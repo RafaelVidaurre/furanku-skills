@@ -5,12 +5,13 @@ or updating installed skills. Retrospective results never change routing scores
 automatically.
 
 **Current decision:** the tested scorer failed source-audited validation.
-An integration audit found input loss, contradictory acceptance rules, and
-uncalibrated classification; Jev's suitability remains unresolved. Keep bulk
-scoring stopped until those defects are corrected and unseen cases validate the
-procedure. The commands below reproduce experimental results; they are not a
+The current implementation repairs evidence retention, separates final quality
+from repair burden, supports typed questions, and verifies citation support.
+Semantic accuracy and coverage still need validation; keep bulk scoring stopped
+until a frozen historical benchmark passes and its errors are independently reviewed. The commands below reproduce experimental results; they are not a
 validated procedure for updating routing scores. Read the
 [integration audit](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-retrospective-integration-audit-2026-09-26.md)
+the [typed-integration validation](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-typed-validation-2026-09-26.md),
 and the amended
 [feasibility report](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/retrospective-evaluator-feasibility-2026-09-26.md).
 
@@ -64,9 +65,9 @@ The sequence is:
    origin metadata; preserve recorded system/developer instructions and Claude
    instruction snapshots and rendered hooks as historical context. Transport
    metadata does not establish user authorization. Internal reasoning is excluded.
-   Long tool bodies remain at
-   source; recognized checks retain their command/result summaries. Tool summaries
-   and source pointers are identified as such, never presented as complete artifacts.
+   Retain tool bodies locally, including long outputs. Retrieval uses complete
+   small records or decoded field spans with paths, character offsets, and source
+   IDs; it preserves the final output instead of replacing large bodies with pointers.
 2. Ask Jev to link each request to its task. Corrections, approvals, abandonment,
    and later feedback stay with that task. Housekeeping can carry task evidence.
    Grouping and domain classification use normalized task text; outcome judgments
@@ -76,11 +77,14 @@ The sequence is:
    offered and whether size forced a shorter window. A new task chosen under a
    shortened window, and every unresolved link, is boundary-uncertain.
 3. Ask Jev about every domain in `retrospective-domains.json`: absent, supporting,
-   or central. Each answer option includes the domain's definition. Include work
+   central, or unresolved. Each question includes the domain's definition. Include work
    later canceled, superseded, or reverted when classifying domains. Long requests
    are paged; later pages repeat the task's opening request part, and every page
-   is retained. A page's unresolved answer is used only when no page resolves the
-   domain. Tasks by models outside the census are classified but not scored.
+   is retained. Combine central/supporting probability when deciding involvement;
+   uncertainty about importance does not erase involvement. Report `involved` when
+   the role is uncertain and `unresolved` when involvement is uncertain. One weak
+   positive page cannot override confident negatives. Tasks by models outside the
+   census are classified but not scored.
 4. Judge each recorded model/effort contribution using anonymized actor identifiers.
    Other actors' work supplies context rather than credit. Every request is always
    supplied whole. When events and recorded instructions do not fit, Jev screens
@@ -88,20 +92,23 @@ The sequence is:
    authority context, then re-screens the
    selection until the final call fits. The final call receives labelled fragments
    (part k of n) with source line IDs; retain every screening round.
-5. Ask separate questions about attempted work, domain quality, evidence, ownership,
-   and cause. Establish attempted work and cause before accepting a domain score.
-   Retain the raw 0–4/unknown estimates and citations independently of eligibility.
-   Supporting domains receive scores too. Unattempted work remains unassessed;
-   refusal alone establishes non-delivery, not domain quality or model fault.
-   Distinguish domain mistakes, authorization conflicts, orchestration failures,
-   external outages, instruction compliance, and changed requests. Low scores
-   require an attributable domain mistake; delivery/compliance observations remain
-   separate from domain scores. Artifact, behavior, and check evidence must cite the
-   target actor's own event; a requester message supports only feedback, and a
-   tool body left at source cannot be cited as an inspected artifact.
-   Screening can omit relevant instructions: retain its selections and leave an
-   uncertain cause unresolved rather than interpreting missing authority as refusal
-   of an authorized task.
+5. Ask focused categorical questions about attempted work, ownership, outcome
+   evidence, and cause. Batch independent domains when their complete shared
+   evidence fits. Keep historical authority context in these judgments. Select
+   final-result and repair citations separately. Unattempted or unowned work does
+   not receive a numeric quality question.
+   Then send requested work and the selected source evidence to Boolean questions
+   about assessability and observed repair, and separate Score scales: final
+   requirement satisfaction (0–4) and model-caused repair burden (0–3).
+   Historical policy and unrelated events stay out of this quality packet.
+   A repaired mistake can coexist with a good final result. Missing evidence
+   invalidates a rating; silence does not establish a clean attempt. Inspect
+   source IDs, actor attribution and supplied bodies mechanically, then ask whether
+   the cited evidence supports the particular domain-quality claim. A passing
+   software test cannot establish documentation quality. Score distributions,
+   acceptance exclusions and raw estimates remain visible independently. Repair
+   eligibility has its own citations, attribution checks, and exclusions: unknown
+   final quality does not erase observed model-caused repair.
 6. Produce the adjacent Markdown report and per-session/task/domain CSV. The report
    states its census digest, analysis signature, privacy mode, Beads status, run
    status, and each census session's disposition. It counts distinct tasks and
@@ -127,6 +134,36 @@ choice probabilities are uncertainty signals, not calibrated worker-success odds
 request is assigned or marked unresolved, every involved domain has an estimate or
 an explicit reason for missing one, and the report's coverage matches the census.
 A limited pilot does not satisfy full-corpus completion.
+
+## Validate a procedure before scaling
+
+Use `retrospective_validate.py --cases <private-cases.json> --output <private-result.json>`
+for a frozen source-audited task benchmark. Inputs and output live within the
+machine-global retrospective directory. Each case contains `id`, `split`, parsed
+`turns`, source `provenance`, optional `focus` and Beads `context`, and `expected`:
+`required_domains`, optional `allowed_domains`, and `scores` mapping domains to
+an acceptable numeric range or `null` for no supported score. The document has
+`status: "frozen"`, `cases`, and `minimum_supported_scores` (default 1).
+
+Fix references before evaluating. Development cases may guide changes; once an
+unseen case informs a change, label it development and reserve fresh cases.
+Unknown is a failed positive-coverage check, not agreement. A negative-only run
+cannot establish a useful scorer. The report retains source/input and code hashes,
+raw domain distributions, every accepted and rejected score, errors, and cache use.
+The same privacy and bounded rate-limit wait options apply. Successful calls are
+cached with their request bodies, so a blocked run resumes without resending them.
+Use repeatable `--case <id>` to investigate specific failures; a selected subset
+never reports full benchmark completion. This harness tests prepared task
+assessment, not native discovery or task segmentation end to end.
+
+Thresholds in `retrospective_judgments.py` are provisional pilot policy, not
+calibrated correctness probabilities. Assess domain errors, evidence-support
+errors, accepted score coverage, and quality agreement separately. A passing
+small benchmark does not establish calibrated model rankings or corpus coverage.
+
+**Complete when:** held-out results meet the frozen criteria, useful positive
+scores exist alongside correctly rejected negative cases, errors are independently
+reviewed, and the supported scope and remaining gaps are recorded.
 
 ## Optional Beads evidence
 

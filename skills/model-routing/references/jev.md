@@ -103,6 +103,29 @@ plan access is required. Without it, provider/Gateway defaults apply.
 
 **Complete when:** a fresh gate-checked launchable decision is available, or abstention, quota acceptance, or provider failure is surfaced with its next action.
 
+## Typed evaluation requests
+
+`jev.py evaluate --request <file>` supports the Gateway `/v1/evaluate` contract:
+
+| Type | Criteria | Returned value |
+| --- | --- | --- |
+| `choice` | Object mapping option names to standalone descriptions | Selected `choice`, option probabilities, optional distribution confidence |
+| `boolean` | Optional object with `true` and `false` descriptions | `probability` of true |
+| `score` | Ordered array of 2–10 standalone level descriptions | Interpolated `score`, level probabilities, optional distribution confidence |
+
+Use Boolean for one yes/no claim, Choice for categories, and Score for one ordered
+judgment. TypeSafe calls its yes/no primitive Noul; this Gateway endpoint names it
+`boolean`, so `noul` is rejected locally. Question IDs are response keys, not
+instructions visible to Jev. Independent questions can share one state and request;
+combine their answers mechanically. A dependent evidence lookup requires a later
+request. The client validates each answer against its question type while preserving
+existing Choice consumers. Missing confidence stays unknown; probability and
+confidence are not measured downstream success rates.
+
+For historical scoring inputs and validation, use
+[Historical model performance](performance-history.md). API contract:
+[Vercel evaluation](https://vercel.com/docs/ai-gateway/modalities/evaluation).
+
 ## Optional exploratory trials
 
 ```sh
