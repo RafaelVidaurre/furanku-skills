@@ -569,10 +569,13 @@ class BoundedEvidenceTest(unittest.TestCase):
         questions = {"q": {"type": "choice", "instructions": "choose", "criteria": {"a": "A", "b": "B"}}}
         with tempfile.TemporaryDirectory() as directory:
             evaluate = task.Evaluator(Path(directory))
-            failure = task.jev.Error("Jev returned an inconsistent option distribution.")
+            failure = task.jev.AnswerError("Jev returned an inconsistent option distribution.",
+                                          {"reason": "distribution_sum", "distribution_sum": .9})
             with patch.object(task.jev, "evaluate_bounded", side_effect=failure):
-                with self.assertRaisesRegex(task.JudgeError, "judge_answer_invalid:jev_inconsistent_distribution"):
+                with self.assertRaisesRegex(task.JudgeError, "judge_answer_invalid:jev_inconsistent_distribution") as caught:
                     evaluate("state", questions)
+            self.assertEqual(caught.exception.diagnostics["reason"], "distribution_sum")
+            self.assertRegex(caught.exception.diagnostics["request_digest"], r"^[0-9a-f]{64}$")
             self.assertEqual(list(Path(directory).glob("*.json")), [])
         def flaky(state, questions):
             if "quality" in questions: raise task.JudgeError("judge_answer_invalid:jev_answer_ids")
@@ -595,6 +598,23 @@ class BoundedEvidenceTest(unittest.TestCase):
         self.assertIn("| old | low | writing | 1 | 0 | 0 | — |", markdown)
         self.assertIn("scoring_skipped:no_matching_actor", table)
 
+    def test_empty_unresolved_task_is_pending_and_keeps_classification_diagnostics(self):
+        row = {"source_key": "s", "path": "unused", "provider": "codex"}
+        turns = [turn(0, "Run version", "version 1")]
+        boundaries = [{"turn": 0, "link": "unresolved_control", "answer": None}]
+        failure = task.JudgeError("judge_answer_invalid:jev_inconsistent_distribution",
+                                  {"reason": "distribution_sum", "distribution_sum": .9})
+        for classification in [({"writing": {"choice": "absent"}}, []), failure]:
+            with patch.object(task, "source_stamp", return_value={}), patch.object(task, "read_turns", return_value=turns), \
+                 patch.object(task, "segment", return_value=([turns], boundaries)), \
+                 patch.object(task, "classify_requests", **({"side_effect": classification} if isinstance(classification, Exception)
+                                                           else {"return_value": classification})):
+                result = task.analyze(row, lambda *_: self.fail("No judgment expected"), self.WRITING)
+            self.assertEqual(result["status"], "assessed_with_pending")
+            self.assertTrue(result["tasks"][0]["boundary_uncertain"])
+            if isinstance(classification, Exception):
+                self.assertEqual(result["tasks"][0]["judge_diagnostics"], failure.diagnostics)
+
 
 class ResumeTest(unittest.TestCase):
     def run_cli(self, root, census, output, *extra):
@@ -607,6 +627,22 @@ class ResumeTest(unittest.TestCase):
              patch.object(task.jev, "evaluate_bounded", side_effect=live) as mocked, contextlib.redirect_stdout(stdout):
             code = task.main()
         return code, mocked.call_count
+
+    def test_segmentation_validation_error_preserves_details_and_resumes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session, census, output = root / 'a.jsonl', root / 'census.jsonl', root / 'tasks.jsonl'
+            codex_session(session, ['Write a poem.'])
+            census.write_text(json.dumps({'source_key': 'a', 'provider': 'codex', 'path': str(session)}))
+            diagnostics = {'reason': 'distribution_sum', 'distribution_sum': .9, 'request_digest': 'a' * 64}
+            with patch.object(task, 'segment', side_effect=task.JudgeError('judge_answer_invalid:jev_inconsistent_distribution', diagnostics)):
+                self.run_cli(root, census, output)
+            record = json.loads(output.read_text().splitlines()[-1])
+            self.assertEqual(record['judge_diagnostics'], diagnostics)
+            self.assertTrue(record['retryable'])
+            self.assertEqual(record['status'], 'error')
+            self.run_cli(root, census, output)
+            self.assertEqual(json.loads(output.read_text().splitlines()[-1])['status'], 'assessed')
 
     def test_limit_advances_past_terminal_pending_and_unscored_sessions(self):
         with tempfile.TemporaryDirectory() as directory:

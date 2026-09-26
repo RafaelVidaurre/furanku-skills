@@ -322,6 +322,33 @@ with patch('urllib.request.OpenerDirector.open', side_effect=AssertionError('HTT
         result = jev.validate_result(response, PAYLOAD["questions"])
         self.assertIsNone(result["answers"]["route"]["confidence"])
 
+    def test_distribution_rounding_boundary_and_safe_failure_details(self):
+        questions = {"private-question": {"type": "choice", "criteria": dict.fromkeys("abcd", "option")}}
+        response = {"model": jev.MODEL, "answers": {"private-question": {
+            "type": "choice", "choice": "a", "probabilities": dict(zip("abcd", [.26, .26, .25, .25]))}}}
+        self.assertEqual(jev.validate_result(response, questions)["answers"]["private-question"]["choice"], "a")
+        response["answers"]["private-question"]["probabilities"]["a"] = .261
+        with self.assertRaises(jev.AnswerError) as caught:
+            jev.validate_result(response, questions)
+        self.assertEqual(caught.exception.diagnostics["reason"], "distribution_sum")
+        self.assertAlmostEqual(caught.exception.diagnostics["distribution_sum"], 1.021)
+        self.assertEqual(caught.exception.diagnostics["question_index"], 0)
+        self.assertNotIn("private-question", json.dumps(caught.exception.diagnostics))
+        response["answers"]["private-question"].update(choice="d", probabilities=dict(zip("abcd", [.4, .3, .2, .1])))
+        with self.assertRaises(jev.AnswerError) as caught:
+            jev.validate_result(response, questions)
+        self.assertEqual(caught.exception.diagnostics["reason"], "choice_not_maximum")
+
+    def test_bounded_client_preserves_only_safe_answer_diagnostics(self):
+        failure = {"code": "invalid_answer", "error": "Jev returned an inconsistent option distribution.",
+                   "diagnostics": {"reason": "distribution_sum", "distribution_sum": .9,
+                                   "question_index": 0, "question_type": "choice", "raw_body": "private"}}
+        completed = type("Result", (), {"returncode": 1, "stderr": json.dumps(failure)})()
+        with mock.patch.object(jev.subprocess, "run", return_value=completed), self.assertRaises(jev.AnswerError) as caught:
+            jev.evaluate_bounded(PAYLOAD)
+        self.assertEqual(caught.exception.diagnostics["distribution_sum"], .9)
+        self.assertNotIn("raw_body", caught.exception.diagnostics)
+
     def test_zdr_is_an_explicit_request_option(self):
         ordinary = jev.validate_request(PAYLOAD)
         self.assertNotIn("zeroDataRetention", ordinary["providerOptions"]["gateway"])
@@ -462,6 +489,15 @@ class TypedEvaluationTest(unittest.TestCase):
                 response = self.response()
                 response['answers'][key].update(change)
                 with self.assertRaises(jev.Error): jev.validate_result(response, self.payload()['questions'])
+
+    def test_score_rounding_boundary_remains_inclusive(self):
+        response = self.response()
+        response['answers']['quality']['score'] = 1.76
+        self.assertEqual(jev.validate_result(response, self.payload()['questions'])['answers']['quality']['score'], 1.76)
+        response['answers']['quality']['score'] = 1.759
+        with self.assertRaises(jev.AnswerError) as caught:
+            jev.validate_result(response, self.payload()['questions'])
+        self.assertEqual(caught.exception.diagnostics['reason'], 'score_mismatch')
 
 
 if __name__ == "__main__":

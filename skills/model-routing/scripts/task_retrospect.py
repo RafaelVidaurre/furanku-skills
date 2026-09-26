@@ -28,7 +28,7 @@ import retrospect
 import retrospective_judgments as judgments
 from performance_assess import command_from_input, executable_test_command, result_lines, exit_codes
 
-VERSION = 9
+VERSION = 10
 # Conservative UTF-8 byte budgets, below the documented 32k state+question and
 # 64k total token budgets. Bytes are an upper bound, not a tokenizer estimate.
 MAX_STATE_BYTES = 24_000
@@ -313,6 +313,15 @@ def read_turns(path, provider):
 class JudgeError(ValueError):
     """A deterministic judge failure for one call; recorded as pending, never scored."""
 
+    def __init__(self, message, diagnostics=None):
+        super().__init__(message)
+        self.diagnostics = diagnostics or {}
+
+
+def judge_details(error):
+    details = getattr(error, "diagnostics", {})
+    return {"judge_diagnostics": details} if details else {}
+
 
 class Evaluator:
     def __init__(self, cache, require_zdr=True, rate_limit_wait=0):
@@ -357,7 +366,8 @@ class Evaluator:
                 code = retrospect.SESSION_EVAL_ERRORS.get(str(error))
                 if code is None:
                     raise
-                raise JudgeError("judge_answer_invalid:" + code) from None
+                raise JudgeError("judge_answer_invalid:" + code,
+                                 {**getattr(error, "diagnostics", {}), "request_digest": key}) from None
         self.calls += 1
         self.cache.mkdir(parents=True, exist_ok=True, mode=0o700)
         with tempfile.NamedTemporaryFile(mode="w", dir=self.cache, delete=False) as stream:
@@ -694,8 +704,20 @@ def outcome_sources(packet, citations):
 
 
 def body_supplied(event):
-    return not any(isinstance(event.get(field), dict) and "body_at_source" in event[field]
-                   for field in ("input", "output"))
+    if isinstance(event, dict):
+        return "body_at_source" not in event and all(body_supplied(value) for value in event.values())
+    if isinstance(event, list):
+        return all(body_supplied(value) for value in event)
+    return True
+
+
+def check_body_supplied(event):
+    """An output-bearing full record or decoded fragment, never metadata alone."""
+    if "field_path" in event:
+        path = event["field_path"]
+        return bool(path and path[0] == "output" and "body_at_source" not in path and event.get("content"))
+    value = event.get("value", event)
+    return bool(value.get("output")) and body_supplied(value["output"])
 
 
 def assess_task(turns, domains, evaluate, focus=None, context=(), classification=None):
@@ -759,15 +781,15 @@ def assess_task(turns, domains, evaluate, focus=None, context=(), classification
         except ValueError as error:
             records.append({"domain": name, "involvement": involvement[name],
                             "assessment": {}, "citations": [], "estimated_score": None,
-                            "eligible_score": None, "exclusions": [str(error)]})
+                            "eligible_score": None, "exclusions": [str(error)], **judge_details(error)})
             continue
         evidence = answers["evidence"]["choice"]
         repair_citations = [value["choice"] for key, value in answers.items() if key.startswith("repair_citation") and value["choice"] != "none"]
         citations = [value["choice"] for key, value in answers.items()
                      if key.startswith("citation") and value["choice"] != "none"]
-        # Facts and source selection establish what the next request can inspect.
-        # Quality gets only requested work and cited outcome/repair evidence;
-        # authority rules remain in the earlier cause/attempt judgment.
+        # Quality gets requested work and the supplied observed event bundle;
+        # citations locate results while other events can verify or contradict them.
+        # Authority rules remain in the earlier cause/attempt judgment.
         outcome_state = outcome_sources(evidence_state, citations + repair_citations)
         outcome_state["domain"] = domain
         outcome_state["final_source_ids"] = citations
@@ -798,7 +820,7 @@ def assess_task(turns, domains, evaluate, focus=None, context=(), classification
             records.append({"domain": name, "involvement": involvement[name], "assessment": answers,
                             "citations": citations, "retrieval": retrieval, "issue_context": issue_mode,
                             "estimated_score": None, "eligible_score": None, "eligible_rework": None,
-                            "exclusions": [str(error)]})
+                            "exclusions": [str(error)], **judge_details(error)})
             continue
         quality = answers["quality"]["score"]
         quality_level = int(judgments.dominant_level(answers["quality"]))
@@ -809,7 +831,12 @@ def assess_task(turns, domains, evaluate, focus=None, context=(), classification
         if not citations: reasons.append("no_evidence_citation")
         cited_events = [by_id[c] for c in citations if c in by_id]
         target_events = [e for e in cited_events if e.get("actor") == state["target_actor"]]
-        if evidence == "check" and not any(e["kind"] == "tool_result" for e in target_events):
+        # Check existence in the packet actually shown to the judge, including
+        # uncited logs. Never use omitted source bodies or another actor's checks.
+        supplied = outcome_state["cited_sources"] + outcome_state.get("other_observed_sources", [])
+        supplied_checks = [e for e in supplied if e.get("actor") == state["target_actor"]
+                           and e["kind"] == "tool_result" and check_body_supplied(e)]
+        if evidence == "check" and not supplied_checks:
             reasons.append("citation_is_not_a_recorded_check")
         # A requester message can carry feedback, but not the target's own output.
         if evidence in ("artifact", "behavior", "check") and not target_events:
@@ -846,6 +873,7 @@ def assess_task(turns, domains, evaluate, focus=None, context=(), classification
             repair_reasons.append("repair_extent_unknown")
         if not judgments.score_is_local(answers["rework"]): repair_reasons.append("repair_extent_uncertain")
         support = {}
+        support_diagnostics = {}
         support_questions = judgments.support_questions(answers)
         requested_support = {}
         if not reasons: requested_support["quality_support"] = support_questions["quality_support"]
@@ -861,6 +889,7 @@ def assess_task(turns, domains, evaluate, focus=None, context=(), classification
                         and support["rework_support"]["probability"] < judgments.MIN_BOOLEAN_PROBABILITY):
                     repair_reasons.append("citation_does_not_support_repair_extent")
             except ValueError as error:
+                support_diagnostics = judge_details(error)
                 if "quality_support" in requested_support: reasons.append(str(error))
                 if "rework_support" in requested_support: repair_reasons.append(str(error))
         records.append({"domain": name, "involvement": involvement[name],
@@ -871,7 +900,7 @@ def assess_task(turns, domains, evaluate, focus=None, context=(), classification
                         "retrieval": retrieval, "issue_context": issue_mode,
                         "estimated_score": quality,
                         "eligible_score": quality_level if not reasons else None,
-                        "exclusions": reasons})
+                        "exclusions": reasons, **support_diagnostics})
     return {"turns": [t["turn"] for t in turns], "actors": [target] if target else known_actors,
             "attribution": attribution, "involvement": involvement,
             "classification_pages": classification_pages, "domains": records}
@@ -910,14 +939,15 @@ def analyze(row, evaluate, domains, issue_records=()):
         used.update(mentions)
         context = [{key: record[key] for key in ("issue_ref", "requirements", "claims", "provenance")}
                    for record, _sources in mentions.values()]
+        uncertain = any(boundary_uncertain(by_turn[t["turn"]]) for t in group)
         base = {"task_key": task_key, "turns": [t["turn"] for t in group], "request": group[0]["request"],
+                "boundary_uncertain": uncertain,
                 "optional_issue_refs": sorted(mentions),
                 "issue_matches": {ref: sources for ref, (_record, sources) in mentions.items()}}
-        uncertain = any(boundary_uncertain(by_turn[t["turn"]]) for t in group)
         try:
             classification = classify_requests(group, domains, evaluate, redact(context))
         except ValueError as error:
-            results.append({**base, "task_id": task_key, "actors": [], "error": str(error), "domains": []})
+            results.append({**base, "task_id": task_key, "actors": [], "error": str(error), "domains": [], **judge_details(error)})
             continue
         actors = sorted({(e.get("model"), e.get("effort")) for t in group for e in t["events"]
                          if e.get("model") and e.get("effort")})
@@ -935,17 +965,17 @@ def analyze(row, evaluate, domains, issue_records=()):
                 result = assess_task(group, domains, evaluate, actor, context, classification)
             except ValueError as error:
                 result = {"actors": [actor] if actor else [], "involvement": classification[0],
-                          "error": str(error), "domains": []}
+                          "error": str(error), "domains": [], **judge_details(error)}
             result.update(base)
             result["task_id"] = task_key + ":" + digest(actor)[:8]
             if uncertain:
-                result["boundary_uncertain"] = True
                 for d in result["domains"]:
                     d["exclusions"].append("task_boundary_unresolved")
                     d["eligible_score"] = None
                     d["eligible_rework"] = None
             results.append(result)
-    pending = any(r.get("error") or any(is_pending(x) for d in r["domains"] for x in d["exclusions"])
+    pending = any(r.get("error") or r.get("boundary_uncertain") or
+                  any(is_pending(x) for d in r["domains"] for x in d["exclusions"] + d.get("rework_exclusions", []))
                   for r in results)
     return {"source_key": row["source_key"], "provider": row["provider"], "path": row["path"],
             "version": VERSION, "source_stamp": stamp, "turn_count": len(turns), "boundaries": boundaries,
@@ -1140,7 +1170,8 @@ def main():
                 result = {"source_key": row["source_key"], "provider": row["provider"], "path": row["path"],
                           "source_stamp": source_stamp(row), "version": VERSION, "status": "error",
                           "error": type(error).__name__ + ": " + str(error),
-                          "retryable": isinstance(error, OSError) or str(error) == "session_changed_during_read"}
+                          "retryable": isinstance(error, (OSError, JudgeError)) or str(error) == "session_changed_during_read",
+                          **judge_details(error)}
             result["analysis_signature"] = signature
             result["privacy_mode"] = privacy
             result["beads_enrichment"] = beads.split(":")[0]

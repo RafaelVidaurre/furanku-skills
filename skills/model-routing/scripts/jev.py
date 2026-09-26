@@ -33,6 +33,23 @@ class Error(Exception):
     """An actionable diagnostic that contains no credential or response body."""
 
 
+class AnswerError(Error):
+    """Safe numeric validation details, preserved across the bounded subprocess."""
+
+    def __init__(self, message, diagnostics):
+        super().__init__(message)
+        self.diagnostics = {}
+        for key in ("question_index", "distribution_sum", "selected_probability",
+                    "maximum_probability", "score", "expected_score", "tolerance"):
+            value = diagnostics.get(key)
+            if type(value) in (int, float) and math.isfinite(value):
+                self.diagnostics[key] = value
+        if diagnostics.get("reason") in {"distribution_sum", "choice_not_maximum", "score_mismatch"}:
+            self.diagnostics["reason"] = diagnostics["reason"]
+        if diagnostics.get("question_type") in {"choice", "boolean", "score"}:
+            self.diagnostics["question_type"] = diagnostics["question_type"]
+
+
 class RateLimitError(Error):
     """A bounded Jev call could not clear a Gateway 429."""
 
@@ -191,7 +208,7 @@ def validate_result(result, questions):
     if not isinstance(confidence, dict):
         raise Error("Invalid Jev confidence metadata.")
     clean = {}
-    for name, question in questions.items():
+    for question_index, (name, question) in enumerate(questions.items()):
         answer = answers[name]
         kind = question["type"]
         if not isinstance(answer, dict) or answer.get("type") != kind:
@@ -208,8 +225,12 @@ def validate_result(result, questions):
             raise Error("Jev did not return a complete option distribution.")
         if not all(probability(v) for v in distribution.values()):
             raise Error("Jev returned invalid probabilities.")
-        if abs(sum(distribution.values()) - 1) > 0.02:
-            raise Error("Jev returned an inconsistent option distribution.")
+        total = math.fsum(distribution.values())
+        details = {"question_index": question_index, "question_type": kind}
+        # Honor the inclusive rounding tolerance at binary floating-point edges.
+        if abs(total - 1) > 0.02 + 1e-12:
+            raise AnswerError("Jev returned an inconsistent option distribution.",
+                              {**details, "reason": "distribution_sum", "distribution_sum": total, "tolerance": 0.02})
         certainty = confidence.get(name)
         if certainty is not None and not probability(certainty):
             raise Error("Jev returned invalid confidence.")
@@ -218,7 +239,9 @@ def validate_result(result, questions):
             if not isinstance(choice, str) or choice not in options:
                 raise Error("Jev selected an option outside the offered set.")
             if distribution[choice] < max(distribution.values()):
-                raise Error("Jev returned an inconsistent option distribution.")
+                raise AnswerError("Jev returned an inconsistent option distribution.",
+                                  {**details, "reason": "choice_not_maximum", "selected_probability": distribution[choice],
+                                   "maximum_probability": max(distribution.values())})
             value = {"choice": choice}
         else:
             score = answer.get("score")
@@ -227,8 +250,11 @@ def validate_result(result, questions):
                 raise Error("Jev returned an invalid Score.")
             # Gateway rounds probabilities; allow their bounded rounding error.
             expected = sum(int(k) * v for k, v in distribution.items())
-            if abs(score - expected) > 0.02 * max(1, upper):
-                raise Error("Jev returned a Score inconsistent with its distribution.")
+            tolerance = 0.02 * max(1, upper)
+            if abs(score - expected) > tolerance + 1e-12:
+                raise AnswerError("Jev returned a Score inconsistent with its distribution.",
+                                  {**details, "reason": "score_mismatch", "score": score,
+                                   "expected_score": expected, "tolerance": tolerance})
             value = {"score": score}
         clean[name] = {**value, "probabilities": distribution, "confidence": certainty}
     usage = result.get("usage") or {}
@@ -426,6 +452,8 @@ def evaluate_bounded(payload):
             raise RateLimitError(failure["attempts"], failure.get("retry_after_seconds"),
                                  diagnostics=failure.get("diagnostics"), reason=failure.get("reason", "rate_limit"),
                                  delay_source=failure.get("delay_source"))
+        if failure.get("code") == "invalid_answer" and isinstance(failure.get("diagnostics"), dict):
+            raise AnswerError(message, failure["diagnostics"])
         raise Error(message)
     try:
         return json.loads(completed.stdout)
@@ -459,6 +487,8 @@ def main(argv=None):
             failure.update(code="rate_limited", attempts=exc.attempts,
                            retry_after_seconds=exc.retry_after_seconds, diagnostics=exc.diagnostics,
                            reason=exc.reason, delay_source=exc.delay_source)
+        elif isinstance(exc, AnswerError):
+            failure.update(code="invalid_answer", diagnostics=exc.diagnostics)
         print(json.dumps(failure), file=sys.stderr)
         return 1
     except (OSError, ValueError, UnicodeError):
