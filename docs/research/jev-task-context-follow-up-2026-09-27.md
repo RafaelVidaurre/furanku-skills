@@ -95,6 +95,22 @@ listing does not establish availability for a particular request. See the
 The failure is not HTTP 429 and includes no retry-after instruction. Repeated
 backoff retries would not demonstrate recovery or produce assessment evidence.
 
+## Subsequent access diagnosis
+
+A later public smoke request exposed the specific Gateway rejection: free-tier
+users cannot access this model and must purchase Gateway credits. The client had
+discarded this explanation while protecting provider bodies from disclosure,
+leaving only the generic access error. This establishes an access-tier restriction
+for the failing request, rather than a rate limit or evaluator judgment failure.
+
+The client now recognizes that specific 403 message and emits a fixed purchase
+remedy without echoing the provider body. Unrelated `no_providers_available`
+failures remain generic. Targeted tests cover the match, other codes/statuses,
+missing messages, secret suppression and the absence of automatic retries.
+[Vercel's pricing documentation](https://vercel.com/docs/ai-gateway/pricing)
+distinguishes free-tier model eligibility from purchased-credit access. No billing
+change or live scoring success is implied by this diagnosis.
+
 ## Verification and resume
 
 The 67 tests cover source linkage, literal read operands, preserved conditional

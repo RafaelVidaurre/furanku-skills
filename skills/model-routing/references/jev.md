@@ -27,7 +27,7 @@ Tell them: **Run this in your terminal, paste your existing Vercel AI Gateway ke
 
 Key setup saves a mode `600` JSON file in a mode `700` directory. Empty or invalid input preserves the old key. Secret managers may pipe to `jev.py setup --stdin`. `AI_GATEWAY_API_KEY` overrides the saved key for the current process. Neither credential status nor credential setup tests authentication; router setup does. Readiness output never includes the key or its prefix.
 
-For 401, guide the user to replace the key. For 402/403, report the budget/access error. `customer_verification_required` means the key's Vercel team needs a valid payment card, including for free credits: ask the user to complete that team's verification and resume the same command when ready. Never switch providers to mask a failure.
+For 401, guide the user to replace the key. For 402/403, report the budget/access error. `customer_verification_required` means the key's Vercel team needs a valid payment card, including for free credits: ask the user to complete that team's verification and resume the same command when ready. A 403 `no_providers_available` specifically stating that free-tier users cannot access the model requires purchased AI Gateway credits; a remaining free-credit balance does not establish model eligibility. Ask for purchase approval before changing billing. Other errors with that code can have different causes. See [Gateway tiers and pricing](https://vercel.com/docs/ai-gateway/pricing). Never switch providers to mask a failure.
 
 **Complete when:** the saved key is ready and router setup has verified a live evaluation. A concrete provider failure remains resumable.
 

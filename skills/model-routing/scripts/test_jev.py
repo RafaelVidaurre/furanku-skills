@@ -298,6 +298,31 @@ with patch('urllib.request.OpenerDirector.open', side_effect=AssertionError('HTT
         self.assertNotIn("test-key", str(caught.exception))
         self.assertNotIn("private", str(caught.exception))
 
+    def test_gateway_free_tier_restriction_has_safe_specific_remedy(self):
+        jev.store_key("test-key")
+        restriction = ("Free tier users do not have access to this model. "
+                       "Upgrade to paid credits at https://private.invalid/test-key")
+        cases = [
+            (403, "no_providers_available", restriction, True),
+            (403, "no_providers_available", "No matching provider: private test-key", False),
+            (403, "access_denied", restriction, False),
+            (402, "no_providers_available", restriction, False),
+            (403, "no_providers_available", None, False),
+        ]
+        for status, error_type, message, requires_credit in cases:
+            with self.subTest(status=status, error_type=error_type, message=message):
+                body = io.BytesIO(json.dumps({"error": {"type": error_type, "message": message}}).encode())
+                failure = urllib.error.HTTPError(jev.ENDPOINT, status, "Forbidden", {}, body)
+                with mock.patch("urllib.request.OpenerDirector.open", side_effect=failure) as transport:
+                    with self.assertRaises(jev.Error) as caught:
+                        jev.evaluate(PAYLOAD)
+                transport.assert_called_once()
+                diagnostic = str(caught.exception)
+                self.assertEqual("purchased AI Gateway credits" in diagnostic, requires_credit)
+                self.assertNotIn("private", diagnostic)
+                self.assertNotIn("test-key", diagnostic)
+                self.assertTrue(body.closed)
+
     def test_invalid_answers_cannot_become_recommendations(self):
         mutations = [
             lambda r: r.update(model="unexpected"),

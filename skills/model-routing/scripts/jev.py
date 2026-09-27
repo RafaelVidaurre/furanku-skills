@@ -401,6 +401,7 @@ def evaluate_admitted(payload, body, key, cooldown, timeout):
                 time.sleep(delay)
                 continue
             # Do not echo provider bodies: they can contain credentials or account data.
+            paid_credit_required = False
             try:
                 failure = json.loads(exc.read(16384))
                 error = failure.get("error", {}) if isinstance(failure, dict) else {}
@@ -408,6 +409,13 @@ def evaluate_admitted(payload, body, key, cooldown, timeout):
                 if not isinstance(error_type, str) or not re.fullmatch(r"[a-z0-9_-]{1,64}", error_type):
                     error_type = None
                 verification = error_type == "customer_verification_required"
+                message = error.get("message") if isinstance(error, dict) else None
+                paid_credit_required = (
+                    exc.code == 403 and error_type == "no_providers_available"
+                    and isinstance(message, str)
+                    and message.startswith("Free tier users do not have access to this model.")
+                    and "Upgrade to paid credits" in message
+                )
             except (OSError, ValueError, UnicodeError):
                 verification = False
                 error_type = None
@@ -419,6 +427,13 @@ def evaluate_admitted(payload, body, key, cooldown, timeout):
                     "Vercel requires a valid payment card on the team associated with "
                     "this key before serving requests, including free credits. "
                     "Complete the team's billing verification, then rerun the trial."
+                ) from None
+            if paid_credit_required:
+                raise Error(
+                    "Gateway HTTP 403 (no_providers_available): this model requires "
+                    "purchased AI Gateway credits; free credits do not grant access. "
+                    "Ask the user to approve a credit purchase, then retry. "
+                    "No fallback was used."
                 ) from None
             hints = {401: "check the saved Gateway key", 403: "check Gateway access",
                      402: "check Gateway credits or budget"}
