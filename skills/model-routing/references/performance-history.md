@@ -5,12 +5,15 @@ or updating installed skills. Retrospective results never change routing scores
 automatically.
 
 **Current decision:** keep bulk scoring and installation paused. The
-[paired evidence experiment](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-paired-evidence-feasibility-2026-09-27.md)
-found 0/8 supported positive quality cells with automatic evidence and 1/8 with
-source-checked evidence. Both failed their frozen criteria. Next, test grading
-explicit requested deliverables against requirements with good, defective, and
-missing-artifact controls; classify domains separately. Further retrieval or
-repair tuning is secondary until useful quality grading is demonstrated.
+[deliverable-grading experiment](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-deliverable-grading-2026-09-27.md)
+accepted three matching grades and one incorrect severity grade on four known
+held-out controls; one of two unknown controls stayed uncertain. Both control
+splits failed. It improved useful observations but did not validate numeric
+grading. Next, test source-anchored requirement satisfaction (met, demonstrably
+unmet, insufficient evidence), separating evidence availability from correctness.
+The [preceding paired evidence experiment](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-paired-evidence-feasibility-2026-09-27.md)
+also failed. Further retrieval or repair tuning is secondary until useful quality
+measurement is demonstrated.
 
 All four original
 fresh native cases failed their frozen references; see the

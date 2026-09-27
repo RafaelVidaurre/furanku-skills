@@ -1,0 +1,216 @@
+{
+  "status": "frozen",
+  "origin": "constructed_control",
+  "cases": [
+    {
+      "id": "h01",
+      "split": "heldout",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "A boundary-correctness review of token_valid.",
+        "requirements": [
+          "now and expires_at are integer timestamps.",
+          "A token is valid only when now is strictly earlier than expires_at.",
+          "Give a failing boundary example for any defect and a minimal correction; otherwise state that there are no defects."
+        ],
+        "artifact": "No defects found. The function rejects expired tokens and accepts timestamps earlier than expiry. The boundary behavior is correct.",
+        "observed_evidence": [
+          {
+            "kind": "source",
+            "content": "def token_valid(now, expires_at):\n    if now > expires_at:\n        return False\n    return True\n"
+          }
+        ]
+      },
+      "expected": {
+        "class": "defective",
+        "quality_range": [
+          0,
+          1
+        ],
+        "domain_scope": [
+          "verification"
+        ]
+      },
+      "audit": {
+        "rationale": "At now=expires_at=10 the function returns True, contrary to the strict contract. The report falsely approves the exact boundary it was requested to review. Security is the subject; the requested activity is verification. Under the frozen explicit ordinal levels this false approval fails the main purpose (0); 1 allows minimal descriptive value without pretending the review is materially usable.",
+        "construction": "Entirely constructed; no historical model performance inference.",
+        "scope": "Grade the requested deliverable, not the quality of the inspected software or source material."
+      }
+    },
+    {
+      "id": "h02",
+      "split": "heldout",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "A code review of first_index, reporting correctness findings or an explicit no-findings conclusion.",
+        "requirements": [
+          "Return the index of the first occurrence of target, or -1 if absent.",
+          "Give a concrete example for each finding."
+        ],
+        "artifact": null,
+        "observed_evidence": [
+          {
+            "kind": "source",
+            "content": "def first_index(items, target):\n    for i, item in enumerate(items):\n        if item == target:\n            return i\n    return -1\n"
+          },
+          {
+            "kind": "worker_message",
+            "content": "I have read the function and am preparing the review."
+          },
+          {
+            "kind": "collection_status",
+            "content": "The recorded session ends here; no review findings or final review report are present."
+          }
+        ]
+      },
+      "expected": {
+        "class": "unknown",
+        "quality_range": null,
+        "domain_scope": [
+          "verification"
+        ]
+      },
+      "audit": {
+        "rationale": "The inspected code may be correct, but it is not the requested review artifact. Preparation is not a completed review and should not receive a task-quality score.",
+        "construction": "Entirely constructed; no historical model performance inference.",
+        "scope": "Grade the requested deliverable, not the quality of the inspected software or source material."
+      }
+    },
+    {
+      "id": "h03",
+      "split": "heldout",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "Write a concise decoder guide for one binary frame, at most 120 words.",
+        "requirements": [
+          "Explain header width and byte order, payload length interpretation, and incomplete-input behavior.",
+          "State what a zero-length frame means.",
+          "Do not add a checksum or text-encoding requirement."
+        ],
+        "artifact": "Read a two-byte unsigned big-endian header. Its value N counts payload bytes, excluding the header. Wait until N payload bytes are available, then emit those bytes as one frame. If the header or payload is incomplete, retain the buffered bytes and wait for more input; do not emit a partial frame. N=0 emits an empty payload immediately after the complete header. Payloads are arbitrary bytes.",
+        "observed_evidence": [
+          {
+            "kind": "specification",
+            "content": "Each frame has a 2-byte unsigned big-endian length N followed by N arbitrary payload bytes. N excludes the header. Incomplete headers and payloads are buffered until complete. N=0 is a valid empty frame. There is no checksum field or mandated payload text encoding."
+          }
+        ]
+      },
+      "expected": {
+        "class": "good",
+        "quality_range": [
+          3,
+          3
+        ],
+        "domain_scope": [
+          "documentation"
+        ]
+      },
+      "audit": {
+        "rationale": "The guide correctly covers framing, buffer behavior, zero length, and byte semantics within the length limit. All factual content is grounded in the supplied specification.",
+        "construction": "Entirely constructed; no historical model performance inference.",
+        "scope": "Grade the requested deliverable, not the quality of the inspected software or source material."
+      }
+    },
+    {
+      "id": "h04",
+      "split": "heldout",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "Write instructions for fetching every page from the supplied cursor API.",
+        "requirements": [
+          "Describe the initial request, how to form the next request, and when to stop.",
+          "Explain how to handle an empty items array with a non-null next_cursor.",
+          "Use the exact stopping rule from the specification."
+        ],
+        "artifact": "Make the initial request without a cursor. Append each response’s items to your result. If items is empty, stop: there are no more records. Otherwise, if next_cursor is non-null, pass that cursor in the next request. Stop when next_cursor is null.",
+        "observed_evidence": [
+          {
+            "kind": "specification",
+            "content": "The initial request omits cursor. Each response contains items and next_cursor. A non-null next_cursor must be sent as cursor in the next request even when items is empty. A null next_cursor is the only end-of-pagination marker."
+          }
+        ]
+      },
+      "expected": {
+        "class": "defective",
+        "quality_range": [
+          2,
+          2
+        ],
+        "domain_scope": [
+          "documentation"
+        ]
+      },
+      "audit": {
+        "rationale": "The empty-items stopping rule contradicts the specification and can discard later pages. Initial request, cursor forwarding on nonempty pages, and terminal-null behavior are otherwise correct. This is substantive technical misinformation.",
+        "construction": "Entirely constructed; no historical model performance inference.",
+        "scope": "Grade the requested deliverable, not the quality of the inspected software or source material."
+      }
+    },
+    {
+      "id": "h05",
+      "split": "heldout",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "Implement run_lengths(text) in Python.",
+        "requirements": [
+          "Input is any Python string.",
+          "Return a list of (character, count) tuples for consecutive runs, preserving order.",
+          "An empty string returns an empty list. Distinct non-adjacent runs stay separate."
+        ],
+        "artifact": "def run_lengths(text):\n    result = []\n    for ch in text:\n        if result and result[-1][0] == ch:\n            previous, count = result[-1]\n            result[-1] = (previous, count + 1)\n        else:\n            result.append((ch, 1))\n    return result\n",
+        "observed_evidence": []
+      },
+      "expected": {
+        "class": "good",
+        "quality_range": [
+          3,
+          3
+        ],
+        "domain_scope": [
+          "implementation"
+        ]
+      },
+      "audit": {
+        "rationale": "Each character starts or extends only the last adjacent run. Empty input produces [], abba produces [(a,1),(b,2),(a,1)], and Python string iteration supports arbitrary Unicode code points. No execution receipt is needed to inspect this small complete implementation.",
+        "construction": "Entirely constructed; no historical model performance inference.",
+        "scope": "Grade the requested deliverable, not the quality of the inspected software or source material."
+      }
+    },
+    {
+      "id": "h06",
+      "split": "heldout",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "Implement partition_by_sign(numbers) in Python.",
+        "requirements": [
+          "Input is a list of integers.",
+          "Return a tuple of three lists: negative values, zero values, positive values.",
+          "Preserve input order within each list and do not mutate the input."
+        ],
+        "artifact": null,
+        "observed_evidence": [
+          {
+            "kind": "worker_message",
+            "content": "Implemented partition_by_sign and all tests pass."
+          },
+          {
+            "kind": "collection_status",
+            "content": "Neither the implementation nor test commands, assertions, or results are available in the captured evidence."
+          }
+        ]
+      },
+      "expected": {
+        "class": "unknown",
+        "quality_range": null,
+        "domain_scope": [
+          "implementation"
+        ]
+      },
+      "audit": {
+        "rationale": "The completion and test-pass assertions have no artifact or check bodies. Quality cannot be inferred from the unsupported claim.",
+        "construction": "Entirely constructed; no historical model performance inference.",
+        "scope": "Grade the requested deliverable, not the quality of the inspected software or source material."
+      }
+    }
+  ]
+}

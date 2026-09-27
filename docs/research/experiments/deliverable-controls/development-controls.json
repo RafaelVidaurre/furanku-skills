@@ -1,0 +1,215 @@
+{
+  "status": "frozen",
+  "origin": "constructed_control",
+  "cases": [
+    {
+      "id": "d01",
+      "split": "development",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "A short code review of overlaps, with a concrete failing example and the smallest correction.",
+        "requirements": [
+          "Intervals are nonempty half-open integer intervals [start,end).",
+          "Touching endpoints do not overlap.",
+          "Identify correctness defects with an example and minimal correction. Do not claim tests were run."
+        ],
+        "artifact": "The <= comparison counts touching endpoints as overlap: overlaps((1,3),(3,5)) returns True, but [1,3) and [3,5) share no element. Change <= to <. With nonempty half-open intervals, max(starts) < min(ends) is the overlap condition.",
+        "observed_evidence": [
+          {
+            "kind": "source",
+            "content": "def overlaps(a, b):\n    return max(a[0], b[0]) <= min(a[1], b[1])\n"
+          }
+        ]
+      },
+      "expected": {
+        "class": "good",
+        "quality_range": [
+          3,
+          3
+        ],
+        "domain_scope": [
+          "verification"
+        ]
+      },
+      "audit": {
+        "rationale": "The report identifies the exact boundary error, supplies an executable counterexample, and gives the correct strict inequality; it makes no execution claim. The reviewed program is defective but the review is satisfactory.",
+        "construction": "Entirely constructed; no historical model performance inference.",
+        "scope": "Grade the requested deliverable, not the quality of the inspected software or source material."
+      }
+    },
+    {
+      "id": "d02",
+      "split": "development",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "A correctness review of shares; include a concrete counterexample for any defect.",
+        "requirements": [
+          "Inputs are a nonempty list of positive integers.",
+          "Return each input divided by the total as a float; the resulting values must sum to 1 within floating-point tolerance.",
+          "Report defects with a counterexample, or explain why the implementation meets the contract."
+        ],
+        "artifact": "No correctness issues. Dividing each weight by the sum normalizes the collection. The implementation meets the contract for every positive input list.",
+        "observed_evidence": [
+          {
+            "kind": "source",
+            "content": "def shares(weights):\n    total = sum(weights)\n    return [w // total for w in weights]\n"
+          }
+        ]
+      },
+      "expected": {
+        "class": "defective",
+        "quality_range": [
+          0,
+          1
+        ],
+        "domain_scope": [
+          "verification"
+        ]
+      },
+      "audit": {
+        "rationale": "For [1,1], actual result [0,0] is integer-valued and sums to zero. The report incorrectly approves the central behavior and offers no counterexample. This is an objectively wrong review, not merely missing external praise. Under the frozen explicit ordinal levels this false approval fails the main purpose (0); 1 allows minimal descriptive value without pretending the review is materially usable.",
+        "construction": "Entirely constructed; no historical model performance inference.",
+        "scope": "Grade the requested deliverable, not the quality of the inspected software or source material."
+      }
+    },
+    {
+      "id": "d03",
+      "split": "development",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "A user-facing save-behavior FAQ of at most 100 words.",
+        "requirements": [
+          "Explain when saving occurs, what validation failure does to the existing file, and whether autosave exists.",
+          "Use only the supplied product specification.",
+          "Do not imply a failed save overwrites the existing file."
+        ],
+        "artifact": "When is my work saved? Choose Save to write it. The app validates the document, writes a temporary file, then replaces the existing file.\n\nWhat if validation fails? The existing file stays unchanged; fix the reported errors and choose Save again.\n\nIs there autosave? No. Save manually before closing.",
+        "observed_evidence": [
+          {
+            "kind": "specification",
+            "content": "Saving is manual. Save validates the document before writing. Validation failure leaves the existing file unchanged. Successful validation is followed by a temporary-file write and replacement of the existing file. Autosave is not available."
+          }
+        ]
+      },
+      "expected": {
+        "class": "good",
+        "quality_range": [
+          3,
+          3
+        ],
+        "domain_scope": [
+          "documentation"
+        ]
+      },
+      "audit": {
+        "rationale": "The 49-word FAQ covers all three requested behaviors accurately and makes no unsupported promise about failures after validation.",
+        "construction": "Entirely constructed; no historical model performance inference.",
+        "scope": "Grade the requested deliverable, not the quality of the inspected software or source material."
+      }
+    },
+    {
+      "id": "d04",
+      "split": "development",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "A deployment runbook covering preparation, deployment, verification, and rollback.",
+        "requirements": [
+          "Use the supplied deployment sequence.",
+          "Include a rollback action when the health check fails."
+        ],
+        "artifact": null,
+        "observed_evidence": [
+          {
+            "kind": "source",
+            "content": "Prepare by recording the active image tag. Deploy the requested image tag. Check GET /health returns 200. If it does not, redeploy the recorded image tag."
+          },
+          {
+            "kind": "worker_message",
+            "content": "The runbook is written at /tmp/deploy-runbook.md."
+          },
+          {
+            "kind": "collection_status",
+            "content": "The file contents were not captured and the file is not available in this packet."
+          }
+        ]
+      },
+      "expected": {
+        "class": "unknown",
+        "quality_range": null,
+        "domain_scope": [
+          "documentation"
+        ]
+      },
+      "audit": {
+        "rationale": "A claimed path is not the requested runbook body. The source is sufficient to write a runbook but cannot establish the quality of the missing deliverable.",
+        "construction": "Entirely constructed; no historical model performance inference.",
+        "scope": "Grade the requested deliverable, not the quality of the inspected software or source material."
+      }
+    },
+    {
+      "id": "d05",
+      "split": "development",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "Implement stable_unique(items) in Python.",
+        "requirements": [
+          "Input is a list of strings.",
+          "Return a new list containing each distinct string once, in order of first appearance.",
+          "Matching is case-sensitive. Do not mutate the input."
+        ],
+        "artifact": "def stable_unique(items):\n    return sorted(set(items))\n",
+        "observed_evidence": []
+      },
+      "expected": {
+        "class": "defective",
+        "quality_range": [
+          2,
+          2
+        ],
+        "domain_scope": [
+          "implementation"
+        ]
+      },
+      "audit": {
+        "rationale": "For [\"b\",\"a\",\"b\"], returns [\"a\",\"b\"] rather than [\"b\",\"a\"]. It does deduplicate, preserve case distinctions, and avoid input mutation, but violates the central order requirement.",
+        "construction": "Entirely constructed; no historical model performance inference.",
+        "scope": "Grade the requested deliverable, not the quality of the inspected software or source material."
+      }
+    },
+    {
+      "id": "d06",
+      "split": "development",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "Implement inclusive_sum(lo, hi) in Python.",
+        "requirements": [
+          "lo and hi are integers with lo <= hi.",
+          "Return the sum of all integers from lo through hi, inclusive."
+        ],
+        "artifact": null,
+        "observed_evidence": [
+          {
+            "kind": "tool_result",
+            "content": "Execution host negotiation timed out before any source file could be read or written."
+          },
+          {
+            "kind": "worker_message",
+            "content": "I could not implement the function because the execution host was unavailable."
+          }
+        ]
+      },
+      "expected": {
+        "class": "unknown",
+        "quality_range": null,
+        "domain_scope": [
+          "implementation"
+        ]
+      },
+      "audit": {
+        "rationale": "No implementation exists in the observed packet; the honest external blocker is not an observed defective implementation.",
+        "construction": "Entirely constructed; no historical model performance inference.",
+        "scope": "Grade the requested deliverable, not the quality of the inspected software or source material."
+      }
+    }
+  ]
+}
