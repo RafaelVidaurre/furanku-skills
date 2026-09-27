@@ -238,7 +238,8 @@ def validate_result(result, questions):
             choice = answer.get("choice")
             if not isinstance(choice, str) or choice not in options:
                 raise Error("Jev selected an option outside the offered set.")
-            if distribution[choice] < max(distribution.values()):
+            # Equal decimal probabilities can differ at binary floating-point edges.
+            if distribution[choice] + 1e-12 < max(distribution.values()):
                 raise AnswerError("Jev returned an inconsistent option distribution.",
                                   {**details, "reason": "choice_not_maximum", "selected_probability": distribution[choice],
                                    "maximum_probability": max(distribution.values())})

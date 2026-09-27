@@ -4,7 +4,15 @@ This branch is experimental. Develop and validate in a checkout before publishin
 or updating installed skills. Retrospective results never change routing scores
 automatically.
 
-**Current decision:** keep bulk scoring and installation paused. All four original
+**Current decision:** keep bulk scoring and installation paused. The
+[paired evidence experiment](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-paired-evidence-feasibility-2026-09-27.md)
+found 0/8 supported positive quality cells with automatic evidence and 1/8 with
+source-checked evidence. Both failed their frozen criteria. Next, test grading
+explicit requested deliverables against requirements with good, defective, and
+missing-artifact controls; classify domains separately. Further retrieval or
+repair tuning is secondary until useful quality grading is demonstrated.
+
+All four original
 fresh native cases failed their frozen references; see the
 [native validation report](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-native-heldout-validation-2026-09-26.md).
 The earlier two development successes did not generalize through native segmentation

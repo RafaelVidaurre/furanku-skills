@@ -364,6 +364,17 @@ with patch('urllib.request.OpenerDirector.open', side_effect=AssertionError('HTT
             jev.validate_result(response, questions)
         self.assertEqual(caught.exception.diagnostics["reason"], "choice_not_maximum")
 
+    def test_choice_accepts_float_ties_but_rejects_lower_probability(self):
+        questions = {"q": {"type": "choice", "criteria": dict.fromkeys("abcd", "option")}}
+        response = {"model": jev.MODEL, "answers": {"q": {
+            "type": "choice", "choice": "a",
+            "probabilities": dict(zip("abcd", [.27999999999999997, .28, .22, .22]))}}}
+        self.assertEqual(jev.validate_result(response, questions)["answers"]["q"]["choice"], "a")
+        response["answers"]["q"]["probabilities"].update(a=.279, d=.221)
+        with self.assertRaises(jev.AnswerError) as caught:
+            jev.validate_result(response, questions)
+        self.assertEqual(caught.exception.diagnostics["reason"], "choice_not_maximum")
+
     def test_bounded_client_preserves_only_safe_answer_diagnostics(self):
         failure = {"code": "invalid_answer", "error": "Jev returned an inconsistent option distribution.",
                    "diagnostics": {"reason": "distribution_sum", "distribution_sum": .9,
