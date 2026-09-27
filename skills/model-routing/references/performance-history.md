@@ -4,38 +4,22 @@ This branch is experimental. Develop and validate in a checkout before publishin
 or updating installed skills. Retrospective results never change routing scores
 automatically.
 
-**Current decision:** keep bulk scoring and installation paused; stop further
-Jev-only prompt/threshold tuning. The
-[requirement-satisfaction experiment](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-requirement-satisfaction-2026-09-27.md)
-accepted 9/18 held-out answers with correct evidence, including three mechanical
-missing-artifact answers, and accepted two incomplete citation bundles. Both
-control splits failed. Next, mechanize exact checks and compare a stronger
-semantic assessor on the same requirement/source contract. Reference reviewers
-must judge only the packet offered to the evaluator; native provenance is a
-separate audit. Prior deliverable and paired-evidence failures remain preserved
-in that report's linked history. No calibrated historical model-performance
-scores were produced.
+**Current decision:** use the experimental [agent assessment procedure](agent-assessment.md)
+for prepared tasks. GPT-6 Sol at medium matched 36/36 constructed requirements,
+5/6 earlier historical requirements, and 9/9 fresh native requirements. Native
+domain recall was 100%, precision 83.3%. Read the
+[Sol pilot report](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/sol-medium-retrospective-assessor-2026-09-27.md)
+for the frozen failures and supported scope. Completed agent jobs are reused through
+a machine-global completion ledger; task samples never complete a whole session.
+Bulk scoring, calibrated score updates, and installation remain paused while
+native extraction and broader domain coverage are validated.
 
-All four original
-fresh native cases failed their frozen references; see the
-[native validation report](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-native-heldout-validation-2026-09-26.md).
-The earlier two development successes did not generalize through native segmentation
-and retrieval. The [source-retention follow-up](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-task-context-follow-up-2026-09-27.md)
-repairs recognized contract linkage and revises command-request wording. After
-Gateway access was restored, the [development rerun](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-restored-access-development-2026-09-27.md)
-passed one of four full cases and accepted one positive quality observation.
-Pipeline v12 also repairs the outcome-evidence handoff; its controlled CLI probe
-still leaves repair unknown. No fresh validation pass has been achieved.
-The current implementation repairs evidence retention, separates final quality
-from repair burden, supports typed questions, and verifies citation support.
-Semantic accuracy and coverage still need validation; keep bulk scoring stopped
-until a frozen historical benchmark passes and its errors are independently reviewed. The commands below reproduce experimental results; they are not a
-validated procedure for updating routing scores. Read the
-[integration audit](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-retrospective-integration-audit-2026-09-26.md)
-and the [Astra review follow-up](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-astra-review-2026-09-26.md),
-the [typed-integration validation](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-typed-validation-2026-09-26.md),
-and the amended
-[feasibility report](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/retrospective-evaluator-feasibility-2026-09-26.md).
+The JEV commands below preserve the previous experimental pipeline. They are not
+the new agent assessment path. The
+[requirement-satisfaction experiment](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-requirement-satisfaction-2026-09-27.md)
+records the JEV-only failures and links earlier integration, source-retention and
+validation reports. Keep these failures visible; no calibrated historical model
+performance scores have been produced.
 
 ## Inventory all configured models
 

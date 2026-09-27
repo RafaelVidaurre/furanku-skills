@@ -426,10 +426,16 @@ class RouterTest(unittest.TestCase):
                               runtime={"harnesses": {"codex": {"quota": {"status": "known"}}}})
         self.assertEqual("selected", selected["status"])
         self.assertEqual("Use Astra at high for this task.", selected["explicit_basis"])
+        shorthand = self.check("--candidate", candidate, "--reason", "Principal chose it.",
+                               "--explicit-basis", "Try Astra-high for this task.",
+                               runtime={"harnesses": {"codex": {"quota": {"status": "known"}}}})
+        self.assertEqual("selected", shorthand["status"])
         for basis in ("Look at what Astra did; this is a high-risk change.",
                       "Use grok-4.7 at high, not Astra.",
                       "Use Astra at x-high for this task.",
-                      "Astra high-risk review."):
+                      "Astra high-risk review.",
+                      "Astra-high-risk review.", "Use Astra-high—risk review.",
+                      "Use Astra–high–risk review.", "Use Astra at x–high for this task."):
             refused = self.check("--candidate", candidate, "--reason", "Suitable for this task.",
                                  "--explicit-basis", basis, expect_code=1)
             self.assertIn("explicit basis must name gpt-6-astra", refused["reasons"][0])

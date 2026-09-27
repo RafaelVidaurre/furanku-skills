@@ -1003,7 +1003,7 @@ def lower_effort_siblings(compiled, candidate_id):
 def effort_named(text, effort):
     return (
         re.search(
-            rf"(?<![a-z0-9-]){re.escape(effort.lower())}(?![a-z0-9-])",
+            rf"(?<![a-z0-9–—-]){re.escape(effort.lower())}(?![a-z0-9–—-])",
             text.lower(),
         )
         is not None
@@ -1027,14 +1027,22 @@ def explicit_request_problem(basis, launch, model_names=None):
     alias = normalized_phrase(model_alias(model))
     names = set(model_names or [model])
     alias_unique = sum(normalized_phrase(model_alias(name)) == alias for name in names) == 1
+    accepted_names = [full, alias] if alias_unique else [full]
     named_together = any(
         re.search(
             rf"(?<![a-z0-9]){re.escape(name)} (?:at |on |with |using )?{re.escape(effort)}(?: effort)?(?![a-z0-9])",
             normalized,
         )
-        for name in ([full, alias] if alias_unique else [full])
+        for name in accepted_names
     )
-    if not named_together or not effort_named(basis, effort):
+    # Accept an explicit model-effort shorthand while keeping high-risk and
+    # x-high from being interpreted as a request for effort high.
+    hyphenated = any(
+        re.search(r"(?<![a-z0-9–—-])" + r"[^a-z0-9]+".join(re.escape(part) for part in name.split())
+                  + r"[-–—]" + re.escape(effort) + r"(?![a-z0-9–—-])", basis.lower())
+        for name in accepted_names
+    )
+    if not named_together or not (effort_named(basis, effort) or hyphenated):
         return f"explicit basis must name {model} (or its unique alias) and effort {effort}"
     return None
 
