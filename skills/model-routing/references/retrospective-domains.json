@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 8,
   "scale": {
     "unresolved": "The request depends on missing requirements, so domain involvement cannot be established.",
     "absent": "No requested deliverable falls within the defined domain. Excluded and incidental activities do not count.",
@@ -11,7 +11,7 @@
     {"id": "debugging", "description": "Diagnose the cause of an observed software or system defect or incident and verify a repair. Reviewing code for possible defects belongs to verification; ordinary creative revisions are outside this domain.", "name": "Debugging"},
     {"id": "verification", "description": "Design or run software/system tests, audit behavior, review code, or check an implementation against a specification. Ordinary source fact checking belongs to research.", "name": "Testing and code review"},
     {"id": "architecture", "description": "Design component boundaries, data flows, interfaces, infrastructure, or a technical migration.", "name": "Architecture and systems design"},
-    {"id": "operations", "description": "Deploy, release, install, configure, monitor, maintain, or operate software systems or local machines, including storage and cache cleanup. Authoring software belongs to implementation.", "name": "Deployment and operations"},
+    {"id": "operations", "description": "Inspect or operate a software environment or local machine: identify installed tools and versions, inspect processes and host state, deploy, release, install, configure, monitor, maintain, or clean storage and caches. A requested environment inspection is a deliverable even when brief. Authoring software belongs to implementation. Running software tests or reviewing code belongs to verification; separately requested host setup or restoration can involve operations.", "name": "Deployment and operations"},
     {"id": "security", "description": "Assess or implement security, privacy, authentication, authorization, or abuse controls.", "name": "Security and privacy"},
     {"id": "research", "description": "Deliver a sourced synthesis, comparison, or factual investigation of external or repository information, including current purchasing options. Routine code reading during implementation or review is outside this domain.", "name": "Research"},
     {"id": "quantitative", "description": "Calculate, analyze data, model uncertainty, or draw statistical conclusions. Applying a simple numeric filter to search results is outside this domain.", "name": "Data analysis and statistics"},

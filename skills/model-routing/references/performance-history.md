@@ -8,7 +8,9 @@ automatically.
 references, with zero accepted positive scores. See the
 [native validation report](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-native-heldout-validation-2026-09-26.md).
 The earlier two development successes did not generalize through native segmentation
-and retrieval. Follow-up mechanical fixes have not been validated semantically.
+and retrieval. The [source-retention follow-up](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-task-context-follow-up-2026-09-27.md)
+repairs recognized contract linkage and revises command-request wording, but live
+validation stopped at Gateway HTTP 403 before returning any judgments.
 The current implementation repairs evidence retention, separates final quality
 from repair burden, supports typed questions, and verifies citation support.
 Semantic accuracy and coverage still need validation; keep bulk scoring stopped
@@ -84,6 +86,13 @@ The sequence is:
    Up to 50 earlier requests are offered; each boundary records the first one
    offered and whether size forced a shorter window. A new task chosen under a
    shortened window, and every unresolved link, is boundary-uncertain.
+   `task_context.py` also links explicit work-record references and files identified
+   as task contracts to their recorded reads using native call IDs. The source body
+   stays verbatim, labelled as mixed historical context; policy and completion claims
+   do not become requested deliverables. No external file or tracker is fetched.
+   This is a bounded reader adapter, not general shell/prose interpretation: bare
+   paths without contract wording, unsupported commands and dynamic expressions may
+   remain unresolved. Inspect source linkage before trusting an assessment.
 3. Ask Jev about every domain in `retrospective-domains.json`: absent, supporting,
    central, or unresolved. Each question includes the domain's definition. Include work
    later canceled, superseded, or reverted when classifying domains. Long requests
@@ -100,6 +109,10 @@ The sequence is:
    authority context, then re-screens the
    selection until the final call fits. The final call receives labelled fragments
    (part k of n) with source line IDs; retain every screening round.
+   Linked contract bodies are carried separately throughout classification, retrieval,
+   quality and support. They do not compete for the outcome-fragment selection. An
+   oversized required packet remains pending as `task_context_exceeds_judge_input`;
+   optional Beads context may yield to the budget, but linked native contracts stay.
 5. Ask focused categorical questions about attempted work, ownership, outcome
    evidence, and cause. Batch independent domains when their complete shared
    evidence fits. Keep historical authority context in these judgments. Select

@@ -151,7 +151,7 @@ def main():
     selected = [c for c in benchmark['cases'] if not requested or c['id'] in requested]
     evaluate = task.Evaluator(args.output.parent / 'cache', not args.allow_no_zdr, args.rate_limit_wait)
     result = {'benchmark_sha256': hashlib.sha256(raw).hexdigest(), 'pipeline_version': task.VERSION,
-              'code_sha256': {Path(m.__file__).name: hashlib.sha256(Path(m.__file__).read_bytes()).hexdigest() for m in (task, judgments, jev)},
+              'code_sha256': {Path(m.__file__).name: hashlib.sha256(Path(m.__file__).read_bytes()).hexdigest() for m in (task, task.task_context, judgments, jev)},
               'taxonomy': taxonomy, 'cases': [], 'status': 'running', 'complete_benchmark': len(selected) == len(benchmark['cases'])}
     exit_code = 0
     for case in selected:

@@ -26,9 +26,10 @@ import time
 import jev
 import retrospect
 import retrospective_judgments as judgments
+import task_context
 from performance_assess import command_from_input, executable_test_command, result_lines, exit_codes
 
-VERSION = 10
+VERSION = 11
 # Conservative UTF-8 byte budgets, below the documented 32k state+question and
 # 64k total token budgets. Bytes are an upper bound, not a tokenizer estimate.
 MAX_STATE_BYTES = 24_000
@@ -40,7 +41,7 @@ REQUEST_CHUNK_CHARS = 1500
 ANTECEDENTS = 50
 # Deterministic exclusions: the session is terminal under this analysis, but
 # these domains remain pending until the pipeline or --retry-pending changes them.
-PENDING_EXCLUSIONS = ("evidence_exceeds_call_limit", "task_requests_exceed_judge_input", "task_boundary_unresolved", "judge_")
+PENDING_EXCLUSIONS = ("evidence_exceeds_call_limit", "task_requests_exceed_judge_input", "task_context_exceeds_judge_input", "task_boundary_unresolved", "judge_")
 EVIDENCE = {
     "artifact": "The actual deliverable is present and can be evaluated directly for this domain.",
     "check": "A recorded tool result directly checks this domain's requested outcome; judge the final result after repairs.",
@@ -384,8 +385,8 @@ class Evaluator:
 def link_questions(batch, context):
     questions = {}
     for turn in batch:
-        choices = {"new": "A distinct requested deliverable starts here.",
-                   "control": "Only transport or housekeeping, with no work assignment, deliverable, approval, correction, or task feedback. A delegated or pasted assignment is work even if its authorization is unresolved.",
+        choices = {"new": "A distinct work request starts here. Executing a command and reporting its output, or inspecting a local environment, is requested work even in a one-line message.",
+                   "control": "Only harness metadata or protocol housekeeping with no requested action, inspection, deliverable, approval, correction, or task feedback.",
                    "unresolved": "The referenced task cannot be identified from the supplied requests."}
         for earlier in context:
             if earlier["turn"] < turn["turn"]:
@@ -481,7 +482,9 @@ def classify_requests(turns, domains, evaluate, context=()):
     """
     questions = domain_questions(domains)
     rows = []
+    referenced = task_context.collect(turns)
     requests = [(t["turn"], t.get("task_request", t["request"])) for t in turns] + [
+        ("source:" + r["source_id"], json.dumps(r)) for r in referenced["sources"]] + [
         ("issue:" + r["issue_ref"], json.dumps(r["requirements"])) for r in context]
     for identifier, text in requests:
         chunks = [text[i:i + REQUEST_CHUNK_CHARS] for i in range(0, len(text), REQUEST_CHUNK_CHARS)] or [""]
@@ -489,7 +492,11 @@ def classify_requests(turns, domains, evaluate, context=()):
                  for index, chunk in enumerate(chunks)]
 
     def page_state(page):
-        return {"requests": page} if page[0] is rows[0] else {"task_start": rows[0], "requests": page}
+        state = {"requests": page} if page[0] is rows[0] else {"task_start": rows[0], "requests": page}
+        if referenced["sources"] or referenced["unmatched_references"]:
+            state["referenced_context_note"] = referenced["note"]
+            state["unmatched_references"] = referenced["unmatched_references"]
+        return state
     pages = paginate(rows, lambda page: (page_state(page), questions))
     if any(not fits(page_state(page), questions) for page in pages):
         raise ValueError("task_requests_exceed_judge_input")
@@ -677,6 +684,8 @@ def plan_evidence(base, context, domain, evaluate):
         brief = {"requests": [{"id": t["request_id"], "text": t["request"],
                                "origin": t.get("origin", {}), "context_ids": t.get("context_ids", [])} for t in state["turns"]],
                  "target_actor": state["target_actor"], "evidence_note": state["evidence_note"] + FRAGMENT_NOTE}
+        if state.get("referenced_task_context"):
+            brief["referenced_task_context"] = state["referenced_task_context"]
         brief["evidence_note"] += " Recorded instruction context is screened alongside events; unsupplied fragments can leave authorization or cause unresolved."
         if issue_context:
             brief["optional_issue_context"] = issue_context
@@ -684,7 +693,8 @@ def plan_evidence(base, context, domain, evaluate):
         if retrieval_possible(brief, fragments, domain):
             packet, retrieval = retrieve_evidence(brief, fragments, domain, evaluate)
             return packet, retrieval, mode
-    raise ValueError("task_requests_exceed_judge_input")
+    raise ValueError("task_context_exceeds_judge_input" if base.get("referenced_task_context", {}).get("sources")
+                     else "task_requests_exceed_judge_input")
 
 
 def outcome_sources(packet, citations):
@@ -697,10 +707,13 @@ def outcome_sources(packet, citations):
         requests = [{"id": r["id"], "text": retrospect.clean_user(r["text"])} for r in packet["requests"]]
         all_sources = [e for e in packet["events"] if e["kind"] != "instruction_context"]
         sources = [e for e in all_sources if e["source_id"] in selected]
-    return {"target_actor": packet["target_actor"], "requests": requests, "cited_sources": sources,
+    result = {"target_actor": packet["target_actor"], "requests": requests, "cited_sources": sources,
             "other_observed_sources": [e for e in all_sources if e not in sources],
             "source_order": [e["id"] for e in all_sources],
             "evidence_scope": "Selected observed work only. Missing history and completion claims do not establish success or a clean attempt."}
+    if packet.get("referenced_task_context"):
+        result["referenced_task_context"] = packet["referenced_task_context"]
+    return result
 
 
 def body_supplied(event):
@@ -742,6 +755,9 @@ def assess_task(turns, domains, evaluate, focus=None, context=(), classification
     state = {"turns": visible, "target_actor": anonymous.get(target, "unattributed"),
              "instruction_context": list(instructions.values()),
              "evidence_note": EVIDENCE_NOTE}
+    referenced = task_context.collect(turns)
+    if referenced["sources"] or referenced["unmatched_references"]:
+        state["referenced_task_context"] = referenced
     involvement, classification_pages = classification or classify_requests(turns, domains, evaluate, context)
     active = [d for d in domains if involvement[d["id"]]["choice"] in ("supporting", "central", "involved")]
     by_id = {e["id"]: e for t in visible for e in t["events"]}
@@ -903,7 +919,7 @@ def assess_task(turns, domains, evaluate, focus=None, context=(), classification
                         "exclusions": reasons, **support_diagnostics})
     return {"turns": [t["turn"] for t in turns], "actors": [target] if target else known_actors,
             "attribution": attribution, "involvement": involvement,
-            "classification_pages": classification_pages, "domains": records}
+            "classification_pages": classification_pages, "referenced_task_context": referenced, "domains": records}
 
 
 def issue_mentions(group, records):
@@ -1126,7 +1142,7 @@ def main():
         rows.sort(key=lambda r: order.get(r["source_key"], len(order)))
     existing = [json.loads(line) for line in lines(args.output) if line.strip()] if args.output.exists() else []
     privacy = "no_training" if args.allow_no_zdr else "zdr"
-    signature = digest({"code": Path(__file__).read_text(), "judgments": Path(judgments.__file__).read_text(), "client": Path(jev.__file__).read_text(), "taxonomy": taxonomy, "privacy": privacy,
+    signature = digest({"code": Path(__file__).read_text(), "context": Path(task_context.__file__).read_text(), "judgments": Path(judgments.__file__).read_text(), "client": Path(jev.__file__).read_text(), "taxonomy": taxonomy, "privacy": privacy,
                         "mode": "prepare" if args.prepare_only else "assess", "optional_beads": beads})
     terminal = {"prepared"} if args.prepare_only else {"assessed"} | (
         set() if args.retry_pending else {"assessed_with_pending", "error"})
