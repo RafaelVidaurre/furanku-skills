@@ -29,7 +29,7 @@ import retrospective_judgments as judgments
 import task_context
 from performance_assess import command_from_input, executable_test_command, result_lines, exit_codes
 
-VERSION = 11
+VERSION = 12
 # Conservative UTF-8 byte budgets, below the documented 32k state+question and
 # 64k total token budgets. Bytes are an upper bound, not a tokenizer estimate.
 MAX_STATE_BYTES = 24_000
@@ -724,6 +724,33 @@ def body_supplied(event):
     return True
 
 
+def plan_outcome(original, retrieved, domain, citations, repair_citations, context=()):
+    """Budget observed work independently of authority-context retrieval.
+
+    Reserve room for either support claim before selecting a complete packet.
+    Retrieval for an earlier judgment must not discard work that fits here.
+    """
+    largest_levels = {key: {"probabilities": {str(max(range(len(levels)),
+        key=lambda i: len(levels[i].encode("utf-8")))): 1}}
+        for key, levels in (("quality", judgments.QUALITY), ("rework", judgments.REWORK))}
+    question_sets = (judgments.quality_questions(domain), judgments.support_questions(largest_levels))
+    for source in (original, retrieved):
+        packet = outcome_sources(source, citations + repair_citations)
+        packet.update(domain=domain, final_source_ids=citations, repair_source_ids=repair_citations)
+        if context:
+            packet["requirements"] = [{"issue_ref": r["issue_ref"], "requirements": r["requirements"]} for r in context]
+        packet["evidence_scope"] = (
+            "All parsed task events are supplied; cited sources are locators, not the exclusive evidence."
+            if "turns" in source else
+            "All retrieved fragments are supplied; retrieval may have omitted relevant task evidence.")
+        if all(fits(packet, questions) for questions in question_sets):
+            return packet
+    packet.pop("other_observed_sources")
+    packet["source_order"] = [e["id"] for e in packet["cited_sources"]]
+    packet["evidence_scope"] = "Selected observed work only. Missing history and completion claims do not establish success or a clean attempt."
+    return packet
+
+
 def check_body_supplied(event):
     """An output-bearing full record or decoded fragment, never metadata alone."""
     if "field_path" in event:
@@ -806,19 +833,7 @@ def assess_task(turns, domains, evaluate, focus=None, context=(), classification
         # Quality gets requested work and the supplied observed event bundle;
         # citations locate results while other events can verify or contradict them.
         # Authority rules remain in the earlier cause/attempt judgment.
-        outcome_state = outcome_sources(evidence_state, citations + repair_citations)
-        outcome_state["domain"] = domain
-        outcome_state["final_source_ids"] = citations
-        outcome_state["repair_source_ids"] = repair_citations
-        if context:
-            outcome_state["requirements"] = [{"issue_ref": r["issue_ref"], "requirements": r["requirements"]} for r in context]
-        if fits(outcome_state, judgments.quality_questions(domain)):
-            outcome_state["evidence_scope"] = (
-                "All parsed task events are supplied; cited sources are locators, not the exclusive evidence."
-                if "turns" in evidence_state else
-                "All retrieved fragments are supplied; retrieval may have omitted relevant task evidence.")
-        else:
-            outcome_state.pop("other_observed_sources")
+        outcome_state = plan_outcome(state, evidence_state, domain, citations, repair_citations, context)
         retrieval = {**retrieval, "outcome_scope": outcome_state["evidence_scope"]}
         if answers["attempt"]["choice"] != "performed" or answers["ownership"]["choice"] != "direct" or not (citations or repair_citations):
             reasons = []

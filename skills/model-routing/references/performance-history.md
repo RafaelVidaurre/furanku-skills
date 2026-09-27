@@ -4,13 +4,16 @@ This branch is experimental. Develop and validate in a checkout before publishin
 or updating installed skills. Retrospective results never change routing scores
 automatically.
 
-**Current decision:** all four fresh native historical cases failed their frozen
-references, with zero accepted positive scores. See the
+**Current decision:** keep bulk scoring and installation paused. All four original
+fresh native cases failed their frozen references; see the
 [native validation report](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-native-heldout-validation-2026-09-26.md).
 The earlier two development successes did not generalize through native segmentation
 and retrieval. The [source-retention follow-up](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-task-context-follow-up-2026-09-27.md)
-repairs recognized contract linkage and revises command-request wording, but live
-validation stopped at Gateway HTTP 403 before returning any judgments.
+repairs recognized contract linkage and revises command-request wording. After
+Gateway access was restored, the [development rerun](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-restored-access-development-2026-09-27.md)
+passed one of four full cases and accepted one positive quality observation.
+Pipeline v12 also repairs the outcome-evidence handoff; its controlled CLI probe
+still leaves repair unknown. No fresh validation pass has been achieved.
 The current implementation repairs evidence retention, separates final quality
 from repair burden, supports typed questions, and verifies citation support.
 Semantic accuracy and coverage still need validation; keep bulk scoring stopped
@@ -121,7 +124,9 @@ The sequence is:
    Then send requested work and observed source evidence to Boolean questions
    about assessability and observed repair, and separate Score scales: final
    requirement satisfaction (0–4) and model-caused repair burden (0–3).
-   Keep all observed task events when the bounded packet fits, with source order;
+   Budget all original observed task events independently of earlier authority
+   retrieval, reserving room for scoring and support questions. Keep every event
+   when that packet fits, with source order;
    selected citations are locators, not an exclusive evidence restriction.
    Historical policy stays out of this quality packet, including retrieved policy
    fragments. Larger packets record the restricted evidence scope explicitly.

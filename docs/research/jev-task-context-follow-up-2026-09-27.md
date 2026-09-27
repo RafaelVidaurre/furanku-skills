@@ -1,6 +1,12 @@
-# Task-context repair: live validation blocked
+# Task-context repair: initial access failure and development follow-up
 
 ## Status
+
+Subsequent update: purchased Gateway credit restored access. The
+[development rerun](jev-restored-access-development-2026-09-27.md) passes one of
+four full case checks and accepts one positive quality observation. The initial
+blocked attempt below remains part of the record; semantic validation is still
+incomplete.
 
 The source-retention repair and prompt revision are implemented in task pipeline
 v11, taxonomy v8. Astra reviewed the changes; 67 targeted hermetic tests pass.

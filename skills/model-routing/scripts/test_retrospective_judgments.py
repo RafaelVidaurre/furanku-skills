@@ -205,6 +205,46 @@ class BenchmarkComparisonTest(unittest.TestCase):
 
 
 class FocusedEvidenceTest(unittest.TestCase):
+    def test_small_work_history_survives_large_authority_retrieval(self):
+        turns = [turn(0, 'Write prose', 'A final draft')]
+        turns[0]['instruction_context'] = [{'id': 'policy', 'kind': 'developer', 'content': 'Authority rule. ' * 5000}]
+        turns[0]['events'].insert(0, {'id': 'call', 'kind': 'tool_call', 'name': 'write',
+            'input': {'text': 'draft'}, 'model': 'm', 'effort': 'high'})
+        turns[0]['events'].append({'id': 'later', 'kind': 'response',
+            'text': 'A required section is missing.', 'model': 'm', 'effort': 'high'})
+        base = JudgmentTest().evaluator()
+        seen = []
+        def evaluate(state, questions):
+            seen.append((state, questions))
+            return base(state, questions)
+        def retrieve(original, context, domain, evaluator):
+            fragments = task.fragments_of(original)
+            packet = {'target_actor': original['target_actor'],
+                'requests': [{'id': 'L0', 'text': 'Write prose'}],
+                'events': [e for e in fragments if e['source_id'] == 'L1']}
+            return packet, {'mode': 'jev_retrieval'}, 'none'
+        with patch.object(task, 'plan_evidence', side_effect=retrieve):
+            task.assess_task(turns, [{'id': 'writing', 'description': 'Write prose'}], evaluate)
+        for packet, questions in seen:
+            if 'quality' not in questions and 'quality_support' not in questions: continue
+            self.assertEqual(packet['source_order'], ['call', 'L1', 'later'])
+            self.assertIn('A required section is missing.', json.dumps(packet))
+            self.assertNotIn('Authority rule.', json.dumps(packet))
+            self.assertIn('All parsed task events', packet['evidence_scope'])
+
+    def test_large_work_history_keeps_retrieval_scope_and_contract(self):
+        original = {'target_actor': 'actor0', 'turns': [turn(0, 'Write prose', 'draft')],
+                    'referenced_task_context': {'sources': [{'body': 'Retain this requirement.'}]}}
+        original['turns'][0]['events'].append({'id': 'large', 'kind': 'response', 'text': 'x' * 40000})
+        retrieved = {'target_actor': 'actor0', 'requests': [{'id': 'L0', 'text': 'Write prose'}],
+                     'events': [{'id': 'L1p0', 'source_id': 'L1', 'kind': 'response', 'content': 'draft'}],
+                     'referenced_task_context': original['referenced_task_context']}
+        packet = task.plan_outcome(original, retrieved, {'id': 'writing', 'description': 'Write prose'}, ['L1'], [])
+        self.assertEqual(packet['source_order'], ['L1p0'])
+        self.assertIn('retrieval may have omitted', packet['evidence_scope'])
+        self.assertEqual(packet['referenced_task_context'], original['referenced_task_context'])
+        self.assertTrue(task.fits(packet, judgments.quality_questions(packet['domain'])))
+
     def test_fragment_quality_bundle_excludes_authority_even_when_cited(self):
         fragments = task.fragments_of({'turns': [turn(0, 'Write prose', 'Actual draft')],
             'instruction_context': [{'id': 'policy', 'kind': 'developer', 'content': 'Private authority rule'}]})
