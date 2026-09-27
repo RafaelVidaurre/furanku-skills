@@ -19,6 +19,9 @@ def digest(value):
 
 
 def validate_result(job, result):
+    if job.get("stage") == "extraction":
+        from session_extract import validate_result as validate_extraction
+        return validate_extraction(job["packet"], result)
     expected = {c["id"]: c for c in job["packet"]["cases"]}
     cases = result.get("cases", [])
     if result.get("version") != 1 or len(cases) != len(expected) or {c.get("id") for c in cases} != set(expected):
@@ -80,8 +83,17 @@ class Store:
             or (job["scope"] != "session" and not job["scope_id"])
             or len(job["source_sha256"]) != 64 or any(c not in "0123456789abcdef" for c in job["source_sha256"])):
             raise ValueError("Invalid job identity; whole sessions and partial scopes must be distinct")
-        cases = job.get("packet", {}).get("cases")
-        if not cases or len({c["id"] for c in cases}) != len(cases):
+        stage = job.get("stage", "assessment")
+        if stage not in {"assessment", "extraction"}:
+            raise ValueError("Unknown job stage")
+        if stage == "extraction":
+            packet = job.get("packet", {})
+            if not packet.get("turns") or not packet.get("sources"):
+                raise ValueError("Extraction requires native sources and turns")
+            cases = []
+        else:
+            cases = job.get("packet", {}).get("cases")
+        if stage == "assessment" and (not cases or len({c["id"] for c in cases}) != len(cases)):
             raise ValueError("Job requires nonempty uniquely identified input cases")
         for case in cases:
             state = case.get("state", {})
@@ -93,6 +105,8 @@ class Store:
                     or len({item["id"] for item in items}) != len(items)):
                     raise ValueError("Each case needs uniquely identified requirements and sources")
         identity = digest([job["session_ref"], job["scope"], job["scope_id"]])
+        if stage != "assessment":
+            identity = digest([stage, identity])
         # Source bytes define new work. Rubric, extraction, or attribution fixes
         # require explicit reassessment of an already completed source revision.
         revision = job["source_sha256"]
@@ -142,6 +156,7 @@ class Store:
             item = {k: row[k] for k in ("claim", "status", "procedure", "semantic_status", "parent_claim", "created", "updated", "error")}
             job = json.loads(row["job"])
             item.update({k: job[k] for k in ("session_ref", "scope", "scope_id", "source_sha256")})
+            item["stage"] = job.get("stage", "assessment")
             result.append(item)
         return result
 

@@ -3,8 +3,10 @@
 Use this experimental path for prepared historical task packets. GPT-6 Sol at
 medium passed the bounded source-checked text pilot; see the
 [results](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/sol-medium-retrospective-assessor-2026-09-27.md).
-Automatic extraction, full-session coverage, and calibrated routing scores remain
-unvalidated. Keep the installed skill and routing tables unchanged during development.
+For native task extraction, read [Session extraction](session-extraction.md).
+Its bounded pilot preserves task boundaries and uncertainty; automatic preparation
+for scoring, full-history coverage, and calibrated routing scores remain unvalidated.
+Keep the installed skill and routing tables unchanged during development.
 
 ## Prepare and claim
 
