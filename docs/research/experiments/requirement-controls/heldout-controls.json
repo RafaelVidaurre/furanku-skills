@@ -1,0 +1,418 @@
+{
+  "status": "frozen",
+  "cases": [
+    {
+      "id": "h01",
+      "split": "heldout",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "Review invoice_total for line items represented as (unit_price, quantity), with positive integer quantities.",
+        "requirements": [
+          {
+            "id": "r1",
+            "text": "Check whether each line contributes unit_price multiplied by quantity, and report a violation if present."
+          },
+          {
+            "id": "r2",
+            "text": "Include one numerical line-item example and the correct total."
+          },
+          {
+            "id": "r3",
+            "text": "Keep the review under 80 words."
+          }
+        ],
+        "artifact_source_ids": [
+          "s2"
+        ],
+        "sources": [
+          {
+            "id": "s1",
+            "kind": "context",
+            "text": "def invoice_total(lines):\n    return sum(unit_price for unit_price, quantity in lines)\n"
+          },
+          {
+            "id": "s2",
+            "kind": "artifact",
+            "text": "No correctness issues. The function combines the extended prices of all invoice lines, so the result accounts for each purchased quantity."
+          }
+        ]
+      },
+      "expected": {
+        "requirements": {
+          "r1": {
+            "verdict": "unmet",
+            "support_sets": [
+              [
+                "s1",
+                "s2"
+              ]
+            ]
+          },
+          "r2": {
+            "verdict": "unmet",
+            "support_sets": [
+              [
+                "s2"
+              ]
+            ]
+          },
+          "r3": {
+            "verdict": "met",
+            "support_sets": [
+              [
+                "s2"
+              ]
+            ]
+          }
+        }
+      },
+      "audit": {
+        "requirements": {
+          "r1": "For [(7,3)] actual total7 differs from required21. The complete review falsely approves quantity handling.",
+          "r2": "No numerical example appears in the complete report.",
+          "r3": "The complete review is comfortably below the 80-word limit."
+        },
+        "scope": "Constructed control, not historical performance. Each artifact source is the complete submitted deliverable for this task. Source roles identify what is supplied, not model ownership. No external execution is inferred from prose or code. Unknown denotes evidence insufficiency, not a failed requirement."
+      }
+    },
+    {
+      "id": "h02",
+      "split": "heldout",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "Write certificate-rotation instructions and verify the new certificate from an external client.",
+        "requirements": [
+          {
+            "id": "r1",
+            "text": "Include a step that records the currently installed certificate fingerprint before replacement."
+          },
+          {
+            "id": "r2",
+            "text": "Tell the operator to reload the server after installing the new certificate."
+          },
+          {
+            "id": "r3",
+            "text": "An external client receives the new certificate fingerprint after rotation."
+          }
+        ],
+        "artifact_source_ids": [
+          "s1"
+        ],
+        "sources": [
+          {
+            "id": "s1",
+            "kind": "artifact",
+            "text": "Install the new certificate and key in the configured locations. Reload the server. Connect from a client to inspect the certificate."
+          }
+        ]
+      },
+      "expected": {
+        "requirements": {
+          "r1": {
+            "verdict": "unmet",
+            "support_sets": [
+              [
+                "s1"
+              ]
+            ]
+          },
+          "r2": {
+            "verdict": "met",
+            "support_sets": [
+              [
+                "s1"
+              ]
+            ]
+          },
+          "r3": {
+            "verdict": "unknown",
+            "support_sets": []
+          }
+        }
+      },
+      "audit": {
+        "requirements": {
+          "r1": "The complete instructions omit recording the old fingerprint before replacement.",
+          "r2": "Reloading is explicitly placed after installation.",
+          "r3": "An instruction to connect is not an observed connection result or fingerprint; success and failure remain unestablished. This requirement is the actual outcome proposition, not a requirement that the submitted prose contain a receipt; missing relevant verification therefore leaves the outcome unknown."
+        },
+        "scope": "Constructed control, not historical performance. Each artifact source is the complete submitted deliverable for this task. Source roles identify what is supplied, not model ownership. No external execution is inferred from prose or code. Unknown denotes evidence insufficiency, not a failed requirement."
+      }
+    },
+    {
+      "id": "h03",
+      "split": "heldout",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "Implement pairs(items) to group adjacent elements and verify it using its dedicated unit suite.",
+        "requirements": [
+          {
+            "id": "r1",
+            "text": "Preserve the relative order of any elements that appear in returned groups."
+          },
+          {
+            "id": "r2",
+            "text": "Retain an odd final element as a one-element tuple."
+          },
+          {
+            "id": "r3",
+            "text": "The dedicated pairs unit suite passes on this implementation."
+          }
+        ],
+        "artifact_source_ids": [
+          "s1"
+        ],
+        "sources": [
+          {
+            "id": "s1",
+            "kind": "artifact",
+            "text": "def pairs(items):\n    return [(items[i], items[i + 1]) for i in range(0, len(items) - 1, 2)]\n"
+          },
+          {
+            "id": "s2",
+            "kind": "observation",
+            "text": "$ python -m pytest tests/test_app_title.py -q\n1 passed in 0.01s\nTest assertion: APP_TITLE == \"Notebook\""
+          }
+        ]
+      },
+      "expected": {
+        "requirements": {
+          "r1": {
+            "verdict": "met",
+            "support_sets": [
+              [
+                "s1"
+              ]
+            ]
+          },
+          "r2": {
+            "verdict": "unmet",
+            "support_sets": [
+              [
+                "s1"
+              ]
+            ]
+          },
+          "r3": {
+            "verdict": "unknown",
+            "support_sets": []
+          }
+        }
+      },
+      "audit": {
+        "requirements": {
+          "r1": "Every emitted group uses increasing adjacent indices, and groups follow increasing i. Retention is addressed separately in r2; this requirement concerns relative order.",
+          "r2": "For [1,2,3], the function returns[(1,2)] and loses3 instead of retaining(3,).",
+          "r3": "The captured passing test checks an application title. No pairs-suite result is supplied, so its outcome is unknown. This requirement is the actual outcome proposition, not a requirement that the submitted prose contain a receipt; missing relevant verification therefore leaves the outcome unknown."
+        },
+        "scope": "Constructed control, not historical performance. Each artifact source is the complete submitted deliverable for this task. Source roles identify what is supplied, not model ownership. No external execution is inferred from prose or code. Unknown denotes evidence insufficiency, not a failed requirement."
+      }
+    },
+    {
+      "id": "h04",
+      "split": "heldout",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "Write a cache-expiration note and verify behavior on a running server.",
+        "requirements": [
+          {
+            "id": "r1",
+            "text": "State the correct expiration time unit from the supplied interface specification."
+          },
+          {
+            "id": "r2",
+            "text": "State what setting expiration to 0 means."
+          },
+          {
+            "id": "r3",
+            "text": "A running server evicts an entry after its configured expiration."
+          }
+        ],
+        "artifact_source_ids": [
+          "s2"
+        ],
+        "sources": [
+          {
+            "id": "s1",
+            "kind": "context",
+            "text": "The expiration argument is measured in seconds. A value of 0 disables expiration; it does not delete the entry. This specification contains no runtime measurements."
+          },
+          {
+            "id": "s2",
+            "kind": "artifact",
+            "text": "Expiration is measured in milliseconds. Setting it to 0 disables expiration. Entries expire correctly on the running server."
+          }
+        ]
+      },
+      "expected": {
+        "requirements": {
+          "r1": {
+            "verdict": "unmet",
+            "support_sets": [
+              [
+                "s1",
+                "s2"
+              ]
+            ]
+          },
+          "r2": {
+            "verdict": "met",
+            "support_sets": [
+              [
+                "s1",
+                "s2"
+              ]
+            ]
+          },
+          "r3": {
+            "verdict": "unknown",
+            "support_sets": []
+          }
+        }
+      },
+      "audit": {
+        "requirements": {
+          "r1": "Milliseconds directly contradicts the seconds unit.",
+          "r2": "Both sources agree that0 disables expiration.",
+          "r3": "The prose assertion supplies no observed eviction event or measurement. Runtime behavior remains unknown despite a present document. This requirement is the actual outcome proposition, not a requirement that the submitted prose contain a receipt; missing relevant verification therefore leaves the outcome unknown."
+        },
+        "scope": "Constructed control, not historical performance. Each artifact source is the complete submitted deliverable for this task. Source roles identify what is supplied, not model ownership. No external execution is inferred from prose or code. Unknown denotes evidence insufficiency, not a failed requirement."
+      }
+    },
+    {
+      "id": "h05",
+      "split": "heldout",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "Implement rotate_left(values, count) for lists.",
+        "requirements": [
+          {
+            "id": "r1",
+            "text": "Return a new list without mutating values."
+          },
+          {
+            "id": "r2",
+            "text": "For a nonempty list, rotate left by count modulo the list length."
+          },
+          {
+            "id": "r3",
+            "text": "For an empty list, return an empty list."
+          }
+        ],
+        "artifact_source_ids": [],
+        "sources": [
+          {
+            "id": "s1",
+            "kind": "observation",
+            "text": "Workspace access failed before a file could be opened."
+          },
+          {
+            "id": "s2",
+            "kind": "context",
+            "text": "The caller supplies a Python list and a nonnegative integer count."
+          }
+        ]
+      },
+      "expected": {
+        "requirements": {
+          "r1": {
+            "verdict": "unknown",
+            "support_sets": []
+          },
+          "r2": {
+            "verdict": "unknown",
+            "support_sets": []
+          },
+          "r3": {
+            "verdict": "unknown",
+            "support_sets": []
+          }
+        }
+      },
+      "audit": {
+        "requirements": {
+          "r1": "No implementation is supplied; source behavior cannot be determined.",
+          "r2": "Neither correct nor incorrect rotation is observed.",
+          "r3": "The access failure does not establish how any missing implementation handles empty input."
+        },
+        "scope": "Constructed control, not historical performance. Each artifact source is the complete submitted deliverable for this task. Source roles identify what is supplied, not model ownership. No external execution is inferred from prose or code. Unknown denotes evidence insufficiency, not a failed requirement."
+      }
+    },
+    {
+      "id": "h06",
+      "split": "heldout",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "Summarize the supplied parser test receipt accurately.",
+        "requirements": [
+          {
+            "id": "r1",
+            "text": "Report the total number of collected test cases."
+          },
+          {
+            "id": "r2",
+            "text": "Report the number of failed tests accurately."
+          },
+          {
+            "id": "r3",
+            "text": "Name the tested module as shown in the receipt."
+          }
+        ],
+        "artifact_source_ids": [
+          "s2"
+        ],
+        "sources": [
+          {
+            "id": "s1",
+            "kind": "observation",
+            "text": "$ python -m pytest tests/test_parser.py\ncollected 3 items\nmodule: parser\n2 passed, 1 failed\nFAILED tests/test_parser.py::test_quoted_separator"
+          },
+          {
+            "id": "s2",
+            "kind": "artifact",
+            "text": "The parser module test run collected 3 cases. All 3 passed; there were 0 failures."
+          }
+        ]
+      },
+      "expected": {
+        "requirements": {
+          "r1": {
+            "verdict": "met",
+            "support_sets": [
+              [
+                "s1",
+                "s2"
+              ]
+            ]
+          },
+          "r2": {
+            "verdict": "unmet",
+            "support_sets": [
+              [
+                "s1",
+                "s2"
+              ]
+            ]
+          },
+          "r3": {
+            "verdict": "met",
+            "support_sets": [
+              [
+                "s1",
+                "s2"
+              ]
+            ]
+          }
+        }
+      },
+      "audit": {
+        "requirements": {
+          "r1": "Both sources state3 collected cases.",
+          "r2": "The report claims0 failed, while the observed receipt shows1 failed. The failing underlying check does not make the entire report unassessable; this specific reporting requirement is contradicted.",
+          "r3": "The receipt and report both identify parser."
+        },
+        "scope": "Constructed control, not historical performance. Each artifact source is the complete submitted deliverable for this task. Source roles identify what is supplied, not model ownership. No external execution is inferred from prose or code. Unknown denotes evidence insufficiency, not a failed requirement."
+      }
+    }
+  ]
+}

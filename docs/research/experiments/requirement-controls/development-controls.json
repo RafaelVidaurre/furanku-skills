@@ -1,0 +1,405 @@
+{
+  "status": "frozen",
+  "cases": [
+    {
+      "id": "d01",
+      "split": "development",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "Review the supplied clamp function for correctness on integer inputs with low <= high.",
+        "requirements": [
+          {
+            "id": "r1",
+            "text": "Identify any violation of returning x when low <= x <= high."
+          },
+          {
+            "id": "r2",
+            "text": "Include at least one concrete input and its expected result."
+          },
+          {
+            "id": "r3",
+            "text": "Make no claim that a test or program was executed."
+          }
+        ],
+        "artifact_source_ids": [
+          "s2"
+        ],
+        "sources": [
+          {
+            "id": "s1",
+            "kind": "context",
+            "text": "def clamp(x, low, high):\n    return min(low, max(high, x))\n"
+          },
+          {
+            "id": "s2",
+            "kind": "artifact",
+            "text": "The implementation is correct. The min/max composition enforces the requested bounds and preserves values already inside them. No changes are needed."
+          }
+        ]
+      },
+      "expected": {
+        "requirements": {
+          "r1": {
+            "verdict": "unmet",
+            "support_sets": [
+              [
+                "s1",
+                "s2"
+              ]
+            ]
+          },
+          "r2": {
+            "verdict": "unmet",
+            "support_sets": [
+              [
+                "s2"
+              ]
+            ]
+          },
+          "r3": {
+            "verdict": "met",
+            "support_sets": [
+              [
+                "s2"
+              ]
+            ]
+          }
+        }
+      },
+      "audit": {
+        "requirements": {
+          "r1": "clamp(5,0,10) returns0 rather than5; the review expressly approves this broken property. Both code and review establish the false approval.",
+          "r2": "The complete review has no concrete input or expected result. This is an observed omission, not a missing artifact.",
+          "r3": "The complete review makes no execution claim; this textual property is directly inspectable."
+        },
+        "scope": "Constructed control, not historical performance. Each artifact source is the complete submitted deliverable for this task. Source roles identify what is supplied, not model ownership. No external execution is inferred from prose or code. Unknown denotes evidence insufficiency, not a failed requirement."
+      }
+    },
+    {
+      "id": "d02",
+      "split": "development",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "Provide replacement instructions for a local service configuration and evidence from a restore rehearsal.",
+        "requirements": [
+          {
+            "id": "r1",
+            "text": "Include a step that saves a copy of the existing configuration before replacing it."
+          },
+          {
+            "id": "r2",
+            "text": "Tell the operator to restart the service after replacement."
+          },
+          {
+            "id": "r3",
+            "text": "A restore rehearsal successfully restores the saved configuration."
+          }
+        ],
+        "artifact_source_ids": [
+          "s1"
+        ],
+        "sources": [
+          {
+            "id": "s1",
+            "kind": "artifact",
+            "text": "1. Replace /etc/relay.conf with the supplied configuration.\n2. Restart the relay service.\n3. Check that the service is running."
+          }
+        ]
+      },
+      "expected": {
+        "requirements": {
+          "r1": {
+            "verdict": "unmet",
+            "support_sets": [
+              [
+                "s1"
+              ]
+            ]
+          },
+          "r2": {
+            "verdict": "met",
+            "support_sets": [
+              [
+                "s1"
+              ]
+            ]
+          },
+          "r3": {
+            "verdict": "unknown",
+            "support_sets": []
+          }
+        }
+      },
+      "audit": {
+        "requirements": {
+          "r1": "The complete instructions start with replacement and omit the required preservation step.",
+          "r2": "Step2 explicitly instructs a restart after replacement.",
+          "r3": "No captured rehearsal or restored configuration is supplied. Omission of verification evidence cannot establish whether any restore succeeded or failed. This requirement is the actual outcome proposition, not a requirement that the submitted prose contain a receipt; missing relevant verification therefore leaves the outcome unknown."
+        },
+        "scope": "Constructed control, not historical performance. Each artifact source is the complete submitted deliverable for this task. Source roles identify what is supplied, not model ownership. No external execution is inferred from prose or code. Unknown denotes evidence insufficiency, not a failed requirement."
+      }
+    },
+    {
+      "id": "d03",
+      "split": "development",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "Implement first_or_none(items) and verify the implementation with its dedicated unit suite.",
+        "requirements": [
+          {
+            "id": "r1",
+            "text": "For every nonempty Python list, return its first element."
+          },
+          {
+            "id": "r2",
+            "text": "For an empty list, return None."
+          },
+          {
+            "id": "r3",
+            "text": "The dedicated first_or_none unit suite passes on this implementation."
+          }
+        ],
+        "artifact_source_ids": [
+          "s1"
+        ],
+        "sources": [
+          {
+            "id": "s1",
+            "kind": "artifact",
+            "text": "def first_or_none(items):\n    return items[0]\n"
+          },
+          {
+            "id": "s2",
+            "kind": "observation",
+            "text": "$ python -m pytest tests/test_format_version.py -q\n1 passed in 0.02s\nTest assertion: FORMAT_VERSION == 3"
+          }
+        ]
+      },
+      "expected": {
+        "requirements": {
+          "r1": {
+            "verdict": "met",
+            "support_sets": [
+              [
+                "s1"
+              ]
+            ]
+          },
+          "r2": {
+            "verdict": "unmet",
+            "support_sets": [
+              [
+                "s1"
+              ]
+            ]
+          },
+          "r3": {
+            "verdict": "unknown",
+            "support_sets": []
+          }
+        }
+      },
+      "audit": {
+        "requirements": {
+          "r1": "Index0 directly returns the first element for nonempty lists.",
+          "r2": "For [], indexing raises IndexError rather than returningNone. The complete code establishes the defect without needing a run.",
+          "r3": "The passing receipt concerns a format-version constant, not first_or_none. The required suite result is absent; neither pass nor fail is established. This requirement is the actual outcome proposition, not a requirement that the submitted prose contain a receipt; missing relevant verification therefore leaves the outcome unknown."
+        },
+        "scope": "Constructed control, not historical performance. Each artifact source is the complete submitted deliverable for this task. Source roles identify what is supplied, not model ownership. No external execution is inferred from prose or code. Unknown denotes evidence insufficiency, not a failed requirement."
+      }
+    },
+    {
+      "id": "d04",
+      "split": "development",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "Write a compression configuration note and supply evidence of interoperability with a legacy client.",
+        "requirements": [
+          {
+            "id": "r1",
+            "text": "State the correct default enabled/disabled setting from the supplied specification."
+          },
+          {
+            "id": "r2",
+            "text": "State the full allowed compression-level range from the specification."
+          },
+          {
+            "id": "r3",
+            "text": "The legacy client can decode output produced with this configuration."
+          }
+        ],
+        "artifact_source_ids": [
+          "s2"
+        ],
+        "sources": [
+          {
+            "id": "s1",
+            "kind": "context",
+            "text": "Compression is enabled by default. The level setting accepts integers 1 through 9 inclusive. Legacy-client compatibility is not specified."
+          },
+          {
+            "id": "s2",
+            "kind": "artifact",
+            "text": "Compression is disabled by default. Choose an integer compression level from 1 through 9, inclusive. The legacy client is compatible."
+          }
+        ]
+      },
+      "expected": {
+        "requirements": {
+          "r1": {
+            "verdict": "unmet",
+            "support_sets": [
+              [
+                "s1",
+                "s2"
+              ]
+            ]
+          },
+          "r2": {
+            "verdict": "met",
+            "support_sets": [
+              [
+                "s1",
+                "s2"
+              ]
+            ]
+          },
+          "r3": {
+            "verdict": "unknown",
+            "support_sets": []
+          }
+        }
+      },
+      "audit": {
+        "requirements": {
+          "r1": "The note directly contradicts the supplied default.",
+          "r2": "The note reproduces both endpoints and inclusivity correctly.",
+          "r3": "The compatibility sentence is only a claim. Neither the source specification nor an observed check establishes interoperability. This requirement is the actual outcome proposition, not a requirement that the submitted prose contain a receipt; missing relevant verification therefore leaves the outcome unknown."
+        },
+        "scope": "Constructed control, not historical performance. Each artifact source is the complete submitted deliverable for this task. Source roles identify what is supplied, not model ownership. No external execution is inferred from prose or code. Unknown denotes evidence insufficiency, not a failed requirement."
+      }
+    },
+    {
+      "id": "d05",
+      "split": "development",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "Write a help page for an image export dialog.",
+        "requirements": [
+          {
+            "id": "r1",
+            "text": "Explain that the width field is measured in pixels."
+          },
+          {
+            "id": "r2",
+            "text": "Explain that Cancel leaves the existing output file unchanged."
+          },
+          {
+            "id": "r3",
+            "text": "Include one example using width 640 and a PNG output filename."
+          }
+        ],
+        "artifact_source_ids": [],
+        "sources": [
+          {
+            "id": "s1",
+            "kind": "context",
+            "text": "The image export dialog accepts width in pixels. Cancel does not write or replace the output file. PNG is supported."
+          }
+        ]
+      },
+      "expected": {
+        "requirements": {
+          "r1": {
+            "verdict": "unknown",
+            "support_sets": []
+          },
+          "r2": {
+            "verdict": "unknown",
+            "support_sets": []
+          },
+          "r3": {
+            "verdict": "unknown",
+            "support_sets": []
+          }
+        }
+      },
+      "audit": {
+        "requirements": {
+          "r1": "The source describes the product but no help page is supplied.",
+          "r2": "Product behavior is not evidence that an absent help page explains it.",
+          "r3": "No authored example is present; an absent deliverable is unknown rather than an observed omission inside a supplied complete page."
+        },
+        "scope": "Constructed control, not historical performance. Each artifact source is the complete submitted deliverable for this task. Source roles identify what is supplied, not model ownership. No external execution is inferred from prose or code. Unknown denotes evidence insufficiency, not a failed requirement."
+      }
+    },
+    {
+      "id": "d06",
+      "split": "development",
+      "origin": "constructed_control",
+      "state": {
+        "requested_deliverable": "Implement removal of temporary files with a dry-run option.",
+        "requirements": [
+          {
+            "id": "r1",
+            "text": "Select only regular files whose suffix is exactly .tmp."
+          },
+          {
+            "id": "r2",
+            "text": "Limit file operations to immediate children of the supplied directory; do not recurse."
+          },
+          {
+            "id": "r3",
+            "text": "When dry_run is True, leave every file unchanged."
+          }
+        ],
+        "artifact_source_ids": [
+          "s1"
+        ],
+        "sources": [
+          {
+            "id": "s1",
+            "kind": "artifact",
+            "text": "from pathlib import Path\n\ndef remove_temporary(directory, dry_run=False):\n    removed = []\n    for path in Path(directory).iterdir():\n        if not path.is_symlink() and path.is_file() and path.suffix == \".tmp\":\n            path.unlink()\n            removed.append(path.name)\n    return removed\n"
+          }
+        ]
+      },
+      "expected": {
+        "requirements": {
+          "r1": {
+            "verdict": "met",
+            "support_sets": [
+              [
+                "s1"
+              ]
+            ]
+          },
+          "r2": {
+            "verdict": "met",
+            "support_sets": [
+              [
+                "s1"
+              ]
+            ]
+          },
+          "r3": {
+            "verdict": "unmet",
+            "support_sets": [
+              [
+                "s1"
+              ]
+            ]
+          }
+        }
+      },
+      "audit": {
+        "requirements": {
+          "r1": "The selection predicate excludes symlinks, checks is_file, and requires exact suffix equality.",
+          "r2": "Only directory.iterdir immediate children are considered; no recursive traversal exists.",
+          "r3": "dry_run is never consulted and unlink executes for qualifying files even when True. This is an explicit implementation defect, not an inferred missing test."
+        },
+        "scope": "Constructed control, not historical performance. Each artifact source is the complete submitted deliverable for this task. Source roles identify what is supplied, not model ownership. No external execution is inferred from prose or code. Unknown denotes evidence insufficiency, not a failed requirement."
+      }
+    }
+  ]
+}

@@ -4,16 +4,17 @@ This branch is experimental. Develop and validate in a checkout before publishin
 or updating installed skills. Retrospective results never change routing scores
 automatically.
 
-**Current decision:** keep bulk scoring and installation paused. The
-[deliverable-grading experiment](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-deliverable-grading-2026-09-27.md)
-accepted three matching grades and one incorrect severity grade on four known
-held-out controls; one of two unknown controls stayed uncertain. Both control
-splits failed. It improved useful observations but did not validate numeric
-grading. Next, test source-anchored requirement satisfaction (met, demonstrably
-unmet, insufficient evidence), separating evidence availability from correctness.
-The [preceding paired evidence experiment](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-paired-evidence-feasibility-2026-09-27.md)
-also failed. Further retrieval or repair tuning is secondary until useful quality
-measurement is demonstrated.
+**Current decision:** keep bulk scoring and installation paused; stop further
+Jev-only prompt/threshold tuning. The
+[requirement-satisfaction experiment](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/jev-requirement-satisfaction-2026-09-27.md)
+accepted 9/18 held-out answers with correct evidence, including three mechanical
+missing-artifact answers, and accepted two incomplete citation bundles. Both
+control splits failed. Next, mechanize exact checks and compare a stronger
+semantic assessor on the same requirement/source contract. Reference reviewers
+must judge only the packet offered to the evaluator; native provenance is a
+separate audit. Prior deliverable and paired-evidence failures remain preserved
+in that report's linked history. No calibrated historical model-performance
+scores were produced.
 
 All four original
 fresh native cases failed their frozen references; see the
