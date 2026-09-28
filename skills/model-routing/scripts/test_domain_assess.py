@@ -67,6 +67,16 @@ class DomainAssessmentTest(unittest.TestCase):
         self.assertEqual([], retired["jobs"])
         self.assertEqual("model_effort_no_longer_configured", retired["excluded_tasks"][0]["reason"])
         self.assertEqual(1, len(prepare(native, extracted, eligible_pairs={("example", "high")})["jobs"]))
+        control = copy.deepcopy(native)
+        control["attribution"]["harness"] = {"model": "<synthetic>", "effort": None, "provenance": "turn_metadata"}
+        control["packet"]["sources"].append({"id": "s2", "kind": "response", "body": "No response requested.",
+                                              "actor_id": "harness", "ownership": "current_session"})
+        control["packet"]["turns"][0]["event_ids"].append("s2")
+        control_result = copy.deepcopy(extracted)
+        control_result["tasks"][0]["event_ids"].append("s2")
+        prepared = prepare(control, control_result)
+        self.assertEqual(1, len(prepared["jobs"]))
+        self.assertEqual(["s2"], prepared["jobs"][0]["packet"]["cases"][0]["state"]["harness_control_source_ids"])
         for ownership in ("inherited_context", "unknown", None):
             changed = copy.deepcopy(native)
             changed["packet"]["sources"][1]["ownership"] = ownership

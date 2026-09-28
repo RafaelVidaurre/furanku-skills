@@ -34,6 +34,17 @@ class SessionExtractionTest(unittest.TestCase):
         self.path.write_text("\n".join(json.dumps(r) for r in self.records))
         return prepare(self.path, "codex")[0]
 
+    def test_tool_receipt_links_to_the_authored_command_source(self):
+        self.records += [
+            {"type": "response_item", "payload": {"type": "function_call", "name": "exec",
+                "call_id": "c1", "arguments": "write authored report"}},
+            {"type": "response_item", "payload": {"type": "function_call_output",
+                "call_id": "c1", "output": "exit code 0"}}]
+        packet = self.packet()
+        result = next(s for s in packet["sources"] if s["kind"] == "tool_result")
+        call = next(s for s in packet["sources"] if s["kind"] == "tool_call")
+        self.assertEqual(call["id"], result["linked_call_source_id"])
+
     def test_retains_native_evidence_and_dispatch_without_crediting_inherited_work(self):
         packet = self.packet()
         sources = {s["id"]: s for s in packet["sources"]}

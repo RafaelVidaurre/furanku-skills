@@ -109,6 +109,13 @@ def prepare(path, provider):
             event_ids.append(event["id"])
         manifest.append({"request_id": turn["request_id"], "event_ids": event_ids, "context_ids": context_ids})
     sources.extend(contexts.values())
+    call_sources = {s["body"].get("call_id"): s["id"] for s in sources
+                    if s["kind"] == "tool_call" and s["body"].get("call_id")}
+    for source in sources:
+        if source["kind"] == "tool_result":
+            linked = call_sources.get(source["body"].get("call_id"))
+            if linked:
+                source["linked_call_source_id"] = linked
     if not manifest:
         raise ValueError("No readable work turns; source remains unassessed")
     for source in sources:

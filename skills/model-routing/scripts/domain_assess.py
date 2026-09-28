@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Prepare and report evidence-backed ordinal domain observations."""
 import argparse
+from copy import deepcopy
 import json
 from pathlib import Path
 
@@ -10,13 +11,32 @@ from task_retrospect import write_private
 RUBRIC = "domain-outcomes-v1"
 
 
+def normalize_requirement_links(result):
+    """Derive redundant domain links; leave every semantic judgment untouched."""
+    normalized = deepcopy(result)
+    changes = []
+    for case in normalized.get("cases", []):
+        for domain in case.get("domains", []):
+            expected = [r["id"] for r in case.get("requirements", [])
+                        if r.get("kind") == "deliverable" and r.get("applicability") == "applicable"
+                        and domain.get("id") in r.get("domain_ids", [])]
+            if domain.get("requirement_ids") != expected:
+                changes.append({"case": case.get("id"), "domain": domain.get("id"),
+                                "before": domain.get("requirement_ids"), "after": expected})
+            domain["requirement_ids"] = expected
+    return normalized, changes
+
+
 def prepare(job, extraction, eligible_pairs=None):
     packet = materialize(job["packet"], extraction)
     taxonomy = json.loads((Path(__file__).parent.parent / "references/retrospective-domains.json").read_text())
     jobs, excluded = [], []
     for case in packet["cases"]:
+        harness_ids = {s["id"] for s in case["state"]["sources"]
+                       if job.get("attribution", {}).get(s.get("actor_id"), {}).get("model") == "<synthetic>"}
+        case["state"]["harness_control_source_ids"] = sorted(harness_ids)
         events = [s for s in case["state"]["sources"]
-                  if s["kind"] not in {"request", "historical_instruction"}]
+                  if s["kind"] not in {"request", "historical_instruction"} and s["id"] not in harness_ids]
         identities = set()
         uncertain = not events
         for source in events:

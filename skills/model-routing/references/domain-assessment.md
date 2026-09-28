@@ -50,6 +50,10 @@ summary) and `repairs`: records with `source_ids`, `cause` (`worker`, `external`
 `unknown`), `rationale`, and `resolved` (boolean or null). Record observed repairs;
 an empty list means none observed, not proof of a flawless session. Separate a
 recovered local mistake from the quality of the final deliverable.
+Changed preferences and clarified requirements are iteration costs, not worker
+mistakes unless the earlier work violated an established criterion. Apply the
+latest contract when work was narrowed or cancelled. Harness-generated sources
+listed in `harness_control_source_ids` are context, not another worker actor.
 
 An additional final-artifact defect belongs in optional `defects`, with
 `source_ids`, `domain_ids`, `severity` (`minor`, `major`, `unusable`), `responsibility`
@@ -61,6 +65,10 @@ quality; inherited unrelated flaws alone cannot be charged to this worker.
 Each domain adds `requirement_ids`, `source_ids`, `score`, `confidence`, and
 `score_rationale`. Role remains central/supporting/absent/unknown. Classify role
 from the request, even when execution was blocked. Scores are ordinal:
+
+The runner derives `requirement_ids` from the requirement kind, applicability and
+domain assignments, retaining a normalization record. This redundant link needs
+no model repair call; verdicts, scores and other semantic judgments stay unchanged.
 
 | Score | Evidence required |
 | --- | --- |

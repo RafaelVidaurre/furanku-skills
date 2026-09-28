@@ -4,6 +4,8 @@ Use this before new retrospective assessments. Inventory all local sessions
 mechanically; deeply assess a bounded sample. The user replaced exhaustive scoring
 with representative, diverse, high-signal sampling on 2026-09-28. Retired models
 remain excluded. Routing decisions and Beads use do not determine eligibility.
+The [first measured wave](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/sampled-retrospective-wave-2026-09-28.md)
+records the observed yield, usage, audit corrections and remaining limits.
 
 ## 1. Freeze a small selection plan
 
@@ -63,6 +65,13 @@ unknown, evidence-availability signals and a size estimate. No quality scores ar
 produced by this stage. Expanding the preview pool spends a separately recorded
 budget; it never grows silently to the full history.
 
+`history_packets.py --plan PRIVATE_PLAN --output PRIVATE_DIRECTORY` prepares
+native packets and bounded previews locally. Encoded media becomes a native-source
+reference with a digest. Authored responses and tool calls are preserved before
+long observations when the packet budget permits. Every shortened body is marked;
+an excerpt cannot establish full-artifact correctness. Verify preview IDs and
+citations before using classifications; invalid citations need review.
+
 ## 3. Choose the diversity supplement
 
 Within each model's remaining slots, prefer coverage gains in this order:
@@ -104,17 +113,43 @@ representative task-level estimates.
 Start with a wave of 12 outcomes spread across model/effort groups. Measure actual
 usage, scoreable yield and audit disagreements before continuing toward the slot
 ceiling. A proposed first-round envelope is **3 million cumulative input tokens**
-and **500,000 generated tokens including reasoning**, covering previews, extraction,
-scoring, retries and audits. These are spending limits to implement and measure,
-not a forecast that all 57–60 cases will fit or a subscription-quota conversion.
+and **500,000 generated tokens including reasoning** for instrumented assessor
+calls. These are admission limits, not a forecast that all 57–60 cases fit or a
+subscription-quota conversion. Parent implementation and manual audit usage must
+be reported separately when its harness cannot expose comparable counters.
 
-Before a paid run, the execution adapter must reserve input/output capacity before
-each call, reconcile actual usage, and stop when another call cannot fit. Repeated
-agent context and tool-read tokens count. If the launcher cannot expose/enforce
-this accounting, report that limitation and use a smaller measured wave rather
-than claiming a hard token cap. The sampling planner only enforces session and
-preview counts; packet compaction and live token accounting are execution
-prerequisites, not implemented features of that planner.
+`assessment_run.py --prompt FILE --decision GATE_JSON --output PRIVATE_CALLS`
+runs a tool-free, ephemeral Codex assessor with the gate's model/effort. It retains
+prompts, raw events, reported input/cached-input/output usage and the final result.
+Concurrent calls reserve capacity under a local lock. Completed calls reuse their
+prompt/model/image identity. Usage includes cached input; it is never subtracted
+from total context processed. Missing or failed-turn usage blocks further calls
+until reconciled. Failed attempts never receive a zero-cost assumption.
+
+The CLI has no exposed hard generation cap: a call may exceed its reservation.
+Budgets stop subsequent admissions, and reservations cover concurrent calls;
+do not describe this as a hard in-flight token ceiling. Authentication stays with
+the active Codex account. The runner ignores user configuration to keep tools and
+project instructions out; use it only with the standard Codex launch surface
+whose account and model were gate-checked.
+
+`sample_assess.py --packet SAVED_NATIVE_PACKET --output PRIVATE_CASE --calls
+PRIVATE_CALLS --decision GATE_JSON --repo ROOT --seed RECORDED_SEED` claims
+extraction, restores original evidence for preparation, and selects one eligible
+task uniformly by seed. It then claims, assesses and structurally validates the
+task, allowing one output repair. Completed tasks reuse the global ledger. A
+completed case directory reopens without calls; after an interrupted partial run,
+use a new attempt directory so the ledger can reuse completed stages while keeping
+earlier artifacts. A running claim remains owned until its worker is confirmed
+stopped. The ledger records raw judgments as unreviewed; save semantic corrections
+separately. Source revisions need new directories.
+
+For visual assessment, attach verified original images through the saved packet's
+`visual_artifacts` entries (`source_id`, `path`, `sha256`). Recover them from native
+records and retain provenance before adding entries. The runner includes image
+digests in cache identity and checks file digests before launch. The routing gate
+must require vision. Record tool-generated artwork as an agent-plus-tool outcome,
+not direct evidence of the routing model's standalone image-generation ability.
 
 Audit the first wave fully. Once its source-support and rubric errors are resolved,
 audit a random fraction of subsequent results plus every surprising, negative or
