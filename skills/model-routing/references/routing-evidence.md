@@ -123,7 +123,8 @@ completion ledger. Preserve every attempt and measurement revision.
 At each checkpoint, name the decision that another bounded batch could change.
 Stop when the available archive lacks comparable independent tasks, required
 artifacts or attributable cost. Propose a prospective comparison using actual
-upcoming work; historical repetition cannot repair missing diversity.
+upcoming work using [the collection procedure](prospective-comparison.md);
+historical repetition cannot repair missing diversity.
 
 **Complete when:** continuation has an explicit evidence gain and budget, or the
 report identifies the precise new work needed. Unresolved calibration never
