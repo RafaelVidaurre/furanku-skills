@@ -49,6 +49,9 @@ def validate_result(job, result):
                 or any(d.get("role") not in {"central", "supporting", "absent", "unknown"}
                        or not isinstance(d.get("rationale"), str) or not d["rationale"].strip() for d in domains)):
                 raise ValueError("Result must classify every supplied domain exactly once")
+    if job["packet"].get("rubric") == "domain-outcomes-v1":
+        from domain_assess import validate_result as validate_domains
+        validate_domains(job["packet"], result)
 
 
 class Store:
@@ -86,6 +89,10 @@ class Store:
         stage = job.get("stage", "assessment")
         if stage not in {"assessment", "extraction"}:
             raise ValueError("Unknown job stage")
+        anchors = job.get("request_ids")
+        if anchors is not None and (not isinstance(anchors, list) or not anchors
+            or any(not isinstance(x, str) or not x for x in anchors) or len(set(anchors)) != len(anchors)):
+            raise ValueError("Request anchors must be unique nonempty strings")
         if stage == "extraction":
             packet = job.get("packet", {})
             if not packet.get("turns") or not packet.get("sources"):
@@ -128,6 +135,25 @@ class Store:
                         "result": json.loads(complete["result"])}
             if retry_failed and not reassess and json.loads(rows[0]["job"]) != job:
                 raise ValueError("Retry the failed job unchanged, or explicitly request reassessment")
+            if stage == "assessment":
+                # A renamed/extracted task can overlap an older manual task ID.
+                # Unknown legacy boundaries require reconciliation before spending.
+                others = self.db.execute("SELECT * FROM assessments WHERE revision=? AND identity!=? AND status IN ('running','complete')",
+                                         (revision, identity)).fetchall()
+                for other in others:
+                    previous = json.loads(other["job"])
+                    if (previous.get("stage", "assessment") != stage
+                        or previous["session_ref"] != job["session_ref"]
+                        or previous["scope"] == "control" or job["scope"] == "control"):
+                        continue
+                    prior_anchors = previous.get("request_ids")
+                    overlaps = (previous["scope"] == "session" or job["scope"] == "session"
+                                or not anchors or not prior_anchors or bool(set(anchors) & set(prior_anchors)))
+                    if overlaps:
+                        return {"action": "needs_scope_review", "claim": other["claim"],
+                                "existing_scope": previous["scope"], "existing_scope_id": previous["scope_id"],
+                                "existing_status": other["status"],
+                                "reason": "Task boundaries overlap or lack comparable native request anchors"}
             token = uuid.uuid4().hex
             self.db.execute("INSERT INTO assessments(claim,identity,revision,procedure,status,job,parent_claim) VALUES(?,?,?,?,?,?,?)",
                             (token, identity, revision, job["procedure"], "running", json.dumps(job), rows[0]["claim"] if rows else None))

@@ -4,8 +4,9 @@ Use this experimental path for prepared historical task packets. GPT-6 Sol at
 medium passed the bounded source-checked text pilot; see the
 [results](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/sol-medium-retrospective-assessor-2026-09-27.md).
 For native task extraction, read [Session extraction](session-extraction.md).
-Its bounded pilot preserves task boundaries and uncertainty; automatic preparation
-for scoring, full-history coverage, and calibrated routing scores remain unvalidated.
+For automatic preparation and ordinal outcome scoring, read
+[Domain assessment](domain-assessment.md). Full-history coverage and calibrated
+routing scores remain unvalidated.
 Keep the installed skill and routing tables unchanged during development.
 
 ## Prepare and claim
@@ -66,12 +67,18 @@ The machine-global database is
 | `assess` | Keep the claim token; gate-check and launch the assessor. |
 | `skip_completed` | Reuse the stored result; no assessor call. Inspect change flags before interpreting it under a newer rubric. |
 | `in_progress` | Follow the existing worker; do not launch a duplicate. |
+| `needs_scope_review` | An assessment under another task ID overlaps, or legacy boundaries are unknown. Reuse its findings and reconcile native request anchors before scheduling uncovered work. |
 
 Unchanged source/scope stays completed across procedure and taxonomy changes.
 An intentional rerun requires `claim --reassess`; record the reason in the job.
 Changed source bytes are a new revision. Failed attempts retry with a new token
 and recorded parent claim, including failures after an explicit reassessment.
 Retry the failed job unchanged; a changed procedure requires `--reassess`.
+Include `request_ids` with native request anchors for new task jobs. Distinct task
+IDs are insufficient to establish distinct work. A session-level assessment cannot
+silently rescore its already assessed tasks; schedule only uncovered tasks. Scope
+conflicts also block explicit reassessment under a different ID: use the original
+identity for intentional reassessment.
 
 **Complete when:** each proposed job has one claim disposition and only `assess`
 jobs are scheduled. A sampled task always uses `scope: task`; `scope: session`

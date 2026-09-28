@@ -1,6 +1,8 @@
 # Extract tasks from native sessions
 
 Experimental path for preparing whole native text histories for an agent assessor.
+After extraction, use [Domain assessment](domain-assessment.md) to prepare and
+score outcomes from original sources, separating deliverables from workflow rules.
 Read this when moving beyond manually prepared task packets. The initial Codex
 and Claude pilot is documented in the
 [extraction report](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/sol-native-extraction-2026-09-27.md).

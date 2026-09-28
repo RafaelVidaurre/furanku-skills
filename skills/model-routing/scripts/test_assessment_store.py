@@ -92,8 +92,16 @@ class AssessmentStoreTest(unittest.TestCase):
     def test_task_sample_does_not_complete_entire_session(self):
         self.completed()
         self.job.update(scope="session", scope_id="")
+        self.assertEqual("needs_scope_review", self.store.claim(self.job)["action"])
+        self.assertEqual("task", self.store.status()[0]["scope"])
+
+    def test_renamed_task_cannot_silently_reassess_but_disjoint_task_can(self):
+        self.job["request_ids"] = ["L10"]
+        self.completed()
+        self.job["scope_id"] = "new-extractor-name"
+        self.assertEqual("needs_scope_review", self.store.claim(self.job)["action"])
+        self.job["request_ids"] = ["L20"]
         self.assertEqual("assess", self.store.claim(self.job)["action"])
-        self.assertEqual("session", self.store.status()[0]["scope"])
 
     def test_invalid_results_leave_claim_running_for_recovery(self):
         token = self.store.claim(self.job)["claim"]
