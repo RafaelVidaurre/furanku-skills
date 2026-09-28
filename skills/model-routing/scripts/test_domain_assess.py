@@ -63,6 +63,10 @@ class DomainAssessmentTest(unittest.TestCase):
         output = prepare(native, extracted)
         self.assertEqual(source, output["jobs"][0]["packet"]["cases"][0]["state"]["sources"][1])
         self.assertEqual(21, len(output["jobs"][0]["packet"]["domain_taxonomy"]["domains"]))
+        retired = prepare(native, extracted, eligible_pairs=set())
+        self.assertEqual([], retired["jobs"])
+        self.assertEqual("model_effort_no_longer_configured", retired["excluded_tasks"][0]["reason"])
+        self.assertEqual(1, len(prepare(native, extracted, eligible_pairs={("example", "high")})["jobs"]))
         for ownership in ("inherited_context", "unknown", None):
             changed = copy.deepcopy(native)
             changed["packet"]["sources"][1]["ownership"] = ownership

@@ -10,7 +10,7 @@ from task_retrospect import write_private
 RUBRIC = "domain-outcomes-v1"
 
 
-def prepare(job, extraction):
+def prepare(job, extraction, eligible_pairs=None):
     packet = materialize(job["packet"], extraction)
     taxonomy = json.loads((Path(__file__).parent.parent / "references/retrospective-domains.json").read_text())
     jobs, excluded = [], []
@@ -31,6 +31,9 @@ def prepare(job, extraction):
             excluded.append({"task_id": case["id"], "reason": "mixed_or_unknown_contribution"})
             continue
         model, effort = next(iter(identities))
+        if eligible_pairs is not None and (model, effort) not in eligible_pairs:
+            excluded.append({"task_id": case["id"], "reason": "model_effort_no_longer_configured"})
+            continue
         jobs.append({"stage": "assessment", "session_ref": job["session_ref"],
                      "source_sha256": job["source_sha256"], "procedure": RUBRIC,
                      "scope": "task", "scope_id": case["id"],
@@ -146,13 +149,17 @@ def main():
     parser.add_argument("--jobs")
     parser.add_argument("--results")
     parser.add_argument("--output", required=True)
+    parser.add_argument("--repo", type=Path, default=Path("."))
     args = parser.parse_args()
     def read(path):
         return json.loads(Path(path).read_text())
     if args.command == "prepare":
         if not args.extraction_job or not args.extraction_result:
             parser.error("prepare requires extraction job and result")
-        output = prepare(read(args.extraction_job), read(args.extraction_result))
+        import config
+        from performance_census import route_index
+        eligible_pairs = set(route_index(config.model_rows(args.repo)))
+        output = prepare(read(args.extraction_job), read(args.extraction_result), eligible_pairs)
     else:
         if not args.jobs or not args.results:
             parser.error("report requires jobs and results")

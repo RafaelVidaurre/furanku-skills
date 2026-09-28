@@ -7,13 +7,15 @@ not replacements for public benchmark scores or a model ranking.
 
 ## Prepare
 
-Run `domain_assess.py prepare --extraction-job JOB --extraction-result RESULT
+Run `domain_assess.py prepare --repo ROOT --extraction-job JOB --extraction-result RESULT
 --output OUTPUT`. It validates extraction, copies original evidence, supplies all
 21 domain definitions and checks recorded actor identity. The initial adapter
 accepts tasks whose contributing events have one known model/effort pair and
 current-session ownership. Mixed or unknown contributions require a separate
 attribution procedure; report them as uncovered rather than crediting one actor.
 Encrypted requests remain unresolved, with no invented task or score.
+Preparation checks the current effective model list, so cached extractions for
+retired combinations produce exclusions rather than new assessment jobs.
 
 Claim each generated task job using `assessment_store.py` before calling the
 assessor. Reuse `skip_completed` results. Give the assessor only the job's packet

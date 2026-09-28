@@ -31,6 +31,13 @@ including disabled and explicit combinations. Jev involvement, routing logs, and
 Beads are not eligibility conditions. The inventory covers local files, not cloud
 history. Preserve its discovery scope and timestamp.
 
+A model explicitly retired by the user is outside this population. Remove its
+effective candidate with a configuration tombstone; disabling alone still retains
+it for historical analysis. Rebuild the census after retirement, and prepare queued
+tasks through `domain_assess.py prepare --repo ROOT` to reject retired combinations
+even when their extraction was cached. Preserve historical results as audit records,
+but exclude retired combinations from current calibration and budget totals.
+
 **Complete when:** every matching native session appears once with its source and
 recorded model/effort; missing or ambiguous metadata is reported separately.
 
