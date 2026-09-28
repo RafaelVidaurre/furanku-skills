@@ -27,7 +27,11 @@ approval, cancellation, context, unresolved. Each task's request_ids must exactl
 match links naming that task. Every event ID assigned to a task or listed in
 unassigned_events as {id,reason}. Context sources use context_ids. Preserve related
 corrections and continuations as one outcome. Requirements cite defining requests,
-not worker claims; distinguish requested deliverables from workflow constraints.
+including source-identified delivered_contract_messages from native inbox receipts,
+not worker claims. Resolve their sender, target and chronology against the original
+assignment; later authorized scope changes supersede earlier wording. Keep these
+messages under their native event IDs, not invented request IDs. Distinguish
+requested deliverables from workflow constraints and existing work merely tested.
 Encrypted/missing assignments cannot be reconstructed from completion prose: link
 them unresolved and exclude their events. Parent history never becomes child work.
 Bodies may be excerpted; request bodies and native IDs remain complete. Output
@@ -75,7 +79,7 @@ def assess_claim(store, job, instructions, decision, calls, directory, label, im
         raise
 
 
-def execute(saved, directory, calls, decision, repo, database, seed):
+def execute(saved, directory, calls, decision, repo, database, seed, extraction_characters=160000):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     if (directory / "status.json").exists():
@@ -85,7 +89,7 @@ def execute(saved, directory, calls, decision, repo, database, seed):
         return {**json.loads((directory / "status.json").read_text()), "reused_run": True}
     store = Store(database)
     try:
-        bounded = bounded_packet(saved["packet"], 160000)
+        bounded = bounded_packet(saved["packet"], extraction_characters)
         extraction_job = {"stage": "extraction", "session_ref": saved["session_ref"],
             "source_sha256": saved["source_sha256"], "procedure": "bounded-native-extraction-v1",
             "scope": "session", "scope_id": "", "packet": bounded, "attribution": saved["attribution"]}
@@ -157,7 +161,10 @@ if __name__ == "__main__":
     parser.add_argument("--decision", type=Path, required=True)
     parser.add_argument("--repo", type=Path, default=Path("."))
     parser.add_argument("--seed", required=True)
+    parser.add_argument("--extraction-characters", type=int, default=160000,
+                        help="Explicit extraction packet cap; token admission budget still applies")
     parser.add_argument("--database", type=Path, default=Path.home()/".furanku-skills/model-routing/assessments.sqlite3")
     args = parser.parse_args()
     print(json.dumps(execute(json.loads(args.packet.read_text()), args.output, args.calls,
-                            json.loads(args.decision.read_text()), args.repo, args.database, args.seed)))
+                            json.loads(args.decision.read_text()), args.repo, args.database, args.seed,
+                            args.extraction_characters)))

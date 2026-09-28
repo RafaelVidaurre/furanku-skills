@@ -246,10 +246,10 @@ remains identical with enrichment enabled or disabled.
 ## Calibration and legacy experiments
 
 Audit outcome attribution and task-specific evidence before using observations
-for routing. Repeated task templates and multiple workers on one original request
-are correlated. Confidence and score updates require task-family controls,
-difficulty comparisons, evidence weights, and an outlier-resistant estimator;
-the experimental task report does not implement that calibration yet.
+for routing. [Routing evidence readiness](routing-evidence.md) defines the
+comparison protocol, independent units, quality/rework/cost measurements and
+criteria for proposing an update. Its statistical calibration remains future work;
+the experimental task report does not implement that estimator.
 
 `retrospect.py` / `session_domain_report.py` reproduce the older bounded whole-session
 experiment. `performance_assess.py` / `performance_report.py` reproduce the first-

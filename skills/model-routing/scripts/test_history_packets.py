@@ -1,12 +1,40 @@
 import json
 import unittest
 
-from history_packets import bounded_packet, compact_binary, validate_previews
+from history_packets import bounded_packet, compact_binary, validate_previews, retain_inbox_contracts
 from assessment_run import admit, usage_from_events
 from domain_assess import normalize_requirement_links
 
 
 class BoundedHistoryTest(unittest.TestCase):
+    def test_delivered_scope_changes_survive_clipping_but_outbound_claims_do_not(self):
+        message = {"id": "m1", "from_handle": "coordinator", "to_handle": "worker",
+                   "type": "status", "body": "Only verify existing code; do not implement."}
+        receipt = {"ok": True, "result": {"messages": [message]}}
+        def sources(command):
+            return [{"id": "call", "kind": "tool_call", "body": {
+                "call_id": "c", "input": command}},
+                {"id": "receipt", "kind": "tool_result", "body": {"call_id": "c",
+                 "output": [{"text": json.dumps({"output": json.dumps(receipt)})},
+                            {"text": "irrelevant verbose output " * 2000}]}}]
+        packet = {"sources": sources("orca orchestration check --json"), "turns": []}
+        result = bounded_packet(packet, 5000)
+        self.assertFalse(result["sources"][1]["body_complete"])
+        self.assertEqual([message], result["sources"][1]["delivered_contract_messages"])
+        self.assertNotIn("delivered_contract_messages",
+                         retain_inbox_contracts(sources("orca orchestration send"))[1])
+
+    def test_wire_escaping_overhead_shrinks_excerpts_before_requiring_pagination(self):
+        request = {"id": "q", "kind": "request", "body": "Keep this exact contract"}
+        packet = {"sources": [request] + [
+            {"id": str(i), "kind": "tool_result", "body": ('\"\\\n漢' * 1000)}
+            for i in range(30)], "turns": []}
+        result = bounded_packet(packet, 30000)
+        self.assertLessEqual(len(json.dumps(result)), 30000)
+        self.assertEqual(request, result["sources"][0])
+        self.assertEqual(31, len(result["sources"]))
+        self.assertTrue(all(s["body_complete"] is False for s in result["sources"][1:]))
+
     def test_requirement_links_are_derived_without_changing_quality_judgments(self):
         raw = {"cases": [{"id": "t", "requirements": [
             {"id": "r1", "kind": "deliverable", "applicability": "applicable", "domain_ids": ["art"]},

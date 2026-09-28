@@ -66,13 +66,60 @@ def preview(packet, identifier, limit=4000):
             "purpose": "Provisional domain and evidence classification only; no quality score"}
 
 
+def delivered_messages(value, depth=0):
+    """Recover structured inbox receipts, never infer requests from prose."""
+    if depth > 12:
+        return []
+    if isinstance(value, str):
+        # Native exec output may prefix each independent JSON result with its index.
+        candidate = re.sub(r"^\d+:\s*", "", value.strip())
+        try:
+            return delivered_messages(json.loads(candidate), depth + 1)
+        except (ValueError, TypeError):
+            return []
+    if isinstance(value, list):
+        return [m for item in value for m in delivered_messages(item, depth + 1)]
+    if not isinstance(value, dict):
+        return []
+    result = value.get("result")
+    if (value.get("ok") is True and isinstance(result, dict)
+            and isinstance(result.get("messages"), list)):
+        return [{k: m[k] for k in ("id", "from_handle", "to_handle", "body", "type")}
+                for m in result["messages"] if isinstance(m, dict)
+                and all(isinstance(m.get(k), str) for k in
+                        ("id", "from_handle", "to_handle", "body", "type"))]
+    return [m for item in value.values() for m in delivered_messages(item, depth + 1)]
+
+
+def retain_inbox_contracts(sources):
+    """Keep messages from actual Orca inbox reads alongside their native source ID.
+
+    Receipt identity is transport evidence, not a verdict on message authority.
+    Outbound sends and unrelated JSON do not become task instructions.
+    """
+    calls = {s["body"].get("call_id"): s for s in sources
+             if s["kind"] == "tool_call" and isinstance(s.get("body"), dict)}
+    output = []
+    for source in sources:
+        body = source.get("body")
+        call = calls.get(body.get("call_id")) if isinstance(body, dict) else None
+        if (source["kind"] == "tool_result" and call
+                and re.search(r"\borca\s+orchestration\s+check\b", json.dumps(call["body"]))):
+            messages = delivered_messages(body)
+            if messages:
+                source = {**source, "delivered_contract_messages": messages,
+                          "contract_receipt_call_source_id": call["id"]}
+        output.append(source)
+    return output
+
+
 def bounded_packet(packet, max_characters=100000):
     """Keep every native ID and request; shorten large bodies with explicit markers.
 
     This is a retrieval aid. Truncated bodies cannot support full-artifact claims.
     Original bodies are recoverable from the private prepared packet by source ID.
     """
-    sources = packet["sources"]
+    sources = retain_inbox_contracts(packet["sources"])
     reserve = len(json.dumps({**packet, "sources": []})) + 1000
     preserved = {"request", "response", "tool_call"}
     fixed = sum(len(json.dumps(s)) for s in sources if s["kind"] in preserved)
@@ -84,22 +131,28 @@ def bounded_packet(packet, max_characters=100000):
         raise ValueError("Requests and source identifiers exceed the packet budget; needs task pagination")
     weights = {"response": 3, "tool_call": 2, "tool_result": 3, "historical_instruction": 1}
     weight = sum(weights.get(s["kind"], 1) for s in sources if s["kind"] not in preserved)
-    result, omitted = [], []
-    for source in sources:
-        body = json.dumps(source["body"], ensure_ascii=False)
-        limit = max(100, available * weights.get(source["kind"], 1) // max(weight, 1))
-        if source["kind"] in preserved or len(body) <= limit:
-            result.append(source)
-        else:
-            item = {**source, "body": excerpt(body, limit), "body_complete": False}
-            result.append(item)
-            omitted.append(source["id"])
-    output = {**packet, "sources": result, "evidence_limits": {
-        "truncated_source_ids": omitted, "requests_complete": True,
-        "rule": "Truncated bodies are retrieval leads. Recover source bodies before judging their full contents."}}
-    if len(json.dumps(output)) > max_characters:
-        raise ValueError("Bounded packet exceeds limit; needs task pagination")
-    return output
+    # JSON quoting, Unicode escaping and omission metadata can exceed the initial
+    # allowance. Measure the actual wire representation before requiring pagination.
+    while True:
+        result, omitted = [], []
+        for source in sources:
+            body = json.dumps(source["body"], ensure_ascii=False)
+            limit = max(100, available * weights.get(source["kind"], 1) // max(weight, 1))
+            if source["kind"] in preserved or len(body) <= limit:
+                result.append(source)
+            else:
+                item = {**source, "body": excerpt(body, limit), "body_complete": False}
+                result.append(item)
+                omitted.append(source["id"])
+        output = {**packet, "sources": result, "evidence_limits": {
+            "truncated_source_ids": omitted, "requests_complete": True,
+            "rule": "Truncated bodies are retrieval leads. Recover source bodies before judging their full contents."}}
+        size = len(json.dumps(output))
+        if size <= max_characters:
+            return output
+        if available == 0:
+            raise ValueError("Bounded packet exceeds limit; needs task pagination")
+        available = int(available * 0.8)
 
 
 def validate_previews(cards, previews, taxonomy):

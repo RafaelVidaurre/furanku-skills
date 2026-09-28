@@ -144,6 +144,17 @@ earlier artifacts. A running claim remains owned until its worker is confirmed
 stopped. The ledger records raw judgments as unreviewed; save semantic corrections
 separately. Source revisions need new directories.
 
+The default extraction packet cap is 160,000 serialized characters. If source
+metadata and minimal excerpts cannot fit, record a bounded case-specific
+`--extraction-characters` allowance or paginate tasks before retrying. The runner's
+shared token admission budget still applies. JSON escaping overhead is measured
+before treating a packet as too large; requested contracts remain complete.
+Structured incoming messages from matched Orca inbox reads also survive body
+clipping with their original source and call IDs. Resolve sender, target and scope
+chronology during extraction; outbound completion claims cannot redefine a task.
+This protects transport evidence, not semantic correctness: audit scope changes
+before crediting implementation of code the worker only tested.
+
 For visual assessment, attach verified original images through the saved packet's
 `visual_artifacts` entries (`source_id`, `path`, `sha256`). Recover them from native
 records and retain provenance before adding entries. The runner includes image
@@ -162,6 +173,10 @@ measured usage, a semantic audit and cache-reuse evidence, with no unpaid/untrac
 follow-on work or claim that unexamined tasks were assessed.
 
 ## 5. Learn selectively
+
+Before expanding a wave or comparing candidates, apply
+[routing evidence readiness](routing-evidence.md) to define difficulty, repair and
+cost observations, independent task counts, readiness and stopping conditions.
 
 Publish baseline and supplement results separately. Preserve selection probabilities
 for any population-weighted baseline estimate, and report missingness and task-family
