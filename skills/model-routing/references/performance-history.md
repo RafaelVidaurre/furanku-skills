@@ -4,15 +4,15 @@ This branch is experimental. Develop and validate in a checkout before publishin
 or updating installed skills. Retrospective results never change routing scores
 automatically.
 
-**Current decision:** use the experimental [agent assessment procedure](agent-assessment.md)
-for prepared tasks. GPT-6 Sol at medium matched 36/36 constructed requirements,
-5/6 earlier historical requirements, and 9/9 fresh native requirements. Native
-domain recall was 100%, precision 83.3%. Read the
-[Sol pilot report](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/sol-medium-retrospective-assessor-2026-09-27.md)
-for the frozen failures and supported scope. Completed agent jobs are reused through
-a machine-global completion ledger; task samples never complete a whole session.
-Bulk scoring, calibrated score updates, and installation remain paused while
-native extraction and broader domain coverage are validated.
+**Current decision:** inventory the full archive locally, then use
+[bounded history sampling](history-sampling.md) before new model calls. The user
+replaced exhaustive assessment with representative, diverse, high-signal sampling.
+Use the experimental [agent assessment procedure](agent-assessment.md) and
+[domain outcome rubric](domain-assessment.md) for selected tasks. Completed jobs
+are reused through the machine-global ledger; task samples never complete a whole
+session. The [native outcome pilot](https://github.com/RafaelVidaurre/furanku-skills/blob/model-routing-states/docs/research/sol-domain-outcomes-2026-09-28.md)
+records useful observations and audit corrections. Calibrated score updates and
+installation remain pending validation.
 
 The JEV commands below preserve the previous experimental pipeline. They are not
 the new agent assessment path. The
@@ -41,7 +41,7 @@ but exclude retired combinations from current calibration and budget totals.
 **Complete when:** every matching native session appears once with its source and
 recorded model/effort; missing or ambiguous metadata is reported separately.
 
-## Classify every task and domain
+## Reproduce the legacy task experiment
 
 Run the experimental task assessor against the census:
 

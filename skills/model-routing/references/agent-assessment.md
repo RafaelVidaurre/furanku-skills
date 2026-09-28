@@ -11,6 +11,9 @@ Keep the installed skill and routing tables unchanged during development.
 
 ## Prepare and claim
 
+For new research batches, select tasks through
+[bounded history sampling](history-sampling.md) before preparing assessor jobs.
+
 Inventory configured model/effort sessions as described in
 [Historical model performance](performance-history.md#inventory-all-configured-models).
 Prepare tasks with the complete requested deliverable, individual requirements,
