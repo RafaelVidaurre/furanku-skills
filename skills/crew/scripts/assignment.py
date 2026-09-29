@@ -41,6 +41,10 @@ KNOWN_MANIFESTS = {
         "mechanism": "orca",
         "launchable_agents": ["claude", "codex", "opencode", "grok"],
         "launch_notes": {
+            "codex": (
+                "Read Crew's references/orca.md before dispatch for Codex wrapper "
+                "model/effort limits and the startup-only readiness workaround."
+            ),
             "grok": (
                 "Load the current Orca orchestration guide before dispatch. If "
                 "worker-start does not list Grok model/effort preferences, create "
@@ -73,6 +77,7 @@ RESERVED_SPEC_KEYS = {
     "reports_to",
     "mechanism",
     "isolation",
+    "isolation_available",
     "coordination",
     "agent",
     "model",
@@ -760,7 +765,7 @@ def build_packet(args):
         f"role: {args.role}",
         f"reports_to: {args.reports_to}",
         f"mechanism: {manifest['mechanism']}",
-        "isolation: " + json.dumps(manifest.get("isolation", False)),
+        "isolation_available: " + json.dumps(manifest.get("isolation", False)),
         "coordination: " + json.dumps(manifest["communication"], ensure_ascii=False),
     ]
     if launch_note:

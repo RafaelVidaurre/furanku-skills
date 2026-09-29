@@ -430,7 +430,6 @@ class PacketTest(unittest.TestCase):
         self.assertIn("role: worker", payload["spec"])
         self.assertIn("reports_to: captain", payload["spec"])
         self.assertIn("mechanism: orca", payload["spec"])
-        self.assertIn("isolation: true", payload["spec"])
         self.assertIn(
             'coordination: "Orca dispatch carries questions and completion."',
             payload["spec"],
@@ -441,6 +440,19 @@ class PacketTest(unittest.TestCase):
         self.assertIn("work_ref: beads:bead-1", payload["spec"])
         self.assertIn('routing_warnings: ["quota stale"]', payload["spec"])
         self.assertIn("routing_quota_acceptance:", payload["spec"])
+
+    def test_packet_reports_isolation_as_capability(self):
+        for available in (True, False):
+            with self.subTest(available=available):
+                manifest = {**ORCA_MANIFEST, "isolation": available}
+                args = packet_args(SELECTED)
+                args[args.index(json.dumps(ORCA_MANIFEST))] = json.dumps(manifest)
+                result = run(*args)
+                self.assertEqual(0, result.returncode, result.stderr)
+                lines = json.loads(result.stdout)["spec"].splitlines()
+                fields = dict(line.split(": ", 1) for line in lines if ": " in line)
+                self.assertEqual(available, json.loads(fields["isolation_available"]))
+                self.assertNotIn("isolation", fields)
 
     def test_builtin_orca_grok_packet_carries_custom_launch_mapping(self):
         args = packet_args(GROK_SELECTED)
@@ -797,6 +809,7 @@ class PacketTest(unittest.TestCase):
             ("blank launch note", {"launch_notes": {"grok": " "}}),
             ("launch note for another agent", {"launch_notes": {"cursor": "x"}}),
             ("reserved extra", {"extras": {"role": ""}}),
+            ("reserved isolation capability", {"extras": {"isolation_available": ""}}),
             ("bad regex", {"extras": {"front_key": "["}}),
         ):
             with self.subTest(label=label):

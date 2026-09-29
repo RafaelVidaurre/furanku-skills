@@ -40,6 +40,22 @@ When the user gives the current session a role, adopt it immediately with `repor
 
 **Complete when:** the current session has acknowledged its role, principal, and immediate outcome, and carries any session naming the mechanism's Seams entry requires.
 
+## Choose execution and placement
+
+Use the smallest ownership structure that can deliver the outcome under the role contracts. Delegate when parallel work, specialized capability, independent review, or savings on substantial execution outweigh the launch, context transfer, supervision, and integration cost. Decomposing work does not require spawning an agent for every step. Reuse a suitable live owner only after confirming its assignment and availability through coordination state.
+
+Before a launch, record its outcome, why delegation helps, and placement in the existing contract or coordination state. A Captain with one Worker is useful when the Captain contributes design, decisions, verification, or other work that justifies the extra owner; forwarding messages alone does not.
+
+Choose placement independently of role, model, and custom launch arguments:
+
+- Use an existing checkout for read-only work and sequential edits with one active writer.
+- Use separate worktrees for concurrent changes that need independent Git state, conflicting writes, or an independent delivery branch. Account for generated files and shared build state, not just source-file overlap.
+- Share a checkout among concurrent writers only with explicit disjoint write ownership and one owner of index, branch, and integration operations. A worktree does not isolate ports, devices, databases, or other external resources; coordinate those separately.
+
+Record created versus reused resources under **Retire an owner** below.
+
+**Complete when:** direct execution or delegation has a concrete benefit, every outcome has one owner, and each launch has a placement and resource owner without duplicating the work contract.
+
 ## Spawn an owner
 
 Use model-routing's classification of launch constraints and routing instructions. Record each principal or inherited launch constraint verbatim in the assignment packet with repeatable `--launch-constraint`; satisfy it at dispatch and propagate it unchanged into every descendant packet. A combined instruction carries its launch and routing parts through their respective fields.
@@ -72,18 +88,22 @@ Translate the packet through the selected mechanism's field mapping in Seams, ap
 
 **Complete when:** the owner is launched with the intended role, principal, work pointer, and packet built from a gate-checked decision carrying its task judgment or principal route basis; launch evidence identifies the mechanism-created owner and coordination pointer, satisfies any principal-named mechanism, harness, or executable, and shows the selected agent capability, model, and effort were honored; any malformed dispatch is followed by a corrected retry on the same mechanism before a capability refusal or mechanism change; communication to the principal is live per the manifest; and the resources the assignment created are tracked by exact pointer.
 
-## Wait for owners
+## Communicate and wait
 
-Model-visible polling spends inference and grows the session's history, so the session that owns the mechanism's result collection waits in as few model turns as possible. Use the mechanism's blocking wait at the timeout its own guide prescribes, and observe it through the longest wait the active harness's tool descriptions allow. A harness default that keeps waits short so a watching user stays informed yields to this rule when the principal is reached through the mechanism rather than the terminal: a matching delivery ends the mechanism's wait, and a user interruption is honored before resuming.
+Use the assignment's reporting channel for questions, blockers, decisions, completion, and requested status. Keep routine progress in the existing work record or session state; send changes with evidence pointers rather than repeating the contract or reporting unchanged heartbeats. Ask the owner for missing evidence and inspect submitted artifacts at the responsible acceptance boundary. Routine progress and acknowledgement come from messages and structured state, never another agent's terminal screen or transcript. For Orca startup diagnostics and recovery exceptions, read [Orca](references/orca.md).
 
-When the harness yields while the mechanism's wait is still running, keep observing that same operation; start another mechanism wait only after the previous one has ended. Count an empty wait only when the mechanism's operation completed without a delivery, and apply the mechanism's inspection, acknowledgement, and recovery rules to completed operations. Under a profile whose owning script collects results, such as the Claude Code workflow profile in [Seams](references/seams.md), return at the profile's boundary instead of blocking.
+The result collector handles and acknowledges every delivered batch before waiting. When the mechanism provides a verified wake on delivery, end the turn with pending assignments recorded and that wake armed. Otherwise hold one blocking wait using the mechanism's prescribed timeout within the active harness's limits. Observe the same pending operation across tool yields; another notice is not a reason to start a competing collector or a loop of short waits. Under a script-owned workflow, return at the profile's boundary. A timeout or silence does not prove an agent exited.
 
-**Complete when:** the delivery was handled, the mechanism's prescribed inspection was performed, or a cancellation or error was handled through the mechanism's recovery procedure.
+An input receipt proves delivery only to the stage it names. For a decision or resource handoff that requires acknowledgement, wait for an explicit correlated reply. Preserve the original message or request ID on recovery; never resend just because a screen is quiet.
+
+**Complete when:** all delivered messages were handled and acknowledged, each pending assignment has a live collector or verified wake, and any cancellation or failure follows the mechanism's recovery procedure.
 
 ## Retire an owner
 
-The session that creates an assignment owns the lifecycle of the resources the mechanism created for it.
+The session that creates an assignment owns its resource lifecycle until retirement or an acknowledged transfer of that responsibility. Keep exact pointers to created terminals, worktrees, branches, and assignment-specific build resources in existing coordination state. Reconcile those pointers on resuming a front, after a failed launch, and when an assignment settles.
 
-After repository policy declares the result integrated—for example, after its merge—or explicitly abandoned, follow the manifest's `retire` procedure. Limit retirement to assignment-created resources; preserve pre-existing or shared resources and anything that still backs active, queued, or unintegrated work. Report a retained resource by exact pointer and reason instead of leaving silent residue.
+Follow the mechanism's settlement and release procedure before retiring its resources. After repository policy declares the result integrated or explicitly abandoned, verify the intended integration target and follow the manifest's `retire` procedure. For squash or cherry-pick integration, use repository-approved content or patch evidence when ancestry cannot prove integration; a closed issue alone is insufficient.
 
-**Complete when:** each finished assignment's dedicated resources are retired per the manifest, or every retained resource has explicit remaining work or a cleanup blocker reported to the principal.
+Limit removal to assignment-created resources. Preserve shared resources, dirty or unintegrated work, and resources backing active or queued assignments. Age, a quiet terminal, or a missing process observation does not authorize removal. If the cleanup command refuses, retain its reason and recovery pointer instead of hiding the error or forcing removal.
+
+**Complete when:** structured inventories confirm each retired terminal and worktree is gone and each dedicated branch is removed or explicitly retained. Every retained resource has an exact pointer, reason, cleanup owner, and next action reported to the principal; releasing a terminal alone does not close worktree or branch cleanup.
