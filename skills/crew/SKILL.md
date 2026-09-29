@@ -60,6 +60,8 @@ Record created versus reused resources under **Retire an owner** below.
 
 Use model-routing's classification of launch constraints and routing instructions. Record each principal or inherited launch constraint verbatim in the assignment packet with repeatable `--launch-constraint`; satisfy it at dispatch and propagate it unchanged into every descendant packet. A combined instruction carries its launch and routing parts through their respective fields.
 
+A principal's `gpt-6.1-sol` at `high` constraint applies to each new Codex descendant. Gate-check `codex/gpt-6.1-sol/high` with updated model-routing support before building its packet; carry the same tuple into the launcher's actual model and effort arguments. Existing owners retain their sessions.
+
 Load the `model-routing` skill and complete its one-time setup and follow its configured selector. Use Crew's adapter to show only candidates the mechanism can launch; it derives launchability from the manifest and loads live quota:
 
 ```sh

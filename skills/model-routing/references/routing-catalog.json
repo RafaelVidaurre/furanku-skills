@@ -184,6 +184,41 @@
         }
       }
     },
+    "codex/gpt-6.1-sol/high": {
+      "launch": {
+        "agent": "codex",
+        "model": "gpt-6.1-sol",
+        "effort": "high"
+      },
+      "features": [],
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Launch support only; independent performance evidence for GPT-6.1 Sol at high has not been assessed. GPT-6 Sol scores do not establish this tuple.",
+          "researched_at": "2026-09-29"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Launch support only; independent performance evidence for GPT-6.1 Sol at high has not been assessed. GPT-6 Sol scores do not establish this tuple.",
+          "researched_at": "2026-09-29"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Launch support only; independent performance evidence for GPT-6.1 Sol at high has not been assessed. GPT-6 Sol scores do not establish this tuple.",
+          "researched_at": "2026-09-29"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Launch support only; independent performance evidence for GPT-6.1 Sol at high has not been assessed. GPT-6 Sol scores do not establish this tuple.",
+          "researched_at": "2026-09-29"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Launch support only; independent performance evidence for GPT-6.1 Sol at high has not been assessed. GPT-6 Sol scores do not establish this tuple.",
+          "researched_at": "2026-09-29"
+        }
+      }
+    },
     "codex/gpt-6-sol/max": {
       "launch": {
         "agent": "codex",

@@ -81,6 +81,8 @@ A candidate whose launch tuple pins one account is not the same offer as the sam
 
 ## View or modify configuration
 
+The catalog supports `codex/gpt-6.1-sol/high` as a launch tuple with unassessed performance, features, context, and cost. Keep a principal's new-Codex default in their configuration layer; published support does not replace unrelated model preferences or transfer GPT-6 Sol benchmark scores. When migrating that default, replace superseded preferences at their owning scope and verify the regenerated brief.
+
 For requests to inspect, explain, add, change, or remove routing configuration—exact routes, preferences, candidate overrides—read [Configuration](references/configuration.md) before acting. `config.py` owns persisted layers and exact-route provenance; `router.py brief` shows what a spawning agent actually sees.
 
 For `/model-routing list` or `/model-routing models`, run `python3 <skill-dir>/scripts/config.py models --repo <root>`. For `/model-routing set <enabled|disabled|explicit> <model> <effort>`, use `config.py set` as documented in Configuration. An explicit candidate is available only when the principal requested that model and effort for the task; pass the verbatim request to `check --explicit-basis`. An exact route name alone does not supply this basis. Ordinary agent and Jev selection exclude explicit candidates.

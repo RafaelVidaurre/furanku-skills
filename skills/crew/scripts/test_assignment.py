@@ -121,6 +121,30 @@ def fake_router(
 
 
 class PacketTest(unittest.TestCase):
+    def test_sol61_packet_uses_real_catalog_gate_and_preserves_descendant_constraint(self):
+        router = SCRIPT.parents[2] / "model-routing" / "scripts" / "router.py"
+        constraint = "All new Codex descendants must use gpt-6.1-sol at high."
+        with tempfile.TemporaryDirectory() as directory:
+            decision_path = Path(directory) / "decision.json"
+            checked = subprocess.run(
+                [sys.executable, str(router), "check", "--repo", directory,
+                 "--candidate", "codex/gpt-6.1-sol/high", "--launchable-via", "codex",
+                 "--reason", "Verify the principal's exact launch constraint.",
+                 "--accept-quota-unknown", "Hermetic test only; no agent is launched."],
+                capture_output=True, text=True, env=PACKET_ENV, check=False,
+            )
+            self.assertEqual(0, checked.returncode, checked.stderr)
+            decision_path.write_text(checked.stdout)
+            args = [*BASE, "--decision-json", str(decision_path), "--launch-constraint", constraint]
+            args[args.index(json.dumps(ORCA_MANIFEST))] = "orca"
+            result = run(*args)
+        self.assertEqual(0, result.returncode, result.stderr)
+        packet = json.loads(result.stdout)
+        self.assertEqual("gpt-6.1-sol", packet["routing"]["model"])
+        self.assertEqual("high", packet["routing"]["effort"])
+        self.assertEqual(["codex", "--no-alt-screen", "--model", "gpt-6.1-sol", "-c", "model_reasoning_effort=high"], packet["launch_argv"])
+        self.assertIn(constraint, packet["spec"])
+
     def test_brief_derives_launchers_from_manifest(self):
         with tempfile.TemporaryDirectory() as directory:
             router = fake_router(

@@ -116,6 +116,31 @@ class RouterTest(unittest.TestCase):
             brief.index("| codex/test-frontier/max |"),
         )
 
+    def test_sol61_support_keeps_evidence_unknown_and_gates_live_requirements(self):
+        candidate_id = "codex/gpt-6.1-sol/high"
+        brief = json.loads(self.run_router("brief", "--format", "json").stdout)
+        candidate = brief["candidates"][candidate_id]
+        self.assertEqual({"agent": "codex", "model": "gpt-6.1-sol", "effort": "high"}, candidate["launch"])
+        self.assertFalse(candidate.get("context"))
+        self.assertFalse(candidate.get("features"))
+        self.assertFalse(candidate.get("economics"))
+        self.assertEqual(set(router.DIMENSIONS), set(candidate["capabilities"]))
+        for cell in candidate["capabilities"].values():
+            self.assertEqual("unknown", cell["status"])
+            self.assertNotIn("score", cell)
+            self.assertNotIn("conservative", cell)
+        args = ("--candidate", candidate_id, "--reason", "Principal requested the exact supported tuple.")
+        pending = self.check(*args, expect_code=2)
+        self.assertEqual("needs-acceptance", pending["status"])
+        runtime = {"harnesses": {"codex": {"quota": {"status": "known"}}}}
+        selected = self.check(*args, runtime=runtime)
+        self.assertEqual(candidate_id, selected["selected"]["id"])
+        exhausted = self.check(*args, runtime={"harnesses": {"codex": {"quota": {"status": "exhausted"}}}}, expect_code=1)
+        self.assertEqual("refused", exhausted["status"])
+        self.assertIn("missing features: vision", self.check(*args, "--require-feature", "vision", runtime=runtime, expect_code=1)["reasons"])
+        self.assertIn("context capacity unknown", self.check(*args, "--minimum-context", "1000", runtime=runtime, expect_code=1)["reasons"])
+        self.assertEqual("refused", self.check(*args, "--launchable-via", "claude", runtime=runtime, expect_code=1)["status"])
+
     def test_brief_shows_preferences_with_scope_tags(self):
         brief = self.run_router("brief").stdout
         self.assertIn("## Routing preferences", brief)
