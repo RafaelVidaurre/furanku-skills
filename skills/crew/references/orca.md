@@ -43,17 +43,21 @@ Proceed only on `wait.satisfied: true`, or through the specific Codex recovery b
 
 ## Codex startup compatibility
 
+**Temporary workaround until an installed Orca release fixes readiness and passes the launch test below.** It is not the default architecture for Crew supervision.
+
 Verified on 2026-09-29: Orca **1.4.215**, Codex **0.158.0**.
 
 - `worker-start --agent codex --model gpt-6-luna --effort max` is rejected by Orca's model-option validation. `xhigh` passes that validation. Codex itself advertises and successfully runs Luna `max` through `terminal create --command 'codex --no-alt-screen --model gpt-6-luna -c model_reasoning_effort=max'`. Preserve the routed tuple; wrapper rejection does not justify a silent effort change.
 - Both the normal launch and a custom launch with `--no-alt-screen` time out on structured readiness at a settled prompt. The flag changes rendering and preserves scrollback; it does not fix the missing startup labels in Codex 0.158. [Issue evidence](https://github.com/stablyai/orca/issues/22825#issuecomment-5867322618).
 - [PR #23765](https://github.com/stablyai/orca/pull/23765) fixes the newer composer detection, but a merged PR or closed issue is not proof that installed binaries work. Version 1.4.216 does not include it, per its [release notes](https://github.com/stablyai/orca/releases/tag/v1.4.216).
 
-Check `orca status --json` and `codex --version` once per session, and reuse a private compatibility result for that version pair. On a changed pair, probe normal readiness once. Retire the timeout workaround only after normal `worker-start` delivers a real task and completion settles. A separate successful max launch is required before retiring that tuple's custom-command path. Avoid repeated failing readiness waits on a known affected pair.
+Check `orca status --json` and `codex --version` once per session, and reuse a private compatibility result for that version pair. On a changed pair, probe normal readiness once. Retire the timeout workaround only after `worker-start` delivers a real task and completion settles. If the tuple still needs custom argv, test `worker-start --terminal` to restore supervised dispatch while keeping creator-owned terminal cleanup. A separate successful native max launch is required before retiring that tuple's custom-command path. Avoid repeated failing readiness waits on a known affected pair.
 
 ### Startup recovery on an affected pair
 
 The following path was live-tested with Luna max: injected task, Worker `ask`, correlated coordinator `reply`, `worker_done`, completed task/dispatch, and explicit terminal cleanup. It preserves task/message authority but **Orca marks the process `unsupervised`**. The parent owns collection, failure recovery, and the exact terminal's cleanup.
+
+Concretely, `worker-stop` fences this Dispatch but leaves its process running; `worker-release` neither closes that terminal nor creates its managed output archive. An empty reclaimable-worker list does not account for these manual terminals. Record the exact handle in the durable work record and reconcile it after parent resumption, cancellation, and completion. Fencing revokes lifecycle authority; it does not stop filesystem writes. Confirm terminal closure before replacing a cancelled writer. There is no documented operation to convert an active low-level Dispatch in place: adopt a terminal through `worker-start --terminal` only for a subsequent assignment after the old Dispatch settles or is fenced and the old work has stopped.
 
 1. Reconcile any previous failed start first. Follow its release instruction when it proves the task was never injected. Preserve that failed attempt; do not send work into a failed Dispatch. An uncertain delivery requires recovery, not a replacement. Never create replacement tasks to bypass retry limits.
 2. Create the terminal in the chosen workspace with the exact routed tuple. For the verified Codex path:
