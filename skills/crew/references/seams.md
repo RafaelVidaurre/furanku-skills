@@ -102,7 +102,7 @@ For another native harness, define a profile that names its strongest matching c
 
 ### orca
 
-Use `orca-cli` to load the running CLI's orchestration guide, and read [Crew's Orca boundaries](orca.md) before launching or supervising an owner. Orca supports cross-vendor launch, dispatch DAGs, terminals, and optional worktrees. Its manifest ships in `assignment.py`: `seams` attaches it when orca is selected, and `packet --manifest orca` resolves it by id — launchable agents `claude`, `codex`, `opencode`, `grok`; isolation available; required extra `front_key` matching `<run-key>/<front>`. Selected launch notes carry wrapper-specific guidance into packets.
+Read [Crew's Orca procedure](orca.md) before launching, supervising, or retiring an owner. It owns the required commands and recovery; no external orchestration skill is needed. Orca supports cross-vendor launch, dispatch DAGs, terminals, and optional worktrees. Its manifest ships in `assignment.py`: `seams` attaches it when orca is selected, and `packet --manifest orca` resolves it by id — launchable agents `claude`, `codex`, `opencode`, `grok`; isolation available; required extra `front_key` matching `<run-key>/<front>`. Selected launch notes carry wrapper-specific guidance into packets.
 
 Pass `--extra front_key=<run-key>/<front>`. Name each Crew Orca tab `<Role> - <work summary>` (for example `Captain - payments integration`) so the role is visible at a glance.
 

@@ -46,12 +46,13 @@ KNOWN_MANIFESTS = {
                 "model/effort limits and the startup-only readiness workaround."
             ),
             "grok": (
-                "Load the current Orca orchestration guide before dispatch. If "
+                "Read Crew's references/orca.md before dispatch. If "
                 "worker-start does not list Grok model/effort preferences, create "
                 "a fresh Orca terminal in the selected worktree with `grok --model "
                 "<packet model> --reasoning-effort <packet effort>`, wait until the "
                 "Grok TUI accepts that tuple, then attach it with `orca orchestration "
-                "worker-start --task <task> --terminal <handle> --json`. A rejection "
+                "worker-start --task <task> --terminal <handle> --worktree "
+                "<selected worktree> --json`. A rejection "
                 "from `worker-start --agent grok --model ... --effort ...` is a "
                 "mis-mapped invocation, not evidence that Orca cannot launch the "
                 "Grok tuple. Retain the terminal-create command and receipt, tuple "
@@ -64,9 +65,9 @@ KNOWN_MANIFESTS = {
             "completion; dependency order is represented once in Orca."
         ),
         "retire": (
-            "Use current orchestration guidance to finish assignment state and "
-            "current orca-cli guidance to retire the assignment's dedicated "
-            "terminals and worktree."
+            "Follow Crew's references/orca.md to settle the Dispatch, release "
+            "managed resources, and close assignment-created external terminals. "
+            "Then verify dedicated worktree and branch retirement."
         ),
         "extras": {"front_key": "^[^/]+/[^/]+$"},
     },

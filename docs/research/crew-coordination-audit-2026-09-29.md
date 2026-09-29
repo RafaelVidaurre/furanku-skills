@@ -40,4 +40,25 @@ The packet manifest keeps its existing `isolation` boolean; the emitted prompt n
 
 - Crew assignment and routing router/config/Jev suites: 157 tests and 45 subtests passed. The packet regression exercises both isolation capability values and refuses an extra that would shadow the capability field.
 - Skill validators and the repository frontmatter checks passed; local reference targets resolve and the package dry run includes the Orca reference.
-- No live agents were launched for validation. The session findings establish the pre-change failures; future behavior still needs observation after installing the reconciled guidance.
+- Initial guidance validation used contract walkthroughs. The follow-up below adds a live launch and coordination test; it does not measure broad post-installation agent behavior.
+
+## Live Orca follow-up
+
+Tested on 2026-09-29 with Orca 1.4.215 and Codex 0.158.0, in the existing checkout:
+
+| Probe | Observed result |
+| --- | --- |
+| Native `worker-start`, Luna max | Rejected before task creation: model does not support effort max. |
+| Native `worker-start`, Luna xhigh | Requested/effective tuple accepted; failed at `agent_readiness` with timeout despite the input prompt being visible. Failed-start terminal released. |
+| Custom Codex xhigh with `--no-alt-screen` | Initial 60-second readiness wait and a 15-second follow-up both timed out. Prompt/tuple visible; no task injected; terminal closed. |
+| Custom Codex max plus fresh `dispatch --inject` | Input accepted; Worker asked a question; coordinator replied by message ID with a nonce absent from the task spec; Worker returned the nonce in successful `worker_done`. Task and Dispatch both completed. |
+| Effective tuple | Completed Codex session's `turn_context` recorded `model: gpt-6-luna`, `effort: max`; this was not inferred from the worker's self-report. |
+| Cleanup | `worker-release` returned `retained/no_owned_resource` for the low-level Dispatch. Creator closed its exact terminal with `ptyKilled: true`. Terminal inventory contained none of the three test handles; reclaimable managed-worker inventory was empty. No worktrees or branches were created by the probes. |
+
+Codex's local model metadata advertises Luna max. Orca's [catalog implementation](https://github.com/stablyai/orca/blob/433986fa3be37911a0f13f7ffd454b831b87a64c/src/shared/agent-session-option-catalog-claude-codex.ts) uses an xhigh ceiling for unknown models, explaining a wrapper-level limit rather than a different spelling for the effort flag. Direct command launch honored max, so the user's conditional migration to xhigh was unnecessary: the repository catalog and machine routing configuration retain max.
+
+The readiness failure matches the [Codex 0.158 report](https://github.com/stablyai/orca/issues/22825#issuecomment-5867322618): the header labels expected by Orca disappeared, so changing alternate-screen behavior is insufficient. [PR #23765](https://github.com/stablyai/orca/pull/23765) merged on September 29, but the latest published release at this check, [1.4.216](https://github.com/stablyai/orca/releases/tag/v1.4.216), excludes it. The workaround remains bounded to startup; normal coordination used only mail and lifecycle state.
+
+Crew's Orca reference now owns the commands, including manual process ownership for this tested fallback. Removed external orchestration-guide loading from that reference, the seam pointer, and emitted launch/retirement notes. Installed Crew remains divergent and was not overwritten by these branch edits. One successful local read-only round trip does not establish reliability for remote execution, nested Captains, or concurrent editing.
+
+Follow-up validation: 49 assignment tests and 22 subtests, 10 frontmatter tests, Crew skill validation, and whitespace checks passed.
