@@ -62,3 +62,29 @@ The readiness failure matches the [Codex 0.158 report](https://github.com/stably
 Crew's Orca reference now owns the commands, including manual process ownership for this tested fallback. Removed external orchestration-guide loading from that reference, the seam pointer, and emitted launch/retirement notes. Installed Crew remains divergent and was not overwritten by these branch edits. One successful local read-only round trip does not establish reliability for remote execution, nested Captains, or concurrent editing.
 
 Follow-up validation: 49 assignment tests and 22 subtests, 10 frontmatter tests, Crew skill validation, and whitespace checks passed.
+
+## Installed-copy provenance and rescue
+
+The current branch's policies take precedence. The installed directory was a mixture of prior development and subsequent direct edits, not a release that should replace this branch wholesale.
+
+| Origin | Finding and disposition |
+| --- | --- |
+| `37d77c7` on `crew-orca-guidance`, also carried as `bdc45f7` on `crew-orca-trial` (September 23) | Introduced Crew-owned Orca guidance, command templates, supported principals, embedded protocol, and prompt-file export. Rescue the packet capabilities, retaining this branch's role and placement policies. |
+| `01c9d02`, `e007891`, `6fef2ea` and their trial counterparts | Tightened launch receipts, inbox acknowledgement/wake, and long-command handling. Those useful rules are already covered by this branch's commands and collection procedure. Do not restore the old universal heartbeat/checkpoint suppression or mandatory Commander handoffs. |
+| `373d265` on `model-routing-states` (September 24) | Added routing journals and Crew decision-ID passthrough. Preserve the optional ID in Crew packets and link through the supplying router's documented interface. The separate journal/calibration implementation is not imported by this Crew reconciliation. |
+| Local installation history, September 24 | A prior session copied selected Crew files from the routing worktree while installing model-routing. This explains part of the mixed baseline; it was not one coherent Crew release install. Private evidence pointers remain outside this repository. |
+| Direct installed-file edits, September 27 | Session evidence shows the Codex `--no-alt-screen` template/test patch and version-based workaround-retirement guidance. Keep the tested argv and current retirement requirement, superseding the claim that the flag alone fixes readiness and the per-assignment version probe. |
+
+The installed Commander and Captain files exactly match the September 23 feature commits. The installed main skill exactly matches `373d265`. Several other installed files do not match any reachable Git blob; the session records establish specific later edits, not the complete provenance of every line. Both other local worktrees were clean when checked and were left intact.
+
+Rescued implementation:
+
+- Explicit argv templates produce expanded argv and a POSIX-quoted command. A missing model or effort placeholder produces a launch warning. Template fields reject attribute/index access, conversions, format specifications, and malformed braces. No private Orca-settings reader was restored.
+- `--spec-out` exports the exact spec and returns a diagnostic on write failure.
+- Supported-principal validation rejects unsupported relationships before routing; built-in Orca continues to allow Commander reporting.
+- Supervised packets carry a short pointer to Crew's authoritative Orca procedure, without a hard-coded Captain recipient or overrides of live lifecycle authority.
+- Optional routing decision IDs survive packet generation for linking with compatible model-routing versions.
+
+Excluded policies: mandatory Workers for Captain execution, routine new worktrees, Commander-to-user reporting substitution, preamble-wide liveness suppression, stale timeout rules, and project-specific shared-resource scheduling rules in the general Orca guide. The current generic acknowledgement and resource-ownership rules cover the reusable parts of that scheduling guidance.
+
+Verification: 57 Crew assignment tests and 40 subtests passed. Tests exercise real packet CLI and filesystem boundaries, shell argument preservation through a harmless local argv probe, protocol/principal mapping, refusal before routing, and template diagnostics. No live agents were needed for this packet compatibility work; prior live startup evidence remains applicable.

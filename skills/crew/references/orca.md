@@ -29,7 +29,7 @@ Read each launch receipt before another launch: success requires `state: ready`,
 
 ### Custom model arguments
 
-`worker-start --model … --effort …` is the normal tuple interface. `worktree create --agent` has no equivalent per-call flags. For an agent the wrapper cannot parameterize, create one terminal in the selected workspace with that agent's exact routed argv, wait for readiness, then attach it:
+`worker-start --model … --effort …` is the normal tuple interface. `worktree create --agent` has no equivalent per-call flags. For an agent the wrapper cannot parameterize, use the packet's expanded `launch_argv` / `launch_command` after resolving any `launch_warning`. Create one terminal in the selected workspace, wait for readiness, then attach it:
 
 ```sh
 orca terminal create --worktree <selector> --title "<Role> - <summary>" --command '<exact routed command>' --json

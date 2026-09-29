@@ -42,6 +42,9 @@ A manifest is the checkable statement of what a mechanism can honor; `packet` re
   "mechanism": "<id>",
   "launchable_agents": ["<agent>", "..."],
   "launch_notes": { "<agent>": "<agent-specific launch mapping and evidence>" },
+  "launch_argv": { "<agent>": ["<executable>", "--model", "{model}", "--effort", "{effort}"] },
+  "principals": ["user", "commander", "captain"],
+  "supervised_protocol": "<pointer to this mechanism's coordination procedure>",
   "isolation": false,
   "communication": "<how the assignment is launched and delivered, and how questions, escalation, status, and completion reach the principal>",
   "retire": "<how to enumerate and clean up the resources an assignment created>",
@@ -52,6 +55,10 @@ A manifest is the checkable statement of what a mechanism can honor; `packet` re
 `launchable_agents` lists all and only the routing catalog's `agent` tokens the selected orchestration surface can start in the current session—the catalog's vocabulary, not the mechanism name. Crew's `brief` and `packet` commands inject this list into model-routing; direct router consumers pass the same list as `--launchable-via`. The selected `agent` is a capability identity for routing and gating, not a generic launch API parameter; each mechanism profile defines how the packet maps to its API. Resolve the list from the selected surface's current capabilities rather than wrapper-wide capability: a launcher that reaches models no other launcher can serve holds its own token, so omitting that token is what makes its models unreachable. Omit the token of any launcher this session will not use, including one whose registry entry is `disabled`—parking a mechanism does not by itself retire the routes that only it can serve.
 
 `launch_notes` optionally maps a launchable agent to non-default field mapping and launch-evidence guidance. `packet` copies only the selected agent's note into both its structured output and `spec`; apply it before dispatch. Keep live CLI discovery in the note when the mechanism's convenience flags vary by version. `extras` declares the mechanism-specific fields every packet must carry.
+
+Optional `launch_argv` templates accept only plain `{model}` and `{effort}` substitutions. Packets return the expanded argv and a POSIX-shell-quoted `launch_command`; use the argv with the target shell's quoting on other platforms. A `launch_warning` identifies tuple fields the template cannot set: resolve that gap before using the command. Templates are explicit configuration, not inferred from Orca's private settings. They provide custom launch commands without changing the guide's choice of normal versus recovery launch.
+
+Optional `principals` restricts supported `reports_to` values; omitting it allows user, Commander, and Captain. An unsupported relationship is refused before routing, never rewritten. Built-in Orca permits all three. Optional `supervised_protocol` adds the mechanism's coordination pointer to packets reporting to another owner; keep detailed rules in that referenced procedure. It does not override the live Dispatch's authority.
 
 `isolation` means the mechanism can provide an isolated workspace; the packet labels it `isolation_available`. It does not choose placement for an assignment. Apply **Choose execution and placement** in `SKILL.md` before invoking any workspace creation command.
 
