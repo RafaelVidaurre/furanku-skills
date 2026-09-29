@@ -13,7 +13,9 @@
     }
   },
   "preferences": [
-    "Prefer GPT-6 Astra (gpt-6-astra) for 3D modelling, including mesh and geometry creation, CAD, and 3D scene composition. This is a routing preference, not a benchmark claim; choose an eligible Astra candidate subject to task constraints and launch gates."
+    "Prefer GPT-6 Astra (gpt-6-astra) for 3D modelling, including mesh and geometry creation, CAD, and 3D scene composition. This is a routing preference, not a benchmark claim; choose an eligible Astra candidate subject to task constraints and launch gates.",
+    "For bounded routine source collection, mechanical edits, repetitive migrations, and focused checks with explicit acceptance criteria, prefer an eligible gpt-6-luna at max. Keep novel architecture, critical behavior decisions, and final integration judgment with a suitably capable owner. When choosing a stronger candidate for that routine work, name the specific uncertainty or failure consequence that makes Luna insufficient; project importance or write access alone is not that reason. This is a task-routing preference, not a benchmark or measured quota-cost claim.",
+    "Effort labels compare budgets within the same model; max on a smaller model does not by itself make that candidate a premium or exceptional choice across models. Apply maximum-effort proportionality against eligible lower efforts of that same model, and judge cross-model task fit separately."
   ],
   "methodology": {
     "reasoning": "Artificial Analysis Intelligence Index v4.3.2 divided by 100 at the exact effort.",

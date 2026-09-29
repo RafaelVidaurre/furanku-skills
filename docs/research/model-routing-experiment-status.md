@@ -10,7 +10,7 @@ rankings or permission to replace routing policy.
 
 - Experiment branch: `model-routing-evidence` (dedicated Orca worktree).
 - Preserved research baseline: `7393041`; also on `model-routing-states`.
-- Production baseline checked here: `main` at `4e86f7d`.
+- Production baseline integrated: fetched `origin/main` at `4e86f7d`.
 - Private evidence: machine-global model-routing `retrospectives/` directory.
   Native transcripts, source identifiers and private paths stay outside this repo.
 - Research tracker: `furanku-skills-b5k`.
@@ -27,11 +27,11 @@ clean at its research baseline. All 43 files referenced by the reviewed evidence
 passed their recorded SHA-256 checks. The Luna recovery and prospective study
 bundles were also present; presence alone is not a new validation of those bundles.
 
-Production and research have diverged. Research-only files absent from production
-remain on the experiment branch; their absence from the install is not loss of
-research. Reconcile production changes in this worktree before a future release.
-A wholesale install of this older research branch would risk replacing newer
-production behavior.
+The research branch now includes the fetched production baseline. Research-only
+files remain experimental; their absence from the install is not loss of research.
+Future production changes still need reconciliation before a release. This merge
+updates the research checkout only; it does not authorize installing the
+experimental retrospective feature.
 
 ## What is established
 
@@ -49,11 +49,10 @@ See [the complete provisional ratings](provisional-model-ratings-2026-09-29.md).
 
 ## Next bounded work
 
-1. Reconcile the newer production crew/routing changes into this experiment
-   branch, preserving the research modules and the installed behavior's fixes.
-   Resolve conflicts by contract and verify affected routing and assessment tests.
-   Completion: a reviewed integration commit; installed skills remain untouched.
-2. Validate the new scorer contract against frozen controls with known outcomes:
+1. **Completed:** integrated production through `4e86f7d`, retaining research
+   modules and production ownership, launch, recovery and routing guidance.
+   Verification is recorded below; installed skills remain untouched.
+2. **Next:** validate the new scorer contract against frozen controls with known outcomes:
    original goal met, narrowed goal, worker correction, external blocker and
    insufficient evidence. Reuse existing controls where their evidence supports
    the distinction. First run the mechanical checks without assessor calls.
@@ -77,5 +76,24 @@ canonical private run directory and link a public sanitized report here. A run
 that does not change a decision or test a stated failure mode needs a better
 question before spending tokens.
 
-This checkpoint performed preservation checks only: no new assessor calls,
-production installation, routing configuration change or background study launch.
+## Integration verification
+
+The merge preserved the stricter research explicit-request checks, configuration
+preview before writes, routing journal links, opt-in Jev abstention and assessment
+modules. It adopted current production task judgment and quota-cost guidance,
+Luna task preferences, Crew launch arguments, exact packet export, supported
+principals, startup recovery and lifecycle procedures. Beads retains all four
+unique issue records, including the research epics and production Crew outcome.
+
+Related checks passed: 145 routing/configuration/selector/journal/assessment/
+inventory/sampling tests; 57 Crew assignment tests; 10 Node skill-format tests.
+Python tests used the standard-library unittest runner with isolated home
+configuration. The repository has no dependency-aware related-test command;
+selection used module dependencies and existing test boundaries. A future wrapper
+would need to account for subprocess and catalog-file dependencies as well as
+imports. Unchanged codemap internals and the full release suite were not rerun.
+
+All 43 referenced evidence artifacts still match their saved hashes. Installed
+Crew and model-routing still match the 8 and 17 tracked production files. No new
+assessor calls, production installation, routing configuration change or background
+study launch occurred during integration.

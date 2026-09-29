@@ -8,7 +8,10 @@
       "name": "experimental",
       "source": "./",
       "description": "Skills still proving themselves — behavior and interface may change.",
-      "skills": ["./skills/council"]
+      "skills": [
+        "./skills/council",
+        "./skills/codemap"
+      ]
     }
   ]
 }

@@ -42,6 +42,9 @@ A manifest is the checkable statement of what a mechanism can honor; `packet` re
   "mechanism": "<id>",
   "launchable_agents": ["<agent>", "..."],
   "launch_notes": { "<agent>": "<agent-specific launch mapping and evidence>" },
+  "launch_argv": { "<agent>": ["<executable>", "--model", "{model}", "--effort", "{effort}"] },
+  "principals": ["user", "commander", "captain"],
+  "supervised_protocol": "<pointer to this mechanism's coordination procedure>",
   "isolation": false,
   "communication": "<how the assignment is launched and delivered, and how questions, escalation, status, and completion reach the principal>",
   "retire": "<how to enumerate and clean up the resources an assignment created>",
@@ -53,6 +56,12 @@ A manifest is the checkable statement of what a mechanism can honor; `packet` re
 
 `launch_notes` optionally maps a launchable agent to non-default field mapping and launch-evidence guidance. `packet` copies only the selected agent's note into both its structured output and `spec`; apply it before dispatch. Keep live CLI discovery in the note when the mechanism's convenience flags vary by version. `extras` declares the mechanism-specific fields every packet must carry.
 
+Optional `launch_argv` templates accept only plain `{model}` and `{effort}` substitutions. Packets return the expanded argv and a POSIX-shell-quoted `launch_command`; use the argv with the target shell's quoting on other platforms. A `launch_warning` identifies tuple fields the template cannot set: resolve that gap before using the command. Templates are explicit configuration, not inferred from Orca's private settings. They provide custom launch commands without changing the guide's choice of normal versus recovery launch.
+
+Optional `principals` restricts supported `reports_to` values; omitting it allows user, Commander, and Captain. An unsupported relationship is refused before routing, never rewritten. Built-in Orca permits all three. Optional `supervised_protocol` adds the mechanism's coordination pointer to packets reporting to another owner; keep detailed rules in that referenced procedure. It does not override the live Dispatch's authority.
+
+`isolation` means the mechanism can provide an isolated workspace; the packet labels it `isolation_available`. It does not choose placement for an assignment. Apply **Choose execution and placement** in `SKILL.md` before invoking any workspace creation command.
+
 ### harness-native (default)
 
 Always available: the native coordination facilities of whatever harness is running. Resolve the native profile from capabilities visible in the current session, not from the launcher executable's name. Prefer a native orchestration surface that represents dependencies, shared progress, and correlated completion; use individual subagents or background agents when the harness has no such surface. Set `launchable_agents` to the catalog agent tokens that surface can actually start—a stock harness launches only its own vendor's models, and Crew carries that constraint into routing.
@@ -63,8 +72,8 @@ When the current harness exposes Claude Code's Workflow tool, use Workflow as Cr
 
 - Start one workflow run for each delegation batch owned by the spawning session. The script owns every `agent()` call: a Workflow agent cannot call Workflow, append calls to its parent run, or receive later sibling results through an inbox.
 - Map a leaf assignment to one workflow agent and pass that assignment's packet `spec` unchanged as its prompt.
-- Map a Captain assignment to one scripted lane: the first Captain call receives its packet `spec` unchanged and returns structured lane state plus gate-checked Worker packets; the script launches those packets in dependency order; a Captain continuation call receives the original packet, prior lane state, and Worker results to integrate. State travels through script values rather than agent identity. A message to another session never substitutes for a lane call.
-- Captain lane calls return state, packets, decisions, or integration only; they do not invoke `Agent`, shell launchers, or `SendMessage` to dispatch. Use an intentionally non-spawning `agentType` when the registry provides one, and treat any nested launch as a failed lane rather than hidden Worker progress.
+- Map a Captain assignment to one scripted lane: its first call receives the packet `spec` unchanged and may execute and return the completed result. If delegation is justified, it returns lane state and gate-checked Worker packets; the script launches those in dependency order, then calls the Captain with its original packet, prior state, and Worker results to integrate. State travels through script values rather than agent identity. A message to another session never substitutes for a lane call.
+- Captain lane calls may implement and verify work, but dispatch remains with the script. They do not invoke `Agent`, shell launchers, or `SendMessage` to dispatch. Use an intentionally non-spawning `agentType` when the registry provides one, and treat any nested launch as a failed lane rather than hidden Worker progress.
 - Pass each packet's selected `model` and `effort` as that call's `model` and `effort` options; the `spec` records them but does not enact them:
 
   ```js
@@ -88,19 +97,19 @@ Use this manifest for the profile:
   "mechanism": "harness-native",
   "launchable_agents": ["claude"],
   "isolation": false,
-  "communication": "Launch a Claude Workflow with one scripted lane per Crew assignment: one agent call for a leaf, or Captain planning, Worker calls, and Captain continuation for a delegated front; deliver each initial packet spec unchanged, apply each packet's selected model and effort, carry lane state through script values, and use a follow-up run for principal input.",
+  "communication": "Launch a Claude Workflow with one scripted lane per Crew assignment. A Captain may complete directly or return Worker packets for the script to launch before its integration continuation. Deliver each initial packet spec unchanged, apply its selected model and effort, carry lane state through script values, and use a follow-up run for principal input.",
   "retire": "Stop an unfinished run through the harness workflow controls; completed runs require no cleanup, and reusable workflow definitions remain in place.",
   "extras": {}
 }
 ```
 
-**Complete when:** every assignment has a packet-backed lane whose requested model and effort were passed and whose resolved model shows no substitution; every Captain lane contains non-spawning planning, packet-backed Worker calls launched by the script, and a continuation with their results; the workflow script either omits `agentType` or identifies an intentionally selected type from the current registry without deriving it from packet fields; dependency order exists once in the script; session-scoped run and durable script, lane, packet, and work pointers are retained; no assignment was sent to an unrelated session; and any principal decision is a state-carrying boundary between new runs.
+**Complete when:** every assignment has a packet-backed lane whose requested model and effort were passed and whose resolved model shows no substitution; each Captain either returns verified direct work or integrates the script-launched Workers' results; the workflow script either omits `agentType` or identifies an intentionally selected type from the current registry without deriving it from packet fields; dependency order exists once in the script; session-scoped run and durable script, lane, packet, and work pointers are retained; no assignment was sent to an unrelated session; and any principal decision is a state-carrying boundary between new runs.
 
 For another native harness, define a profile that names its strongest matching coordination facility and maps packet fields to that facility's API. Deliver the packet's `spec` unchanged and retain the facility's coordination pointers.
 
 ### orca
 
-Available when the `orchestration` and `orca-cli` skills are installed. Full capability: cross-vendor CLI launch, dispatch DAGs, dedicated terminals and worktrees. Its manifest ships in `assignment.py`: `seams` attaches it when orca is selected, and `packet --manifest orca` resolves it by id — launchable agents `claude`, `codex`, `opencode`, `grok`; isolation true; required extra `front_key` matching `<run-key>/<front>`. The built-in Grok launch note carries its custom-argv mapping and refusal classification in every Grok packet.
+Read [Crew's Orca procedure](orca.md) before launching, supervising, or retiring an owner. It owns the required commands and recovery; no external orchestration skill is needed. Orca supports cross-vendor launch, dispatch DAGs, terminals, and optional worktrees. Its manifest ships in `assignment.py`: `seams` attaches it when orca is selected, and `packet --manifest orca` resolves it by id — launchable agents `claude`, `codex`, `opencode`, `grok`; isolation available; required extra `front_key` matching `<run-key>/<front>`. Selected launch notes carry wrapper-specific guidance into packets.
 
 Pass `--extra front_key=<run-key>/<front>`. Name each Crew Orca tab `<Role> - <work summary>` (for example `Captain - payments integration`) so the role is visible at a glance.
 
@@ -117,7 +126,7 @@ Anything satisfying the manifest—a renamed or extended harness, tmux sessions,
       "mechanism": "my-workflow-harness",
       "launchable_agents": ["claude", "codex", "grok"],
       "isolation": false,
-      "communication": "Launch the harness Workflow facility with one scripted lane per Crew assignment: one agent call for a leaf, or Captain planning, Worker calls, and Captain continuation for a delegated front; deliver each initial packet spec unchanged, apply each packet's selected model and effort, carry lane state through script values, and use a follow-up run for principal input.",
+      "communication": "Launch the harness Workflow facility with one scripted lane per assignment, applying the Claude Code workflow profile above. Captains can complete directly; the script launches any delegated Workers and returns their results to the Captain.",
       "retire": "Stop unfinished workflow runs through the harness; completed runs require no cleanup.",
       "extras": {}
     }

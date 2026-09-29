@@ -1,0 +1,293 @@
+{
+  "projects": [
+    {
+      "id": "arena",
+      "name": "Arena",
+      "summary": "Runs an independent world simulation.",
+      "purpose": "Advance the multiplayer world.",
+      "components": [],
+      "evidence": [
+        "README.md"
+      ]
+    },
+    {
+      "id": "catalog",
+      "name": "Catalog",
+      "summary": "Serves an independently usable item API.",
+      "purpose": "Let callers retrieve catalog items.",
+      "components": [],
+      "evidence": [
+        "README.md"
+      ]
+    }
+  ],
+  "project_relations": [],
+  "views": [
+    {
+      "id": "tick",
+      "project": "arena",
+      "kind": "game-loop",
+      "title": "World tick",
+      "question": "What advances a tick?",
+      "scope": "50 ms world tick",
+      "summary": "Input, movement and publication repeat.",
+      "evidence": [
+        "README.md"
+      ],
+      "nodes": [
+        {
+          "id": "input",
+          "label": "Input",
+          "kind": "input",
+          "detail": "Read player intents.",
+          "evidence": [
+            "README.md"
+          ]
+        },
+        {
+          "id": "update",
+          "label": "Movement",
+          "kind": "system",
+          "detail": "Apply movement to positions.",
+          "evidence": [
+            "README.md"
+          ]
+        },
+        {
+          "id": "publish",
+          "label": "Publish",
+          "kind": "replication",
+          "detail": "Publish the updated world.",
+          "evidence": [
+            "README.md"
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "from": "input",
+          "to": "update",
+          "label": "intents",
+          "detail": "Input drives movement.",
+          "kind": "control",
+          "evidence": [
+            "README.md"
+          ]
+        },
+        {
+          "from": "update",
+          "to": "publish",
+          "label": "world",
+          "detail": "Publish updated positions.",
+          "kind": "data",
+          "evidence": [
+            "README.md"
+          ]
+        },
+        {
+          "from": "publish",
+          "to": "input",
+          "label": "next tick",
+          "detail": "Repeat after the 50 ms tick interval.",
+          "kind": "control",
+          "evidence": [
+            "README.md"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ecs",
+      "project": "arena",
+      "kind": "ecs",
+      "title": "Movement state",
+      "question": "Who owns entity state?",
+      "scope": "Movement update",
+      "summary": "Entity IDs select positions which the movement system writes.",
+      "evidence": [
+        "README.md"
+      ],
+      "nodes": [
+        {
+          "id": "entity",
+          "label": "Entity ID",
+          "kind": "entity",
+          "detail": "Identity selects a position.",
+          "evidence": [
+            "README.md"
+          ]
+        },
+        {
+          "id": "position",
+          "label": "Position",
+          "kind": "component data",
+          "detail": "Stores X and Y coordinates.",
+          "evidence": [
+            "README.md"
+          ]
+        },
+        {
+          "id": "movement",
+          "label": "Movement",
+          "kind": "system",
+          "detail": "Applies player deltas.",
+          "evidence": [
+            "README.md"
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "from": "entity",
+          "to": "position",
+          "label": "selects",
+          "detail": "Entity identity keys position data.",
+          "kind": "data",
+          "evidence": [
+            "README.md"
+          ]
+        },
+        {
+          "from": "movement",
+          "to": "position",
+          "label": "writes",
+          "detail": "Movement updates coordinates.",
+          "kind": "data",
+          "evidence": [
+            "README.md"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "request",
+      "project": "catalog",
+      "kind": "request",
+      "title": "Read items",
+      "question": "Where can a request stop?",
+      "scope": "GET /items",
+      "summary": "The router authenticates before the handler, or rejects.",
+      "evidence": [
+        "README.md"
+      ],
+      "nodes": [
+        {
+          "id": "router",
+          "label": "Router",
+          "kind": "router",
+          "detail": "Accept GET /items.",
+          "evidence": [
+            "README.md"
+          ]
+        },
+        {
+          "id": "auth",
+          "label": "Authentication",
+          "kind": "middleware",
+          "detail": "Check authentication before calling the handler.",
+          "evidence": [
+            "README.md"
+          ]
+        },
+        {
+          "id": "handler",
+          "label": "Items",
+          "kind": "handler",
+          "detail": "Return catalog items.",
+          "evidence": [
+            "README.md"
+          ]
+        },
+        {
+          "id": "reject",
+          "label": "Rejected",
+          "kind": "response",
+          "detail": "Return authentication rejection.",
+          "evidence": [
+            "README.md"
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "from": "router",
+          "to": "auth",
+          "label": "dispatch",
+          "detail": "The route invokes authentication.",
+          "kind": "control",
+          "evidence": [
+            "README.md"
+          ]
+        },
+        {
+          "from": "auth",
+          "to": "handler",
+          "label": "authenticated",
+          "detail": "Invoke handler only after authentication.",
+          "kind": "control",
+          "evidence": [
+            "README.md"
+          ]
+        },
+        {
+          "from": "auth",
+          "to": "reject",
+          "label": "unauthenticated",
+          "detail": "Reject without invoking the handler.",
+          "kind": "control",
+          "evidence": [
+            "README.md"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "development",
+      "project": "catalog",
+      "kind": "infrastructure",
+      "title": "Development traffic",
+      "question": "Where does declared HTTP traffic go?",
+      "scope": "Declared development environment",
+      "summary": "Development declares a gateway forwarding to catalog; no live state is claimed.",
+      "evidence": [
+        "README.md",
+        "infra/dev.tf"
+      ],
+      "nodes": [
+        {
+          "id": "gateway",
+          "label": "Gateway",
+          "kind": "gateway",
+          "detail": "Declared development ingress.",
+          "evidence": [
+            "README.md",
+            "infra/dev.tf"
+          ]
+        },
+        {
+          "id": "api",
+          "label": "Catalog",
+          "kind": "service",
+          "detail": "Declared HTTP upstream.",
+          "evidence": [
+            "README.md",
+            "infra/dev.tf"
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "from": "gateway",
+          "to": "api",
+          "label": "HTTP",
+          "detail": "Development gateway forwards /items.",
+          "kind": "network",
+          "evidence": [
+            "README.md",
+            "infra/dev.tf"
+          ]
+        }
+      ]
+    }
+  ]
+}

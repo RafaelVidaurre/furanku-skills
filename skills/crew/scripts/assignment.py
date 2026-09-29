@@ -14,6 +14,8 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shlex
+import string
 import subprocess
 import sys
 
@@ -26,10 +28,14 @@ TOKEN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 EXTRA_KEY = re.compile(r"^[a-z][a-z0-9_]*$")
 WORK_REF = re.compile(r"^([a-z0-9]+(?:-[a-z0-9]+)*):(.+)$")
 ROLES = ("captain", "worker")
+PRINCIPALS = ("user", "commander", "captain")
 MANIFEST_KEYS = {
     "mechanism",
     "launchable_agents",
     "launch_notes",
+    "launch_argv",
+    "principals",
+    "supervised_protocol",
     "isolation",
     "communication",
     "retire",
@@ -41,13 +47,18 @@ KNOWN_MANIFESTS = {
         "mechanism": "orca",
         "launchable_agents": ["claude", "codex", "opencode", "grok"],
         "launch_notes": {
+            "codex": (
+                "Read Crew's references/orca.md before dispatch for Codex wrapper "
+                "model/effort limits and the startup-only readiness workaround."
+            ),
             "grok": (
-                "Load the current Orca orchestration guide before dispatch. If "
+                "Read Crew's references/orca.md before dispatch. If "
                 "worker-start does not list Grok model/effort preferences, create "
                 "a fresh Orca terminal in the selected worktree with `grok --model "
                 "<packet model> --reasoning-effort <packet effort>`, wait until the "
                 "Grok TUI accepts that tuple, then attach it with `orca orchestration "
-                "worker-start --task <task> --terminal <handle> --json`. A rejection "
+                "worker-start --task <task> --terminal <handle> --worktree "
+                "<selected worktree> --json`. A rejection "
                 "from `worker-start --agent grok --model ... --effort ...` is a "
                 "mis-mapped invocation, not evidence that Orca cannot launch the "
                 "Grok tuple. Retain the terminal-create command and receipt, tuple "
@@ -55,14 +66,27 @@ KNOWN_MANIFESTS = {
             )
         },
         "isolation": True,
+        "launch_argv": {
+            "claude": ["claude", "--model", "{model}", "--effort", "{effort}"],
+            "codex": [
+                "codex", "--no-alt-screen", "--model", "{model}",
+                "-c", "model_reasoning_effort={effort}",
+            ],
+            "grok": ["grok", "--model", "{model}", "--reasoning-effort", "{effort}"],
+            "opencode": ["opencode", "--model", "{model}"],
+        },
+        "supervised_protocol": (
+            "Read Crew's references/orca.md for mail and lifecycle commands. "
+            "Preserve reports_to above and use the live preamble's Dispatch authority."
+        ),
         "communication": (
             "Orca dispatch carries questions, escalation, status, and "
             "completion; dependency order is represented once in Orca."
         ),
         "retire": (
-            "Use current orchestration guidance to finish assignment state and "
-            "current orca-cli guidance to retire the assignment's dedicated "
-            "terminals and worktree."
+            "Follow Crew's references/orca.md to settle the Dispatch, release "
+            "managed resources, and close assignment-created external terminals. "
+            "Then verify dedicated worktree and branch retirement."
         ),
         "extras": {"front_key": "^[^/]+/[^/]+$"},
     },
@@ -73,6 +97,7 @@ RESERVED_SPEC_KEYS = {
     "reports_to",
     "mechanism",
     "isolation",
+    "isolation_available",
     "coordination",
     "agent",
     "model",
@@ -89,6 +114,7 @@ RESERVED_SPEC_KEYS = {
     "route_source",
     "launch_constraint",
     "launch_note",
+    "supervised_protocol",
 }
 
 
@@ -185,6 +211,25 @@ def validate_manifest(manifest, label="manifest"):
             )
         if not isinstance(note, str) or not note.strip():
             raise Error(f"{label}.launch_notes.{agent} must be a non-empty string")
+    launch_argv = manifest.get("launch_argv", {})
+    if not isinstance(launch_argv, dict):
+        raise Error(f"{label}.launch_argv must be an object")
+    for agent, argv in launch_argv.items():
+        if agent not in agents:
+            raise Error(f"{label}.launch_argv agent {agent!r} is not launchable")
+        if not isinstance(argv, list) or not argv or any(
+            not isinstance(part, str) or not part.strip() for part in argv
+        ):
+            raise Error(f"{label}.launch_argv.{agent} must be a non-empty string array")
+        argv_fields(argv, f"{label}.launch_argv.{agent}")
+    principals = manifest.get("principals", PRINCIPALS)
+    if not isinstance(principals, (list, tuple)) or not principals or any(
+        principal not in PRINCIPALS for principal in principals
+    ):
+        raise Error(f"{label}.principals must list supported Crew principals")
+    protocol = manifest.get("supervised_protocol")
+    if protocol is not None and (not isinstance(protocol, str) or not protocol.strip()):
+        raise Error(f"{label}.supervised_protocol must be non-empty")
     for key in ("communication", "retire"):
         if not isinstance(manifest.get(key), str) or not manifest[key].strip():
             raise Error(f"{label}.{key} must describe the mechanism's procedure")
@@ -207,6 +252,23 @@ def validate_manifest(manifest, label="manifest"):
         except re.error as exc:
             raise Error(f"{label}.extras.{key} is not a valid regex: {exc}") from exc
     return manifest
+
+
+def argv_fields(argv, label):
+    """Accept literal argv parts and simple model/effort substitution only."""
+    fields = set()
+    for part in argv:
+        try:
+            parsed = list(string.Formatter().parse(part))
+        except ValueError as exc:
+            raise Error(f"{label} has invalid braces") from exc
+        for _, field, spec, conversion in parsed:
+            if field is None:
+                continue
+            if field not in {"model", "effort"} or spec or conversion:
+                raise Error(f"{label} allows only plain model and effort placeholders")
+            fields.add(field)
+    return fields
 
 
 def load_seam_layer(path, scope):
@@ -341,7 +403,7 @@ def load_manifest(value, repo, seams=None):
         return validate_manifest(manifest)
     if value != "-" and not value.lstrip().startswith("{"):
         if not Path(value).expanduser().exists() and TOKEN.fullmatch(value):
-            return resolve_manifest_id(value, repo)
+            return validate_manifest(resolve_manifest_id(value, repo))
     return validate_manifest(read_json_arg(value, "--manifest"))
 
 
@@ -716,6 +778,8 @@ def build_packet(args):
     needs_seams = args.manifest is None or (args.request and not args.work_record)
     seams = resolve_seams(args.repo) if needs_seams else None
     manifest = load_manifest(args.manifest, args.repo, seams)
+    if args.reports_to not in manifest.get("principals", PRINCIPALS):
+        raise Error(f"mechanism {manifest['mechanism']!r} cannot report to {args.reports_to!r}")
     decision = route_decision(args, manifest)
     if args.decision_out:
         destination = Path(args.decision_out).expanduser()
@@ -762,11 +826,16 @@ def build_packet(args):
         f"role: {args.role}",
         f"reports_to: {args.reports_to}",
         f"mechanism: {manifest['mechanism']}",
-        "isolation: " + json.dumps(manifest.get("isolation", False)),
+        "isolation_available: " + json.dumps(manifest.get("isolation", False)),
         "coordination: " + json.dumps(manifest["communication"], ensure_ascii=False),
     ]
     if launch_note:
         lines.append("launch_note: " + json.dumps(launch_note, ensure_ascii=False))
+    if args.reports_to != "user" and manifest.get("supervised_protocol"):
+        lines.append(
+            "supervised_protocol: "
+            + json.dumps(manifest["supervised_protocol"], ensure_ascii=False)
+        )
     lines += [f"{key}: {extras[key]}" for key in sorted(extras)]
     lines += [
         f"launch_constraint: {json.dumps(value, ensure_ascii=False)}"
@@ -847,6 +916,17 @@ def build_packet(args):
     }
     if launch_note:
         packet["launch_note"] = launch_note
+    template = manifest.get("launch_argv", {}).get(agent)
+    if template:
+        fields = argv_fields(template, f"launch_argv.{agent}")
+        argv = [part.format(model=routing["model"], effort=routing["effort"]) for part in template]
+        packet["launch_argv"] = argv
+        packet["launch_command"] = shlex.join(argv)
+        missing = sorted({"model", "effort"} - fields)
+        if missing:
+            packet["launch_warning"] = (
+                f"launch argv for {agent} cannot set routed " + " and ".join(missing)
+            )
     return packet
 
 
@@ -882,7 +962,7 @@ def main(argv=None):
     packet.add_argument("--title", required=True)
     packet.add_argument("--role", required=True, choices=ROLES)
     packet.add_argument(
-        "--reports-to", required=True, choices=("user", "commander", "captain")
+        "--reports-to", required=True, choices=PRINCIPALS
     )
     routing = packet.add_mutually_exclusive_group(required=True)
     routing.add_argument(
@@ -964,6 +1044,7 @@ def main(argv=None):
         "--work-record", help="adapter for --request bootstrap, or 'none'"
     )
     packet.add_argument("--format", choices=("json", "spec"), default="json")
+    packet.add_argument("--spec-out", help="also write the exact spec to this file")
 
     args = parser.parse_args(argv)
     try:
@@ -981,6 +1062,11 @@ def main(argv=None):
             sys.stdout.write(routing_brief(args))
             return 0
         result = build_packet(args)
+        if args.spec_out:
+            try:
+                Path(args.spec_out).expanduser().write_text(result["spec"], encoding="utf-8")
+            except OSError as exc:
+                raise Error(f"cannot write --spec-out {args.spec_out}: {exc}") from exc
     except Error as exc:
         print(f"crew-assignment: {exc}", file=sys.stderr)
         return 1

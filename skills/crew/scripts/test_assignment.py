@@ -436,7 +436,6 @@ class PacketTest(unittest.TestCase):
         self.assertIn("role: worker", payload["spec"])
         self.assertIn("reports_to: captain", payload["spec"])
         self.assertIn("mechanism: orca", payload["spec"])
-        self.assertIn("isolation: true", payload["spec"])
         self.assertIn(
             'coordination: "Orca dispatch carries questions and completion."',
             payload["spec"],
@@ -447,6 +446,19 @@ class PacketTest(unittest.TestCase):
         self.assertIn("work_ref: beads:bead-1", payload["spec"])
         self.assertIn('routing_warnings: ["quota stale"]', payload["spec"])
         self.assertIn("routing_quota_acceptance:", payload["spec"])
+
+    def test_packet_reports_isolation_as_capability(self):
+        for available in (True, False):
+            with self.subTest(available=available):
+                manifest = {**ORCA_MANIFEST, "isolation": available}
+                args = packet_args(SELECTED)
+                args[args.index(json.dumps(ORCA_MANIFEST))] = json.dumps(manifest)
+                result = run(*args)
+                self.assertEqual(0, result.returncode, result.stderr)
+                lines = json.loads(result.stdout)["spec"].splitlines()
+                fields = dict(line.split(": ", 1) for line in lines if ": " in line)
+                self.assertEqual(available, json.loads(fields["isolation_available"]))
+                self.assertNotIn("isolation", fields)
 
     def test_builtin_orca_grok_packet_carries_custom_launch_mapping(self):
         args = packet_args(GROK_SELECTED)
@@ -461,6 +473,111 @@ class PacketTest(unittest.TestCase):
         self.assertIn("worker-start --task <task> --terminal <handle>", note)
         self.assertIn("mis-mapped invocation", note)
         self.assertIn("launch_note:", payload["spec"])
+
+    def test_packet_preserves_routing_decision_id_for_worker_link(self):
+        decision = {**SELECTED, "decision_id": "a" * 32}
+        result = run(*packet_args(decision))
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(decision["decision_id"], json.loads(result.stdout)["routing"]["decision_id"])
+
+    def test_launch_command_preserves_tuple_through_posix_shell(self):
+        with tempfile.TemporaryDirectory() as directory:
+            probe = Path(directory) / "argv probe.py"
+            probe.write_text("import json, sys\nprint(json.dumps(sys.argv[1:]))\n")
+            model = "model name; $(printf surprise) 'quoted'"
+            decision = {**SELECTED, "selected": {**SELECTED["selected"], "model": model}}
+            manifest = {**ORCA_MANIFEST, "launch_argv": {"codex": [
+                sys.executable, str(probe), "--model", "{model}",
+                "--effort", "{effort}", "--literal", "{{literal}}",
+            ]}}
+            args = packet_args(decision)
+            args[args.index(json.dumps(ORCA_MANIFEST))] = json.dumps(manifest)
+            result = run(*args)
+            self.assertEqual(0, result.returncode, result.stderr)
+            packet = json.loads(result.stdout)
+            self.assertNotIn("launch_warning", packet)
+            launched = subprocess.run(
+                ["/bin/sh", "-c", packet["launch_command"]],
+                capture_output=True, text=True, env=PACKET_ENV, check=False,
+            )
+            self.assertEqual(0, launched.returncode, launched.stderr)
+            expected = ["--model", model, "--effort", "max", "--literal", "{literal}"]
+            self.assertEqual(expected, json.loads(launched.stdout))
+            self.assertEqual(expected, packet["launch_argv"][2:])
+
+    def test_packet_exports_exact_spec_and_refuses_unwritable_destination(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "assignment.spec"
+            args = packet_args(SELECTED)
+            args[args.index("Deliver shell palette")] = 'Preserve "quotes", newlines\nand Unicode: café'
+            result = run(*args, "--spec-out", str(target))
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(json.loads(result.stdout)["spec"], target.read_text(encoding="utf-8"))
+            failed = run(*args, "--spec-out", directory)
+            self.assertNotEqual(0, failed.returncode)
+            self.assertIn("cannot write --spec-out", failed.stderr)
+            self.assertEqual("", failed.stdout)
+
+    def test_supervised_protocol_follows_declared_principal(self):
+        manifest = {**ORCA_MANIFEST, "supervised_protocol": "Use the declared principal's inbox."}
+        for principal in ("user", "commander", "captain"):
+            with self.subTest(principal=principal):
+                args = packet_args(SELECTED)
+                args[args.index(json.dumps(ORCA_MANIFEST))] = json.dumps(manifest)
+                args[args.index("--reports-to") + 1] = principal
+                result = run(*args)
+                self.assertEqual(0, result.returncode, result.stderr)
+                packet = json.loads(result.stdout)
+                self.assertEqual(principal, packet["reports_to"])
+                fields = dict(line.split(": ", 1) for line in packet["spec"].splitlines() if ": " in line)
+                if principal == "user":
+                    self.assertNotIn("supervised_protocol", fields)
+                else:
+                    self.assertEqual(manifest["supervised_protocol"], json.loads(fields["supervised_protocol"]))
+
+    def test_principal_restriction_refuses_before_routing(self):
+        manifest = {**ORCA_MANIFEST, "principals": ["user"]}
+        args = list(BASE)
+        args[args.index(json.dumps(ORCA_MANIFEST))] = json.dumps(manifest)
+        result = run(*args, "--candidate", "codex/gpt-6-luna/max", "--reason", "test",
+                     "--router", "/not/a/router.py")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("cannot report to 'captain'", result.stderr)
+
+    def test_builtin_orca_preserves_commander_reporting_and_routed_launch(self):
+        args = packet_args(SELECTED)
+        args[args.index(json.dumps(ORCA_MANIFEST))] = "orca"
+        args[args.index("--reports-to") + 1] = "commander"
+        result = run(*args)
+        self.assertEqual(0, result.returncode, result.stderr)
+        packet = json.loads(result.stdout)
+        self.assertEqual("commander", packet["reports_to"])
+        argv = packet["launch_argv"]
+        self.assertEqual(SELECTED["selected"]["model"], argv[argv.index("--model") + 1])
+        self.assertIn("model_reasoning_effort=" + SELECTED["selected"]["effort"], argv)
+        self.assertNotIn("launch_warning", packet)
+
+    def test_launch_warning_identifies_unexpressed_tuple_fields(self):
+        for field in ("model", "effort"):
+            with self.subTest(field=field):
+                other = "model" if field == "effort" else "effort"
+                manifest = {**ORCA_MANIFEST, "launch_argv": {"codex": ["codex", "{" + other + "}"]}}
+                args = packet_args(SELECTED)
+                args[args.index(json.dumps(ORCA_MANIFEST))] = json.dumps(manifest)
+                result = run(*args)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertIn("cannot set routed " + field, json.loads(result.stdout)["launch_warning"])
+
+    def test_invalid_launch_templates_fail_with_diagnostic(self):
+        for placeholder in ("{other}", "{model.name}", "{model[0]}", "{model!r}", "{effort:>8}", "{}", "{model"):
+            with self.subTest(placeholder=placeholder):
+                manifest = {**ORCA_MANIFEST, "launch_argv": {"codex": ["codex", placeholder]}}
+                args = packet_args(SELECTED)
+                args[args.index(json.dumps(ORCA_MANIFEST))] = json.dumps(manifest)
+                result = run(*args)
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("launch_argv.codex", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
 
     def test_existing_work_ref_preserves_launch_constraints_for_descendants(self):
         result = run(
@@ -803,6 +920,13 @@ class PacketTest(unittest.TestCase):
             ("blank launch note", {"launch_notes": {"grok": " "}}),
             ("launch note for another agent", {"launch_notes": {"cursor": "x"}}),
             ("reserved extra", {"extras": {"role": ""}}),
+            ("reserved isolation capability", {"extras": {"isolation_available": ""}}),
+            ("reserved protocol", {"extras": {"supervised_protocol": ""}}),
+            ("unsupported principal", {"principals": ["boss"]}),
+            ("empty principals", {"principals": []}),
+            ("blank protocol", {"supervised_protocol": " "}),
+            ("argv for unavailable agent", {"launch_argv": {"cursor": ["cursor"]}}),
+            ("empty argv", {"launch_argv": {"codex": []}}),
             ("bad regex", {"extras": {"front_key": "["}}),
         ):
             with self.subTest(label=label):

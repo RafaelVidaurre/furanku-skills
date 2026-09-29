@@ -1,0 +1,5 @@
+[project]
+name = "reading-api"
+version = "0.1.0"
+description = "A single HTTP product serving a reading list from SQLite"
+requires-python = ">=3.10"

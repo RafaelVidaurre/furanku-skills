@@ -24,7 +24,7 @@ npx skills add rafaelvidaurre/furanku-skills --skill testing-best-practices
 
 After install, talk to your agent as usual. When a skill fits, it should load and follow it.
 
-The picker shows skills in groups: most live in the main (**General**) group; skills still proving themselves appear under **Experimental** (currently `council`).
+The picker shows skills in groups: most live in the main (**General**) group; skills still proving themselves appear under **Experimental** (currently `council` and `codemap`).
 
 ## Command-line tool
 
@@ -181,6 +181,21 @@ Optional deep dive: [interactive testing guide](artifacts/testing-best-practices
 ```
 
 First use walks you through approving which model tools may run on your machine.
+
+---
+
+### codemap (experimental)
+
+**Useful if:** you want to understand how a codebase is structured and what depends on what, at the altitude you need, without reading it file by file.
+
+**What it does:** builds a standalone HTML explorer that adapts to the repository: one product opens on its system picture; independently meaningful projects can open on a landscape with shared components. Evidence-backed views explain behavior such as request branches, game loops, ECS state and declared infrastructure. Within each project, available lenses show **Purpose** (people, running parts and traffic), **Layers** (runtime and dependencies), **Ships in** (library reach), **Size & activity** (code volume and recent changes), and **Contracts** (shared schemas and their consumers); empty lenses are omitted. Areas open into components, modules and files, with evidence cards and dependency health findings. Scripts collect tracked paths, supported-language imports and git history; your agent supplies grounded descriptions and source excerpts; Jev judges project boundaries, memberships, kinds, useful views and component groupings. Exact-input caching preserves decisions, uncertainty stays visible, and deployment declarations are never presented as live infrastructure. Requires a Gateway key, shared with `model-routing`.
+
+```text
+> Build a code map of this repo.
+> How is this codebase structured? What depends on what?
+> What would a change to the protocol crate reach? Where is work happening?
+> Update the code map, then open it.
+```
 
 ---
 
