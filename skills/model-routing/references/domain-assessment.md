@@ -51,9 +51,50 @@ summary) and `repairs`: records with `source_ids`, `cause` (`worker`, `external`
 an empty list means none observed, not proof of a flawless session. Separate a
 recovered local mistake from the quality of the final deliverable.
 Changed preferences and clarified requirements are iteration costs, not worker
-mistakes unless the earlier work violated an established criterion. Apply the
-latest contract when work was narrowed or cancelled. Harness-generated sources
+mistakes unless the earlier work violated an established criterion. Grade the
+final deliverable against its authorized final contract and preserve original-task
+completion independently below. Harness-generated sources
 listed in `harness_control_source_ids` are context, not another worker actor.
+
+New jobs use `domain-outcomes-v2`. Every case also requires `task_outcome`:
+
+```json
+{
+  "original_goal": "What the originating assignment requested",
+  "original_source_ids": ["request-source"],
+  "original_status": "unknown",
+  "cause": "unknown",
+  "source_ids": [],
+  "rationale": "Why the original outcome is met, partial, not_met or unknown",
+  "scope_change": "unchanged",
+  "scope_source_ids": [],
+  "final_scope": "What the latest authorized assignment required",
+  "final_source_ids": ["request-source"],
+  "feedback_coverage": "partial",
+  "first_delivery": {"status": "unknown", "source_ids": []},
+  "interventions": []
+}
+```
+
+Use `original_status`: `met`, `partial`, `not_met`, or `unknown`; `cause`: `none`,
+`worker`, `external`, `mixed`, or `unknown`. Cite outcome evidence for every known
+status. Scope is `unchanged`, `narrowed`, `expanded`, `replaced`, or `unknown`;
+changed scope cites the authorized revision. A narrowed handoff never establishes
+original-goal completion by itself. Grade 3 does not imply first-pass success.
+
+`feedback_coverage` is `full`, `partial`, or `unknown` for the observed task and its
+feedback. `first_delivery.status` is `met`, `needed_correction`, or `unknown`, with
+evidence for known values. Workflow repairs alone do not establish a defective
+first deliverable. An intervention contains a unique episode `id`, `source_ids`,
+`domain_ids` (empty for task-level workflow), `cause`, and `rationale`. Its `kind`
+is `worker_correction`, `scope_change`, `external_unblock`, `preference_change`,
+`deadline_overrun`, or `unknown`. Optional observed `minutes` is nonnegative or
+null. Group repeated messages about one episode; keep repairs and interventions
+as separate observations rather than adding them into an error count.
+
+Legacy v1 results remain readable and completed. Missing outcome fields stay
+unknown until a separate source review supplies them; a rubric change does not
+authorize another assessor call. Preserve the old result and review revision.
 
 An additional final-artifact defect belongs in optional `defects`, with
 `source_ids`, `domain_ids`, `severity` (`minor`, `major`, `unusable`), `responsibility`
@@ -109,3 +150,7 @@ Keep extraction and assessment completion separate in the global ledger.
 uncovered sessions and unscored domains, and repeated claims reuse completed work.
 Model comparisons additionally need representative samples, task difficulty and
 cost observations; this rubric alone does not establish best-value routing.
+To combine accepted observations by model and effort, follow
+[Provisional evidence ratings](evidence-ratings.md). Its mechanical aggregation
+keeps continuations together and separates narrowed handoffs from original-scope
+ratings.

@@ -17,6 +17,12 @@ class DomainAssessmentTest(unittest.TestCase):
                         "cases": [{"id": "task", "state": {"requirements": [{"id": "r1"}],
                             "sources": [{"id": "s1", "kind": "response", "body": "Guide contents"}]}}]}}
         self.result = {"version": 1, "cases": [{"id": "task", "artifact_source_ids": ["s1"],
+            "task_outcome": {"original_goal": "Write guide", "original_source_ids": ["s1"],
+                "original_status": "unknown", "cause": "unknown", "source_ids": [],
+                "rationale": "Final document assessed; full original-task completion not established",
+                "scope_change": "unchanged", "scope_source_ids": [], "final_scope": "Write guide",
+                "final_source_ids": ["s1"], "feedback_coverage": "partial",
+                "first_delivery": {"status": "unknown", "source_ids": []}, "interventions": []},
             "repairs": [], "requirements": [{"id": "r1", "verdict": "met", "source_ids": ["s1"],
                 "rationale": "Guide satisfies requested criteria", "kind": "deliverable",
                 "applicability": "applicable", "applicability_rationale": "Requested guide",
@@ -39,6 +45,43 @@ class DomainAssessmentTest(unittest.TestCase):
         rows = report([self.job], [result])
         self.assertEqual(0, rows["scored_domain_observations"])
         self.assertIsNone(rows["rows"][0]["score"])
+
+    def test_completion_is_required_in_v2_but_old_cache_is_still_readable(self):
+        old = copy.deepcopy(self.result)
+        del old["cases"][0]["task_outcome"]
+        with self.assertRaises(ValueError):
+            validate_result(self.job, old)
+        legacy_job = copy.deepcopy(self.job)
+        legacy_job["packet"]["rubric"] = "domain-outcomes-v1"
+        validate_result(legacy_job, old)
+        self.assertIsNone(report([legacy_job], [old])["rows"][0]["task_outcome"])
+        result = copy.deepcopy(self.result)
+        result["cases"][0]["task_outcome"].update(original_status="met", source_ids=["s1"])
+        result["cases"][0]["requirements"][0]["verdict"] = "unknown"
+        result["cases"][0]["domains"][0]["score"] = None
+        with self.assertRaises(ValueError):
+            validate_result(self.job, result)
+
+    def test_narrowed_handoff_preserves_incomplete_goal_and_reuses_old_completion(self):
+        self.result["cases"][0]["task_outcome"].update(
+            original_status="partial", source_ids=["s1"], scope_change="narrowed", scope_source_ids=["s1"])
+        validate_result(self.job, self.result)
+        row = report([self.job], [self.result])["rows"][0]
+        self.assertEqual(3, row["score"])
+        self.assertEqual("partial", row["task_outcome"]["original_status"])
+        with tempfile.TemporaryDirectory() as directory:
+            store = Store(Path(directory) / "ledger.sqlite3")
+            try:
+                old_job = copy.deepcopy(self.job)
+                old_job["procedure"] = old_job["packet"]["rubric"] = "domain-outcomes-v1"
+                old_result = copy.deepcopy(self.result)
+                del old_result["cases"][0]["task_outcome"]
+                store.finish(store.claim(old_job)["claim"], result=old_result)
+                cached = store.claim(self.job)
+                self.assertEqual("skip_completed", cached["action"])
+                self.assertTrue(cached["procedure_changed"])
+            finally:
+                store.close()
 
     def test_missing_deliverable_and_invented_support_cannot_complete(self):
         for field, value in (("requirement_ids", []), ("source_ids", ["invented"]),

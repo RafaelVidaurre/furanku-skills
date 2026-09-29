@@ -8,7 +8,7 @@ import random
 
 from assessment_run import run
 from assessment_store import Store, validate_result
-from domain_assess import prepare as prepare_domains, normalize_requirement_links
+from domain_assess import prepare as prepare_domains, normalize_requirement_links, SUPPORTED_RUBRICS
 from history_packets import bounded_packet
 from performance_census import route_index
 import config
@@ -62,7 +62,7 @@ def assess_claim(store, job, instructions, decision, calls, directory, label, im
                 raise ValueError("Assessor call did not complete: " + call["status"])
             try:
                 result = parse_result(call["result_path"])
-                if job["packet"].get("rubric") == "domain-outcomes-v1":
+                if job["packet"].get("rubric") in SUPPORTED_RUBRICS:
                     result, links = normalize_requirement_links(result)
                     write_private(directory / f"{label}-derived-links-{attempt}.json", json.dumps(links, indent=2))
                 validate_result(job, result)

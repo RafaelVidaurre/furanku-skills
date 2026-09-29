@@ -2,7 +2,9 @@
 
 Read this before expanding an assessment sample or proposing a learned routing
 preference. This is the experimental decision protocol; no automatic calibration
-or routing-table writer is implemented. Individual outcome scores remain governed
+or routing-table writer is implemented. [Provisional evidence ratings](evidence-ratings.md)
+now aggregate reviewed observations mechanically with lineage, scope and missingness
+checks. Individual outcome scores remain governed
 by [domain assessment](domain-assessment.md).
 
 ## Define one decision before collecting more

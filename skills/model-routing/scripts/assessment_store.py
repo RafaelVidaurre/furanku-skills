@@ -49,8 +49,11 @@ def validate_result(job, result):
                 or any(d.get("role") not in {"central", "supporting", "absent", "unknown"}
                        or not isinstance(d.get("rationale"), str) or not d["rationale"].strip() for d in domains)):
                 raise ValueError("Result must classify every supplied domain exactly once")
-    if job["packet"].get("rubric") == "domain-outcomes-v1":
-        from domain_assess import validate_result as validate_domains
+    from domain_assess import SUPPORTED_RUBRICS, validate_result as validate_domains
+    rubric = job["packet"].get("rubric", "")
+    if rubric.startswith("domain-outcomes-") and rubric not in SUPPORTED_RUBRICS:
+        raise ValueError("Unsupported domain outcome rubric")
+    if rubric in SUPPORTED_RUBRICS:
         validate_domains(job["packet"], result)
 
 

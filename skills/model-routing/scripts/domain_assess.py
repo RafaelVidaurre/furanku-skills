@@ -8,7 +8,8 @@ from pathlib import Path
 from session_extract import materialize, refs
 from task_retrospect import write_private
 
-RUBRIC = "domain-outcomes-v1"
+RUBRIC = "domain-outcomes-v2"
+SUPPORTED_RUBRICS = {"domain-outcomes-v1", RUBRIC}
 
 
 def normalize_requirement_links(result):
@@ -76,6 +77,14 @@ def validate_result(packet, result):
         state = inputs[case["id"]]["state"]
         sources = {s["id"]: s for s in state["sources"]}
         requirements = {r["id"]: r for r in case["requirements"]}
+        if packet.get("rubric") == RUBRIC:
+            from assessment_outcomes import validate
+            validate(case.get("task_outcome"), set(sources), domain_ids)
+            outcome = case["task_outcome"]
+            if (outcome["original_status"] == "met" and outcome["scope_change"] == "unchanged"
+                    and any(r.get("kind") == "deliverable" and r.get("applicability") == "applicable"
+                            and r.get("verdict") != "met" for r in requirements.values())):
+                raise ValueError("Original completion contradicts an unresolved unchanged deliverable")
         artifacts = refs(case.get("artifact_source_ids"), set(sources), "artifacts")
         if any(sources[s]["kind"] in {"request", "historical_instruction"} for s in artifacts):
             raise ValueError("A request is not a delivered artifact")
@@ -142,7 +151,7 @@ def report(jobs, results):
         raise ValueError("Need one result per job, in job order")
     rows, seen = [], set()
     for job, result in zip(jobs, results):
-        if job["packet"].get("rubric") != RUBRIC:
+        if job["packet"].get("rubric") not in SUPPORTED_RUBRICS:
             raise ValueError("Cached results from another rubric require separate review")
         key = (job["session_ref"], job["scope_id"])
         if key in seen:
@@ -153,10 +162,14 @@ def report(jobs, results):
         for case in result["cases"]:
             for d in case["domains"]:
                 rows.append({"session_ref": job["session_ref"], "task_id": case["id"],
-                             **job["attribution"], "domain": d["id"], "domain_name": names[d["id"]],
+                             **job["attribution"], "task_outcome": case.get("task_outcome"),
+                             "repairs": case["repairs"], "source_rubric": job["packet"]["rubric"],
+                             "domain": d["id"], "domain_name": names[d["id"]],
                              **{k: d[k] for k in ("role", "score", "confidence", "score_rationale",
                                                   "requirement_ids", "source_ids")}})
-    return {"version": 1, "rubric": RUBRIC, "semantic_status": "unreviewed",
+    rubrics = sorted({j["packet"]["rubric"] for j in jobs})
+    return {"version": 1, "rubric": rubrics[0] if len(rubrics) == 1 else None,
+            "rubrics": rubrics, "semantic_status": "unreviewed",
             "sessions": len({j["session_ref"] for j in jobs}), "tasks": len(jobs),
             "scored_domain_observations": sum(r["score"] is not None for r in rows), "rows": rows}
 
