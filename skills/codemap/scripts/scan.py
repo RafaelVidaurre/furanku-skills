@@ -49,11 +49,12 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+import privacy
 
 SCHEMA = "codemap.scan/1"
 # Bump whenever a change alters what a scan finds (languages, units, roles, provenance): status then reports
 # existing maps as outdated so they are rescanned instead of silently keeping the old structure.
-SCANNER_VERSION = 2
+SCANNER_VERSION = 3
 MAX_FILE_BYTES = 2 * 1024 * 1024
 
 LANG_BY_EXT = {
@@ -1568,7 +1569,6 @@ def scan(repo_root: Path, ref: str = "HEAD", now: str | None = None) -> dict:
     else:
         sha_value = sha.strip()
     branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD", check=False)
-    remote = _git(root, "remote", "get-url", "origin", check=False)
 
     activity, changes = _activity(root, sha_value)
     # GDScript names classes globally (class_name X), so extends X needs every declaration before any file is parsed
@@ -1645,7 +1645,7 @@ def scan(repo_root: Path, ref: str = "HEAD", now: str | None = None) -> dict:
         "scanner": SCANNER_VERSION,
         "repo": {
             "root": str(root),
-            "remote": remote.strip() if remote else None,
+            "remote": None,  # Git transport configuration can contain credentials.
             "ref": ref,
             "sha": sha_value,
             "branch": branch.strip() if branch else None,
@@ -1665,7 +1665,7 @@ def scan(repo_root: Path, ref: str = "HEAD", now: str | None = None) -> dict:
 
 
 def dumps(doc: dict) -> str:
-    return json.dumps(doc, sort_keys=True, indent=1, ensure_ascii=False) + "\n"
+    return json.dumps(privacy.document(doc), sort_keys=True, indent=1, ensure_ascii=False) + "\n"
 
 
 def main(argv: list[str] | None = None) -> int:

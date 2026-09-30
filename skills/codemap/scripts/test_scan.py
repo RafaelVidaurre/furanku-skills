@@ -59,6 +59,27 @@ def unit_index(doc: dict) -> dict[str, dict]:
     return {u["id"]: u for u in doc["units"]}
 
 
+@pytest.mark.parametrize("remote", [
+    "https://user:synthetic-secret@example.invalid/repo.git?token=synthetic-query#private",
+    "ssh://user:synthetic-secret@example.invalid/repo.git",
+    "git@example.invalid:private/repo.git",
+    "file:///private/synthetic-secret/repo.git",
+    "ext::helper synthetic-secret",
+    "https://[malformed/synthetic-secret",
+    "https://example.invalid/public/repo.git",
+])
+def test_git_transport_configuration_never_enters_scan(tmp_path, remote):
+    root = make_repo(tmp_path, extra={"main.py": "print('ordinary')\n"})
+    before = scan.scan(root, now=NOW)
+    git(root, "remote", "add", "origin", remote)
+    after = scan.scan(root, now=NOW)
+    assert after == before
+    assert after["repo"]["remote"] is None
+    assert remote not in scan.dumps(after)
+    legacy = {**after, "repo": {**after["repo"], "remote": remote}}
+    assert remote not in scan.dumps(legacy)
+
+
 # ---------------------------------------------------------------------------
 # pnpm monorepo
 # ---------------------------------------------------------------------------

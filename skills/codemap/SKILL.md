@@ -12,12 +12,15 @@ Scripts do everything mechanical; they need only Python 3.9 or later and git. Yo
 ## 1. Preflight
 
 ```sh
+python3 <skill-dir>/scripts/codemap.py sanitize --repo <root>
 python3 <skill-dir>/scripts/codemap.py status --repo <root>
 ```
 
 The status reports which artifacts exist, whether the map is stale, and whether a Gateway key is available. A map is stale when the commit or the uncommitted changes it was read from differ from the checkout's now, or when `outdated` names `scan` or `skeleton`: an upgraded skill reads repositories differently, so the map needs step 7 even at the same commit. Jev is required: without a key, stop and hand the user the model-routing skill's `jev.py setup` command (a hidden terminal prompt for their Vercel AI Gateway key); when model-routing is not installed, give them `npx skills add rafaelvidaurre/furanku-skills --skill model-routing` first, or let them export `AI_GATEWAY_API_KEY` for the session. Then resume here. A map that already exists for this repository sends you to step 7.
 
-**Complete when:** status shows the key configured and you know whether this is a first build or an update.
+`sanitize` removes Git remote metadata from older stored scans, skeletons and all snapshots, and rebuilds existing HTML with safe JSON embedding. Build and update also clean stored artifacts. If sanitize reports a missing or corrupt active map, rebuild from the scan/skeleton/draft/decisions pipeline before retrying it. Exported copies need rebuilding separately; other repository-derived content may still be private, so review a map before sharing it.
+
+**Complete when:** sanitize succeeds, status shows the key configured and you know whether this is a first build or an update.
 
 ## 2. Scan and skeleton
 
@@ -62,7 +65,7 @@ A node still in doubt after its evidence pass keeps its badge. Missing facts, we
 python3 <skill-dir>/scripts/codemap.py build --repo <root> --open
 ```
 
-Build validates the map (every file in a module, every module in a component, every component in an area, Build & verify, or the `unsorted` group (shown as *Not placed yet*), with a runtime and nature; nonempty areas with the bounds in project types; accepted project memberships and bounded behavior graphs; every flow endpoint known; every edge with a reason), writes `map.json` and `index.html`, and stores an immutable snapshot for the scanned commit. Open quality findings carry a headline, meaning, evidence paths or imports, and a suggested separation when one applies; they appear together in the top-bar Code quality panel. A validation failure names the rule and the node; fix the draft or report the scanner gap, then rebuild.
+Build validates the map (every file in a module, every module in a component, every component in an area, Build & verify, or the `unsorted` group (shown as *Not placed yet*), with a runtime and nature; nonempty areas with the bounds in project types; accepted project memberships and bounded behavior graphs; every flow endpoint known; every edge with a reason), writes `map.json` and `index.html`, and stores a versioned snapshot for the scanned commit. Open quality findings carry a headline, meaning, evidence paths or imports, and a suggested separation when one applies; they appear together in the top-bar Code quality panel. A validation failure names the rule and the node; fix the draft or report the scanner gap, then rebuild.
 
 **Complete when:** build reports zero validation errors and the HTML path.
 

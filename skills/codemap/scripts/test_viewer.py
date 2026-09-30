@@ -3,6 +3,7 @@ import json
 import re
 import subprocess
 from pathlib import Path
+import build
 
 SKILL = Path(__file__).resolve().parent.parent
 TEMPLATE = SKILL / "assets" / "viewer.html"
@@ -19,7 +20,7 @@ SPECIAL_AREAS = {"build-verify", "unsorted"}
 
 
 def render(template: str, map_json: str) -> str:
-    return template.replace(PLACEHOLDER, map_json.replace("</script", "<\\/script"))
+    return build.render(json.loads(map_json), template)
 
 
 def load():

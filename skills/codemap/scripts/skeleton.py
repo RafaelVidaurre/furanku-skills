@@ -28,6 +28,7 @@ import argparse
 import json
 from pathlib import Path, PurePosixPath
 import sys
+import privacy
 
 # Bump whenever a change alters how files group into modules or what the skeleton derives (cycles, metrics).
 SKELETON_VERSION = 2
@@ -440,7 +441,7 @@ def skeleton(scan: dict) -> dict:
     return {
         "schema": "codemap.skeleton/1",
         **({"inventory": scan["inventory"]} if "inventory" in scan else {}),
-        "meta": {"version": SKELETON_VERSION, "repo": scan.get("repo", {}), "scanned_at": scan.get("scanned_at", ""), "activity": scan.get("activity"),
+        "meta": {"version": SKELETON_VERSION, "repo": privacy.repository(scan.get("repo", {})), "scanned_at": scan.get("scanned_at", ""), "activity": scan.get("activity"),
                  "unowned_contracts": [{"path": c["path"], "kind": c["kind"]} for c in scan.get("contracts", []) if not c.get("unit") or c["unit"] not in units]},
         "components": components,
         "modules": modules,

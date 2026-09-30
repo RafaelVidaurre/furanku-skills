@@ -301,6 +301,28 @@ def cmd_path(args) -> dict:
     return {"status": "ok", "repo": str(repo), "store": str(store.store_dir(repo))}
 
 
+def cmd_sanitize(args) -> dict:
+    """Redact legacy remote metadata and replace the active HTML safely."""
+    repo = repo_root(args.repo)
+    paths = store.paths(repo)
+    files = store.metadata_files(repo)
+    html = None
+    if paths["html"].is_symlink():
+        raise Failure("cannot sanitize symlinked Codemap HTML")
+    if paths["html"].exists():
+        if not paths["map"].exists():
+            raise Failure("cannot sanitize existing HTML without map.json; rebuild the map")
+        try:
+            html = build_mod.render(store.read_json(paths["map"]), TEMPLATE.read_text(encoding="utf-8"))
+        except (ValueError, UnicodeError):
+            raise Failure("cannot sanitize malformed Codemap map.json") from None
+    changed = store.sanitize_files(files)
+    html_changed = html is not None and paths["html"].read_text(encoding="utf-8") != html
+    if html_changed:
+        store.write_text(paths["html"], html)
+    return {"status": "ok", "sanitized": changed, "html_rebuilt": html_changed}
+
+
 def cmd_status(args) -> dict:
     repo = repo_root(args.repo)
     paths = store.paths(repo)
@@ -532,6 +554,9 @@ def cmd_build(args) -> dict:
         store.log(repo, "build", "invalid", sha=sha, errors=len(errors))
         raise Failure({"message": "map validation failed", "errors": errors})
     html = build_mod.render(map_obj, template_path.read_text(encoding="utf-8"))
+    # A validated replacement repairs even a missing/corrupt active map. Clean
+    # historical artifacts without parsing that obsolete map or archiving it.
+    store.sanitize_files(store.metadata_files(repo, include_map=False))
     store.write_json(paths["map"], map_obj)
     store.write_text(paths["html"], html)
     snap = store.snapshot(repo, sha, map_obj) if sha else {"status": "skipped", "path": None}
@@ -577,6 +602,7 @@ def cmd_all(args) -> dict:
 def cmd_update(args) -> dict:
     """Re-scan an existing map: record what changed per component, merge the draft, and decide when nothing is missing."""
     repo = repo_root(args.repo)
+    cmd_sanitize(args)
     paths = store.paths(repo)
     for name in ("scan", "draft", "decisions", "map"):
         if not paths[name].exists():
@@ -618,6 +644,7 @@ def cmd_update(args) -> dict:
 
 
 COMMANDS = {
+    "sanitize": cmd_sanitize,
     "path": cmd_path,
     "status": cmd_status,
     "scan": cmd_scan,

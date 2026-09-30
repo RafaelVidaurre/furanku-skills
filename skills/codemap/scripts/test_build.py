@@ -397,8 +397,8 @@ def test_render_injects_and_escapes(valid_map):
     html = build.render(hostile, TEMPLATE)
     assert "/*__CODEMAP_JSON__*/" not in html
     assert "</script><script>alert" not in html
-    assert "<\\/script>" in html and "<\\u0021--" in html
     embedded = html[len("<html><script>const MAP = "): html.index(";</script></html>")]
+    assert "<" not in embedded
     assert json.loads(embedded) == hostile
     with pytest.raises(build.BuildError):
         build.render(valid_map, "<html></html>")

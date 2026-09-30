@@ -45,6 +45,7 @@ import re
 import sys
 
 import project_types
+import privacy
 import decide as decisions_mod
 
 SKILL_VERSION = "1.0.0"
@@ -689,7 +690,7 @@ def build(skeleton: dict, draft: dict, decisions, *, built_at: str | None = None
         "schema": "codemap.map/1",
         **repository_map(skeleton, draft, decisions),
         "meta": {
-            "repo": dict(skeleton.get("meta", {}).get("repo", {})),
+            "repo": privacy.repository(dict(skeleton.get("meta", {}).get("repo", {}))),
             "built_at": built_at or scanned_at,
             "scanned_at": scanned_at,
             "activity": skeleton.get("meta", {}).get("activity"),
@@ -1111,14 +1112,16 @@ def health_summary(map_obj: dict) -> dict:
 def render(map_obj: dict, template_text: str) -> str:
     if PLACEHOLDER not in template_text:
         raise BuildError(f"viewer template lacks the {PLACEHOLDER} placeholder")
-    payload = json.dumps(map_obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
-    payload = payload.replace("</script", "<\\/script").replace("<!--", "<\\u0021--")
+    payload = json.dumps(privacy.document(map_obj, strict=True), sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    # HTML parses script end tags case-insensitively, even inside JSON strings.
+    # Escaping '<' also prevents comment/double-escaped script states.
+    payload = payload.replace("<", "\\u003c")
     payload = payload.replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
     return template_text.replace(PLACEHOLDER, payload, 1)
 
 
 def dumps(obj) -> str:
-    return json.dumps(obj, sort_keys=True, indent=1, ensure_ascii=False) + "\n"
+    return json.dumps(privacy.document(obj), sort_keys=True, indent=1, ensure_ascii=False) + "\n"
 
 
 def main(argv=None) -> int:

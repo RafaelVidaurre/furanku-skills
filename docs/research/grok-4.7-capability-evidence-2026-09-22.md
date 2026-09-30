@@ -50,7 +50,7 @@ run aimed at multi-hour tasks. The launch post says it is served at the
 same price and speed as Grok 4.6.
 
 The API model id and the Grok CLI default are both `grok-4.7`. On
-2026-09-22, `grok models` printed:
+2026-09-22, the Grok CLI's `grok models` command printed:
 
 - default: `grok-4.7`
 - also listed: `grok-4.7-build-fast`, `grok-4.6`, `grok-4.5`

@@ -14,6 +14,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 import tempfile
+import privacy
 
 ARTIFACTS = ("scan", "skeleton", "draft", "decisions", "map", "changes")
 
@@ -60,7 +61,7 @@ def paths(repo_root) -> dict:
 
 
 def dumps(obj) -> str:
-    return json.dumps(obj, sort_keys=True, indent=1, ensure_ascii=False) + "\n"
+    return json.dumps(privacy.document(obj), sort_keys=True, indent=1, ensure_ascii=False) + "\n"
 
 
 def write_text(path, text: str) -> Path:
@@ -90,6 +91,48 @@ def read_json(path):
         return json.load(handle)
 
 
+def sanitize_files(files) -> int:
+    """Atomically redact legacy metadata without retaining unsafe backup bytes.
+
+    Parse all inputs before changing any file. Diagnostics never quote contents.
+    """
+    updates = []
+    for path in files:
+        path = Path(path)
+        if path.is_symlink() or path.parent.is_symlink():
+            raise ValueError("cannot sanitize symlinked Codemap artifacts")
+        try:
+            original = path.read_text(encoding="utf-8")
+            obj = json.loads(original)
+        except (ValueError, UnicodeError):
+            raise ValueError("cannot sanitize malformed Codemap JSON") from None
+        clean = privacy.document(obj, strict=True)
+        if clean != obj:
+            updates.append((path, dumps(clean)))
+    for path, text in updates:
+        write_text(path, text)
+    return len(updates)
+
+
+def metadata_files(repo_root, *, include_map=True) -> list[Path]:
+    """Only generated metadata and snapshots inside this repository's store."""
+    artifacts = paths(repo_root)
+    directory = store_dir(repo_root)
+    snapshots = artifacts["snapshots"]
+    if directory.is_symlink() or snapshots.is_symlink():
+        raise ValueError("cannot sanitize symlinked Codemap directories")
+    names = ("scan", "skeleton", "map") if include_map else ("scan", "skeleton")
+    files = [artifacts[name] for name in names if artifacts[name].exists() or artifacts[name].is_symlink()]
+    if snapshots.exists():
+        for child in sorted(snapshots.iterdir()):
+            if child.is_symlink():
+                raise ValueError("cannot sanitize symlinked Codemap snapshots")
+            if child.is_dir():
+                files.extend(sorted(p for p in child.iterdir()
+                                    if p.name == "map.json" or p.name.startswith("map.json.superseded-")))
+    return files
+
+
 def snapshot(repo_root, sha: str, map_obj) -> dict:
     """Write ``snapshots/<sha>/map.json`` without silently replacing history.
 
@@ -104,6 +147,9 @@ def snapshot(repo_root, sha: str, map_obj) -> dict:
     directory = paths(repo_root)["snapshots"] / sha
     target = directory / "map.json"
     text = dumps(map_obj)
+    if directory.exists():
+        sanitize_files(p for p in directory.iterdir()
+                       if p.name == "map.json" or p.name.startswith("map.json.superseded-"))
     if target.exists():
         existing = target.read_text(encoding="utf-8")
         if existing == text:
