@@ -49,7 +49,7 @@ KNOWN_MANIFESTS = {
         "launch_notes": {
             "codex": (
                 "Read Crew's references/orca.md before dispatch for Codex wrapper "
-                "model/effort limits and the startup-only readiness workaround."
+                "model/effort arguments and supervised terminal attachment."
             ),
             "grok": (
                 "Read Crew's references/orca.md before dispatch. If "

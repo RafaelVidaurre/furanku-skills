@@ -16,7 +16,7 @@ Use `--worktree current` for the enclosing checkout or an exact selector for ano
 
 ## Start a supervised assignment
 
-For Codex, apply **Codex startup compatibility** before choosing the launch path. Create the Run once, then launch each owner with its gate-checked tuple and unchanged packet spec:
+Create the Run once, then launch each owner with its gate-checked tuple and unchanged packet spec:
 
 ```sh
 orca orchestration run-create --objective "<front outcome>" --json
@@ -37,51 +37,13 @@ orca terminal wait --terminal <handle> --for tui-idle --timeout-ms 60000 --json
 orca orchestration worker-start --run <runId> --spec "<packet spec>" --task-title "<summary>" --worktree <selector> --terminal <handle> --json
 ```
 
-Proceed only on `wait.satisfied: true`, or through the specific Codex recovery below. `--terminal` cannot combine with `--model`/`--effort`; retain the actual command and tuple acceptance as evidence. The creator owns this external terminal even when the attached dispatch has managed lifecycle state.
+Proceed only on `wait.satisfied: true`. `--terminal` cannot combine with `--model`/`--effort`; retain the actual command and tuple acceptance as evidence. The creator owns this external terminal even when the attached dispatch has managed lifecycle state.
 
 **Complete when:** the task has an authoritative Dispatch, delivery has a receipt, and the intended model/effort and resource ownership are established. Input acceptance alone is not an acknowledgement or completion.
 
-## Codex startup compatibility
-
-**Temporary workaround until an installed Orca release fixes readiness and passes the launch test below.** It is not the default architecture for Crew supervision.
-
-Verified on 2026-09-29: Orca **1.4.215**, Codex **0.158.0**.
-
-- `worker-start --agent codex --model gpt-6-luna --effort max` is rejected by Orca's model-option validation. `xhigh` passes that validation. Codex itself advertises and successfully runs Luna `max` through `terminal create --command 'codex --no-alt-screen --model gpt-6-luna -c model_reasoning_effort=max'`. Preserve the routed tuple; wrapper rejection does not justify a silent effort change.
-- Both the normal launch and a custom launch with `--no-alt-screen` time out on structured readiness at a settled prompt. The flag changes rendering and preserves scrollback; it does not fix the missing startup labels in Codex 0.158. [Issue evidence](https://github.com/stablyai/orca/issues/22825#issuecomment-5867322618).
-- [PR #23765](https://github.com/stablyai/orca/pull/23765) fixes the newer composer detection, but a merged PR or closed issue is not proof that installed binaries work. Version 1.4.216 does not include it, per its [release notes](https://github.com/stablyai/orca/releases/tag/v1.4.216).
-
-Check `orca status --json` and `codex --version` once per session, and reuse a private compatibility result for that version pair. On a changed pair, probe normal readiness once. Retire the timeout workaround only after `worker-start` delivers a real task and completion settles. If the tuple still needs custom argv, test `worker-start --terminal` to restore supervised dispatch while keeping creator-owned terminal cleanup. A separate successful native max launch is required before retiring that tuple's custom-command path. Avoid repeated failing readiness waits on a known affected pair.
-
-### Startup recovery on an affected pair
-
-The following path was live-tested with Luna max: injected task, Worker `ask`, correlated coordinator `reply`, `worker_done`, completed task/dispatch, and explicit terminal cleanup. It preserves task/message authority but **Orca marks the process `unsupervised`**. The parent owns collection, failure recovery, and the exact terminal's cleanup.
-
-Concretely, `worker-stop` fences this Dispatch but leaves its process running; `worker-release` neither closes that terminal nor creates its managed output archive. An empty reclaimable-worker list does not account for these manual terminals. Record the exact handle in the durable work record and reconcile it after parent resumption, cancellation, and completion. Fencing revokes lifecycle authority; it does not stop filesystem writes. Confirm terminal closure before replacing a cancelled writer. There is no documented operation to convert an active low-level Dispatch in place: adopt a terminal through `worker-start --terminal` only for a subsequent assignment after the old Dispatch settles or is fenced and the old work has stopped.
-
-1. Reconcile any previous failed start first. Follow its release instruction when it proves the task was never injected. Preserve that failed attempt; do not send work into a failed Dispatch. An uncertain delivery requires recovery, not a replacement. Never create replacement tasks to bypass retry limits.
-2. Create the terminal in the chosen workspace with the exact routed tuple. For the verified Codex path:
-
-   ```sh
-   orca terminal create --worktree <selector> --title "<Role> - <summary>" --command 'codex --no-alt-screen --model <model> -c model_reasoning_effort=<effort>' --json
-   orca terminal read --terminal <handle> --screen --limit 50 --json
-   ```
-
-   This bounded read is **only the startup workaround**: require `source: screen`, the initial input prompt, intended tuple, and no startup dialog or loading state. If the first read is early, allow one `terminal wait --terminal <handle> --for tui-idle --timeout-ms 15000 --json` and one final startup read. If readiness is still unproven, close the assignment-created terminal and report the failure. On an unknown version pair, try structured readiness first. The exception ends before the first task submission; it never permits reading active work, inspecting a coordinator before sending mail, or post-dispatch screen polling.
-3. Create a fresh ready Task with the unchanged packet spec; link any replaced, uninjected failed attempt in the existing work record. Dispatch once:
-
-   ```sh
-   orca orchestration task-create --run <runId> --spec "<packet spec>" --task-title "<summary>" --json
-   orca orchestration dispatch --run <runId> --task <taskId> --to <handle> --inject --json
-   ```
-
-4. Record the returned Dispatch and prompt request ID. Collect ordinary mail below. Reconcile an ambiguous injection using its original request ID; silence never authorizes a duplicate prompt. After settlement, follow **Retire resources**, including the parent-owned terminal.
-
-**Complete when:** delivery has a receipt, the Dispatch has an explicit outcome or an owned recovery action, and process ownership is recorded. A screen alone cannot turn a failed Dispatch into success.
-
 ## Full handoff
 
-A full handoff transfers the assignment and its resource ownership; it creates no coordinator Run or Task. Launch the routed command in the selected workspace, establish startup readiness using the procedure above, then send the packet:
+A full handoff transfers the assignment and its resource ownership; it creates no coordinator Run or Task. Create the terminal and wait for `wait.satisfied: true` using **Custom model arguments** above, then send the packet instead of attaching a Dispatch:
 
 ```sh
 orca terminal send --terminal <handle> --text "<packet spec>" --enter --wait-submit 10 --json
