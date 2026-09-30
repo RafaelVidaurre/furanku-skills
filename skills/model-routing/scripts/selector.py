@@ -147,7 +147,7 @@ def route(compiled, args, runtime):
         return {'status': 'refused', 'reasons': ['Jev abstained: clarify task facts or candidate adequacy before rerouting.'], 'selector': evidence}
     candidate_id = mapping[alias]
     # Reload both configuration and runtime; the selected offer cannot change during evaluation.
-    fresh = router.compile_brief(args.repo)
+    fresh = router.compile_brief(args.repo, getattr(args, 'defaults', None))
     if fresh['candidates'].get(candidate_id) != compiled['candidates'][candidate_id] or fresh['preferences'] != compiled['preferences'] or read_settings() != settings:
         return {'status': 'refused', 'reasons': ['Routing configuration changed during evaluation; rerun route.'], 'selector': evidence}
     checked = deepcopy(args)

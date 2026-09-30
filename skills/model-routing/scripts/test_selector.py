@@ -69,6 +69,16 @@ class SelectorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)['selector'], 'agent')
 
+    def test_jev_rechecks_with_the_same_consumer_defaults(self):
+        self.enable()
+        self.args.defaults = str(self.root / 'consumer.json')
+        with patch.object(jev, 'evaluate_bounded', side_effect=self.evaluate), patch.object(
+            router, 'compile_brief', return_value=self.compiled) as reload, patch.object(
+            router, 'load_runtime', return_value=self.runtime):
+            decision = selector.route(self.compiled, self.args, self.runtime)
+        self.assertEqual('selected', decision['status'])
+        reload.assert_called_once_with(self.args.repo, self.args.defaults)
+
     def test_failed_enable_preserves_choice_and_successful_disable_keeps_key(self):
         selector.setup('agent')
         jev.store_key('synthetic-key')

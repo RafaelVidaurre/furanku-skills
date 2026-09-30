@@ -99,16 +99,11 @@ class ConfigTest(unittest.TestCase):
             self.run_config("resolve", "--repo", str(self.repo)).stdout
         )
         self.assertEqual(row("a", "m", "e"), result["config"]["routes"]["captain"])
-        self.assertEqual(
-            "builtin", result["route_sources"]["worker"]["scope"]
-        )
+        self.assertNotIn("worker", result["config"]["routes"])
 
         with_commander = self.base_config()
         with_commander["routes"]["commander"] = row("a", "m", "e")
-        result = self.run_config(
-            "write", "global", input_value=with_commander, ok=False
-        )
-        self.assertIn("route 'commander' in - requires: agent, effort, model, work", result.stderr)
+        self.write("global", with_commander)
 
         extra = self.base_config()
         extra["unexpected"] = True
@@ -152,20 +147,48 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual("explicit", row["state"])
         self.assertEqual("global", row["source"])
 
-    def test_fresh_install_resolves_builtin_defaults(self):
+    def test_fresh_router_has_no_consumer_roles(self):
         result = json.loads(
             self.run_config("resolve", "--repo", str(self.repo)).stdout
         )
         routes = result["config"]["routes"]
-        self.assertEqual(["captain", "worker"], list(routes))
-        self.assertEqual(builtin_routes(), routes)
-        for route in routes:
-            self.assertEqual(
-                "builtin", result["route_sources"][route]["scope"]
-            )
+        self.assertEqual({}, routes)
         self.assertEqual(
             "builtin", result["layers_low_to_high"][0]["scope"]
         )
+
+    def test_consumer_defaults_resolve_arbitrary_routes_below_persisted_layers(self):
+        defaults = self.base / "consumer defaults.json"
+        default_route = row("a", "default-model", "high")
+        defaults.write_text(json.dumps({"version": 4, "routes": {"review": default_route}}))
+        args = ["resolve", "--repo", str(self.repo), "--defaults", str(defaults)]
+        result = json.loads(self.run_config(*args).stdout)
+        self.assertEqual({"review": default_route}, result["config"]["routes"])
+        self.assertEqual("consumer", result["route_sources"]["review"]["scope"])
+        self.assertEqual(str(defaults.resolve()), result["route_sources"]["review"]["path"])
+
+        override = row("b", "chosen-model", "medium")
+        self.write("global", {"version": 4, "routes": {"review": override}})
+        result = json.loads(self.run_config(*args).stdout)
+        self.assertEqual({"review": override}, result["config"]["routes"])
+        self.assertEqual("global", result["route_sources"]["review"]["scope"])
+        self.assertEqual([{"scope": "consumer", "path": str(defaults.resolve()), "row": default_route}],
+                         result["route_provenance"]["review"]["replaced"])
+        report = json.loads(self.run_config("report", "--repo", str(self.repo),
+                                          "--defaults", str(defaults), "--format", "json").stdout)
+        self.assertEqual(result["route_provenance"], report["route_provenance"])
+
+    def test_consumer_defaults_fail_closed_without_writing_configuration(self):
+        missing = self.base / "missing.json"
+        result = self.run_config("resolve", "--repo", str(self.repo),
+                                 "--defaults", str(missing), ok=False)
+        self.assertIn("No such file", result.stderr)
+        invalid = self.base / "invalid.json"
+        invalid.write_text(json.dumps({"version": 4, "routes": {}, "preferences": ["Unexpected policy."]}))
+        result = self.run_config("resolve", "--repo", str(self.repo),
+                                 "--defaults", str(invalid), ok=False)
+        self.assertIn("must contain only version and routes", result.stderr)
+        self.assertFalse((self.home / ".furanku-skills").exists())
 
     def test_v4_preserves_exact_routes_and_exposes_sections(self):
         config = {
@@ -263,12 +286,12 @@ class ConfigTest(unittest.TestCase):
         )
         self.write("global", config)
 
-        missing_work = self.base_config()
-        missing_work["routes"]["worker.testing"] = row("a", "m", "e")
+        invalid_work = self.base_config()
+        invalid_work["routes"]["worker.testing"] = {**row("a", "m", "e"), "work": 42}
         result = self.run_config(
-            "write", "global", input_value=missing_work, ok=False
+            "write", "global", input_value=invalid_work, ok=False
         )
-        self.assertIn("requires: agent, effort, model, work", result.stderr)
+        self.assertIn("work must be a non-empty string", result.stderr)
 
         nested = self.base_config()
         nested["routes"]["captain.api.design"] = specialist(
@@ -328,20 +351,16 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(machine_config["routes"]["worker"], provenance["effective"])
         self.assertEqual("machine-repo", provenance["winner"]["scope"])
         self.assertEqual(
-            ["builtin", "global", "repo"],
+            ["global", "repo"],
             [item["scope"] for item in provenance["replaced"]],
         )
         self.assertEqual(
-            builtin_routes()["worker"],
+            global_config["routes"]["worker"],
             provenance["replaced"][0]["row"],
         )
         self.assertEqual(
-            global_config["routes"]["worker"],
-            provenance["replaced"][1]["row"],
-        )
-        self.assertEqual(
             repo_config["routes"]["worker"],
-            provenance["replaced"][2]["row"],
+            provenance["replaced"][1]["row"],
         )
 
     def test_resolve_lists_absent_layers(self):
@@ -358,7 +377,7 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual([True, True, False, False], [
             layer["exists"] for layer in layers
         ])
-        self.assertEqual(["captain", "worker"], layers[0]["routes_defined"])
+        self.assertEqual([], layers[0]["routes_defined"])
         self.assertEqual(["captain", "worker"], layers[1]["routes_defined"])
         self.assertEqual([], layers[2]["routes_defined"])
         self.assertEqual([], layers[3]["routes_defined"])
@@ -400,14 +419,14 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(machine_worker, provenance["effective"])
         self.assertEqual("machine-repo", provenance["winner"]["scope"])
         self.assertEqual(
-            ["builtin", "global", "repo"],
+            ["global", "repo"],
             [item["scope"] for item in provenance["replaced"]],
         )
         self.assertEqual(
             global_config["routes"]["worker"],
-            provenance["replaced"][1]["row"],
+            provenance["replaced"][0]["row"],
         )
-        self.assertEqual(repo_worker, provenance["replaced"][2]["row"])
+        self.assertEqual(repo_worker, provenance["replaced"][1]["row"])
 
     def test_report_markdown_uses_fixed_sections(self):
         self.write("global", self.base_config())
@@ -448,13 +467,12 @@ class ConfigTest(unittest.TestCase):
             r"\| repo \| .* \| yes \| worker \| 1 \| — \|",
         )
         self.assertIn(
-            "| worker | repo-agent | repo-model | high | repo | builtin, global |",
+            "| worker | repo-agent | repo-model | high | repo | global |",
             report,
         )
         self.assertIn("## Detail — worker", report)
         self.assertIn("- Wins from: repo — ", report)
-        self.assertIn("- Replaced:\n  - builtin — ", report)
-        self.assertIn("\n  - global — ", report)
+        self.assertIn("- Replaced:\n  - global — ", report)
         self.assertNotIn("## Detail — captain", report)
 
     def test_compact_and_route_filtered_output(self):

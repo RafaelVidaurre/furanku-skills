@@ -307,7 +307,7 @@ def isolate_compiled_candidates(candidates, candidate_sources, accounts, known_l
     return valid, valid_sources, malformed
 
 
-def compile_brief(repo="."):
+def compile_brief(repo=".", defaults=None):
     catalog = read_json(CATALOG, "routing catalog")
     if catalog.get("version") != 2 or not {
         "routes",
@@ -338,13 +338,11 @@ def compile_brief(repo="."):
     ]
     accounts = {}
     paths = exact_config.locations(repo)
-    exact = exact_config.resolve(paths)
+    exact = exact_config.resolve(paths, defaults=defaults)
     for scope in exact_config.SCOPES:
         path = paths[scope]
         if not path.exists():
             continue
-        # Partial layers are valid overlays; only the resolved routes table
-        # (already validated inside exact_config.resolve) needs the base rows.
         config = exact_config.load(path)
         for text in config.get("preferences", []):
             preferences.append({"scope": scope, "text": text.strip()})
@@ -1729,6 +1727,7 @@ def main(argv=None):
     parser.add_argument("--allow-effort", action="append", default=[], help="principal-required effort, repeatable")
     parser.add_argument("--require-zdr", action="store_true", help="require Gateway zero data retention")
     parser.add_argument("--repo", default=".")
+    parser.add_argument("--defaults", help="consumer-owned default routes file, below persisted layers")
     parser.add_argument("--candidate", help="candidate ID chosen from the brief")
     parser.add_argument(
         "--exact-route", help="principal-requested route ID for deterministic dispatch"
@@ -1791,7 +1790,7 @@ def main(argv=None):
             result = selector.setup(args.selector) if args.command == "setup" else selector.status()
             emit(result, args.compact)
             return 0 if result["status"] == "ready" else 2
-        compiled = compile_brief(args.repo)
+        compiled = compile_brief(args.repo, args.defaults)
         repo_root, _common = exact_config.repo_info(args.repo)
         if args.command == "brief":
             allowed_launchers = parse_allowed_launchers(args.launchable_via)

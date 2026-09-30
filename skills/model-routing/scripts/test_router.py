@@ -776,19 +776,27 @@ class RouterTest(unittest.TestCase):
         )
         self.assertIn("matches no configured candidate", result.stderr)
 
-    def test_builtin_defaults_route_without_persisted_layers(self):
+    def test_consumer_defaults_route_without_persisted_layers(self):
         (self.home / ".furanku-skills" / "model-routing" / "config.json").unlink()
+        defaults = self.base / "consumer.json"
+        defaults.write_text(json.dumps({"version": 4, "routes": {
+            "review": {"agent": "codex", "model": "gpt-6-luna", "effort": "max"}
+        }}))
         decision = self.check(
             "--exact-route",
-            "worker",
+            "review",
             "--route-basis",
-            ROUTE_BASIS,
+            "Principal requested the review route for this task.",
+            "--defaults", str(defaults),
             runtime={"harnesses": {"codex": {"quota": {"status": "known"}}}},
         )
         self.assertEqual("exact", decision["status"])
         self.assertEqual("codex", decision["selected"]["agent"])
         self.assertEqual("gpt-6-luna", decision["selected"]["model"])
-        self.assertEqual("builtin", decision["provenance"]["winner"]["scope"])
+        self.assertEqual("consumer", decision["provenance"]["winner"]["scope"])
+        brief = json.loads(self.run_router("brief", "--defaults", str(defaults), "--format", "json").stdout)
+        self.assertEqual({"review"}, set(brief["routes"]["effective"]))
+        self.assertEqual({}, json.loads(self.run_router("brief", "--format", "json").stdout)["routes"]["effective"])
 
     def test_layer_candidate_patch_merges_over_builtin(self):
         self.write_repo_layer(
@@ -855,9 +863,8 @@ class RouterTest(unittest.TestCase):
         self.assertIn(
             "| captain | — | codex | gpt-6-astra | high | global | ask |", brief
         )
-        self.assertIn(
-            "| worker | — | codex | gpt-6-luna | max | builtin | ask |", brief
-        )
+        routes = json.loads(self.run_router("brief", "--format", "json").stdout)["routes"]["effective"]
+        self.assertEqual({"captain"}, set(routes))
 
     def test_candidate_tombstone_removes_candidate(self):
         self.write_repo_layer(

@@ -60,8 +60,6 @@ Record created versus reused resources under **Retire an owner** below.
 
 Use model-routing's classification of launch constraints and routing instructions. Record each principal or inherited launch constraint verbatim in the assignment packet with repeatable `--launch-constraint`; satisfy it at dispatch and propagate it unchanged into every descendant packet. A combined instruction carries its launch and routing parts through their respective fields.
 
-A principal's `gpt-6.1-sol` at `high` constraint applies to each new Codex descendant. Gate-check `codex/gpt-6.1-sol/high` with updated model-routing support before building its packet; carry the same tuple into the launcher's actual model and effort arguments. Existing owners retain their sessions.
-
 Load the `model-routing` skill and complete its one-time setup and follow its configured selector. Use Crew's adapter to show only candidates the mechanism can launch; it derives launchability from the manifest and loads live quota:
 
 ```sh
@@ -69,7 +67,7 @@ python3 <crew-skill-dir>/scripts/assignment.py brief --repo <root> \
   [--manifest <mechanism-id-or-manifest>]
 ```
 
-When Jev is enabled, use model-routing's `route` command with task facts and the manifest's launchable agents. Save its successful decision privately and supply it to `packet --decision-json <file>` in place of candidate/reason arguments. For agent selection, judge the pick from the brief. Build one gate-checked packet per owner:
+The adapter supplies Crew's [routing defaults](references/routing-defaults.json) through model-routing's `--defaults` interface; model-routing's Configuration reference defines precedence. When Jev is enabled, use model-routing's `route` command with `--defaults <crew-skill-dir>/references/routing-defaults.json`, task facts, and the manifest's launchable agents. Save its successful decision privately and supply it to `packet --decision-json <file>` in place of candidate/reason arguments. For agent selection, judge the pick from the brief. Build one gate-checked packet per owner:
 
 ```sh
 python3 <crew-skill-dir>/scripts/assignment.py packet --repo <root> \
@@ -80,15 +78,15 @@ python3 <crew-skill-dir>/scripts/assignment.py packet --repo <root> \
   [--launch-constraint "<verbatim constraint>" ...]
 ```
 
-When the brief's activation rule applies, replace `--candidate` and `--reason` with `--exact-route <route-id> --route-basis "<verbatim principal request>"`. Crew validates that an activated route ID equals the assignment role or starts with `<role>.`; the role name alone never activates a route. Preserve the basis on quota-acceptance or fallback retries. Pass hard requirements directly as `--require-feature` or `--minimum-context`; `max` candidates may also need `--max-effort-basis` as model-routing specifies. An explicit-only candidate needs `--explicit-basis "<verbatim principal request for this model and effort>"` on either packet path.
+When the brief's activation rule applies, replace `--candidate` and `--reason` with `--exact-route <route-id> --route-basis "<verbatim principal request>"`. Crew validates that an activated route ID equals the assignment role or starts with `<role>.`; the role name alone never activates a route. Pass the outcome's hard requirements and model-routing's required decision arguments through the adapter unchanged.
 
 Omit `--manifest` when the active configured mechanism supplies one; pass a manifest for a session-specific or dynamically discovered harness profile. Pass an existing contract as `--work-ref` unchanged. Otherwise use `--request "<verbatim user request>"`; `packet` infers a configured work-record adapter, while `--work-record <adapter|none>` records a session override. When a later packet rebuild is likely, add `--decision-out <file>` to save the raw gate-check result; rebuild with `--decision-json <file>` instead of candidate or route arguments so the unchanged check is not rerun.
 
 When the launcher needs a prompt file, add `--spec-out <private path>` to write the exact emitted spec without reconstructing it. If model-routing supplies a `decision_id`, preserve it through launch and use that version's documented journal interface to link the actual returned session or dispatch ID.
 
-`packet` refuses missing mechanism extras and unlaunchable or unaccepted decisions. Re-judge a refused candidate within unchanged principal constraints. Preserve a refused exact route and satisfy it through a permitted launch surface or surface the conflict. Follow model-routing's `needs-acceptance` remedy, acceptance, and fallback rules without substituting another candidate.
+`packet` refuses missing mechanism extras and unlaunchable or unaccepted decisions. Its error includes the routing verdict unchanged on refusal or pending acceptance; follow model-routing's **Gate-check the decision** for recovery.
 
-Translate the packet through the selected mechanism's field mapping in Seams, apply any selected `launch_note`, and deliver its `spec` unchanged as part of that launch; packet field names do not imply same-named launch API parameters. A communication send or receipt is not dispatch evidence, and an unrelated existing session is not a launch target. If dispatch fails, distinguish an invalid invocation from a capability refusal: correct malformed or mis-mapped parameters and retry the same mechanism with the same gate-checked decision and unchanged constraints. Apply the refusal rules above only after a valid invocation demonstrates that the selected surface cannot honor the decision.
+Translate the packet through the selected mechanism's field mapping in Seams, apply any selected `launch_note`, and deliver its `spec` unchanged as part of that launch; packet field names do not imply same-named launch API parameters. A communication send or receipt is not dispatch evidence, and an unrelated existing session is not a launch target. If dispatch fails, distinguish an invalid invocation from a capability refusal: correct malformed or mis-mapped parameters and retry the same mechanism with the same gate-checked decision and unchanged constraints. Return to model-routing only after a valid invocation demonstrates that the selected surface cannot honor the decision.
 
 **Complete when:** the owner is launched with the intended role, principal, work pointer, and packet built from a gate-checked decision carrying its task judgment or principal route basis; launch evidence identifies the mechanism-created owner and coordination pointer, satisfies any principal-named mechanism, harness, or executable, and shows the selected agent capability, model, and effort were honored; any malformed dispatch is followed by a corrected retry on the same mechanism before a capability refusal or mechanism change; communication to the principal is live per the manifest; and the resources the assignment created are tracked by exact pointer.
 

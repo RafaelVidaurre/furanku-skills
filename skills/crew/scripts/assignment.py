@@ -29,6 +29,7 @@ EXTRA_KEY = re.compile(r"^[a-z][a-z0-9_]*$")
 WORK_REF = re.compile(r"^([a-z0-9]+(?:-[a-z0-9]+)*):(.+)$")
 ROLES = ("captain", "worker")
 PRINCIPALS = ("user", "commander", "captain")
+ROUTING_DEFAULTS = Path(__file__).resolve().parent.parent / "references" / "routing-defaults.json"
 MANIFEST_KEYS = {
     "mechanism",
     "launchable_agents",
@@ -417,67 +418,11 @@ def validate_decision(decision):
         route_basis = decision.get("route_basis")
         if not isinstance(route_basis, str) or not route_basis.strip():
             raise Error("exact route decision requires a recorded route basis")
-    if status == "needs-acceptance":
-        quota = decision.get("quota")
-        remedy = quota.get("remedy") if isinstance(quota, dict) else None
-        route = decision.get("exact_route")
-        retry_target = (
-            "exact route" if isinstance(route, str) and route.strip() else "candidate"
-        )
-        if isinstance(remedy, str) and remedy.strip():
-            detail = quota.get("detail")
-            problem = (
-                detail.strip()
-                if isinstance(detail, str) and detail.strip()
-                else f"quota is {quota.get('status', 'unavailable')}"
-            )
-            raise Error(
-                "routing decision needs a runtime refresh before dispatch: "
-                f"{problem}. Run `{remedy.strip()}` with no prompt, wait until "
-                f"the session loads, exit it, and re-check the same {retry_target}."
-            )
-        pending = "; ".join(decision.get("pending", [])) or "quota acceptance pending"
-        extra = ""
-        fallback = decision.get("quota_fallback")
-        if isinstance(fallback, dict) and isinstance(fallback.get("launch"), dict):
-            launch = fallback["launch"]
-            seconds = fallback.get("ask_seconds", 120)
-            extra = (
-                f" A quota fallback is configured ({seconds}s → "
-                f"{launch.get('agent')}/{launch.get('model')}/{launch.get('effort')}). "
-                "Surface pending to the principal; if they do not answer in time, "
-                "re-check with --use-quota-fallback."
-            )
+    if status in {"refused", "needs-acceptance"}:
         raise Error(
-            "routing decision needs acceptance before dispatch: "
-            f"{pending}. Obtain the principal's acceptance and re-run the "
-            f"same {retry_target} with --accept-quota-unknown." + extra
-        )
-    if status == "refused":
-        reasons = decision.get("reasons")
-        if isinstance(reasons, list):
-            detail = "; ".join(
-                reason.strip()
-                for reason in reasons
-                if isinstance(reason, str) and reason.strip()
-            )
-        else:
-            detail = ""
-        detail = detail or "an unspecified hard gate failed"
-        route = decision.get("exact_route")
-        if isinstance(route, str) and route.strip():
-            raise Error(
-                f"exact route {route!r} was refused: {detail}. Preserve the route "
-                "and unchanged launch constraints; use a permitted launch surface "
-                "or surface the conflict to the principal."
-            )
-        candidate = decision.get("candidate")
-        label = (
-            f"candidate {candidate!r}" if isinstance(candidate, str) else "candidate"
-        )
-        raise Error(
-            f"routing {label} was refused: {detail}. Re-judge within unchanged "
-            "principal constraints or surface the conflict."
+            "model-routing decision is not launchable; follow model-routing's "
+            "Gate-check the decision for recovery. Routing verdict: "
+            + json.dumps(decision, ensure_ascii=False)
         )
     if status not in {"selected", "exact"}:
         raise Error("routing decision is not launchable")
@@ -540,6 +485,8 @@ def routing_brief(args):
         "brief",
         "--repo",
         args.repo,
+        "--defaults",
+        str(ROUTING_DEFAULTS),
         "--launchable-via",
         ",".join(manifest["launchable_agents"]),
         "--quota-axi",
@@ -597,6 +544,8 @@ def route_decision(args, manifest):
         "check",
         "--repo",
         args.repo,
+        "--defaults",
+        str(ROUTING_DEFAULTS),
         "--launchable-via",
         ",".join(manifest["launchable_agents"]),
         "--quota-axi",
@@ -802,17 +751,10 @@ def build_packet(args):
             + ", ".join(manifest["launchable_agents"])
             + ". The saved decision was checked for a different launch surface"
         )
-        if decision["status"] == "exact":
-            message += (
-                f"; preserve exact route {decision['exact_route']!r} and unchanged "
-                "launch constraints, then use a permitted launch surface or surface "
-                "the conflict to the principal."
-            )
-        else:
-            message += (
-                "; create a new packet from the same task constraints and re-judge."
-            )
-        raise Error(message)
+        raise Error(
+            message + ". Return this launchability constraint to model-routing. Routing verdict: "
+            + json.dumps(decision, ensure_ascii=False)
+        )
     extras = parse_extras(args.extra, manifest)
     launch_constraints = parse_launch_constraints(args.launch_constraint)
     configured_adapter = seams["work_record"]["adapter"] if seams else None

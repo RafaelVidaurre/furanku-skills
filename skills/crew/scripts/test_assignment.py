@@ -121,6 +121,39 @@ def fake_router(
 
 
 class PacketTest(unittest.TestCase):
+    def test_real_router_uses_crew_defaults_and_preserves_user_override(self):
+        router = SCRIPT.parents[2] / "model-routing" / "scripts" / "router.py"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            env = {**PACKET_ENV, "HOME": str(root / "home"), "CODEX_HOME": str(root / "codex")}
+            # Substitute only quota collection; both production CLIs and their
+            # default-route wiring remain real, and no provider is contacted.
+            bridge = root / "router.py"
+            bridge.write_text(
+                "import subprocess, sys\n"
+                f"args = [sys.executable, {str(router)!r}] + [a for a in sys.argv[1:] if a != '--quota-axi']\n"
+                "raise SystemExit(subprocess.run(args).returncode)\n"
+            )
+            runtime = root / "runtime.json"
+            runtime.write_text(json.dumps({"harnesses": {"codex": {"quota": {"status": "known"}}}}))
+            override = {"agent": "codex", "model": "gpt-6.1-sol", "effort": "high"}
+            for config in (None, {"version": 4, "routes": {"worker": override}}):
+                if config:
+                    path = root / "home" / ".furanku-skills" / "model-routing" / "config.json"
+                    path.parent.mkdir(parents=True)
+                    path.write_text(json.dumps(config))
+                result = subprocess.run(
+                    [sys.executable, str(SCRIPT), *BASE, "--repo", str(root),
+                     "--exact-route", "worker", "--route-basis", ROUTE_BASIS,
+                     "--router", str(bridge), "--runtime-file", str(runtime)],
+                    text=True, capture_output=True, env=env, check=False,
+                )
+                self.assertEqual(0, result.returncode, result.stderr)
+                routing = json.loads(result.stdout)["routing"]
+                self.assertEqual("global" if config else "consumer", routing["source"]["scope"])
+                self.assertEqual("gpt-6.1-sol" if config else "gpt-6-luna", routing["model"])
+                self.assertEqual("high" if config else "max", routing["effort"])
+
     def test_sol61_packet_uses_real_catalog_gate_and_preserves_descendant_constraint(self):
         router = SCRIPT.parents[2] / "model-routing" / "scripts" / "router.py"
         constraint = "All new Codex descendants must use gpt-6.1-sol at high."
@@ -149,7 +182,7 @@ class PacketTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             router = fake_router(
                 Path(directory),
-                ["brief", "--launchable-via", "claude", "--quota-axi"],
+                ["brief", "--launchable-via", "claude", "--quota-axi", "--defaults", str(SCRIPT.parent.parent / "references" / "routing-defaults.json")],
                 {"brief": "filtered"},
             )
             result = run(
@@ -172,6 +205,8 @@ class PacketTest(unittest.TestCase):
                 Path(directory),
                 [
                     "check",
+                    "--defaults",
+                    str(SCRIPT.parent.parent / "references" / "routing-defaults.json"),
                     "--candidate",
                     "claude/sonnet/high",
                     "--reason",
@@ -666,74 +701,35 @@ class PacketTest(unittest.TestCase):
             "Use harness-native for every thread.",
         )
         self.assertNotEqual(0, result.returncode)
-        self.assertIn("preserve exact route 'worker'", result.stderr)
-        self.assertIn("unchanged launch constraints", result.stderr)
-        self.assertNotIn("re-judge", result.stderr)
+        self.assertIn("cannot launch agent 'grok'", result.stderr)
+        self.assertEqual(decision, json.loads(result.stderr.split("Routing verdict: ", 1)[1]))
 
-    def test_refused_exact_decision_preserves_route_and_reasons(self):
-        decision = {
-            "status": "refused",
-            "exact_route": "worker",
-            "route_basis": ROUTE_BASIS,
-            "reasons": ["agent 'grok' is outside launchable agents: claude"],
-            "warnings": [],
-        }
-        result = run(*packet_args(decision))
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn("exact route 'worker' was refused", result.stderr)
-        self.assertIn("agent 'grok' is outside launchable agents", result.stderr)
-        self.assertIn("Preserve the route", result.stderr)
-
-    def test_refuses_needs_acceptance_decision_with_flow_hint(self):
-        decision = {
-            "status": "needs-acceptance",
-            "selected": SELECTED["selected"],
-            "pending": ["quota unknown: rerun with --accept-quota-unknown ..."],
-        }
-        result = run(*packet_args(decision))
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn("needs acceptance", result.stderr)
-        self.assertIn("--accept-quota-unknown", result.stderr)
-
-    def test_needs_acceptance_mentions_configured_quota_fallback(self):
-        decision = {
-            "status": "needs-acceptance",
-            "selected": SELECTED["selected"],
-            "pending": ["Grok access token expired. Refresh with `grok`."],
-            "quota_fallback": {
-                "ask_seconds": 120,
-                "launch": {
-                    "agent": "codex",
-                    "model": "gpt-6-astra",
-                    "effort": "high",
-                },
+    def test_unaccepted_decisions_are_preserved_without_reinterpreting_recovery(self):
+        verdicts = [
+            {
+                "status": "refused", "exact_route": "worker", "route_basis": ROUTE_BASIS,
+                "reasons": ["agent is outside the requested launch surface"],
+                "warnings": [], "extension": {"evidence": "retain this field"},
             },
-        }
-        result = run(*packet_args(decision))
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn("--accept-quota-unknown", result.stderr)
-        self.assertIn("120s → codex/gpt-6-astra/high", result.stderr)
-        self.assertIn("--use-quota-fallback", result.stderr)
-
-    def test_needs_acceptance_runs_runtime_remedy_before_asking(self):
-        decision = {
-            "status": "needs-acceptance",
-            "candidate": SELECTED["selected"]["id"],
-            "selected": SELECTED["selected"],
-            "reason": SELECTED["reason"],
-            "pending": ["Refresh or accept unknown quota."],
-            "quota": {
-                "status": "stale",
-                "detail": "The session expired",
-                "remedy": "grok",
+            {
+                "status": "needs-acceptance", "selected": SELECTED["selected"],
+                "pending": ["quota needs acceptance"],
             },
-        }
-        result = run(*packet_args(decision))
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn("Run `grok`", result.stderr)
-        self.assertIn("re-check the same candidate", result.stderr)
-        self.assertNotIn("principal's acceptance", result.stderr)
-        self.assertNotIn("--accept-quota-unknown", result.stderr)
+            {
+                "status": "needs-acceptance", "selected": SELECTED["selected"],
+                "pending": ["quota needs refresh"],
+                "quota": {"status": "stale", "remedy": "example-provider"},
+                "quota_fallback": {"ask_seconds": 120, "launch": SELECTED["selected"]},
+            },
+        ]
+        for decision in verdicts:
+            with self.subTest(status=decision["status"], quota=decision.get("quota")):
+                result = run(*packet_args(decision))
+                self.assertNotEqual(0, result.returncode)
+                self.assertEqual("", result.stdout)
+                self.assertIn("model-routing's Gate-check the decision", result.stderr)
+                reported = json.loads(result.stderr.split("Routing verdict: ", 1)[1])
+                self.assertEqual(decision, reported)
 
     def test_exact_decision_records_route_and_provenance(self):
         decision = {

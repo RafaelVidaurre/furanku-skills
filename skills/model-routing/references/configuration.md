@@ -6,25 +6,28 @@ Read only for configuration views, changes, or brief diagnosis.
 
 | Order | Scope | Location | Responsibility |
 | --- | --- | --- | --- |
-| 0 | `builtin` | `references/routing-catalog.json` | Research-backed candidates, evidence methodology, default routing preferences, and default exact routes |
-| 1 | `global` | `~/.furanku-skills/model-routing/config.json` | Machine-wide exact routes, preferences, and candidate overrides |
-| 2 | `repo` | `<repo>/.furanku-skills/model-routing/config.json` | Shared, version-tracked project configuration |
-| 3 | `machine-repo` | `~/.furanku-skills/model-routing/repos/<repo-key>.json` | Private configuration for one repository |
+| 0 | `builtin` | `references/routing-catalog.json` | Research-backed candidates, evidence methodology, and default routing preferences |
+| 1 | `consumer` | Optional file supplied with `--defaults` | Consumer-owned default exact routes |
+| 2 | `global` | `~/.furanku-skills/model-routing/config.json` | Machine-wide exact routes, preferences, and candidate overrides |
+| 3 | `repo` | `<repo>/.furanku-skills/model-routing/config.json` | Shared, version-tracked project configuration |
+| 4 | `machine-repo` | `~/.furanku-skills/model-routing/repos/<repo-key>.json` | Private configuration for one repository |
 
 Repository key = canonical Git common directory (the resolved project path outside Git), so linked worktrees share machine-local routing.
 
-Exact `routes` use whole-row replacement across layers, starting from the builtin defaults. `preferences` accumulate: the brief lists every layer's entries low scope to high, each tagged with its source, and states the binding conflict-precedence order in its header—that header is the single normative statement of the order. `candidates` use JSON merge-patch semantics per candidate ID: objects merge recursively, arrays and scalars replace, `null` inside an override removes a field, and a top-level `"<candidate-id>": null` tombstone removes the whole candidate.
+Exact `routes` use whole-row replacement in the layer order above. `preferences` accumulate: the brief lists every layer's entries low scope to high, each tagged with its source, and states the binding conflict-precedence order in its header—that header is the single normative statement of the order. `candidates` use JSON merge-patch semantics per candidate ID: objects merge recursively, arrays and scalars replace, `null` inside an override removes a field, and a top-level `"<candidate-id>": null` tombstone removes the whole candidate.
+
+The catalog ships no exact routes. A consumer may supply a version 4 file containing only `version` and `routes` to `router.py brief|check|route` or `config.py resolve|report` with `--defaults <file>`. Use the same file throughout one decision, including retries and Jev selection. Consumer defaults are read-only inputs; missing or invalid files fail closed. Persisted overrides remain authoritative, and routes still activate only on a principal request. Without consumer defaults or persisted routes, the effective routes table is empty and ordinary candidate selection still works.
 
 ## Schema
 
-Every layer is a version 4 document. A persisted layer defines only the routes it overrides; the builtin catalog supplies `captain` and `worker` until then. `preferences` and `candidates` are optional. Route IDs are consumer-defined dotted tokens; every route beyond the builtin `captain` and `worker` adds a `work` field describing when it applies:
+Persisted layers and consumer defaults are version 4 documents. A persisted layer defines only the routes it overrides. `preferences` and `candidates` are optional in persisted layers. Route IDs are consumer-defined dotted tokens with no required role names; every route requires `agent`, `model`, and `effort`, and may carry a non-empty `work` description. Existing version 4 rows with or without `work` remain valid:
 
 ```json
 {
   "version": 4,
   "routes": {
-    "captain": { "agent": "codex", "model": "gpt-6-astra", "effort": "high" },
-    "worker": {
+    "design": { "agent": "codex", "model": "gpt-6-astra", "effort": "high" },
+    "implementation": {
       "agent": "grok",
       "model": "grok-4.7",
       "effort": "high",
@@ -35,7 +38,7 @@ Every layer is a version 4 document. A persisted layer defines only the routes i
     }
   },
   "preferences": [
-    "Captains default to gpt-6-astra at high.",
+    "Prefer gpt-6-astra at high for design work.",
     "Prefer gpt-6-astra at high over claude-fable-5-1[1m] for intelligence, architecture, and complex problems; this is a routing preference, not a benchmark score.",
     "Use grok-4.7 at high for bounded implementation and agentic execution."
   ],
@@ -93,7 +96,7 @@ python3 "$ROUTER" brief --repo <root> [--quota-axi] \
   [--launchable-via <agent,...>]
 ```
 
-The first shows persisted layers, exact rows, whole-row winners, and any excluded malformed candidates. The second shows what a spawning agent sees: preferences with scope tags, effective routes, the merged candidate table with evidence, and the same excluded malformed candidates. A raw file alone does not establish effective configuration.
+The first shows persisted layers, exact rows, whole-row winners, and any excluded malformed candidates. The second shows what a spawning agent sees: preferences with scope tags, effective routes, the merged candidate table with evidence, and the same excluded malformed candidates. Pass the consumer's `--defaults` file to both views when one applies. A raw file alone does not establish effective configuration.
 
 ## Modify configuration
 
@@ -117,7 +120,7 @@ The command preserves other configuration fields, refuses a lower-scope state sh
 
 5. Rerun both views and confirm the change is visible: the route row wins from the intended scope, the preference line appears with the intended scope tag, or the candidate change shows in the table. For a preference change, also confirm the wording answers the routing question it was written for—an agent reading only the brief should reach the pick the user intended.
 
-When repairing ordinary task selection, inspect accumulated preferences as well as candidate states. An enabled candidate can still be discouraged by a higher-scope preference. Replace superseded guidance at its owning scope rather than stacking another contradictory line: for example, a blanket "reserve max for exceptional work" can suppress a smaller model whose only configured effort is max. Preserve restrictions on critical decisions while expressing effort comparisons within the same model. Exact `worker` and `captain` routes are opt-in dispatch shorthands, so changing those rows alone does not repair ordinary selection. Keep private preferences out of published catalog changes.
+When repairing ordinary task selection, inspect accumulated preferences as well as candidate states. An enabled candidate can still be discouraged by a higher-scope preference. Replace superseded guidance at its owning scope rather than stacking another contradictory line: for example, a blanket "reserve max for exceptional work" can suppress a smaller model whose only configured effort is max. Preserve restrictions on critical decisions while expressing effort comparisons within the same model. Exact routes are opt-in dispatch shorthands, so changing those rows alone does not repair ordinary selection. Keep private preferences out of published catalog changes.
 
 When retiring a model, inspect all persisted layers and active worktree configurations in the requested scope: a candidate override can reintroduce a removed builtin, and exact routes or quota fallbacks can still name it. Update those references through the helper, synchronize installed skill copies, and regenerate each affected repository's report and brief. Complete when the retired model is absent from effective routes, fallbacks, and candidates in every affected checkout and installed copy. Preserve dated research as historical evidence.
 

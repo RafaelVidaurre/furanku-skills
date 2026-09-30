@@ -13,7 +13,6 @@ import tempfile
 
 
 VERSION = 4
-BASE = ("captain", "worker")
 SCOPES = ("global", "repo", "machine-repo")
 NAMESPACE = "model-routing"
 CATALOG = (
@@ -123,19 +122,14 @@ def validate_on_quota_unusable(value, row, source, route_id):
             raise Error(f"{label}.ask_seconds must be a positive integer")
 
 
-def validate_rows(routes, require_base, source, allow_empty=False):
-    if not isinstance(routes, dict) or (not routes and not allow_empty):
-        raise Error(f"{source} routes must be a non-empty object")
-    missing = [route for route in BASE if route not in routes]
-    if require_base and missing:
-        raise Error(f"{source} is missing base routes: {', '.join(missing)}")
+def validate_rows(routes, source):
+    if not isinstance(routes, dict):
+        raise Error(f"{source} routes must be an object")
     for route_id, row in routes.items():
         if not ROUTE_ID.fullmatch(route_id) or not isinstance(row, dict):
             raise Error(f"invalid route {route_id!r} in {source}")
         required = set(LAUNCH_FIELDS)
-        if route_id not in BASE:
-            required.add("work")
-        allowed = required | OPTIONAL_ROUTE_FIELDS
+        allowed = required | OPTIONAL_ROUTE_FIELDS | {"work"}
         absent = sorted(required - set(row))
         unknown = sorted(set(row) - allowed)
         if absent:
@@ -151,6 +145,10 @@ def validate_rows(routes, require_base, source, allow_empty=False):
         for key in required:
             if not isinstance(row[key], str) or not row[key].strip():
                 raise Error(f"route {route_id!r} in {source} has an empty value")
+        if "work" in row and (
+            not isinstance(row["work"], str) or not row["work"].strip()
+        ):
+            raise Error(f"route {route_id!r} in {source} work must be a non-empty string")
         if "on_quota_unusable" in row:
             validate_on_quota_unusable(
                 row["on_quota_unusable"], row, source, route_id
@@ -200,7 +198,7 @@ def validate_accounts(accounts, source):
             )
 
 
-def validate_schema(config, require_base, source):
+def validate_schema(config, source):
     if type(config.get("version")) is not int or config["version"] != VERSION:
         raise Error(f"{source} must use routing config version {VERSION}")
     allowed = {"version", "routes", "preferences", "candidates", "accounts"}
@@ -209,18 +207,16 @@ def validate_schema(config, require_base, source):
         raise Error(
             f"{source} must contain routes and only: {', '.join(sorted(allowed))}"
         )
-    validate_rows(
-        config["routes"], require_base, source, allow_empty=not require_base
-    )
+    validate_rows(config["routes"], source)
     validate_preferences(config.get("preferences", []), source)
     validate_candidate_overrides(config.get("candidates", {}), source)
     validate_accounts(config.get("accounts", {}), source)
 
 
-def load(path, require_base=False):
+def load(path):
     with path.open(encoding="utf-8") as stream:
         config = parse_json(stream, str(path))
-    validate_schema(config, require_base, str(path))
+    validate_schema(config, str(path))
     return config
 
 
@@ -235,7 +231,7 @@ def builtin():
             f"{CATALOG} must contain version 2 with routes, methodology, "
             "and candidates"
         )
-    validate_rows(catalog["routes"], True, str(CATALOG))
+    validate_rows(catalog["routes"], str(CATALOG))
     validate_preferences(catalog.get("preferences", []), str(CATALOG))
     validate_candidate_overrides(catalog["candidates"], str(CATALOG))
     if not isinstance(catalog["methodology"], dict):
@@ -244,9 +240,7 @@ def builtin():
 
 
 def ordered(routes):
-    keys = [route for route in BASE if route in routes]
-    keys += sorted(route for route in routes if route not in BASE)
-    return {route: routes[route] for route in keys}
+    return {route: routes[route] for route in sorted(routes)}
 
 
 def record(scope, path):
@@ -268,34 +262,26 @@ def selected(routes, route_ids):
     return {route: row for route, row in ordered(routes).items() if route in wanted}
 
 
-def resolve(paths, route_ids=None):
+def resolve(paths, route_ids=None, defaults=None):
     catalog = builtin()
     routes, definitions, layers = {}, {}, []
-    layers.append(
-        {
-            "scope": "builtin",
-            "path": str(CATALOG),
-            "exists": True,
-            "version": catalog["version"],
-            "routes_defined": list(ordered(catalog["routes"])),
-            "preferences": len(catalog.get("preferences", [])),
-            "candidates_defined": sorted(catalog["candidates"]),
-        }
+    inputs = [("builtin", CATALOG, catalog)]
+    if defaults is not None:
+        path = Path(defaults).expanduser().resolve()
+        config = load(path)
+        if set(config) - {"version", "routes"}:
+            raise Error(f"consumer defaults {path} must contain only version and routes")
+        inputs.append(("consumer", path, config))
+    inputs.extend(
+        (scope, paths[scope], load(paths[scope]) if paths[scope].exists() else None)
+        for scope in SCOPES
     )
-    for route, row in catalog["routes"].items():
-        routes[route] = row
-        definitions.setdefault(route, []).append(
-            {"scope": "builtin", "path": str(CATALOG), "row": row}
-        )
-    for scope in SCOPES:
-        path = paths[scope]
-        exists = path.exists()
-        config = load(path) if exists else None
+    for scope, path, config in inputs:
         layers.append(
             {
                 "scope": scope,
                 "path": str(path),
-                "exists": exists,
+                "exists": config is not None,
                 "version": config["version"] if config else None,
                 "routes_defined": (
                     list(ordered(config["routes"])) if config else []
@@ -316,7 +302,7 @@ def resolve(paths, route_ids=None):
                 {"scope": scope, "path": str(path), "row": row}
             )
     config = {"version": VERSION, "routes": ordered(routes)}
-    validate_schema(config, True, "resolved configuration")
+    validate_schema(config, "resolved configuration")
     config["routes"] = selected(config["routes"], route_ids or [])
     route_provenance = {}
     for route, row in config["routes"].items():
@@ -344,14 +330,14 @@ def markdown_cell(value):
     return str(value).replace("\\", "\\\\").replace("|", "\\|").replace("\n", " ")
 
 
-def routing_report(paths, repo=".", route_ids=None):
-    result = resolve(paths, route_ids)
+def routing_report(paths, repo=".", route_ids=None, defaults=None):
+    result = resolve(paths, route_ids, defaults)
     root, _common = repo_info(repo)
     try:
         from . import router as routing_router
     except ImportError:
         import router as routing_router
-    compiled = routing_router.compile_brief(repo)
+    compiled = routing_router.compile_brief(repo, defaults)
     result["malformed_candidates"] = compiled.get("malformed_candidates") or {}
     return {"repo": str(root), **result}
 
@@ -564,7 +550,7 @@ def run_model_command(argv):
                 patch["launch"] = {"agent": args.agent, "model": args.model, "effort": args.effort}
             patch.update({"enabled": args.state != "disabled", "explicit": args.state == "explicit"})
             overrides[candidate_id] = patch
-        validate_schema(config, False, str(path))
+        validate_schema(config, str(path))
         try:
             from . import router as routing_router
         except ImportError:
@@ -620,12 +606,15 @@ def arguments():
     )
     parser.add_argument("scope", nargs="?", choices=(*SCOPES, "all"))
     parser.add_argument("--repo", default=".")
+    parser.add_argument("--defaults", help="consumer-owned default routes file, below persisted layers")
     parser.add_argument("--file", default="-", help="JSON file, or - for stdin")
     parser.add_argument("--yes", action="store_true")
     parser.add_argument("--compact", action="store_true")
     parser.add_argument("--route", action="append", default=[])
     parser.add_argument("--format", choices=("markdown", "json"))
     args = parser.parse_args()
+    if args.defaults is not None and args.command not in {"resolve", "report"}:
+        parser.error("--defaults is valid only for resolve and report")
     if args.command in {"read", "write", "delete"} and args.scope is None:
         parser.error(f"{args.command} requires a scope")
     if args.scope == "all" and args.command != "read":
@@ -676,10 +665,10 @@ def main():
             else:
                 emit(record(args.scope, paths[args.scope]))
         elif args.command == "resolve":
-            result = resolve(paths, args.route)
+            result = resolve(paths, args.route, args.defaults)
             emit(result["config"]["routes"] if args.compact else result, args.compact)
         elif args.command == "report":
-            report = routing_report(paths, args.repo, args.route)
+            report = routing_report(paths, args.repo, args.route, args.defaults)
             if args.format == "json":
                 emit(report)
             else:
@@ -690,7 +679,7 @@ def main():
             else:
                 with Path(args.file).expanduser().open(encoding="utf-8") as stream:
                     config = parse_json(stream, args.file)
-            validate_schema(config, False, args.file)
+            validate_schema(config, args.file)
             config["routes"] = ordered(config["routes"])
             save(paths[args.scope], config, args.scope != "repo")
             emit(record(args.scope, paths[args.scope]))

@@ -21,7 +21,7 @@ Generate the brief before choosing; its Exact routes section is the normative so
 
 ```sh
 python3 <skill-dir>/scripts/router.py brief --repo <root> --quota-axi \
-  [--launchable-via <agent,...>]
+  [--launchable-via <agent,...>] [--defaults <consumer-routes-file>]
 ```
 
 One brief serves the whole spawning session—reuse it across decisions and regenerate only after a configuration change or when the brief's printed quota capture time is more than 30 minutes old. If quota-axi fails, the brief says so in its notes and quota stays unknown; the acceptance gate in `check` handles that—never estimate quota yourself.
@@ -83,7 +83,7 @@ A candidate whose launch tuple pins one account is not the same offer as the sam
 
 The catalog supports `codex/gpt-6.1-sol/high` as a launch tuple with unassessed performance, features, context, and cost. Keep a principal's new-Codex default in their configuration layer; published support does not replace unrelated model preferences or transfer GPT-6 Sol benchmark scores. When migrating that default, replace superseded preferences at their owning scope and verify the regenerated brief.
 
-For requests to inspect, explain, add, change, or remove routing configuration—exact routes, preferences, candidate overrides—read [Configuration](references/configuration.md) before acting. `config.py` owns persisted layers and exact-route provenance; `router.py brief` shows what a spawning agent actually sees.
+For requests to inspect, explain, add, change, or remove routing configuration—exact routes, preferences, candidate overrides—or supply consumer defaults, read [Configuration](references/configuration.md) before acting. `config.py` owns layer resolution and exact-route provenance; `router.py brief` shows what a spawning agent actually sees.
 
 For `/model-routing list` or `/model-routing models`, run `python3 <skill-dir>/scripts/config.py models --repo <root>`. For `/model-routing set <enabled|disabled|explicit> <model> <effort>`, use `config.py set` as documented in Configuration. An explicit candidate is available only when the principal requested that model and effort for the task; pass the verbatim request to `check --explicit-basis`. An exact route name alone does not supply this basis. Ordinary agent and Jev selection exclude explicit candidates.
 
