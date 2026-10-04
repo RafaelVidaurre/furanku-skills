@@ -1,0 +1,68 @@
+{
+  "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+  "retrieved": "2026-10-04",
+  "usd_per_million_tokens": {
+    "claude-fable-5": {
+      "input": 10,
+      "cache_write_5m": 12.5,
+      "cache_write_1h": 20,
+      "cache_read": 1,
+      "output": 50,
+      "us_inference": 1.1
+    },
+    "claude-fable-5-1": {
+      "input": 10,
+      "cache_write_5m": 12.5,
+      "cache_write_1h": 20,
+      "cache_read": 0.25,
+      "output": 50,
+      "us_inference": 1.1
+    },
+    "claude-opus-5": {
+      "input": 5,
+      "cache_write_5m": 6.25,
+      "cache_write_1h": 10,
+      "cache_read": 0.5,
+      "output": 25,
+      "us_inference": 1.1,
+      "fast": {"input": 10, "output": 50}
+    },
+    "claude-opus-5-5": {
+      "input": 4,
+      "cache_write_5m": 5,
+      "cache_write_1h": 8,
+      "cache_read": 0.2,
+      "output": 20,
+      "us_inference": 1.1,
+      "fast": {"input": 8, "output": 40}
+    },
+    "claude-sonnet-5": {
+      "input": 2,
+      "cache_write_5m": 2.5,
+      "cache_write_1h": 4,
+      "cache_read": 0.2,
+      "output": 10,
+      "us_inference": 1.1
+    },
+    "claude-sonnet-5-5": {
+      "input": 2,
+      "cache_write_5m": 2.5,
+      "cache_write_1h": 4,
+      "cache_read": 0.2,
+      "output": 10,
+      "us_inference": 1.1
+    },
+    "claude-haiku-4-5-20251001": {
+      "input": 1,
+      "cache_write_5m": 1.25,
+      "cache_write_1h": 2,
+      "cache_read": 0.1,
+      "output": 5
+    }
+  },
+  "aliases": {
+    "claude-haiku-4-5": {"priced_as": "claude-haiku-4-5-20251001"},
+    "claude-mythos-5": {"priced_as": "claude-fable-5", "because": "The Fable 5 model page states Mythos 5 shares its pricing."},
+    "claude-mythos-5-1": {"priced_as": "claude-fable-5-1", "because": "The Fable 5.1 model page states Mythos 5.1 shares its pricing."}
+  }
+}

@@ -24,7 +24,7 @@ npx skills add rafaelvidaurre/furanku-skills --skill testing-best-practices
 
 After install, talk to your agent as usual. When a skill fits, it should load and follow it.
 
-The picker shows skills in groups: most live in the main (**General**) group; skills still proving themselves appear under **Experimental** (currently `council` and `codemap`).
+The picker shows skills in groups: most live in the main (**General**) group; skills still proving themselves appear under **Experimental** (currently `council`, `codemap`, and `usage-drain`).
 
 ## Command-line tool
 
@@ -195,6 +195,20 @@ First use walks you through approving which model tools may run on your machine.
 > How is this codebase structured? What depends on what?
 > What would a change to the protocol crate reach? Where is work happening?
 > Update the code map, then open it.
+```
+
+---
+
+### usage-drain (experimental)
+
+**Useful if:** you want to see which model and effort level is using Codex, Claude, or Grok.
+
+**What it does:** reads local session logs and ranks model and effort by what they consumed. Codex prices calls from the published credit card and splits the weekly meter's rise across those calls. Claude prices calls from the published API card (cache write and cache read on their own rates). Grok uses the dollar cost already recorded on each turn. Codex starts at the latest weekly reset. Claude and Grok logs do not store that reset, so they start at the trailing 7 days unless you name a range. The log shape and the rate cards still move, so this skill is experimental.
+
+```text
+> What is draining my usage?
+> Break down Claude usage since Monday.
+> Grok usage from Monday through Wednesday.
 ```
 
 ---

@@ -10,7 +10,8 @@
       "description": "Skills still proving themselves — behavior and interface may change.",
       "skills": [
         "./skills/council",
-        "./skills/codemap"
+        "./skills/codemap",
+        "./skills/usage-drain"
       ]
     }
   ]
