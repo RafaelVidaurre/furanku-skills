@@ -4,7 +4,9 @@
   "preferences": [
     "Prefer GPT-6 Astra (gpt-6-astra) for 3D modelling, including mesh and geometry creation, CAD, and 3D scene composition. This is a routing preference, not a benchmark claim; choose an eligible Astra candidate subject to task constraints and launch gates.",
     "For bounded routine source collection, mechanical edits, repetitive migrations, and focused checks with explicit acceptance criteria, prefer an eligible gpt-6-luna at max. Keep novel architecture, critical behavior decisions, and final integration judgment with a suitably capable owner. When choosing a stronger candidate for that routine work, name the specific uncertainty or failure consequence that makes Luna insufficient; project importance or write access alone is not that reason. This is a task-routing preference, not a benchmark or measured quota-cost claim.",
-    "Effort labels compare budgets within the same model; max on a smaller model does not by itself make that candidate a premium or exceptional choice across models. Apply maximum-effort proportionality against eligible lower efforts of that same model, and judge cross-model task fit separately."
+    "Effort labels compare budgets within the same model; max on a smaller model does not by itself make that candidate a premium or exceptional choice across models. Apply maximum-effort proportionality against eligible lower efforts of that same model, and judge cross-model task fit separately.",
+    "For Claude launches, consider Sonnet 5.5 medium for well-specified coding and multistep tool work, high for harder or longer tasks, and low for short latency-sensitive requests. Consider Haiku 5.5 medium for bounded subagent work, summarization, extraction, classification, and routine coding; use high for longer tasks or stricter instruction following. Prefer Sonnet over Haiku for complex agentic coding. This task-fit guidance comes from Anthropic, not a cross-provider benchmark ranking; apply exact-effort evidence, principal preferences, and launch gates.",
+    "For Sonnet 5.5 and Haiku 5.5, consider xhigh or max only with task-relevant evidence of improvement over lower effort. Haiku low may skip searches or checks in long agent prompts; use medium or high when those checks determine acceptance. API token prices do not establish subscription-quota savings."
   ],
   "methodology": {
     "reasoning": "Artificial Analysis Intelligence Index v4.3.2 divided by 100 at the exact effort.",
@@ -898,6 +900,740 @@
       },
       "context": 1050000,
       "context_evidence": "https://developers.openai.com/api/docs/models/gpt-6-astra"
+    },
+    "claude/claude-sonnet-5-5/low": {
+      "launch": {
+        "agent": "claude",
+        "model": "claude-sonnet-5-5",
+        "effort": "low"
+      },
+      "features": [
+        "tools",
+        "vision",
+        "long-context"
+      ],
+      "context": 1000000,
+      "context_evidence": "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "confidence": "high",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-sonnet-5-5-low",
+            "https://artificialanalysis.ai/models/releases/claude-sonnet-5-5"
+          ],
+          "score": 0.3587,
+          "conservative": 0.3387,
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Exact low with Default Fallback row 35.86816; score = index/100, conservative = score - 0.02."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.358,
+          "conservative": 0.328,
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://cursor.com/evals"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact low row 35.8% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
+        },
+        "agentic": {
+          "status": "known",
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-sonnet-5-5-low",
+            "https://artificialanalysis.ai/models/releases/claude-sonnet-5-5"
+          ],
+          "score": 0.3861,
+          "conservative": 0.3607,
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact low with Default Fallback Elo 1272.3 (95% CI lower 1261.38); score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 for Stirrup-to-launcher transfer. Snapshot 2026-10-08; older catalog peers have earlier assessment dates."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Arena WebDev (2026-10-07 cutoff, 141 models) has no verified exact-effort row for this tuple; other efforts are not transferred.",
+          "researched_at": "2026-10-08"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Design Arena lists the Sonnet 5.5 addition, but rank and effort could not be verified; Haiku 5.5 has no verified entry. No 3D score inferred from vision support.",
+          "researched_at": "2026-10-08"
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 102.79,
+          "basis": "Artificial Analysis, exact low with Default Fallback, median output speed; not end-to-end task latency",
+          "assessed_at": "2026-10-08",
+          "source": "https://artificialanalysis.ai/models/claude-sonnet-5-5-low"
+        }
+      }
+    },
+    "claude/claude-sonnet-5-5/medium": {
+      "launch": {
+        "agent": "claude",
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "features": [
+        "tools",
+        "vision",
+        "long-context"
+      ],
+      "context": 1000000,
+      "context_evidence": "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "confidence": "high",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-sonnet-5-5-medium",
+            "https://artificialanalysis.ai/models/releases/claude-sonnet-5-5"
+          ],
+          "score": 0.4084,
+          "conservative": 0.3884,
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Exact medium with Default Fallback row 40.83865; score = index/100, conservative = score - 0.02."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.392,
+          "conservative": 0.362,
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://cursor.com/evals"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact medium row 39.2% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
+        },
+        "agentic": {
+          "status": "known",
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-sonnet-5-5-medium",
+            "https://artificialanalysis.ai/models/releases/claude-sonnet-5-5"
+          ],
+          "score": 0.471,
+          "conservative": 0.4454,
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact medium with Default Fallback Elo 1442.01 (95% CI lower 1430.82); score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 for Stirrup-to-launcher transfer. Snapshot 2026-10-08; older catalog peers have earlier assessment dates."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Arena WebDev (2026-10-07 cutoff, 141 models) has no verified exact-effort row for this tuple; other efforts are not transferred.",
+          "researched_at": "2026-10-08"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Design Arena lists the Sonnet 5.5 addition, but rank and effort could not be verified; Haiku 5.5 has no verified entry. No 3D score inferred from vision support.",
+          "researched_at": "2026-10-08"
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 101.94,
+          "basis": "Artificial Analysis, exact medium with Default Fallback, median output speed; not end-to-end task latency",
+          "assessed_at": "2026-10-08",
+          "source": "https://artificialanalysis.ai/models/claude-sonnet-5-5-medium"
+        }
+      }
+    },
+    "claude/claude-sonnet-5-5/high": {
+      "launch": {
+        "agent": "claude",
+        "model": "claude-sonnet-5-5",
+        "effort": "high"
+      },
+      "features": [
+        "tools",
+        "vision",
+        "long-context"
+      ],
+      "context": 1000000,
+      "context_evidence": "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "confidence": "high",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-sonnet-5-5-high",
+            "https://artificialanalysis.ai/models/releases/claude-sonnet-5-5"
+          ],
+          "score": 0.4675,
+          "conservative": 0.4475,
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Exact high with Default Fallback row 46.75335; score = index/100, conservative = score - 0.02."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.478,
+          "conservative": 0.448,
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://cursor.com/evals"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact high row 47.8% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
+        },
+        "agentic": {
+          "status": "known",
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-sonnet-5-5-high",
+            "https://artificialanalysis.ai/models/releases/claude-sonnet-5-5"
+          ],
+          "score": 0.5697,
+          "conservative": 0.5443,
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact high with Default Fallback Elo 1639.45 (95% CI lower 1628.51); score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 for Stirrup-to-launcher transfer. Snapshot 2026-10-08; older catalog peers have earlier assessment dates."
+        },
+        "ui": {
+          "status": "known",
+          "score": 0.9643,
+          "conservative": 0.9643,
+          "confidence": "high",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://arena.ai/leaderboard/code/webdev"
+          ],
+          "scale": "Arena WebDev rank, percentile",
+          "note": "Exact high row, rank 6 of 141 (rank spread 6-6), Elo 1716, vote cutoff 2026-10-07; score = 1 - (rank - 1)/(N - 1), conservative uses the worst rank in the published spread. Percentile is specific to this board population."
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Design Arena lists the Sonnet 5.5 addition, but rank and effort could not be verified; Haiku 5.5 has no verified entry. No 3D score inferred from vision support.",
+          "researched_at": "2026-10-08"
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 103.55,
+          "basis": "Artificial Analysis, exact high with Default Fallback, median output speed; not end-to-end task latency",
+          "assessed_at": "2026-10-08",
+          "source": "https://artificialanalysis.ai/models/claude-sonnet-5-5-high"
+        }
+      }
+    },
+    "claude/claude-sonnet-5-5/xhigh": {
+      "launch": {
+        "agent": "claude",
+        "model": "claude-sonnet-5-5",
+        "effort": "xhigh"
+      },
+      "features": [
+        "tools",
+        "vision",
+        "long-context"
+      ],
+      "context": 1000000,
+      "context_evidence": "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "confidence": "high",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-sonnet-5-5-xhigh",
+            "https://artificialanalysis.ai/models/releases/claude-sonnet-5-5"
+          ],
+          "score": 0.519,
+          "conservative": 0.499,
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Exact xhigh with Default Fallback row 51.89555; score = index/100, conservative = score - 0.02."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.531,
+          "conservative": 0.501,
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://cursor.com/evals"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact xhigh row 53.1% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
+        },
+        "agentic": {
+          "status": "known",
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-sonnet-5-5-xhigh",
+            "https://artificialanalysis.ai/models/releases/claude-sonnet-5-5"
+          ],
+          "score": 0.6257,
+          "conservative": 0.5989,
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact xhigh with Default Fallback Elo 1751.34 (95% CI lower 1737.85); score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 for Stirrup-to-launcher transfer. Snapshot 2026-10-08; older catalog peers have earlier assessment dates."
+        },
+        "ui": {
+          "status": "known",
+          "score": 0.9857,
+          "conservative": 0.9786,
+          "confidence": "high",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://arena.ai/leaderboard/code/webdev"
+          ],
+          "scale": "Arena WebDev rank, percentile",
+          "note": "Exact xhigh row, rank 3 of 141 (rank spread 2-4), Elo 1773, vote cutoff 2026-10-07; score = 1 - (rank - 1)/(N - 1), conservative uses the worst rank in the published spread. Percentile is specific to this board population."
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Design Arena lists the Sonnet 5.5 addition, but rank and effort could not be verified; Haiku 5.5 has no verified entry. No 3D score inferred from vision support.",
+          "researched_at": "2026-10-08"
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 107.3,
+          "basis": "Artificial Analysis, exact xhigh with Default Fallback, median output speed; not end-to-end task latency",
+          "assessed_at": "2026-10-08",
+          "source": "https://artificialanalysis.ai/models/claude-sonnet-5-5-xhigh"
+        }
+      }
+    },
+    "claude/claude-sonnet-5-5/max": {
+      "launch": {
+        "agent": "claude",
+        "model": "claude-sonnet-5-5",
+        "effort": "max"
+      },
+      "features": [
+        "tools",
+        "vision",
+        "long-context"
+      ],
+      "context": 1000000,
+      "context_evidence": "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "confidence": "high",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-sonnet-5-5",
+            "https://artificialanalysis.ai/models/releases/claude-sonnet-5-5"
+          ],
+          "score": 0.56,
+          "conservative": 0.54,
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Exact max with Default Fallback row 56.00013; score = index/100, conservative = score - 0.02."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.555,
+          "conservative": 0.525,
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://cursor.com/evals"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact max row 55.5% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
+        },
+        "agentic": {
+          "status": "known",
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-sonnet-5-5",
+            "https://artificialanalysis.ai/models/releases/claude-sonnet-5-5"
+          ],
+          "score": 0.6617,
+          "conservative": 0.6359,
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact max with Default Fallback Elo 1823.49 (95% CI lower 1811.83); score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 for Stirrup-to-launcher transfer. Snapshot 2026-10-08; older catalog peers have earlier assessment dates."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Arena WebDev (2026-10-07 cutoff, 141 models) has no verified exact-effort row for this tuple; other efforts are not transferred.",
+          "researched_at": "2026-10-08"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Design Arena lists the Sonnet 5.5 addition, but rank and effort could not be verified; Haiku 5.5 has no verified entry. No 3D score inferred from vision support.",
+          "researched_at": "2026-10-08"
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 130.54,
+          "basis": "Artificial Analysis, exact max with Default Fallback, median output speed; not end-to-end task latency",
+          "assessed_at": "2026-10-08",
+          "source": "https://artificialanalysis.ai/models/claude-sonnet-5-5"
+        }
+      }
+    },
+    "claude/claude-haiku-5-5/low": {
+      "launch": {
+        "agent": "claude",
+        "model": "claude-haiku-5-5",
+        "effort": "low"
+      },
+      "features": [
+        "tools",
+        "vision",
+        "long-context"
+      ],
+      "context": 1000000,
+      "context_evidence": "https://platform.claude.com/docs/en/models/haiku-5-5/overview",
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "confidence": "high",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-haiku-5-5-low",
+            "https://artificialanalysis.ai/models/releases/claude-haiku-5-5"
+          ],
+          "score": 0.2945,
+          "conservative": 0.2745,
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Exact low row 29.44950; score = index/100, conservative = score - 0.02."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.309,
+          "conservative": 0.279,
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://cursor.com/evals"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact low row 30.9% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
+        },
+        "agentic": {
+          "status": "known",
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-haiku-5-5-low",
+            "https://artificialanalysis.ai/models/releases/claude-haiku-5-5"
+          ],
+          "score": 0.3058,
+          "conservative": 0.2808,
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact low Elo 1111.58 (95% CI lower 1101.58); score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 for Stirrup-to-launcher transfer. Snapshot 2026-10-08; older catalog peers have earlier assessment dates."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Arena WebDev (2026-10-07 cutoff, 141 models) has no verified exact-effort row for this tuple; other efforts are not transferred.",
+          "researched_at": "2026-10-08"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Design Arena lists the Sonnet 5.5 addition, but rank and effort could not be verified; Haiku 5.5 has no verified entry. No 3D score inferred from vision support.",
+          "researched_at": "2026-10-08"
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 184.98,
+          "basis": "Artificial Analysis, exact low, median output speed; not end-to-end task latency",
+          "assessed_at": "2026-10-08",
+          "source": "https://artificialanalysis.ai/models/claude-haiku-5-5-low"
+        }
+      }
+    },
+    "claude/claude-haiku-5-5/medium": {
+      "launch": {
+        "agent": "claude",
+        "model": "claude-haiku-5-5",
+        "effort": "medium"
+      },
+      "features": [
+        "tools",
+        "vision",
+        "long-context"
+      ],
+      "context": 1000000,
+      "context_evidence": "https://platform.claude.com/docs/en/models/haiku-5-5/overview",
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "confidence": "high",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-haiku-5-5-medium",
+            "https://artificialanalysis.ai/models/releases/claude-haiku-5-5"
+          ],
+          "score": 0.3446,
+          "conservative": 0.3246,
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Exact medium row 34.46465; score = index/100, conservative = score - 0.02."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.369,
+          "conservative": 0.339,
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://cursor.com/evals"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact medium row 36.9% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
+        },
+        "agentic": {
+          "status": "known",
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-haiku-5-5-medium",
+            "https://artificialanalysis.ai/models/releases/claude-haiku-5-5"
+          ],
+          "score": 0.4359,
+          "conservative": 0.4117,
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact medium Elo 1371.7 (95% CI lower 1363.36); score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 for Stirrup-to-launcher transfer. Snapshot 2026-10-08; older catalog peers have earlier assessment dates."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Arena WebDev (2026-10-07 cutoff, 141 models) has no verified exact-effort row for this tuple; other efforts are not transferred.",
+          "researched_at": "2026-10-08"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Design Arena lists the Sonnet 5.5 addition, but rank and effort could not be verified; Haiku 5.5 has no verified entry. No 3D score inferred from vision support.",
+          "researched_at": "2026-10-08"
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 155.32,
+          "basis": "Artificial Analysis, exact medium, median output speed; not end-to-end task latency",
+          "assessed_at": "2026-10-08",
+          "source": "https://artificialanalysis.ai/models/claude-haiku-5-5-medium"
+        }
+      }
+    },
+    "claude/claude-haiku-5-5/high": {
+      "launch": {
+        "agent": "claude",
+        "model": "claude-haiku-5-5",
+        "effort": "high"
+      },
+      "features": [
+        "tools",
+        "vision",
+        "long-context"
+      ],
+      "context": 1000000,
+      "context_evidence": "https://platform.claude.com/docs/en/models/haiku-5-5/overview",
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "confidence": "high",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-haiku-5-5-high",
+            "https://artificialanalysis.ai/models/releases/claude-haiku-5-5"
+          ],
+          "score": 0.3782,
+          "conservative": 0.3582,
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Exact high row 37.82402; score = index/100, conservative = score - 0.02."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.423,
+          "conservative": 0.393,
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://cursor.com/evals"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact high row 42.3% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
+        },
+        "agentic": {
+          "status": "known",
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-haiku-5-5-high",
+            "https://artificialanalysis.ai/models/releases/claude-haiku-5-5"
+          ],
+          "score": 0.4713,
+          "conservative": 0.4464,
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact high Elo 1442.55 (95% CI lower 1432.83); score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 for Stirrup-to-launcher transfer. Snapshot 2026-10-08; older catalog peers have earlier assessment dates."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Arena WebDev (2026-10-07 cutoff, 141 models) has no verified exact-effort row for this tuple; other efforts are not transferred.",
+          "researched_at": "2026-10-08"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Design Arena lists the Sonnet 5.5 addition, but rank and effort could not be verified; Haiku 5.5 has no verified entry. No 3D score inferred from vision support.",
+          "researched_at": "2026-10-08"
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 178.45,
+          "basis": "Artificial Analysis, exact high, median output speed; not end-to-end task latency",
+          "assessed_at": "2026-10-08",
+          "source": "https://artificialanalysis.ai/models/claude-haiku-5-5-high"
+        }
+      }
+    },
+    "claude/claude-haiku-5-5/xhigh": {
+      "launch": {
+        "agent": "claude",
+        "model": "claude-haiku-5-5",
+        "effort": "xhigh"
+      },
+      "features": [
+        "tools",
+        "vision",
+        "long-context"
+      ],
+      "context": 1000000,
+      "context_evidence": "https://platform.claude.com/docs/en/models/haiku-5-5/overview",
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "confidence": "high",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-haiku-5-5-xhigh",
+            "https://artificialanalysis.ai/models/releases/claude-haiku-5-5"
+          ],
+          "score": 0.4125,
+          "conservative": 0.3925,
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Exact xhigh row 41.24893; score = index/100, conservative = score - 0.02."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.443,
+          "conservative": 0.413,
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://cursor.com/evals"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact xhigh row 44.3% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
+        },
+        "agentic": {
+          "status": "known",
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-haiku-5-5-xhigh",
+            "https://artificialanalysis.ai/models/releases/claude-haiku-5-5"
+          ],
+          "score": 0.5163,
+          "conservative": 0.4909,
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact xhigh Elo 1532.67 (95% CI lower 1521.87); score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 for Stirrup-to-launcher transfer. Snapshot 2026-10-08; older catalog peers have earlier assessment dates."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Arena WebDev (2026-10-07 cutoff, 141 models) has no verified exact-effort row for this tuple; other efforts are not transferred.",
+          "researched_at": "2026-10-08"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Design Arena lists the Sonnet 5.5 addition, but rank and effort could not be verified; Haiku 5.5 has no verified entry. No 3D score inferred from vision support.",
+          "researched_at": "2026-10-08"
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 192.82,
+          "basis": "Artificial Analysis, exact xhigh, median output speed; not end-to-end task latency",
+          "assessed_at": "2026-10-08",
+          "source": "https://artificialanalysis.ai/models/claude-haiku-5-5-xhigh"
+        }
+      }
+    },
+    "claude/claude-haiku-5-5/max": {
+      "launch": {
+        "agent": "claude",
+        "model": "claude-haiku-5-5",
+        "effort": "max"
+      },
+      "features": [
+        "tools",
+        "vision",
+        "long-context"
+      ],
+      "context": 1000000,
+      "context_evidence": "https://platform.claude.com/docs/en/models/haiku-5-5/overview",
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "confidence": "high",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-haiku-5-5",
+            "https://artificialanalysis.ai/models/releases/claude-haiku-5-5"
+          ],
+          "score": 0.434,
+          "conservative": 0.414,
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Exact max row 43.39502; score = index/100, conservative = score - 0.02."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.484,
+          "conservative": 0.454,
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://cursor.com/evals"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact max row 48.4% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
+        },
+        "agentic": {
+          "status": "known",
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-haiku-5-5",
+            "https://artificialanalysis.ai/models/releases/claude-haiku-5-5"
+          ],
+          "score": 0.5389,
+          "conservative": 0.5138,
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact max Elo 1577.72 (95% CI lower 1567.67); score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 for Stirrup-to-launcher transfer. Snapshot 2026-10-08; older catalog peers have earlier assessment dates."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Arena WebDev (2026-10-07 cutoff, 141 models) has no verified exact-effort row for this tuple; other efforts are not transferred.",
+          "researched_at": "2026-10-08"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Design Arena lists the Sonnet 5.5 addition, but rank and effort could not be verified; Haiku 5.5 has no verified entry. No 3D score inferred from vision support.",
+          "researched_at": "2026-10-08"
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 244.17,
+          "basis": "Artificial Analysis, exact max, median output speed; not end-to-end task latency",
+          "assessed_at": "2026-10-08",
+          "source": "https://artificialanalysis.ai/models/claude-haiku-5-5"
+        }
+      }
     }
   }
 }

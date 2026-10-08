@@ -85,6 +85,33 @@ def test_cache_buckets_are_priced_apart_from_input(tmp_path):
     assert row["usd"] == pytest.approx(10 + 12.5 + 10 + 0.25 + 50)
 
 
+@pytest.mark.parametrize("extra_input, multiplier", [(0, 1), (1, 5)])
+@pytest.mark.parametrize("geo, geo_multiplier", [("global", 1), ("us", 1.1)])
+def test_prompt_tier_counts_all_input_buckets_and_prices_whole_call(
+    tmp_path, extra_input, multiplier, geo, geo_multiplier
+):
+    # The 100k boundary includes cache reads and both write TTLs, not output.
+    records = [assistant(T0, "claude-haiku-5-5", usage(
+        input_tokens=10_000 + extra_input, cache_read=40_000,
+        cache_write=50_000, five=20_000, hour=30_000, output=120_000,
+    ), geo=geo)]
+    _, report, _ = report_for(tmp_path, records)
+    expected = ((10_000 + extra_input) * .1 + 40_000 * .01
+                + 20_000 * .125 + 30_000 * .2 + 120_000 * .5)
+    assert report["rows"][0]["usd"] == pytest.approx(
+        expected / 1_000_000 * multiplier * geo_multiplier, abs=1e-6
+    )
+    assert report["rows"][0]["unpriced_calls"] == 0
+
+
+def test_prompt_tier_is_selected_per_call_before_aggregation(tmp_path):
+    records = [assistant(T0, "claude-haiku-5-5", usage(
+        input_tokens=60_000, output=1_000,
+    ), message_id=f"msg-{i}") for i in range(2)]
+    _, report, _ = report_for(tmp_path, records)
+    assert report["rows"][0]["usd"] == pytest.approx(2 * (.006 + .0005))
+
+
 def test_each_message_is_counted_once(tmp_path):
     one = assistant(T0, "claude-haiku-4-5", usage(input_tokens=1_000, output=10))
     other = assistant(T0, "claude-haiku-4-5", usage(input_tokens=9_000, output=10), message_id="msg-2")

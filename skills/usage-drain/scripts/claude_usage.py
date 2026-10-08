@@ -79,6 +79,10 @@ def call_usd(rate, speed, geo, input_tokens, write_5m, write_1h, cache_read, out
     if rate is None:
         return None, None
     card = rate
+    long_context = rate.get("long_context")
+    prompt_tokens = input_tokens + write_5m + write_1h + cache_read
+    if long_context and prompt_tokens > long_context["above_input_tokens"]:
+        card = {**rate, **long_context}
     if speed == "fast":
         fast = rate.get("fast")
         if not isinstance(fast, dict):
@@ -87,7 +91,7 @@ def call_usd(rate, speed, geo, input_tokens, write_5m, write_1h, cache_read, out
             key in fast for key in ("cache_write_5m", "cache_write_1h", "cache_read")
         ):
             return None, "fast speed has no published cache rate"
-        card = {**rate, **fast}
+        card = {**card, **fast}
     elif speed not in STANDARD_SPEEDS:
         return None, f"speed {speed} has no published rate"
     multiplier = 1.0

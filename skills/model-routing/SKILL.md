@@ -81,7 +81,7 @@ A candidate whose launch tuple pins one account is not the same offer as the sam
 
 ## View or modify configuration
 
-The catalog supports `codex/gpt-6.1-sol/high` as a launch tuple with unassessed performance, features, context, and cost. Keep a principal's new-Codex default in their configuration layer; published support does not replace unrelated model preferences or transfer GPT-6 Sol benchmark scores. When migrating that default, replace superseded preferences at their owning scope and verify the regenerated brief.
+For benchmark provenance, score interpretation, refresh limits, or the evidence behind new model support, read [Benchmark evidence](references/benchmark-evidence.md). Catalog additions expand the available candidates; replace a principal's defaults only in the configuration layer that owns them.
 
 For requests to inspect, explain, add, change, or remove routing configuration—exact routes, preferences, candidate overrides—or supply consumer defaults, read [Configuration](references/configuration.md) before acting. `config.py` owns layer resolution and exact-route provenance; `router.py brief` shows what a spawning agent actually sees.
 

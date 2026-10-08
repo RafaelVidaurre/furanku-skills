@@ -48,9 +48,10 @@
       "input": 2,
       "cache_write_5m": 2.5,
       "cache_write_1h": 4,
-      "cache_read": 0.2,
+      "cache_read": 0.1,
       "output": 10,
-      "us_inference": 1.1
+      "us_inference": 1.1,
+      "retrieved": "2026-10-08"
     },
     "claude-haiku-4-5-20251001": {
       "input": 1,
@@ -58,6 +59,23 @@
       "cache_write_1h": 2,
       "cache_read": 0.1,
       "output": 5
+    },
+    "claude-haiku-5-5": {
+      "input": 0.1,
+      "cache_write_5m": 0.125,
+      "cache_write_1h": 0.2,
+      "cache_read": 0.01,
+      "output": 0.5,
+      "us_inference": 1.1,
+      "retrieved": "2026-10-08",
+      "long_context": {
+        "above_input_tokens": 100000,
+        "input": 0.5,
+        "cache_write_5m": 0.625,
+        "cache_write_1h": 1,
+        "cache_read": 0.05,
+        "output": 2.5
+      }
     }
   },
   "aliases": {
