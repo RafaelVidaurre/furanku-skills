@@ -10,6 +10,7 @@ then builds the assignment packet a spawning owner delivers.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -707,6 +708,8 @@ def routing_summary(decision):
         summary["source"] = decision["provenance"]["winner"]
         if selected.get("id"):
             summary["candidate"] = selected["id"]
+    if decision.get("account_binding"):
+        summary["account_binding"] = decision["account_binding"]
     if decision.get("quota_acceptance"):
         summary["quota_acceptance"] = decision["quota_acceptance"]
     if decision.get("explicit_basis"):
@@ -862,6 +865,26 @@ def build_packet(args):
     if template:
         fields = argv_fields(template, f"launch_argv.{agent}")
         argv = [part.format(model=routing["model"], effort=routing["effort"]) for part in template]
+        binding = decision.get('account_binding')
+        if binding:
+            provider = binding.get('provider')
+            expected = {'claude': 'CLAUDE_CONFIG_DIR', 'codex': 'CODEX_HOME'}.get(provider)
+            env = binding.get('env', {})
+            if provider != agent or not expected or set(env) != {expected} or not isinstance(env[expected], str) or not Path(env[expected]).is_absolute():
+                raise Error('account binding does not match the launch provider/profile')
+            try:
+                age = datetime.now(timezone.utc).timestamp() - datetime.fromisoformat(binding['refreshed_at'].replace('Z', '+00:00')).timestamp()
+                max_age = binding['max_age_seconds']
+                if not isinstance(max_age, (int, float)) or not 0 <= age <= max_age <= 1800:
+                    raise ValueError()
+            except (KeyError, TypeError, ValueError):
+                raise Error('account decision expired; rerun the routing check before launch')
+            unset = binding.get('unset_env', [])
+            if not isinstance(unset, list) or any(not isinstance(k, str) or not re.fullmatch(r'[A-Z][A-Z0-9_]*', k) for k in unset):
+                raise Error('invalid account credential environment names')
+            argv = ['env'] + [part for key in unset for part in ('-u', key)] + [f'{expected}={env[expected]}'] + argv
+            packet['account_binding'] = binding
+            packet['launch_method'] = 'command'
         packet["launch_argv"] = argv
         packet["launch_command"] = shlex.join(argv)
         missing = sorted({"model", "effort"} - fields)
@@ -869,6 +892,8 @@ def build_packet(args):
             packet["launch_warning"] = (
                 f"launch argv for {agent} cannot set routed " + " and ".join(missing)
             )
+    if decision.get('account_binding') and not template:
+        raise Error('mechanism cannot bind the selected account: provide launch_argv for its provider')
     return packet
 
 

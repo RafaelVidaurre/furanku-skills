@@ -201,7 +201,7 @@ def validate_accounts(accounts, source):
 def validate_schema(config, source):
     if type(config.get("version")) is not int or config["version"] != VERSION:
         raise Error(f"{source} must use routing config version {VERSION}")
-    allowed = {"version", "routes", "preferences", "candidates", "accounts"}
+    allowed = {"version", "routes", "preferences", "candidates", "accounts", "account_routing"}
     unknown = sorted(set(config) - allowed)
     if unknown or "routes" not in config:
         raise Error(
@@ -211,6 +211,12 @@ def validate_schema(config, source):
     validate_preferences(config.get("preferences", []), source)
     validate_candidate_overrides(config.get("candidates", {}), source)
     validate_accounts(config.get("accounts", {}), source)
+    if "account_routing" in config:
+        import accounts as account_routing
+        try:
+            account_routing.validate(config["account_routing"], source)
+        except ValueError as exc:
+            raise Error(str(exc)) from exc
 
 
 def load(path):

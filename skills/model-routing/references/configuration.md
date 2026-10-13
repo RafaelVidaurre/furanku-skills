@@ -20,7 +20,7 @@ The catalog ships no exact routes. A consumer may supply a version 4 file contai
 
 ## Schema
 
-Persisted layers and consumer defaults are version 4 documents. A persisted layer defines only the routes it overrides. `preferences` and `candidates` are optional in persisted layers. Route IDs are consumer-defined dotted tokens with no required role names; every route requires `agent`, `model`, and `effort`, and may carry a non-empty `work` description. Existing version 4 rows with or without `work` remain valid:
+Persisted layers and consumer defaults are version 4 documents. A persisted layer defines only the routes it overrides. `preferences`, `candidates`, and `account_routing` are optional in persisted layers. [Accounts](accounts.md) defines discovery, reporting, private profile configuration, and launch binding; the highest defining layer replaces that entire policy. Route IDs are consumer-defined dotted tokens with no required role names; every route requires `agent`, `model`, and `effort`, and may carry a non-empty `work` description. Existing version 4 rows with or without `work` remain valid:
 
 ```json
 {

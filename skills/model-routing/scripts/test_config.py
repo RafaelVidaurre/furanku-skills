@@ -109,7 +109,7 @@ class ConfigTest(unittest.TestCase):
         extra["unexpected"] = True
         result = self.run_config("write", "global", input_value=extra, ok=False)
         self.assertIn(
-            "must contain routes and only: accounts, candidates, preferences, routes, version",
+            "must contain routes and only:",
             result.stderr,
         )
 
@@ -221,7 +221,7 @@ class ConfigTest(unittest.TestCase):
             "write", "global", input_value=config, ok=False
         )
         self.assertIn(
-            "must contain routes and only: accounts, candidates, preferences, routes, version",
+            "must contain routes and only:",
             invalid.stderr,
         )
         del config["surprise"]

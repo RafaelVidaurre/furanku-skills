@@ -13,6 +13,7 @@ import argparse
 from copy import deepcopy
 import json
 import math
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -87,10 +88,14 @@ def runtime_dependency(name):
         or schema_version < 1
     ):
         raise Error(f"runtime dependency {name!r} requires a schema_version")
+    account_schema = dependency.get("account_schema_version", schema_version)
+    if isinstance(account_schema, bool) or not isinstance(account_schema, int) or account_schema < 1:
+        raise Error(f"runtime dependency {name!r} requires a valid account_schema_version")
     return {
         "package": package.strip(),
         "version": version,
         "schema_version": schema_version,
+        "account_schema_version": account_schema,
     }
 
 
@@ -337,6 +342,7 @@ def compile_brief(repo=".", defaults=None):
         for text in catalog.get("preferences", [])
     ]
     accounts = {}
+    account_policy = None
     paths = exact_config.locations(repo)
     exact = exact_config.resolve(paths, defaults=defaults)
     for scope in exact_config.SCOPES:
@@ -349,6 +355,8 @@ def compile_brief(repo=".", defaults=None):
         # Narrower scopes win in the private account registry. A candidate
         # must opt into one of these identities through quota_account.
         accounts.update(config.get("accounts", {}))
+        if "account_routing" in config:
+            account_policy = deepcopy(config["account_routing"])
         for candidate_id, patch in config.get("candidates", {}).items():
             if patch is None:
                 candidates.pop(candidate_id, None)
@@ -369,6 +377,7 @@ def compile_brief(repo=".", defaults=None):
         "malformed_candidates": malformed,
         "preferences": preferences,
         "accounts": accounts,
+        "account_routing": account_policy,
         "methodology": catalog["methodology"],
         "exact": exact,
         "layers": exact["layers_low_to_high"],
@@ -404,6 +413,22 @@ def runtime_for(runtime, candidate_id, candidate):
     candidate_states = runtime.get("candidates", {})
     if not isinstance(candidate_states, dict):
         raise Error("runtime candidates must be an object")
+    if runtime.get("account_inventory") is not None and agent in {"claude", "codex"} and not any(candidate.get(k) for k in ("quota_pool", "quota_provider", "quota_account")):
+        import accounts as account_routing
+        row = account_routing.choose(runtime["account_inventory"], agent, candidate["launch"]["model"])
+        if row is None:
+            considered = ', '.join(r['key'] + ' (' + r['measurement']['status'] + ')' for r in runtime['account_inventory']['accounts'] if r['provider'] == agent)
+            return {"quota": {"status": "unavailable", "detail": f"No measured account is fresh, launch-bound, and above its reserve. Considered: {considered or 'none'}. Inspect router.py accounts."}}
+        state = {"quota": {"status": "known", "effective_percent_remaining": account_routing.remaining(row, candidate["launch"]["model"]),
+                           "account": {"provider": agent, "email": row.get('expected_identity', {}).get('email') or row['measurement'].get('identity', {}).get('email'),
+                                       "label": row['label'], "account_id": row['id'], "routing_account": row['key']}}}
+        for source in (harnesses.get(agent, {}), candidate_states.get(candidate_id, {})):
+            if source.get('health') in HARD_HEALTH_STATUSES:
+                state['health'] = source['health']
+            if source.get('status') in {'unavailable', 'unsupported'}:
+                state['status'] = source['status']
+        state['account_binding'] = account_routing.binding(row, runtime['account_max_age_seconds'])
+        return state
     harness = harnesses.get(agent, {})
     if not isinstance(harness, dict):
         raise Error(f"runtime harness state for {agent} must be an object")
@@ -570,7 +595,7 @@ def project_provider_runtime(generated, candidates, provider_id, state, identity
 
 def quota_axi_runtime(snapshot, candidates):
     dependency = runtime_dependency("quota-axi")
-    if snapshot.get("schemaVersion") != dependency["schema_version"] or not isinstance(
+    if snapshot.get("schemaVersion") not in {dependency["schema_version"], dependency["account_schema_version"]} or not isinstance(
         snapshot.get("providers"), list
     ):
         raise Error(
@@ -583,7 +608,17 @@ def quota_axi_runtime(snapshot, candidates):
         "candidates": {},
         "notes": [],
     }
-    for provider in snapshot["providers"]:
+    providers = snapshot['providers']
+    for provider in providers:
+        provider_id = provider.get('provider')
+        siblings = [p for p in providers if p.get('provider') == provider_id]
+        if len(siblings) > 1:
+            selected_path = str(Path(os.environ.get('CLAUDE_CONFIG_DIR', str(Path.home() / '.claude'))).expanduser()) if provider_id == 'claude' else None
+            matches = [p for p in siblings if p.get('accountLocator', {}).get('path') == selected_path] if selected_path else []
+            if len(matches) != 1 or provider is not matches[0]:
+                if not matches:
+                    generated['notes'].append(f'{provider_id}: multiple account lanes; no unique active profile, quota unknown')
+                continue
         provider_id = provider.get("provider")
         identity = account_identity(provider, provider_id)
         if provider_id == "kimi":
@@ -624,7 +659,7 @@ def quota_axi_runtime(snapshot, candidates):
                 ),
                 None,
             )
-            if base_scope:
+            if base_scope and base_scope.get("status", "known") == "known":
                 remaining = base_scope.get("effectivePercentRemaining")
                 harness_state["quota"] = {
                     "status": "exhausted" if remaining == 0 else "known",
@@ -636,7 +671,7 @@ def quota_axi_runtime(snapshot, candidates):
             else:
                 harness_state["quota"] = {"status": "unknown"}
             for scope in scopes:
-                if scope.get("scope") != "model:fable":
+                if scope.get("scope") != "model:fable" or scope.get("status", "known") != "known":
                     continue
                 for candidate_id, candidate in candidates.items():
                     launch = candidate["launch"]
@@ -738,7 +773,7 @@ def quota_summary(state):
         return {"status": "unknown"}
     summary = {"status": quota.get("status", "unknown")}
     for key in ("effective_percent_remaining", "pressure", "bounded_by", "account"):
-        if quota.get(key):
+        if quota.get(key) is not None:
             summary[key] = quota[key]
     for key in QUOTA_DIAGNOSTIC_KEYS:
         if quota.get(key):
@@ -760,6 +795,8 @@ def account_phrase(account):
         provider = account.get("provider")
         return f"pooled {provider} accounts" if provider else "pooled accounts"
     email = quota_account_email({"account": account})
+    if isinstance(account, dict) and account.get('routing_account'):
+        return f"account {email or account.get('label') or account['account_id']} [{account['routing_account']}]"
     return f"account {email}" if email else "account unattributed"
 
 
@@ -838,7 +875,7 @@ def gate(
             "the candidate's fixed launch account"
         )
     elif quota_status in HARD_QUOTA_STATUSES:
-        reasons.append(f"quota {quota_status} ({account_phrase(account)})")
+        reasons.append(f"quota {quota_status} ({account_phrase(account)})" + (f": {quota['detail']}" if quota.get("detail") else ""))
     elif quota_status in {"unknown", "stale", "pooled"}:
         # `pooled` is a settled state, not a failed reading: the surface has no
         # single account to measure and rotates off exhausted credentials by
@@ -1366,6 +1403,13 @@ def _check(compiled, args, runtime):
 
 def check(compiled, args, runtime):
     decision = _check(compiled, args, runtime)
+    if decision.get("status") in {"selected", "exact"}:
+        selected = decision['selected']
+        candidate_id = selected.get('id') or match_candidate(compiled, {k: selected[k] for k in ('agent', 'model', 'effort')})
+        if candidate_id in compiled['candidates']:
+            state = runtime_for(runtime, candidate_id, compiled['candidates'][candidate_id])
+            if state.get('account_binding'):
+                decision['account_binding'] = state['account_binding']
     basis = getattr(args, "explicit_basis", None)
     if basis and basis.strip():
         decision["explicit_basis"] = basis.strip()
@@ -1502,6 +1546,15 @@ def brief_markdown(compiled, runtime, repo_root, allowed_launchers=None):
     ]
     if allowed_launchers is not None:
         lines.append("**Launchable agents:** " + ", ".join(sorted(allowed_launchers)))
+    if runtime and runtime.get('account_inventory') is not None:
+        import accounts as account_routing
+        lines += ['', '## Account selection', '',
+                  'Account priority applies within each model. A successful check binds the chosen profile into the launch; refresh before dispatch.', '',
+                  '| Account | ID | Priority | Reserve | Status | Remaining |',
+                  '| --- | --- | ---: | ---: | --- | ---: |']
+        for row in runtime['account_inventory']['accounts']:
+            left = account_routing.remaining(row)
+            lines.append('| ' + ' | '.join(markdown_cell(str(v)) for v in (row['label'], row['key'], row['priority'], row['min_remaining_percent'], row['measurement']['status'], f'{left:g}%' if left is not None else 'unknown')) + ' |')
     lines += ["", "## Routing preferences", ""]
     if compiled["preferences"]:
         lines.append(
@@ -1710,6 +1763,15 @@ def load_runtime(args, candidates):
                     f"quota-axi failed: {exc}; quota is unknown for every candidate"
                 ],
             }
+    policy = compile_brief(args.repo).get('account_routing')
+    if policy is not None and args.quota_axi:
+        import accounts as account_routing
+        try:
+            runtime['account_inventory'] = account_routing.inventory(policy, runtime_dependency('quota-axi'))
+        except (ValueError, OSError, subprocess.TimeoutExpired) as exc:
+            runtime['account_inventory'] = {'accounts': []}
+            runtime.setdefault('notes', []).append(f'Account discovery failed: {exc}')
+        runtime['account_max_age_seconds'] = policy.get('max_age_seconds', 300)
     if args.runtime_file:
         runtime = merge_runtime(
             runtime,
@@ -1720,13 +1782,14 @@ def load_runtime(args, candidates):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("brief", "check", "route", "setup", "status"))
+    parser.add_argument("command", choices=("brief", "check", "route", "setup", "status", "accounts", "list"))
     parser.add_argument("--selector", choices=("agent", "jev"), help="machine-wide choice for setup")
     parser.add_argument("--task-file", help="Jev task context JSON")
     parser.add_argument("--allow-model", action="append", default=[], help="principal-required model, repeatable")
     parser.add_argument("--allow-effort", action="append", default=[], help="principal-required effort, repeatable")
     parser.add_argument("--require-zdr", action="store_true", help="require Gateway zero data retention")
     parser.add_argument("--repo", default=".")
+    parser.add_argument("--account-source", choices=("orca", "configured"), help="account report discovery override")
     parser.add_argument("--defaults", help="consumer-owned default routes file, below persisted layers")
     parser.add_argument("--candidate", help="candidate ID chosen from the brief")
     parser.add_argument(
@@ -1791,6 +1854,17 @@ def main(argv=None):
             emit(result, args.compact)
             return 0 if result["status"] == "ready" else 2
         compiled = compile_brief(args.repo, args.defaults)
+        if args.command in ('accounts', 'list'):
+            import accounts as account_routing
+            policy = compiled.get('account_routing') or {'source': 'configured'}
+            if args.account_source:
+                policy = {**policy, 'source': args.account_source}
+            report = account_routing.inventory(policy, runtime_dependency('quota-axi'), refresh=True)
+            if args.format == 'json':
+                emit(report, args.compact)
+            else:
+                sys.stdout.write(account_routing.render(report))
+            return 0
         repo_root, _common = exact_config.repo_info(args.repo)
         if args.command == "brief":
             allowed_launchers = parse_allowed_launchers(args.launchable_via)
@@ -1814,7 +1888,7 @@ def main(argv=None):
         if decision["status"] == "needs-acceptance":
             return 2
         return 0
-    except (Error, exact_config.Error, jev.Error, OSError, json.JSONDecodeError) as exc:
+    except (Error, exact_config.Error, jev.Error, OSError, ValueError, subprocess.TimeoutExpired) as exc:
         print(f"model-routing: {exc}", file=sys.stderr)
         return 1
 

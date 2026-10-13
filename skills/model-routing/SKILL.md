@@ -1,11 +1,17 @@
 ---
 name: model-routing
-description: Choose an agent, model, and effort using capability evidence, routing preferences, and live quota, then gate-check the launch decision. Use before delegating work; to list models or set a model and effort enabled, disabled, or explicit; when changing routing configuration; when diagnosing a routing brief or launch gate; or when setting up or toggling Jev selection through Vercel AI Gateway.
+description: Choose an agent, model, and effort using capability evidence, routing preferences, and live quota, then gate-check the launch decision. Use before delegating work; to list accounts and usage quotas, configure account priorities, list models, or set a model and effort enabled, disabled, or explicit; when changing routing configuration; when diagnosing a routing brief or launch gate; or when setting up or toggling Jev selection through Vercel AI Gateway.
 ---
 
 # Model routing
 
 `<skill-dir>` is the directory containing this file. The machine-wide selector chooses who judges ordinary launches; local code enforces launch gates in either mode.
+
+## Accounts and usage
+
+For `$model-routing accounts` or `$model-routing list`, run `python3 <skill-dir>/scripts/router.py accounts --repo <root>` and return its compact table unchanged. It requests live readings from configured direct quota sources and explains failed refreshes or snapshot-only sources below the table. Account reporting needs no selector setup. For account discovery, priorities, reserves, or account-bound launch/recovery, read [Accounts](references/accounts.md).
+
+**Complete when:** the requested report is shown with account identities, quota windows, reset times, and freshness, or the tool failure is reported.
 
 ## Set up once
 
@@ -73,7 +79,7 @@ When the brief's activation rule applies, use `check --exact-route <route-id> --
 
 When the decision's warnings or quota materially contradict the judgment—quota far below what the brief showed, an unexplained warning—repeat selection with the configured selector before launching.
 
-Every quota verdict names the account it measured, because one machine may hold several accounts per provider and quota tools read whichever account-scoped environment is active. Report a quota refusal with that account: "exhausted for `<account>`" is answerable, while a bare "exhausted" strands the principal when they meant a different one. If a verdict reads `account unattributed`, quota could not be tied to an identity — say so rather than presenting it as settled. Never switch accounts only to obtain a more favorable reading: that proves nothing about the account the launch will bill. When a decision involves multiple accounts or an account mismatch, read and apply [Configuration](references/configuration.md#schema) before treating it as a blocker.
+Every quota verdict names the measured account. When a decision carries `account_binding`, apply it at launch through the consumer; read [Accounts](references/accounts.md) for the binding and recovery contract. Report a quota refusal with that account: "exhausted for `<account>`" is answerable, while a bare "exhausted" strands the principal when they meant a different one. If a verdict reads `account unattributed`, quota could not be tied to an identity — say so rather than presenting it as settled. Account changes require a measurement and launch binding for the same account. When a decision involves multiple accounts or an account mismatch, read and apply [Configuration](references/configuration.md#schema) before treating it as a blocker.
 
 A candidate whose launch tuple pins one account is not the same offer as the same model reached through a rotating proxy, which selects a credential per request and moves on when one is exhausted. When a route pinned to a single account is refused for quota, that refusal binds only that route: say which account is out and whether the same model is configured through a pooled surface, rather than reporting the model itself as unavailable. A `pooled` quota reading passes and carries a warning naming the pool — it is a settled state, not a reading to accept or recover.
 
@@ -85,6 +91,6 @@ For benchmark provenance, score interpretation, refresh limits, or the evidence 
 
 For requests to inspect, explain, add, change, or remove routing configuration—exact routes, preferences, candidate overrides—or supply consumer defaults, read [Configuration](references/configuration.md) before acting. `config.py` owns layer resolution and exact-route provenance; `router.py brief` shows what a spawning agent actually sees.
 
-For `/model-routing list` or `/model-routing models`, run `python3 <skill-dir>/scripts/config.py models --repo <root>`. For `/model-routing set <enabled|disabled|explicit> <model> <effort>`, use `config.py set` as documented in Configuration. An explicit candidate is available only when the principal requested that model and effort for the task; pass the verbatim request to `check --explicit-basis`. An exact route name alone does not supply this basis. Ordinary agent and Jev selection exclude explicit candidates.
+For `$model-routing models`, run `python3 <skill-dir>/scripts/config.py models --repo <root>`. For `/model-routing set <enabled|disabled|explicit> <model> <effort>`, use `config.py set` as documented in Configuration. An explicit candidate is available only when the principal requested that model and effort for the task; pass the verbatim request to `check --explicit-basis`. An exact route name alone does not supply this basis. Ordinary agent and Jev selection exclude explicit candidates.
 
 **Complete when:** a view shows effective routes and the brief with provenance, or a change is validated in its intended scope and visible in the regenerated brief.

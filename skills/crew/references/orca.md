@@ -27,6 +27,12 @@ For dependent work, create the task with `task-create --run <runId> --spec "<pac
 
 Read each launch receipt before another launch: success requires `state: ready`, exact task/dispatch IDs, and the intended `launch.effective`. Record created/reused resources from `effects`; name Crew terminals `<Role> - <summary>`. On failure, inspect `failedStage`, `residualResources`, and `recovery`. Reconcile an unknown mutation result before another start.
 
+### Account-bound launches
+
+A packet with `account_binding` must use its exact `launch_command` through **Custom model arguments**, then attach the terminal. The wrapper's `--agent/--model/--effort` interface does not pin an account. Preserve the packet's environment assignment and credential unsets. Check the native CLI's account/profile status before delivery and retain the selected account ID with the launch receipt; an Orca active-account label alone does not prove the custom command's identity. The creator owns the external terminal through retirement.
+
+When quota is exhausted, checkpoint the work and follow **Recover a discrepancy** to settle the old attempt before a replacement. Rerun model-routing, create a terminal with the new packet command, and attach it to the same task using the documented retry flow. Preserve the task contract and completed work; no global account selection change is required.
+
 ### Custom model arguments
 
 `worker-start --model … --effort …` is the normal tuple interface. `worktree create --agent` has no equivalent per-call flags. For an agent the wrapper cannot parameterize, use the packet's expanded `launch_argv` / `launch_command` after resolving any `launch_warning`. Create one terminal in the selected workspace, wait for readiness, then attach it:
