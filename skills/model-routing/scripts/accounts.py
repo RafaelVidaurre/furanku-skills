@@ -177,7 +177,7 @@ def inventory(policy, dependency, now=None, *, refresh=False):
                              'discovery': {'source': 'orca', 'command': orca_command(policy)},
                              'launch_ready': not account.get('needsSignIn', False),
                              'label': account.get('email') or account.get('name') or identity,
-                             'active': active, 'expected_identity': {k: account[k] for k in ('email', 'providerAccountId', 'organizationUuid') if account.get(k)}, 'runtime': account.get('managedAuthRuntime', account.get('managedHomeRuntime', 'host')),
+                             'active': active, 'host_active': identity == group.get('activeAccountIdsByRuntime', {}).get('host', group.get('activeAccountId')), 'expected_identity': {k: account[k] for k in ('email', 'providerAccountId', 'organizationUuid') if account.get(k)}, 'runtime': account.get('managedAuthRuntime', account.get('managedHomeRuntime', 'host')),
                              'measurement': orca_measurement(limits.get(provider, {}) if active else inactive.get(identity, {}))}
     for key, config in policy.get('profiles', {}).items():
         if policy.get('source') == 'orca' and key not in rows:
@@ -241,9 +241,11 @@ def remaining(row, model=''):
     return min(values)
 
 
-def choose(report, provider, model):
+def choose(report, provider, model, *, native_only=False):
     eligible = []
     for row in report['accounts']:
+        if native_only and (not row.get('host_active', row.get('active')) or row.get('discovery', {}).get('source') != 'orca'):
+            continue
         left = remaining(row, model)
         if row['provider'] == provider and row.get('profile') and row.get('runtime') == 'host' and row.get('launch_ready', True) and row['measurement']['status'] == 'known' and left is not None and left > row['min_remaining_percent']:
             eligible.append(row)

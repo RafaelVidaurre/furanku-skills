@@ -66,6 +66,8 @@ With `--quota-axi`, briefs and checks refresh the account inventory. A successfu
 
 An Orca inventory read does not refresh its quota snapshots. When the selected native account's snapshot expires, use Orca's supported usage refresh if available, then recheck; otherwise report the missing refresh capability. Keep the freshness policy unchanged and retain unavailable evidence. A healthy different account does not authorize delivery to a native process bound to the stale account.
 
+Consumers unable to select an account pass `--native-account-only claude` or `--native-account-only codex`. This limits selection to the active Orca host account before priority ranking; its own quota/profile gates still apply. Direct command launchers omit this constraint and retain account-priority selection.
+
 Check immediately before each new launch or recovery. After exhaustion, checkpoint completed work and the remaining contract, settle/fence the old owner through the consumer's lifecycle, rerun routing within the same model/task constraints, and launch a continuation with the new binding. For Orca, follow Crew's account-bound terminal attachment procedure. Keep the workspace and work record; do not assume a provider's conversation ID is portable between accounts.
 
 This policy selects accounts at launch boundaries. It does not migrate or restart a running agent automatically. When a fresh reading after reset makes the priority account eligible again, the next check selects it again. All accounts unusable is a refusal, with inventory evidence; unknown quota is not permission to bill a guessed account.

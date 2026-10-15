@@ -502,6 +502,9 @@ def routing_brief(args):
         ",".join(manifest["launchable_agents"]),
         "--quota-axi",
     ]
+    for provider, method in manifest.get("account_launch", {}).items():
+        if method == "orca-native":
+            command += ["--native-account-only", provider]
     if args.runtime_file:
         command += ["--runtime-file", args.runtime_file]
     if args.format:
@@ -561,6 +564,9 @@ def route_decision(args, manifest):
         ",".join(manifest["launchable_agents"]),
         "--quota-axi",
     ]
+    for provider, method in manifest.get("account_launch", {}).items():
+        if method == "orca-native":
+            command += ["--native-account-only", provider]
     if args.candidate:
         command += ["--candidate", args.candidate, "--reason", args.reason]
     else:

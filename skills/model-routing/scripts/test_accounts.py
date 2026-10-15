@@ -273,3 +273,32 @@ def test_malformed_orca_window_cannot_become_headroom(used):
     reading = accounts.orca_measurement({'status': 'ok', 'updatedAt': NOW.isoformat(),
                                         'session': {'usedPercent': 10}, 'weekly': {'usedPercent': used}})
     assert reading['status'] == 'unknown'
+
+
+def test_native_launch_filters_before_priority_and_never_borrows_duplicate_quota():
+    inactive = row('priority', 99, 100)
+    active = row('active', 40, active=True)
+    for account in (inactive, active):
+        account['discovery'] = {'source': 'orca', 'command': 'orca'}
+    report = {'accounts': [inactive, active]}
+    assert accounts.choose(report, 'claude', 'opus')['id'] == 'priority'
+    assert accounts.choose(report, 'claude', 'opus', native_only=True)['id'] == 'active'
+    runtime = {'account_inventory': report, 'account_max_age_seconds': 300,
+               'native_account_only': ['claude']}
+    candidate = {'launch': {'agent': 'claude', 'model': 'opus'}}
+    state = router.runtime_for(runtime, 'fixture', candidate)
+    assert state['account_binding']['id'] == 'active'
+    assert state['quota']['effective_percent_remaining'] == 40
+    active['measurement']['status'] = 'stale'
+    assert accounts.choose(report, 'claude', 'opus', native_only=True) is None
+    assert router.runtime_for(runtime, 'fixture', candidate)['quota']['status'] == 'unavailable'
+    active['measurement']['status'] = 'known'
+    active.pop('discovery')
+    assert accounts.choose(report, 'claude', 'opus', native_only=True) is None
+
+
+def test_native_launch_cannot_fall_back_to_unattributed_provider_quota():
+    state = router.runtime_for({'native_account_only': ['claude'],
+        'harnesses': {'claude': {'quota': {'status': 'known', 'effective_percent_remaining': 99}}}},
+        'fixture', {'launch': {'agent': 'claude', 'model': 'opus'}})
+    assert state['quota']['status'] == 'unavailable'

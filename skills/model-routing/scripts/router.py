@@ -413,9 +413,12 @@ def runtime_for(runtime, candidate_id, candidate):
     candidate_states = runtime.get("candidates", {})
     if not isinstance(candidate_states, dict):
         raise Error("runtime candidates must be an object")
+    if agent in runtime.get("native_account_only", []) and runtime.get("account_inventory") is None and not any(candidate.get(k) for k in ("quota_pool", "quota_provider", "quota_account")):
+        return {"quota": {"status": "unavailable", "detail": "Native account selection requires measured Orca account inventory."}}
     if runtime.get("account_inventory") is not None and agent in {"claude", "codex"} and not any(candidate.get(k) for k in ("quota_pool", "quota_provider", "quota_account")):
         import accounts as account_routing
-        row = account_routing.choose(runtime["account_inventory"], agent, candidate["launch"]["model"])
+        row = account_routing.choose(runtime["account_inventory"], agent, candidate["launch"]["model"],
+                                     native_only=agent in runtime.get("native_account_only", []))
         if row is None:
             considered = ', '.join(r['key'] + ' (' + r['measurement']['status'] + ')' for r in runtime['account_inventory']['accounts'] if r['provider'] == agent)
             return {"quota": {"status": "unavailable", "detail": f"No measured account is fresh, launch-bound, and above its reserve. Considered: {considered or 'none'}. Inspect router.py accounts."}}
@@ -1777,6 +1780,7 @@ def load_runtime(args, candidates):
             runtime,
             read_json(Path(args.runtime_file).expanduser(), "runtime"),
         )
+    runtime["native_account_only"] = getattr(args, "native_account_only", [])
     return runtime
 
 
@@ -1835,6 +1839,8 @@ def main(argv=None):
         "--use-quota-fallback",
         help="after the configured ask wait, use the exact route's quota fallback",
     )
+    parser.add_argument("--native-account-only", action="append", choices=("claude", "codex"), default=[],
+                        help="consumer can launch only the active Orca host account for this provider")
     parser.add_argument("--runtime-file", help="ephemeral runtime JSON")
     parser.add_argument(
         "--quota-axi",
