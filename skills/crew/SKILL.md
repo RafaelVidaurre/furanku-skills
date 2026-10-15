@@ -82,7 +82,7 @@ When the brief's activation rule applies, replace `--candidate` and `--reason` w
 
 Omit `--manifest` when the active configured mechanism supplies one; pass a manifest for a session-specific or dynamically discovered harness profile. Pass an existing contract as `--work-ref` unchanged. Otherwise use `--request "<verbatim user request>"`; `packet` infers a configured work-record adapter, while `--work-record <adapter|none>` records a session override. When a later packet rebuild is likely, add `--decision-out <file>` to save the raw gate-check result; rebuild with `--decision-json <file>` instead of candidate or route arguments so the unchanged check is not rerun.
 
-When the decision carries `account_binding`, use the packet’s `launch_command` with its profile environment; `launch_method: command` requires a command-capable launcher. Read model-routing’s Accounts reference for exhaustion/checkpoint recovery and rerun the gate before replacement.
+When the decision carries `account_binding`, follow the packet's `launch_method`: `command` applies its exact profile environment through a command-capable launcher; `orca-native` follows [Orca's account-bound preparation and delivery](references/orca.md#account-bound-launches). Read model-routing's Accounts reference for exhaustion/checkpoint recovery and rerun the gate before replacement.
 
 When the launcher needs a prompt file, add `--spec-out <private path>` to write the exact emitted spec without reconstructing it. If model-routing supplies a `decision_id`, preserve it through launch and use that version's documented journal interface to link the actual returned session or dispatch ID.
 

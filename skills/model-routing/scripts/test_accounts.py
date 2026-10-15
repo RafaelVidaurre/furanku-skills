@@ -223,3 +223,53 @@ def test_report_has_one_safe_table_row_per_account_and_distinct_short_ids():
     assert 'unsafe\\|label &lt;br&gt;newline' in rendered
     assert 'session: 80%<br>weekly: 10%' in rendered
     assert 'weekly: Oct 14 10:00' in rendered
+
+
+def test_native_profile_correction_requires_exact_observed_path_and_identity():
+    expected = {'email': 'same@example.test', 'organizationUuid': 'same-org'}
+    candidate = {**row('current'), 'expected_identity': expected}
+    def status(argv, env):
+        assert argv == ['claude', 'auth', 'status', '--json']
+        return {'loggedIn': env['CLAUDE_CONFIG_DIR'] == '/profiles/current',
+                'email': 'same@example.test', 'orgId': 'same-org'}
+    with patch.object(accounts, 'command_json', side_effect=status):
+        assert accounts.verify_claude_launch(candidate)
+        candidate['profile'] = '/obsolete/auth'
+        assert not accounts.verify_claude_launch(candidate)
+        candidate['profile'] = '/profiles/current'
+        candidate['expected_identity'] = {}
+        assert not accounts.verify_claude_launch(candidate)
+
+
+@pytest.mark.parametrize('source, age, sign_in, selected', [
+    ('orca', 0, False, True), ('orca', 301, False, False),
+    ('orca', 0, True, False), ('quota-axi-keychain', 0, False, False),
+])
+def test_explicit_snapshot_source_never_borrows_permission_gap_evidence(source, age, sign_in, selected):
+    policy = {'source': 'orca', 'profiles': {'claude:one': {'profile': '/profiles/current', 'quota_source': source}}}
+    fixture = {'result': {'claude': {'activeAccountId': 'one', 'accounts': [
+        {'id': 'one', 'email': 'same@example.test', 'organizationUuid': 'same-org', 'needsSignIn': sign_in}]},
+        'rateLimits': {'claude': {'status': 'ok', 'updatedAt': (NOW.timestamp() - age) * 1000,
+                                 'session': {'usedPercent': 30}}}}}
+    def command(argv, env=None):
+        if argv[0] == 'claude':
+            return {'loggedIn': True, 'email': 'same@example.test', 'orgId': 'same-org'}
+        return fixture
+    unavailable = {'status': 'unknown', 'windows': [], 'source': 'quota-axi-keychain', 'detail': 'keychain_prompt_required'}
+    with patch.object(accounts, 'command_json', side_effect=command), patch.object(accounts, 'profile_measurement', return_value=unavailable) as direct:
+        report = accounts.inventory(policy, DEP, NOW)
+    chosen = accounts.choose(report, 'claude', 'opus')
+    assert bool(chosen) == selected
+    assert direct.call_count == (1 if source == 'quota-axi-keychain' else 0)
+    if chosen:
+        binding = accounts.binding(chosen, 300)
+        assert binding['id'] == 'one'
+        assert binding['discovery']['source'] == 'orca'
+        assert binding['expected_identity']['organizationUuid'] == 'same-org'
+
+
+@pytest.mark.parametrize('used', [True, -1, 101, float('nan'), None, '10'])
+def test_malformed_orca_window_cannot_become_headroom(used):
+    reading = accounts.orca_measurement({'status': 'ok', 'updatedAt': NOW.isoformat(),
+                                        'session': {'usedPercent': 10}, 'weekly': {'usedPercent': used}})
+    assert reading['status'] == 'unknown'

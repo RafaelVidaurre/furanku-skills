@@ -13,6 +13,7 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 from pathlib import Path
 import re
 import shlex
@@ -36,6 +37,7 @@ MANIFEST_KEYS = {
     "launchable_agents",
     "launch_notes",
     "launch_argv",
+    "account_launch",
     "principals",
     "supervised_protocol",
     "isolation",
@@ -68,6 +70,7 @@ KNOWN_MANIFESTS = {
             )
         },
         "isolation": True,
+        "account_launch": {"claude": "orca-native", "codex": "orca-native"},
         "launch_argv": {
             "claude": ["claude", "--model", "{model}", "--effort", "{effort}"],
             "codex": [
@@ -224,6 +227,13 @@ def validate_manifest(manifest, label="manifest"):
         ):
             raise Error(f"{label}.launch_argv.{agent} must be a non-empty string array")
         argv_fields(argv, f"{label}.launch_argv.{agent}")
+    account_launch = manifest.get('account_launch', {})
+    if not isinstance(account_launch, dict) or any(
+        agent not in agents or method not in ('command', 'orca-native') or
+        (method == 'orca-native' and agent not in ('claude', 'codex'))
+        for agent, method in account_launch.items()
+    ):
+        raise Error(f'{label}.account_launch must map launchable providers to command or orca-native')
     principals = manifest.get("principals", PRINCIPALS)
     if not isinstance(principals, (list, tuple)) or not principals or any(
         principal not in PRINCIPALS for principal in principals
@@ -719,6 +729,54 @@ def routing_summary(decision):
     return summary
 
 
+def account_binding_argv(binding, agent):
+    """Validate a fresh binding for either a direct command or native preparation."""
+    provider = binding.get('provider')
+    expected = {'claude': 'CLAUDE_CONFIG_DIR', 'codex': 'CODEX_HOME'}.get(provider)
+    env = binding.get('env', {})
+    if provider != agent or not expected or set(env) != {expected} or not isinstance(env[expected], str) or not Path(env[expected]).is_absolute():
+        raise Error('account binding does not match the launch provider/profile')
+    try:
+        age = datetime.now(timezone.utc).timestamp() - datetime.fromisoformat(binding['refreshed_at'].replace('Z', '+00:00')).timestamp()
+        max_age = binding['max_age_seconds']
+        if isinstance(max_age, bool) or not isinstance(max_age, (int, float)) or not math.isfinite(max_age) or not 0 <= age <= max_age <= 1800:
+            raise ValueError()
+    except (KeyError, TypeError, ValueError):
+        raise Error('account decision expired; rerun the routing check before launch')
+    unset = binding.get('unset_env', [])
+    if not isinstance(unset, list) or any(not isinstance(k, str) or not re.fullmatch(r'[A-Z][A-Z0-9_]*', k) for k in unset):
+        raise Error('invalid account credential environment names')
+    return ['env'] + [part for key in unset for part in ('-u', key)] + [f'{expected}={env[expected]}']
+
+
+def orca_native_preparation(binding, routing):
+    """Public discovery verifies selection; process identity still gates delivery."""
+    discovery = binding.get('discovery', {})
+    command = discovery.get('command')
+    if discovery.get('source') != 'orca' or not isinstance(command, str) or not command.strip():
+        raise Error('Orca native launch requires an Orca-discovered account; rerun routing with Orca discovery')
+    try:
+        result = subprocess.run([command, 'account', 'list', '--json'], capture_output=True, text=True, timeout=30)
+        data = json.loads(result.stdout)
+        if result.returncode or data.get('ok') is False:
+            raise ValueError()
+        group = data['result'][routing['agent']]
+        active = group.get('activeAccountIdsByRuntime', {}).get('host', group.get('activeAccountId'))
+        account = next((row for row in group['accounts'] if row['id'] == binding.get('id')), None)
+    except (OSError, subprocess.TimeoutExpired, ValueError, KeyError, TypeError, AttributeError):
+        raise Error('Orca native account discovery unavailable; task delivery remains blocked')
+    if not account or not binding.get('id') or active != binding['id']:
+        raise Error('Orca native launch cannot pin the selected account: it differs from the active host account; preserve the decision and resolve account readiness before delivery')
+    if account.get('managedAuthRuntime', account.get('managedHomeRuntime', 'host')) != 'host' or account.get('needsSignIn'):
+        raise Error('Orca native selected account is not ready on this host')
+    expected = binding.get('expected_identity', {})
+    if not expected or any(account.get(key) != value for key, value in expected.items()):
+        raise Error('Orca native account identity changed or is missing; rerun routing')
+    account_binding_argv(binding, routing['agent'])  # Discovery may outlast the remaining quota evidence.
+    return [command, 'agent', 'launch', '--agent', routing['agent'],
+            '--model', routing['model'], '--effort', routing['effort']]
+
+
 def build_packet(args):
     title = args.title.strip()
     if not title:
@@ -861,28 +919,25 @@ def build_packet(args):
     }
     if launch_note:
         packet["launch_note"] = launch_note
+    binding = decision.get('account_binding')
+    prefix = account_binding_argv(binding, agent) if binding else []
+    native = binding and manifest.get('account_launch', {}).get(agent) == 'orca-native'
     template = manifest.get("launch_argv", {}).get(agent)
-    if template:
+    if native:
+        argv = orca_native_preparation(binding, routing)
+        packet['account_binding'] = binding
+        packet['launch_method'] = 'orca-native'
+        packet['prepare_argv'] = argv
+        packet['prepare_command'] = shlex.join(argv)
+        packet['delivery_gate'] = (
+            "Preparation only: add the exact --worktree selector and --json; omit --prompt. "
+            "Follow references/orca.md to verify the actual account/profile, credential "
+            "overrides, model and effort against this fresh binding before task delivery."
+        )
+    elif template:
         fields = argv_fields(template, f"launch_argv.{agent}")
-        argv = [part.format(model=routing["model"], effort=routing["effort"]) for part in template]
-        binding = decision.get('account_binding')
+        argv = prefix + [part.format(model=routing["model"], effort=routing["effort"]) for part in template]
         if binding:
-            provider = binding.get('provider')
-            expected = {'claude': 'CLAUDE_CONFIG_DIR', 'codex': 'CODEX_HOME'}.get(provider)
-            env = binding.get('env', {})
-            if provider != agent or not expected or set(env) != {expected} or not isinstance(env[expected], str) or not Path(env[expected]).is_absolute():
-                raise Error('account binding does not match the launch provider/profile')
-            try:
-                age = datetime.now(timezone.utc).timestamp() - datetime.fromisoformat(binding['refreshed_at'].replace('Z', '+00:00')).timestamp()
-                max_age = binding['max_age_seconds']
-                if not isinstance(max_age, (int, float)) or not 0 <= age <= max_age <= 1800:
-                    raise ValueError()
-            except (KeyError, TypeError, ValueError):
-                raise Error('account decision expired; rerun the routing check before launch')
-            unset = binding.get('unset_env', [])
-            if not isinstance(unset, list) or any(not isinstance(k, str) or not re.fullmatch(r'[A-Z][A-Z0-9_]*', k) for k in unset):
-                raise Error('invalid account credential environment names')
-            argv = ['env'] + [part for key in unset for part in ('-u', key)] + [f'{expected}={env[expected]}'] + argv
             packet['account_binding'] = binding
             packet['launch_method'] = 'command'
         packet["launch_argv"] = argv
@@ -892,7 +947,7 @@ def build_packet(args):
             packet["launch_warning"] = (
                 f"launch argv for {agent} cannot set routed " + " and ".join(missing)
             )
-    if decision.get('account_binding') and not template:
+    elif binding:
         raise Error('mechanism cannot bind the selected account: provide launch_argv for its provider')
     return packet
 

@@ -97,7 +97,11 @@ def orca_measurement(value):
     windows = []
     for key in ('session', 'weekly', 'fableWeekly', 'monthly'):
         row = value.get(key)
-        if isinstance(row, dict) and isinstance(row.get('usedPercent'), (int, float)):
+        if isinstance(row, dict):
+            used = row.get('usedPercent')
+            if isinstance(used, bool) or not isinstance(used, (int, float)) or not math.isfinite(used) or not 0 <= used <= 100:
+                return {'status': 'unknown', 'refreshed_at': stamp(value.get('updatedAt')),
+                        'windows': [], 'detail': 'Invalid Orca quota window', 'source': 'orca'}
             windows.append({'id': key, 'percentRemaining': 100 - row['usedPercent'],
                             'resetsAt': stamp(row.get('resetsAt')),
                             'windowSeconds': row.get('windowMinutes', 0) * 60})
@@ -147,7 +151,7 @@ def verify_claude_launch(row):
     """Orca quota alone does not prove the configured CLI profile is signed in."""
     status = command_json(['claude', 'auth', 'status', '--json'], profile_environment(row))
     expected = row.get('expected_identity', {})
-    if not status.get('loggedIn'):
+    if status.get('loggedIn') is not True or not expected.get('email') or not expected.get('organizationUuid'):
         return False
     return all(not expected.get(key) or status.get(remote) == expected[key]
                for key, remote in [('email', 'email'), ('organizationUuid', 'orgId')])
@@ -170,6 +174,8 @@ def inventory(policy, dependency, now=None, *, refresh=False):
                 active = identity == group.get('activeAccountId')
                 key = f'{provider}:{identity}'
                 rows[key] = {'key': key, 'id': identity, 'provider': provider,
+                             'discovery': {'source': 'orca', 'command': orca_command(policy)},
+                             'launch_ready': not account.get('needsSignIn', False),
                              'label': account.get('email') or account.get('name') or identity,
                              'active': active, 'expected_identity': {k: account[k] for k in ('email', 'providerAccountId', 'organizationUuid') if account.get(k)}, 'runtime': account.get('managedAuthRuntime', account.get('managedHomeRuntime', 'host')),
                              'measurement': orca_measurement(limits.get(provider, {}) if active else inactive.get(identity, {}))}
@@ -201,7 +207,7 @@ def inventory(policy, dependency, now=None, *, refresh=False):
             measurement['detail'] = 'Measured identity does not match discovered account'
         if row.get('profile') and row['provider'] == 'claude' and measurement.get('source') == 'orca' and measurement['status'] == 'known':
             try:
-                row['launch_ready'] = verify_claude_launch(row)
+                row['launch_ready'] = row.get('launch_ready', True) and verify_claude_launch(row)
                 if not row['launch_ready']:
                     measurement['detail'] = 'Claude CLI profile is signed out or does not match the Orca account'
             except (ValueError, OSError, subprocess.TimeoutExpired) as exc:
@@ -245,9 +251,13 @@ def choose(report, provider, model):
 
 
 def binding(row, max_age):
-    return {'key': row['key'], 'provider': row['provider'], 'id': row['id'], 'label': row['label'],
+    result = {'key': row['key'], 'provider': row['provider'], 'id': row['id'], 'label': row['label'],
             'env': {PROFILE_ENV[row['provider']]: row['profile']}, 'unset_env': UNSET_ENV[row['provider']],
             'refreshed_at': row['measurement']['refreshed_at'], 'max_age_seconds': max_age}
+    if row.get('discovery'):
+        result['discovery'] = deepcopy(row['discovery'])
+        result['expected_identity'] = deepcopy(row.get('expected_identity', {}))
+    return result
 
 
 def render(report):
