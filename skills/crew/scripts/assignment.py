@@ -755,6 +755,40 @@ def account_binding_argv(binding, agent):
     return ['env'] + [part for key in unset for part in ('-u', key)] + [f'{expected}={env[expected]}']
 
 
+ORCA_READINESS_SPEC = (
+    "Native launch readiness only. Do no project work, read no project files, and "
+    "launch no other agents. Use the live preamble's worker_done command exactly "
+    "once with outcome succeeded and a three-sentence body: Native startup reached "
+    "this readiness task. No project work was performed. The coordinator must "
+    "verify this process before delivering the assignment. Then stop and remain idle."
+)
+
+
+def orca_preparation_surface(command):
+    """Discover commands without starting a process or delivering an assignment."""
+    try:
+        result = subprocess.run([command, 'agent-context', '--json'],
+                                capture_output=True, text=True, timeout=30)
+        data = json.loads(result.stdout)
+        if result.returncode or data.get('schemaVersion') != 1:
+            raise ValueError()
+        commands = data['commands']
+        if not isinstance(commands, list):
+            raise ValueError()
+        surfaces = {row['command']: set(row['flags']) for row in commands}
+    except (OSError, subprocess.TimeoutExpired, ValueError, KeyError, TypeError, AttributeError):
+        raise Error('Orca launch capability discovery unavailable; task delivery remains blocked; inspect agent-context --json and the native launcher help')
+    common = {'agent', 'model', 'effort', 'worktree', 'json'}
+    attachment = {'spec', 'task', 'terminal', 'run', 'retry-of', 'worktree', 'json'}
+    worker = surfaces.get('orchestration worker-start', set())
+    if attachment <= worker:
+        if common <= surfaces.get('agent launch', set()):
+            return 'agent-launch'
+        if common <= worker:
+            return 'readiness-worker'
+    raise Error('Orca has no supported native preparation/attachment capability for this binding; preserve the decision and resolve launch readiness before task delivery')
+
+
 def orca_native_preparation(binding, routing):
     """Public discovery verifies selection; process identity still gates delivery."""
     discovery = binding.get('discovery', {})
@@ -778,9 +812,13 @@ def orca_native_preparation(binding, routing):
     expected = binding.get('expected_identity', {})
     if not expected or any(account.get(key) != value for key, value in expected.items()):
         raise Error('Orca native account identity changed or is missing; rerun routing')
+    account_binding_argv(binding, routing['agent'])
+    surface = orca_preparation_surface(command)
     account_binding_argv(binding, routing['agent'])  # Discovery may outlast the remaining quota evidence.
-    return [command, 'agent', 'launch', '--agent', routing['agent'],
-            '--model', routing['model'], '--effort', routing['effort']]
+    argv = [command] + (['agent', 'launch'] if surface == 'agent-launch' else
+                      ['orchestration', 'worker-start', '--spec', ORCA_READINESS_SPEC])
+    argv += ['--agent', routing['agent'], '--model', routing['model'], '--effort', routing['effort']]
+    return surface, argv
 
 
 def build_packet(args):
@@ -930,15 +968,19 @@ def build_packet(args):
     native = binding and manifest.get('account_launch', {}).get(agent) == 'orca-native'
     template = manifest.get("launch_argv", {}).get(agent)
     if native:
-        argv = orca_native_preparation(binding, routing)
+        surface, argv = orca_native_preparation(binding, routing)
         packet['account_binding'] = binding
         packet['launch_method'] = 'orca-native'
+        packet['prepare_surface'] = surface
         packet['prepare_argv'] = argv
         packet['prepare_command'] = shlex.join(argv)
         packet['delivery_gate'] = (
-            "Preparation only: add the exact --worktree selector and --json; omit --prompt. "
+            "Preparation only: add the exact --worktree selector and --json; "
+            "for readiness-worker also add the coordinator Run's --run. "
             "Follow references/orca.md to verify the actual account/profile, credential "
-            "overrides, model and effort against this fresh binding before task delivery."
+            "overrides, model and effort against this fresh binding before task delivery. "
+            "Settle a readiness-only Task, then attach the unchanged assignment to that "
+            "same verified live terminal; never substitute the assignment for the readiness spec."
         )
     elif template:
         fields = argv_fields(template, f"launch_argv.{agent}")

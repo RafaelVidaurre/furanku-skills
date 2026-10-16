@@ -59,8 +59,8 @@ def test_account_binding_refuses_a_manifest_that_cannot_apply_it(tmp_path):
     assert r.returncode != 0 and 'cannot bind' in r.stderr
 
 
-def native_fixture(tmp_path, *, active='selected', provider='claude'):
-    """Fake only the public account-list boundary; any launch is a test failure."""
+def native_fixture(tmp_path, *, active='selected', provider='claude', surface='readiness-worker'):
+    """Fake public discovery; preparation execution requires explicit opt-in."""
     env = {**os.environ, 'HOME': str(tmp_path / 'home'), 'CODEX_HOME': str(tmp_path / 'codex')}
     log = tmp_path / 'calls.jsonl'
     identity = {'email': 'same@example.test', 'organizationUuid': 'shared-org'}
@@ -68,12 +68,24 @@ def native_fixture(tmp_path, *, active='selected', provider='claude'):
              'accounts': [dict(id=key, **identity) for key in ('selected', 'other')]}
     response = tmp_path / 'accounts.json'
     response.write_text(json.dumps({'ok': True, 'result': {provider: group}}))
+    capability_file = tmp_path / 'capabilities.json'
+    name = 'agent launch' if surface == 'agent-launch' else 'orchestration worker-start'
+    flags = ['agent', 'model', 'effort', 'worktree', 'json']
+    if surface == 'readiness-worker':
+        flags += ['spec', 'task', 'terminal', 'run', 'retry-of']
+    commands = [{'command': name, 'flags': flags}]
+    if surface == 'agent-launch':
+        commands.append({'command': 'orchestration worker-start',
+                         'flags': ['spec', 'task', 'terminal', 'run', 'retry-of', 'worktree', 'json']})
+    capability_file.write_text(json.dumps({'schemaVersion': 1, 'commands': commands}))
     executable = tmp_path / 'fake orca'
     executable.write_text('#!' + sys.executable + '\n' +
         'import sys,json,pathlib\n' +
         f'with open({str(log)!r}, "a") as f: f.write(json.dumps(sys.argv[1:])+"\\n")\n' +
-        'assert sys.argv[1:] == ["account", "list", "--json"], "unexpected launch or mutation"\n' +
-        f'print(pathlib.Path({str(response)!r}).read_text())\n')
+        f'files = {{("account", "list", "--json"): {str(response)!r}, ("agent-context", "--json"): {str(capability_file)!r}}}\n' +
+        'key = tuple(sys.argv[1:])\n' +
+        'if key in files: print(pathlib.Path(files[key]).read_text())\n' +
+        f'else: assert pathlib.Path({str(tmp_path / "allow-prepare")!r}).exists(), "unexpected launch or mutation"\n')
     executable.chmod(0o700)
     binding = {'provider': provider, 'id': 'selected',
                'env': {('CLAUDE_CONFIG_DIR' if provider == 'claude' else 'CODEX_HOME'): '/profiles/current'},
@@ -91,18 +103,37 @@ def native_fixture(tmp_path, *, active='selected', provider='claude'):
 
 
 @pytest.mark.parametrize('provider', ['claude', 'codex'])
-def test_orca_native_prepares_through_public_launcher_without_delivering(tmp_path, provider):
-    env, argv, path, decision, log, response = native_fixture(tmp_path, provider=provider)
+@pytest.mark.parametrize('surface', ['readiness-worker', 'agent-launch'])
+def test_orca_native_prepares_through_supported_launcher_without_delivering(tmp_path, provider, surface):
+    env, argv, path, decision, log, response = native_fixture(tmp_path, provider=provider, surface=surface)
     result = subprocess.run(argv, env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     packet = json.loads(result.stdout)
     assert packet['launch_method'] == 'orca-native'
     assert packet['account_binding'] == decision['account_binding']
-    assert packet['prepare_argv'][1:] == ['agent', 'launch', '--agent', provider, '--model', 'test-model', '--effort', 'high']
+    prepare = packet['prepare_argv']
+    assert packet['prepare_surface'] == surface
+    assert prepare[-6:] == ['--agent', provider, '--model', 'test-model', '--effort', 'high']
+    if surface == 'agent-launch':
+        assert prepare[1:3] == ['agent', 'launch']
+        assert '--spec' not in prepare
+    else:
+        assert prepare[1:4] == ['orchestration', 'worker-start', '--spec']
+        assert 'readiness only' in prepare[4]
+        assert packet['spec'] not in prepare
+    assert 'env' not in prepare and '/profiles/current' not in prepare
+    (tmp_path / 'allow-prepare').touch()
+    # Execute the exact shell-quoted packet command at the harmless CLI boundary.
+    launched = subprocess.run(['/bin/sh', '-c', packet['prepare_command'] +
+                              ' --worktree current --run fixture-run --json'],
+                              env=env, capture_output=True, text=True)
+    assert launched.returncode == 0, launched.stderr
+    calls = [json.loads(x) for x in log.read_text().splitlines()]
+    assert calls == [['account', 'list', '--json'], ['agent-context', '--json'],
+                     prepare[1:] + ['--worktree', 'current', '--run', 'fixture-run', '--json']]
     assert 'launch_command' not in packet and 'launch_argv' not in packet
     assert 'before task delivery' in packet['delivery_gate']
     assert packet['reports_to'] == 'captain'
-    assert [json.loads(x) for x in log.read_text().splitlines()] == [['account', 'list', '--json']]
 
 
 @pytest.mark.parametrize('fault, expected', [
@@ -153,3 +184,52 @@ def test_binding_expiring_during_native_discovery_is_refused(tmp_path):
     with patch.object(module.subprocess, 'run', side_effect=delayed_read):
         with pytest.raises(module.Error, match='expired'):
             module.orca_native_preparation(binding, decision['selected'])
+
+
+@pytest.mark.parametrize('fault', ['missing', 'no-effort', 'no-attachment', 'malformed', 'future-schema', 'legacy-no-attachment'])
+def test_unsupported_native_capabilities_refuse_without_launch(tmp_path, fault):
+    env, argv, path, decision, log, response = native_fixture(
+        tmp_path, surface='agent-launch' if fault == 'legacy-no-attachment' else 'readiness-worker')
+    capabilities = tmp_path / 'capabilities.json'
+    data = json.loads(capabilities.read_text())
+    if fault == 'missing':
+        data['commands'] = []
+    elif fault in ('no-effort', 'no-attachment'):
+        data['commands'][0]['flags'].remove('effort' if fault == 'no-effort' else 'terminal')
+    elif fault == 'future-schema':
+        data['schemaVersion'] = 2
+    elif fault == 'legacy-no-attachment':
+        data['commands'].pop()
+    capabilities.write_text('interrupted output' if fault == 'malformed' else json.dumps(data))
+    result = subprocess.run(argv, env=env, capture_output=True, text=True)
+    assert result.returncode != 0 and 'capability' in result.stderr
+    assert 'task delivery' in result.stderr and not result.stdout
+    assert [json.loads(x) for x in log.read_text().splitlines()] == [
+        ['account', 'list', '--json'], ['agent-context', '--json']]
+
+
+def test_native_capability_interruption_and_expiry_leave_assignment_undelivered(tmp_path):
+    import importlib.util
+    from unittest.mock import patch
+    spec = importlib.util.spec_from_file_location('crew_capability_test', CREW)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    env, argv, path, decision, log, response = native_fixture(tmp_path)
+    binding = decision['account_binding']
+    capabilities = (tmp_path / 'capabilities.json').read_text()
+    calls = []
+
+    def read(args, **kwargs):
+        calls.append(args[1:])
+        if args[1] == 'account':
+            return subprocess.CompletedProcess(args, 0, response.read_text())
+        if interrupt:
+            raise subprocess.TimeoutExpired(args, 30)
+        binding['refreshed_at'] = (datetime.now(timezone.utc) - timedelta(seconds=301)).isoformat()
+        return subprocess.CompletedProcess(args, 0, capabilities)
+
+    for interrupt, expected in [(True, 'capability discovery unavailable'), (False, 'expired')]:
+        with patch.object(module.subprocess, 'run', side_effect=read):
+            with pytest.raises(module.Error, match=expected):
+                module.orca_native_preparation(binding, decision['selected'])
+    assert calls == [['account', 'list', '--json'], ['agent-context', '--json']] * 2
