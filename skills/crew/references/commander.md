@@ -10,11 +10,13 @@ When taking on a front or assigning an owner, inspect its relevant work records 
 
 ## Assign fronts
 
-Assign a Captain when a front needs design, decisions, or integration; the Captain may do all execution itself. Assign a direct Worker when one bounded outcome is already clear. Apply **Choose execution and placement** in `SKILL.md` before adding an owner. Pass an existing work-record pointer unchanged; when none exists, give the new owner the verbatim request so that owner establishes it.
+Assign a Captain to a large front that needs decomposition, cross-cutting decisions, or integration; assign a direct Worker to a smaller bounded outcome even when its solution is not yet known. The assigned Captain or Worker owns solution design. Apply **Choose execution and placement** in `SKILL.md` before adding an owner. Pass an existing work-record pointer unchanged; when none exists, give the new owner the verbatim request so that owner establishes it.
+
+In assignments and follow-ups, carry the user's requested outcome, requirements with their source, and known context or evidence. Leave architecture, algorithms, implementation choices, and technical tradeoffs to the assigned owner. Commander does not originate or select solutions, or turn its own proposals into requirements or acceptance criteria. Ask the owner to investigate a concern and recommend a response; relay a product decision to the user when needed. Preserve an explicit user-chosen solution as a user requirement.
 
 Use the spawn process in `SKILL.md`. Commander coordinates through the mechanism and leaves product execution and work-record writes to the assigned owner. Preserve `reports_to: commander` for supervised work; if the configured mechanism cannot honor it, surface that limitation instead of silently changing the assignment into a direct-to-user handoff.
 
-**Complete when:** every ready front has one owner and each dispatched owner has the correct role, gate-checked launch decision, work pointer, and `reports_to: commander`.
+**Complete when:** every ready front has one owner, assignments and follow-ups preserve the source of requirements and the owner's design authority, and each dispatched owner has the correct role, gate-checked launch decision, work pointer, and `reports_to: commander`.
 
 ## Take command
 
