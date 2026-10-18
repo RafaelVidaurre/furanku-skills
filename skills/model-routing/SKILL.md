@@ -9,7 +9,7 @@ description: Choose an agent, model, and effort using capability evidence, routi
 
 ## Accounts and usage
 
-For `$model-routing accounts` or `$model-routing list`, run `python3 <skill-dir>/scripts/router.py accounts --repo <root>` and return its compact table unchanged. It requests live readings from configured direct quota sources and explains failed refreshes or snapshot-only sources below the table. Account reporting needs no selector setup. For account discovery, priorities, reserves, or account-bound launch/recovery, read [Accounts](references/accounts.md).
+For `$model-routing accounts` or `$model-routing list`, run `python3 <skill-dir>/scripts/router.py accounts --repo <root>` and return its compact table unchanged. It reads configured profiles through CodexBar CLI and explains failures below the table. Account reporting needs no selector setup. For account discovery, priorities, reserves, or account-bound launch/recovery, read [Accounts](references/accounts.md).
 
 **Complete when:** the requested report is shown with account identities, quota windows, reset times, and freshness, or the tool failure is reported.
 
@@ -26,19 +26,19 @@ For Jev setup, `key-required`, toggling, or provider errors, read [Jev setup and
 Generate the brief before choosing; its Exact routes section is the normative source for when a configured route applies. An instruction naming only a mechanism or orchestration surface is a consumer launch constraint, not an exact-route request or routing override. For example, “use Orca” does not bind any `agent` or exclude catalog agents that surface can launch. A launcher that serves models no other launcher can reach is a distinct capability identity and carries its own catalog `agent` token, so naming it does bind routing: `claudex` is such a token, and its candidates are unreachable to a consumer whose launchable-agent set omits it. A combined instruction that also names an agent, model, or effort binds launch and routing independently. Generate the brief with live quota and, when known, limit it to what the consumer can launch:
 
 ```sh
-python3 <skill-dir>/scripts/router.py brief --repo <root> --quota-axi \
+python3 <skill-dir>/scripts/router.py brief --repo <root> --codexbar \
   [--launchable-via <agent,...>] [--defaults <consumer-routes-file>]
 ```
 
-One brief serves the whole spawning session—reuse it across decisions and regenerate only after a configuration change or when the brief's printed quota capture time is more than 30 minutes old. If quota-axi fails, the brief says so in its notes and quota stays unknown; the acceptance gate in `check` handles that—never estimate quota yourself.
+One brief serves the whole spawning session—reuse it across decisions and regenerate only after a configuration change or when the brief's printed quota capture time is more than 30 minutes old. If CodexBar fails, the brief says so in its notes and quota stays unknown; the acceptance gate in `check` handles that—never estimate quota yourself.
 
-The quota-axi package version and normalized schema contract are pinned together in [runtime-dependencies.json](references/runtime-dependencies.json). When upgrading quota-axi, update that declaration after verifying the adapter against the new schema; the router invokes the declared package version exactly.
+The tested CodexBar CLI version is pinned in [runtime-dependencies.json](references/runtime-dependencies.json). Follow the [CodexBar skill](../codexbar/SKILL.md) for setup. The adapter checks the installed version; upgrades require contract verification before changing the pin.
 
 **Complete when:** the current session holds a fresh brief and has read its exact-route activation rule.
 
 ## Select with Jev when enabled
 
-Read [Jev setup and routing](references/jev.md), prepare task facts, and call `router.py route --task-file <file> --launchable-via <agents> --quota-axi` with the outcome's hard requirements. This returns a gate-checked decision; consume it directly. The agent supplies facts and principal constraints, while Jev chooses the model and effort. Do not replace its choice merely because it differs from an agent's prediction. If the brief's exact-route activation rule applies, use the principal-requested exact-route check below instead.
+Read [Jev setup and routing](references/jev.md), prepare task facts, and call `router.py route --task-file <file> --launchable-via <agents> --codexbar` with the outcome's hard requirements. This returns a gate-checked decision; consume it directly. The agent supplies facts and principal constraints, while Jev chooses the model and effort. Do not replace its choice merely because it differs from an agent's prediction. If the brief's exact-route activation rule applies, use the principal-requested exact-route check below instead.
 
 **Complete when:** Jev's decision passes the gates below, or its abstention/provider failure is surfaced. There is no implicit fallback to agent selection. Skip the agent judgment step while Jev is enabled.
 
@@ -65,7 +65,7 @@ python3 <skill-dir>/scripts/router.py check --repo <root> \
   [--max-effort-basis "<why xhigh or the strongest lower effort is insufficient>"] \
   [--launchable-via <agent,...>] \
   [--require-feature <feature>] [--minimum-context <tokens>] \
-  --quota-axi
+  --codexbar
 ```
 
 When the brief's activation rule applies, use `check --exact-route <route-id> --route-basis "<verbatim principal request>"` instead of `--candidate`/`--reason`. Preserve that basis on every quota-acceptance or fallback re-check. `--launchable-via` names the catalog `agent` tokens the consumer's spawning mechanism can launch (for example `claude` alone for harness-native subagents); a candidate outside that set is refused, never silently substituted. A consumer that already owns this list should inject it rather than asking the spawning agent to transcribe it. `--compact` changes JSON whitespace only and is never part of the routing proof.
@@ -75,7 +75,7 @@ When the brief's activation rule applies, use `check --exact-route <route-id> --
 - `selected` (exit 0): the configured selector’s pick passed; carries `selected` launch tuple, `reason`, `warnings`, `quota`.
 - `exact` (exit 0): principal-requested route passed; carries the task's `route_basis`, `exact_route`, and configuration-layer `provenance` instead of a candidate judgment.
 - `refused` (exit 1): a hard gate or maximum-effort proportionality check failed; `reasons` names each gate. Repeat selection with the configured selector after resolving the refusal, within unchanged principal constraints. Preserve a refused exact route until the principal authorizes a routing change; satisfy it through a permitted launch surface or surface the conflict. Never launch a refused decision directly.
-- `needs-acceptance` (exit 2): every gate passed but quota is unknown or stale. `pending` names the cheapest recovery first — when a remedy command is present, run that command with no prompt, wait until the session has loaded, exit it, then re-check the same candidate or exact route with `--quota-axi`; otherwise accept unknown quota. An exact route that returns `needs-acceptance` stays the route: perform that remedy refresh when present; otherwise surface `pending` (and any `quota_fallback`) to the principal; do not substitute another candidate or harness. If they accept, rerun with `--accept-quota-unknown "<who accepted and why>"`. If `quota_fallback` is present, one ask covers every same-blocker exact-route check in the session; when the principal does not answer within `ask_seconds`, re-check that same exact route with `--use-quota-fallback "<who waited and how long>"` — that re-check tries the primary first and uses the fallback only while quota is still unknown or stale.
+- `needs-acceptance` (exit 2): every gate passed but quota is unknown or stale. `pending` names the cheapest recovery first — when a remedy command is present, run that command with no prompt, wait until the session has loaded, exit it, then re-check the same candidate or exact route with `--codexbar`; otherwise accept unknown quota. An exact route that returns `needs-acceptance` stays the route: perform that remedy refresh when present; otherwise surface `pending` (and any `quota_fallback`) to the principal; do not substitute another candidate or harness. If they accept, rerun with `--accept-quota-unknown "<who accepted and why>"`. If `quota_fallback` is present, one ask covers every same-blocker exact-route check in the session; when the principal does not answer within `ask_seconds`, re-check that same exact route with `--use-quota-fallback "<who waited and how long>"` — that re-check tries the primary first and uses the fallback only while quota is still unknown or stale.
 
 When the decision's warnings or quota materially contradict the judgment—quota far below what the brief showed, an unexplained warning—repeat selection with the configured selector before launching.
 

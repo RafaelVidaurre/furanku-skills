@@ -55,7 +55,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default=".")
     parser.add_argument("--launchable-via", required=True, help="trial launcher set; no agent will be launched")
-    parser.add_argument("--quota-axi", action="store_true")
+    parser.add_argument("--codexbar", action="store_true")
     parser.add_argument("--case", action="append", default=[], help="run only these case IDs")
     parser.add_argument("--live", action="store_true", help="make Gateway requests, rather than only prepare inputs")
     parser.add_argument("--public-context", action="store_true", help="use public catalog and synthetic policy instead of private preferences/overrides")
@@ -68,7 +68,7 @@ def main(argv=None):
         compiled = router.compile_brief(args.repo)
         if args.public_context:
             use_public_context(compiled)
-        runtime = router.load_runtime(argparse.Namespace(quota_axi=args.quota_axi, runtime_file=None), compiled["candidates"])
+        runtime = router.load_runtime(argparse.Namespace(codexbar=args.codexbar, runtime_file=None), compiled["candidates"])
         cases = json.loads(CASES.read_text())["cases"]
         unknown = set(args.case) - {c["id"] for c in cases}
         if unknown:

@@ -528,7 +528,7 @@
       },
       "quota_provider": {
         "provider": "kimi",
-        "detail": "This proxy route bills Kimi Code rather than the Claude launcher; quota-axi does not expose live Kimi Code quota."
+        "detail": "This proxy route bills Kimi Code rather than the Claude launcher; the CodexBar routing adapter has no verified Kimi Code quota contract."
       }
     },
     "claude/claude-opus-5-5/high": {

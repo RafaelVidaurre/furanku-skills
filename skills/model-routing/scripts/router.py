@@ -73,30 +73,11 @@ def runtime_dependency(name):
     dependency = dependencies.get(name)
     if not isinstance(dependency, dict):
         raise Error(f"runtime dependency {name!r} must be an object")
-    package = dependency.get("package")
-    version = dependency.get("version")
-    schema_version = dependency.get("schema_version")
-    if not isinstance(package, str) or not package.strip():
-        raise Error(f"runtime dependency {name!r} requires package")
-    if not isinstance(version, str) or not re.fullmatch(
-        r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?", version
-    ):
+    if not isinstance(dependency.get('command'), str) or not dependency['command'].strip():
+        raise Error(f"runtime dependency {name!r} requires command")
+    if not re.fullmatch(r'\d+\.\d+\.\d+', str(dependency.get('version'))):
         raise Error(f"runtime dependency {name!r} requires an exact version")
-    if (
-        isinstance(schema_version, bool)
-        or not isinstance(schema_version, int)
-        or schema_version < 1
-    ):
-        raise Error(f"runtime dependency {name!r} requires a schema_version")
-    account_schema = dependency.get("account_schema_version", schema_version)
-    if isinstance(account_schema, bool) or not isinstance(account_schema, int) or account_schema < 1:
-        raise Error(f"runtime dependency {name!r} requires a valid account_schema_version")
-    return {
-        "package": package.strip(),
-        "version": version,
-        "schema_version": schema_version,
-        "account_schema_version": account_schema,
-    }
+    return dependency
 
 
 def merge_patch(target, patch):
@@ -414,14 +395,14 @@ def runtime_for(runtime, candidate_id, candidate):
     if not isinstance(candidate_states, dict):
         raise Error("runtime candidates must be an object")
     if agent in runtime.get("native_account_only", []) and runtime.get("account_inventory") is None and not any(candidate.get(k) for k in ("quota_pool", "quota_provider", "quota_account")):
-        return {"quota": {"status": "unavailable", "detail": "Native account selection requires measured Orca account inventory."}}
+        return {"quota": {"status": "unavailable", "detail": "Native account selection requires Orca launch identity and CodexBar quota evidence."}}
     if runtime.get("account_inventory") is not None and agent in {"claude", "codex"} and not any(candidate.get(k) for k in ("quota_pool", "quota_provider", "quota_account")):
         import accounts as account_routing
         row = account_routing.choose(runtime["account_inventory"], agent, candidate["launch"]["model"],
                                      native_only=agent in runtime.get("native_account_only", []))
         if row is None:
-            considered = ', '.join(r['key'] + ' (' + r['measurement']['status'] + ')' for r in runtime['account_inventory']['accounts'] if r['provider'] == agent)
-            return {"quota": {"status": "unavailable", "detail": f"No measured account is fresh, launch-bound, and above its reserve. Considered: {considered or 'none'}. Inspect router.py accounts."}}
+            considered = ', '.join(r['key'] + ' (' + r['measurement']['status'] + '; source=' + r['measurement'].get('source', 'unknown') + '; ' + account_routing.failure_category(r['measurement']) + ')' for r in runtime['account_inventory']['accounts'] if r['provider'] == agent)
+            return {"quota": {"status": "unavailable", "detail": f"No measured account is fresh, launch-bound, and above its reserve. Considered: {considered or 'none'}. Restore the configured account source or native sign-in/profile readiness, then re-check this same decision once. After a failed CodexBar read, wait for a readiness change; repeating the full accounts report does not repair the source. Unknown quota cannot establish an account binding."}}
         state = {"quota": {"status": "known", "effective_percent_remaining": account_routing.remaining(row, candidate["launch"]["model"]),
                            "account": {"provider": agent, "email": row.get('expected_identity', {}).get('email') or row['measurement'].get('identity', {}).get('email'),
                                        "label": row['label'], "account_id": row['id'], "routing_account": row['key']}}}
@@ -505,74 +486,6 @@ def runtime_for(runtime, candidate_id, candidate):
     return merged
 
 
-def quota_pressure(scope):
-    pace = scope.get("pace", {})
-    reserve = pace.get("worstReservePercentPoints")
-    if not isinstance(reserve, (int, float)):
-        return None
-    if reserve >= 0:
-        return 0.0
-    # Provider-local pace deficit: 0 means on/behind pace, 1 means a full
-    # window's remaining-time deficit. Raw provider percentages are retained
-    # for provenance and are never compared as equivalent capacity.
-    return min(1.0, abs(float(reserve)) / 100.0)
-
-
-def copy_quota_diagnostics(quota, state, semantics):
-    if not isinstance(state, dict):
-        state = {}
-    if not isinstance(semantics, dict):
-        semantics = {}
-    error = state.get("error")
-    description = semantics.get("description")
-    if isinstance(error, str) and error.strip():
-        quota["detail"] = error.strip()
-    elif isinstance(description, str) and description.strip():
-        quota["detail"] = description.strip()
-    mapping = (
-        ("reason", "cause"),
-        ("remedyCommand", "remedy"),
-        ("authStatus", "auth_status"),
-        ("refreshedAt", "refreshed_at"),
-    )
-    for source_key, dest_key in mapping:
-        value = state.get(source_key)
-        if isinstance(value, str) and value.strip():
-            quota[dest_key] = value.strip()
-    return quota
-
-
-def quota_from_unusable_state(status, state, semantics=None):
-    return copy_quota_diagnostics({"status": status}, state, semantics)
-
-
-def account_identity(provider, provider_id=None):
-    """Identity of the account a provider's quota was measured for.
-
-    Tools that read OAuth quota report whichever account the ambient
-    environment selects (for Codex, whatever $CODEX_HOME points at). That
-    account is not necessarily the one a spawned agent bills, so the identity
-    travels with the reading instead of being dropped.
-    """
-    account = provider.get("account")
-    if not isinstance(account, dict):
-        return None
-    identity = {}
-    for source_key, dest_key in (("email", "email"), ("accountId", "account_id")):
-        value = account.get(source_key)
-        if isinstance(value, str) and value.strip():
-            identity[dest_key] = value.strip()
-    if not identity:
-        return None
-    # Quota is projected across harnesses (a proxy-routed candidate bills the
-    # upstream provider's account, not its launch harness), so the reading
-    # carries the provider it was measured on rather than letting the consumer
-    # infer one from the launch tuple.
-    if provider_id:
-        identity["provider"] = provider_id
-    return identity
-
-
 def attach_account(state, identity):
     """Stamp the measured account onto a runtime state's quota reading."""
     if not identity or not isinstance(state, dict):
@@ -583,121 +496,32 @@ def attach_account(state, identity):
     return state
 
 
-def project_provider_runtime(generated, candidates, provider_id, state, identity):
-    """Attach provider runtime to proxy candidates that declare who bills them."""
-    for candidate_id, candidate in candidates.items():
-        quota_provider = candidate.get("quota_provider")
-        if not isinstance(quota_provider, dict):
-            continue
-        if quota_provider.get("provider") != provider_id:
-            continue
-        generated["candidates"][candidate_id] = attach_account(
-            deepcopy(state), identity
-        )
-
-
-def quota_axi_runtime(snapshot, candidates):
-    dependency = runtime_dependency("quota-axi")
-    if snapshot.get("schemaVersion") not in {dependency["schema_version"], dependency["account_schema_version"]} or not isinstance(
-        snapshot.get("providers"), list
-    ):
-        raise Error(
-            "quota-axi input must use normalized schemaVersion "
-            f"{dependency['schema_version']}"
-        )
-    generated = {
-        "captured_at": snapshot.get("generatedAt"),
-        "harnesses": {},
-        "candidates": {},
-        "notes": [],
-    }
-    providers = snapshot['providers']
-    for provider in providers:
-        provider_id = provider.get('provider')
-        siblings = [p for p in providers if p.get('provider') == provider_id]
-        if len(siblings) > 1:
-            selected_path = str(Path(os.environ.get('CLAUDE_CONFIG_DIR', str(Path.home() / '.claude'))).expanduser()) if provider_id == 'claude' else None
-            matches = [p for p in siblings if p.get('accountLocator', {}).get('path') == selected_path] if selected_path else []
-            if len(matches) != 1 or provider is not matches[0]:
-                if not matches:
-                    generated['notes'].append(f'{provider_id}: multiple account lanes; no unique active profile, quota unknown')
-                continue
-        provider_id = provider.get("provider")
-        identity = account_identity(provider, provider_id)
-        if provider_id == "kimi":
-            detail = "quota-axi cannot read Kimi Code OAuth quota"
-            generated["notes"].append(f"quota-axi: {detail}")
-            harness_state = {"quota": {"status": "unknown", "detail": detail}}
-            generated["harnesses"]["opencode"] = attach_account(
-                deepcopy(harness_state), identity
-            )
-            project_provider_runtime(
-                generated, candidates, provider_id, harness_state, identity
-            )
-            continue
-        harness = PROVIDER_TO_HARNESS.get(provider_id)
-        if harness is None:
-            continue
-        state = provider.get("state", {})
-        semantics = provider.get("quotaSemantics", {})
-        harness_state = {}
-        if state.get("status") == "auth_required":
-            harness_state["status"] = "auth-required"
-            harness_state["quota"] = {"status": "auth-required"}
-        elif state.get("stale") or state.get("status") != "fresh":
-            harness_state["quota"] = quota_from_unusable_state(
-                "stale", state, semantics
-            )
-        elif semantics.get("status") != "known":
-            harness_state["quota"] = quota_from_unusable_state(
-                "unknown", state, semantics
-            )
-        else:
-            scopes = semantics.get("effectiveAvailability", [])
-            base_scope = next(
-                (
-                    scope
-                    for scope in scopes
-                    if scope.get("scope") in {"all_models", "all_products"}
-                ),
-                None,
-            )
-            if base_scope and base_scope.get("status", "known") == "known":
-                remaining = base_scope.get("effectivePercentRemaining")
-                harness_state["quota"] = {
-                    "status": "exhausted" if remaining == 0 else "known",
-                    "pressure": quota_pressure(base_scope),
-                    "effective_percent_remaining": remaining,
-                    "bounded_by": base_scope.get("boundedBy", []),
-                    "pace": base_scope.get("pace", {}),
-                }
-            else:
-                harness_state["quota"] = {"status": "unknown"}
-            for scope in scopes:
-                if scope.get("scope") != "model:fable" or scope.get("status", "known") != "known":
-                    continue
-                for candidate_id, candidate in candidates.items():
-                    launch = candidate["launch"]
-                    if launch["agent"] == "claude" and "fable" in launch["model"]:
-                        remaining = scope.get("effectivePercentRemaining")
-                        generated["candidates"][candidate_id] = attach_account(
-                            {
-                                "quota": {
-                                    "status": (
-                                        "exhausted" if remaining == 0 else "known"
-                                    ),
-                                    "pressure": quota_pressure(scope),
-                                    "effective_percent_remaining": remaining,
-                                    "bounded_by": scope.get("boundedBy", []),
-                                    "pace": scope.get("pace", {}),
-                                }
-                            },
-                            identity,
-                        )
-        generated["harnesses"][harness] = attach_account(harness_state, identity)
-        project_provider_runtime(
-            generated, candidates, provider_id, harness_state, identity
-        )
+def codexbar_runtime(measurements, candidates):
+    import accounts
+    from datetime import datetime, timezone
+    generated = {'captured_at': datetime.now(timezone.utc).isoformat(),
+                 'harnesses': {}, 'candidates': {}, 'notes': []}
+    for provider, measurement in measurements.items():
+        identity = {**measurement.get('identity', {}), 'provider': provider}
+        def state(model=''):
+            status = measurement['status']
+            if status == 'known' and not accounts.fresh(measurement.get('refreshed_at'), 300, datetime.now(timezone.utc)):
+                status = 'stale'
+            left = accounts.remaining({'measurement': measurement}, model)
+            quota = {'status': status, 'refreshed_at': measurement.get('refreshed_at')}
+            if status == 'known':
+                quota['status'] = 'unknown' if left is None else 'exhausted' if left == 0 else 'known'
+                quota['effective_percent_remaining'] = left
+            if measurement.get('detail'):
+                quota['detail'] = measurement['detail']
+            return attach_account({'quota': quota}, identity)
+        harness = PROVIDER_TO_HARNESS.get(provider)
+        if harness:
+            generated['harnesses'][harness] = state()
+        for key, candidate in candidates.items():
+            billing = candidate.get('quota_provider', {}).get('provider') or candidate.get('quota_account') or HARNESS_TO_PROVIDER.get(candidate['launch']['agent'])
+            if billing == provider:
+                generated['candidates'][key] = state(candidate['launch']['model'])
     return generated
 
 
@@ -713,61 +537,22 @@ def merge_runtime(base, overlay):
     return result
 
 
-def run_quota_axi(providers=None):
-    # --full is required: plain --json omits the per-provider account block, and
-    # a quota reading that cannot name its account cannot be checked against the
-    # account the launch will actually bill.
-    dependency = runtime_dependency("quota-axi")
-    package_spec = f"{dependency['package']}@{dependency['version']}"
-    command = ["npx", "-y", package_spec, "--json", "--full"]
-    if providers:
-        command.extend(["--provider", ",".join(providers)])
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode not in {0, 1} or not result.stdout.strip():
-        raise Error(result.stderr.strip() or "quota-axi returned no data")
+def load_codexbar(candidates, providers=None):
+    import codexbar
+    from concurrent.futures import ThreadPoolExecutor
+    dependency = runtime_dependency('codexbar')
     try:
-        return json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        raise Error(f"quota-axi returned invalid JSON: {exc}") from exc
-
-
-def stale_providers(runtime):
-    found = []
-    harnesses = runtime.get("harnesses") if isinstance(runtime, dict) else None
-    if not isinstance(harnesses, dict):
-        return found
-    for harness, state in harnesses.items():
-        quota = state.get("quota") if isinstance(state, dict) else None
-        if not isinstance(quota, dict) or quota.get("status") != "stale":
-            continue
-        provider = HARNESS_TO_PROVIDER.get(harness)
-        if provider and provider not in found:
-            found.append(provider)
-    return found
-
-
-def load_quota_axi(candidates):
-    runtime = quota_axi_runtime(run_quota_axi(), candidates)
-    stale = stale_providers(runtime)
-    if not stale:
-        return runtime
-    try:
-        retry = quota_axi_runtime(run_quota_axi(stale), candidates)
-    except Error as exc:
-        runtime.setdefault("notes", []).append(
-            f"quota-axi retry for {', '.join(stale)} failed: {exc}"
-        )
-        return runtime
-    merged = merge_runtime(runtime, retry)
-    merged.setdefault("notes", []).append(
-        "quota-axi retried stale provider(s): " + ", ".join(stale)
-    )
-    return merged
+        codexbar.verify(dependency)
+    except (ValueError, OSError) as exc:
+        raise Error(str(exc)) from exc
+    def read(provider):
+        try:
+            return provider, codexbar.read(provider, dependency)
+        except (ValueError, OSError) as exc:
+            return provider, {'status': 'unknown', 'windows': [], 'source': 'codexbar', 'detail': str(exc)}
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        readings = dict(pool.map(read, providers or ('claude', 'codex')))
+    return codexbar_runtime(readings, candidates)
 
 
 def quota_summary(state):
@@ -1752,9 +1537,19 @@ def emit(value, compact=False):
 
 def load_runtime(args, candidates):
     runtime = {}
-    if args.quota_axi:
+    policy = compile_brief(args.repo).get('account_routing')
+    account_providers = {c['launch']['agent'] for c in candidates.values()
+                         if c['launch']['agent'] in {'codex', 'claude'}
+                         and not any(c.get(k) for k in ('quota_pool', 'quota_provider', 'quota_account'))}
+    provider_candidates = {key: c for key, c in candidates.items()
+                           if not (policy is not None and c['launch']['agent'] in account_providers
+                                   and not any(c.get(k) for k in ('quota_pool', 'quota_provider', 'quota_account')))}
+    providers = sorted({c.get('quota_provider', {}).get('provider') or c.get('quota_account')
+                        or HARNESS_TO_PROVIDER.get(c['launch']['agent'], c['launch']['agent'])
+                        for c in provider_candidates.values()})
+    if args.codexbar and provider_candidates:
         try:
-            runtime = load_quota_axi(candidates)
+            runtime = load_codexbar(provider_candidates, providers)
         except Error as exc:
             # Degrade, never fabricate: quota stays unknown everywhere, the
             # failure is on record, and check() forces the acceptance flow.
@@ -1763,14 +1558,13 @@ def load_runtime(args, candidates):
                 "harnesses": {},
                 "candidates": {},
                 "notes": [
-                    f"quota-axi failed: {exc}; quota is unknown for every candidate"
+                    f"codexbar failed: {exc}; quota is unknown for every candidate"
                 ],
             }
-    policy = compile_brief(args.repo).get('account_routing')
-    if policy is not None and args.quota_axi:
+    if policy is not None and args.codexbar and account_providers:
         import accounts as account_routing
         try:
-            runtime['account_inventory'] = account_routing.inventory(policy, runtime_dependency('quota-axi'))
+            runtime['account_inventory'] = account_routing.inventory(policy, runtime_dependency('codexbar'), providers=account_providers, native_only_providers=getattr(args, 'native_account_only', []))
         except (ValueError, OSError, subprocess.TimeoutExpired) as exc:
             runtime['account_inventory'] = {'accounts': []}
             runtime.setdefault('notes', []).append(f'Account discovery failed: {exc}')
@@ -1843,9 +1637,9 @@ def main(argv=None):
                         help="consumer can launch only the active Orca host account for this provider")
     parser.add_argument("--runtime-file", help="ephemeral runtime JSON")
     parser.add_argument(
-        "--quota-axi",
+        "--codexbar",
         action="store_true",
-        help="read live provider quota with the pinned quota-axi dependency",
+        help="read live quota with the tested CodexBar CLI",
     )
     parser.add_argument("--format", choices=("markdown", "json"), default=None)
     parser.add_argument("--compact", action="store_true")
@@ -1865,7 +1659,7 @@ def main(argv=None):
             policy = compiled.get('account_routing') or {'source': 'configured'}
             if args.account_source:
                 policy = {**policy, 'source': args.account_source}
-            report = account_routing.inventory(policy, runtime_dependency('quota-axi'), refresh=True)
+            report = account_routing.inventory(policy, runtime_dependency('codexbar'), refresh=True)
             if args.format == 'json':
                 emit(report, args.compact)
             else:
@@ -1886,7 +1680,21 @@ def main(argv=None):
                     brief_markdown(compiled, runtime, repo_root, allowed_launchers)
                 )
             return 0
-        runtime = load_runtime(args, compiled["candidates"])
+        runtime_candidates = compiled['candidates']
+        if args.command == 'check':
+            runtime_candidates = {args.candidate: compiled['candidates'][args.candidate]} if args.candidate in compiled['candidates'] else {}
+            if args.exact_route:
+                row = compiled['exact']['config']['routes'].get(args.exact_route)
+                if row:
+                    launches = [exact_config.launch_of(row)]
+                    fallback = exact_config.quota_unusable_policy(row)
+                    if fallback:
+                        launches.append(fallback['launch'])
+                    for index, launch in enumerate(launches):
+                        candidate_id = match_candidate(compiled, launch)
+                        key = candidate_id or f'route-runtime-{index}'
+                        runtime_candidates[key] = compiled['candidates'][candidate_id] if candidate_id else {'launch': launch}
+        runtime = load_runtime(args, runtime_candidates)
         decision = selector.route(compiled, args, runtime) if args.command == "route" else check(compiled, args, runtime)
         emit(decision, args.compact)
         if decision["status"] == "refused":

@@ -56,7 +56,7 @@ Use actual consumer constraints and the principal's explicit model/effort restri
 
 ```sh
 python3 <skill-dir>/scripts/router.py route --repo <root> \
-  --task-file <private-task.json> --launchable-via <agent,...> --quota-axi \
+  --task-file <private-task.json> --launchable-via <agent,...> --codexbar \
   [--require-feature vision] [--minimum-context <tokens>] \
   [--allow-model <model>] [--allow-effort <effort>] \
   [--max-effort-basis "<why the strongest lower effort is insufficient>"]
@@ -78,7 +78,7 @@ Transport is fixed to `typesafe-ai/jev` through Vercel `/v1/evaluate`, with Type
 
 ```sh
 python3 <skill-dir>/scripts/jev_trial.py --repo <root> \
-  --launchable-via <agent,...> --quota-axi --public-context --live \
+  --launchable-via <agent,...> --codexbar --public-context --live \
   --output <private-directory>
 ```
 

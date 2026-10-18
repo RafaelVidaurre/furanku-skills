@@ -33,7 +33,7 @@ class SelectorTests(unittest.TestCase):
         self.args = argparse.Namespace(repo='.', task_file=str(self.task), exact_route=None,
             candidate=None, reason=None, route_basis=None, use_quota_fallback=None, require_zdr=False,
             launchable_via=['codex'], require_feature=[], minimum_context=None, max_effort_basis=None,
-            allow_model=[], allow_effort=[], accept_quota_unknown=None, quota_axi=False, runtime_file=None)
+            allow_model=[], allow_effort=[], accept_quota_unknown=None, codexbar=False, runtime_file=None)
         self.runtime = {'candidates': {c: {'quota': {'status': 'known', 'effective_percent_remaining': 50}}
                                        for c in self.compiled['candidates']}}
 

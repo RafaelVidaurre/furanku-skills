@@ -500,7 +500,7 @@ def routing_brief(args):
         str(ROUTING_DEFAULTS),
         "--launchable-via",
         ",".join(manifest["launchable_agents"]),
-        "--quota-axi",
+        "--codexbar",
     ]
     for provider, method in manifest.get("account_launch", {}).items():
         if method == "orca-native":
@@ -562,7 +562,7 @@ def route_decision(args, manifest):
         str(ROUTING_DEFAULTS),
         "--launchable-via",
         ",".join(manifest["launchable_agents"]),
-        "--quota-axi",
+        "--codexbar",
     ]
     for provider, method in manifest.get("account_launch", {}).items():
         if method == "orca-native":

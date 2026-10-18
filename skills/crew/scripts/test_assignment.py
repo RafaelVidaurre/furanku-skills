@@ -131,7 +131,7 @@ class PacketTest(unittest.TestCase):
             bridge = root / "router.py"
             bridge.write_text(
                 "import subprocess, sys\n"
-                f"args = [sys.executable, {str(router)!r}] + [a for a in sys.argv[1:] if a != '--quota-axi']\n"
+                f"args = [sys.executable, {str(router)!r}] + [a for a in sys.argv[1:] if a != '--codexbar']\n"
                 "raise SystemExit(subprocess.run(args).returncode)\n"
             )
             runtime = root / "runtime.json"
@@ -182,7 +182,7 @@ class PacketTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             router = fake_router(
                 Path(directory),
-                ["brief", "--launchable-via", "claude", "--quota-axi", "--defaults", str(SCRIPT.parent.parent / "references" / "routing-defaults.json")],
+                ["brief", "--launchable-via", "claude", "--codexbar", "--defaults", str(SCRIPT.parent.parent / "references" / "routing-defaults.json")],
                 {"brief": "filtered"},
             )
             result = run(
@@ -213,7 +213,7 @@ class PacketTest(unittest.TestCase):
                     "Small but judgment-heavy review.",
                     "--launchable-via",
                     "claude",
-                    "--quota-axi",
+                    "--codexbar",
                     "--max-effort-basis",
                     "xhigh is materially insufficient.",
                     "--minimum-context",
@@ -315,7 +315,7 @@ class PacketTest(unittest.TestCase):
                     ROUTE_BASIS,
                     "--launchable-via",
                     "claude",
-                    "--quota-axi",
+                    "--codexbar",
                     "--use-quota-fallback",
                     "Principal did not answer within 120s.",
                     "--minimum-context",

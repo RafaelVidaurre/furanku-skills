@@ -1,8 +1,6 @@
 {
-  "quota-axi": {
-    "package": "quota-axi",
-    "version": "0.1.61",
-    "schema_version": 5,
-    "account_schema_version": 6
+  "codexbar": {
+    "command": "codexbar",
+    "version": "0.77.0"
   }
 }

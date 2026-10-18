@@ -19,7 +19,6 @@ import jev_context
 
 SCRIPT = Path(__file__).with_name("router.py")
 ROUTE_BASIS = "Principal requested the Worker route for this task."
-QUOTA_AXI_SCHEMA_VERSION = router.runtime_dependency("quota-axi")["schema_version"]
 
 
 class RouterTest(unittest.TestCase):
@@ -31,6 +30,9 @@ class RouterTest(unittest.TestCase):
         self.repo = self.base / "repo"
         self.repo.mkdir()
         subprocess.run(["git", "init", "-q", str(self.repo)], check=True)
+        self.environment = mock.patch.dict(os.environ, {"HOME": str(self.home), "CODEX_HOME": str(self.home / "codex")})
+        self.environment.start()
+        self.addCleanup(self.environment.stop)
         self.env = os.environ.copy()
         self.env["HOME"] = str(self.home)
         self.env["PYTHONDONTWRITEBYTECODE"] = "1"
@@ -554,7 +556,7 @@ class RouterTest(unittest.TestCase):
                         },
                         "quota_provider": {
                             "provider": "openrouter",
-                            "detail": "quota-axi does not support OpenRouter",
+                            "detail": "CodexBar does not support OpenRouter",
                         },
                     }
                 },
@@ -582,7 +584,7 @@ class RouterTest(unittest.TestCase):
         self.assertEqual("needs-acceptance", decision["status"])
         self.assertEqual("unknown", decision["quota"]["status"])
         self.assertEqual("openrouter", decision["quota"]["account"]["provider"])
-        self.assertIn("quota-axi does not support OpenRouter", decision["pending"][0])
+        self.assertIn("CodexBar does not support OpenRouter", decision["pending"][0])
 
         accepted = self.check(
             "--candidate",
@@ -997,84 +999,15 @@ class RouterTest(unittest.TestCase):
                 )
                 self.assertIn("must be an object", result.stderr)
 
-    def test_quota_axi_adapter_uses_effective_pace_and_marks_kimi_unknown(self):
-        catalog = router.read_json(router.CATALOG, "routing catalog")
-        snapshot = {
-            "schemaVersion": QUOTA_AXI_SCHEMA_VERSION,
-            "generatedAt": "2026-07-31T11:30:17Z",
-            "providers": [
-                {
-                    "provider": "codex",
-                    "state": {"status": "fresh", "stale": False},
-                    "quotaSemantics": {
-                        "status": "known",
-                        "effectiveAvailability": [
-                            {
-                                "scope": "all_models",
-                                "effectivePercentRemaining": 34,
-                                "boundedBy": ["weekly"],
-                                "pace": {"worstReservePercentPoints": -50},
-                            }
-                        ],
-                    },
-                },
-                {
-                    "provider": "kimi",
-                    "state": {"status": "auth_required", "stale": False},
-                    "quotaSemantics": {
-                        "status": "unknown",
-                        "effectiveAvailability": [],
-                    },
-                },
-            ],
-        }
-        runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
-        self.assertEqual(0.5, runtime["harnesses"]["codex"]["quota"]["pressure"])
-        self.assertEqual(
-            34, runtime["harnesses"]["codex"]["quota"]["effective_percent_remaining"]
-        )
-        opencode = runtime["harnesses"]["opencode"]["quota"]
-        self.assertEqual("unknown", opencode["status"])
-        self.assertIn("cannot read Kimi Code OAuth quota", opencode["detail"])
-        proxy = runtime["candidates"]["claude/kimi-k3[1m]/max"]["quota"]
-        self.assertEqual("unknown", proxy["status"])
-        self.assertIn("cannot read", runtime["notes"][0])
-
-    def test_quota_axi_adapter_accepts_declared_schema(self):
-        dependency = router.runtime_dependency("quota-axi")
-        snapshot = self.codex_snapshot(52)
-        snapshot["schemaVersion"] = dependency["schema_version"]
-
-        catalog = router.read_json(router.CATALOG, "routing catalog")
-        runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
-
-        quota = runtime["harnesses"]["codex"]["quota"]
-        self.assertEqual("known", quota["status"])
-        self.assertEqual(52, quota["effective_percent_remaining"])
 
     def codex_snapshot(self, remaining, account=None):
-        provider = {
-            "provider": "codex",
-            "state": {"status": "fresh", "stale": False},
-            "quotaSemantics": {
-                "status": "known",
-                "effectiveAvailability": [
-                    {
-                        "scope": "all_models",
-                        "effectivePercentRemaining": remaining,
-                        "boundedBy": ["weekly"],
-                        "pace": {"worstReservePercentPoints": 0},
-                    }
-                ],
-            },
-        }
-        if account is not None:
-            provider["account"] = account
-        return {
-            "schemaVersion": QUOTA_AXI_SCHEMA_VERSION,
-            "generatedAt": "2026-08-16T12:31:05Z",
-            "providers": [provider],
-        }
+        from datetime import datetime, timezone
+        identity = dict(account or {})
+        if 'accountId' in identity:
+            identity['account_id'] = identity.pop('accountId')
+        return {'codex': {'status': 'known', 'identity': identity,
+            'refreshed_at': datetime.now(timezone.utc).isoformat(),
+            'windows': [{'id': 'weekly', 'percentRemaining': remaining}]}}
 
     def codex_candidate(self):
         catalog = router.read_json(router.CATALOG, "routing catalog")
@@ -1097,13 +1030,13 @@ class RouterTest(unittest.TestCase):
         catalog["candidates"][candidate_id] = candidate
         return candidate_id, candidate
 
-    def test_quota_axi_carries_the_measured_account_identity(self):
+    def test_codexbar_carries_the_measured_account_identity(self):
         catalog = router.read_json(router.CATALOG, "routing catalog")
         snapshot = self.codex_snapshot(
             0,
             {"email": "launch-account@example.com", "accountId": "account-1234"},
         )
-        runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
+        runtime = router.codexbar_runtime(snapshot, catalog["candidates"])
         quota = runtime["harnesses"]["codex"]["quota"]
         self.assertEqual("exhausted", quota["status"])
         self.assertEqual(
@@ -1118,7 +1051,7 @@ class RouterTest(unittest.TestCase):
     def test_gate_names_the_account_an_exhausted_verdict_measured(self):
         catalog = router.read_json(router.CATALOG, "routing catalog")
         candidate_id, candidate = self.codex_candidate()
-        runtime = router.quota_axi_runtime(
+        runtime = router.codexbar_runtime(
             self.codex_snapshot(0, {"email": "launch-account@example.com"}),
             catalog["candidates"],
         )
@@ -1130,7 +1063,7 @@ class RouterTest(unittest.TestCase):
     def test_gate_flags_an_exhausted_verdict_it_cannot_attribute(self):
         catalog = router.read_json(router.CATALOG, "routing catalog")
         candidate_id, candidate = self.codex_candidate()
-        runtime = router.quota_axi_runtime(
+        runtime = router.codexbar_runtime(
             self.codex_snapshot(0), catalog["candidates"]
         )
         reasons, _warnings = router.gate(candidate_id, candidate, runtime)
@@ -1143,7 +1076,7 @@ class RouterTest(unittest.TestCase):
         candidate_id, candidate = self.codex_candidate()
         candidate = deepcopy(candidate)
         candidate["quota_account"] = "codex"
-        runtime = router.quota_axi_runtime(
+        runtime = router.codexbar_runtime(
             self.codex_snapshot(85, {"email": "measured-account@example.com"}),
             catalog["candidates"],
         )
@@ -1162,7 +1095,7 @@ class RouterTest(unittest.TestCase):
         account another session happened to record machine-wide."""
         catalog = router.read_json(router.CATALOG, "routing catalog")
         candidate_id, candidate = self.codex_candidate()
-        runtime = router.quota_axi_runtime(
+        runtime = router.codexbar_runtime(
             self.codex_snapshot(85, {"email": "active-session@example.com"}),
             catalog["candidates"],
         )
@@ -1180,7 +1113,7 @@ class RouterTest(unittest.TestCase):
         candidate_id, candidate = self.codex_candidate()
         candidate = deepcopy(candidate)
         candidate["quota_account"] = "codex"
-        runtime = router.quota_axi_runtime(
+        runtime = router.codexbar_runtime(
             self.codex_snapshot(85, {"email": "launch-account@example.com"}),
             catalog["candidates"],
         )
@@ -1198,7 +1131,7 @@ class RouterTest(unittest.TestCase):
         candidate_id, candidate = self.codex_candidate()
         candidate = deepcopy(candidate)
         candidate["quota_account"] = "codex"
-        runtime = router.quota_axi_runtime(
+        runtime = router.codexbar_runtime(
             self.codex_snapshot(85), catalog["candidates"]
         )
         _reasons, warnings = router.gate(
@@ -1212,56 +1145,6 @@ class RouterTest(unittest.TestCase):
             warnings,
         )
 
-    def test_projected_quota_is_checked_against_its_own_provider(self):
-        """A proxy-routed candidate launches through `claude` but bills the
-        upstream provider, so its account must be checked against that
-        provider's configured account, not the launch harness's."""
-        catalog = router.read_json(router.CATALOG, "routing catalog")
-        snapshot = {
-            "schemaVersion": QUOTA_AXI_SCHEMA_VERSION,
-            "generatedAt": "2026-08-16T12:31:05Z",
-            "providers": [
-                {
-                    "provider": "grok",
-                    "account": {"email": "measured-account@example.com"},
-                    "state": {"status": "fresh", "stale": False},
-                    "quotaSemantics": {
-                        "status": "known",
-                        "effectiveAvailability": [
-                            {
-                                "scope": "all_models",
-                                "effectivePercentRemaining": 70,
-                                "boundedBy": ["weekly"],
-                                "pace": {"worstReservePercentPoints": 0},
-                            }
-                        ],
-                    },
-                }
-            ],
-        }
-        runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
-        candidate_id = "claudex/grok-4.7/high"
-        candidate = deepcopy(catalog["candidates"][candidate_id])
-        candidate["quota_account"] = "grok"
-        quota = runtime["candidates"][candidate_id]["quota"]
-        self.assertEqual("grok", quota["account"]["provider"])
-        # A claude-account expectation must not be applied to a grok reading.
-        reasons, _warnings = router.gate(
-            candidate_id,
-            candidate,
-            runtime,
-            expected_accounts={"claude": "someone-else@example.com"},
-        )
-        self.assertEqual([], reasons)
-        # The grok expectation is the one that governs it.
-        reasons, _warnings = router.gate(
-            candidate_id,
-            candidate,
-            runtime,
-            expected_accounts={"grok": "someone-else@example.com"},
-        )
-        self.assertEqual(1, len(reasons))
-        self.assertIn("measured-account@example.com", reasons[0])
 
     def test_pooled_candidate_does_not_inherit_its_harness_quota(self):
         """A proxy bills its credential pool, not the launcher account it
@@ -1294,7 +1177,7 @@ class RouterTest(unittest.TestCase):
         """Exhaustion on one Codex account must not take its pooled route down."""
         catalog = router.read_json(router.CATALOG, "routing catalog")
         pooled, _candidate = self.pooled_codex_proxy_candidate(catalog)
-        runtime = router.quota_axi_runtime(
+        runtime = router.codexbar_runtime(
             self.codex_snapshot(0, {"email": "launch-account@example.com"}),
             catalog["candidates"],
         )
@@ -1423,58 +1306,6 @@ class RouterTest(unittest.TestCase):
         )
         self.assertEqual({"email": "launch-account@example.com"}, summary["account"])
 
-    def test_run_quota_axi_uses_declared_version_and_requests_account_attribution(self):
-        captured = {}
-        dependency = router.runtime_dependency("quota-axi")
-
-        def fake_run(command, **kwargs):
-            captured["command"] = command
-            return SimpleNamespace(
-                returncode=0,
-                stdout=json.dumps(
-                    {
-                        "schemaVersion": dependency["schema_version"],
-                        "providers": [],
-                    }
-                ),
-                stderr="",
-            )
-
-        with mock.patch.object(router.subprocess, "run", fake_run):
-            router.run_quota_axi()
-        package_spec = f"{dependency['package']}@{dependency['version']}"
-        self.assertIn(package_spec, captured["command"])
-        self.assertNotIn(dependency["package"], captured["command"])
-        self.assertIn("--full", captured["command"])
-
-    def test_quota_axi_projects_grok_quota_to_claudex_candidate(self):
-        catalog = router.read_json(router.CATALOG, "routing catalog")
-        snapshot = {
-            "schemaVersion": QUOTA_AXI_SCHEMA_VERSION,
-            "generatedAt": "2026-08-12T09:30:00Z",
-            "providers": [
-                {
-                    "provider": "grok",
-                    "state": {"status": "fresh", "stale": False},
-                    "quotaSemantics": {
-                        "status": "known",
-                        "effectiveAvailability": [
-                            {
-                                "scope": "all_products",
-                                "effectivePercentRemaining": 57,
-                                "boundedBy": ["weekly"],
-                                "pace": {"worstReservePercentPoints": -20},
-                            }
-                        ],
-                    },
-                }
-            ],
-        }
-        runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
-        candidate = runtime["candidates"]["claudex/grok-4.7/high"]["quota"]
-        self.assertEqual("known", candidate["status"])
-        self.assertEqual(57, candidate["effective_percent_remaining"])
-        self.assertEqual(candidate, runtime["harnesses"]["grok"]["quota"])
 
     def test_check_surfaces_kimi_credential_detail_in_warning(self):
         candidate = "opencode/kimi-for-coding/k3/max"
@@ -1490,7 +1321,7 @@ class RouterTest(unittest.TestCase):
                     "opencode": {
                         "quota": {
                             "status": "unknown",
-                            "detail": "quota-axi cannot read Kimi Code OAuth quota",
+                            "detail": "CodexBar cannot read Kimi Code OAuth quota",
                         }
                     }
                 }
@@ -1498,43 +1329,11 @@ class RouterTest(unittest.TestCase):
         )
         self.assertEqual("selected", decision["status"])
         self.assertIn(
-            "quota unknown (account unattributed): quota-axi cannot read Kimi "
+            "quota unknown (account unattributed): CodexBar cannot read Kimi "
             "Code OAuth quota",
             decision["warnings"],
         )
 
-    def test_quota_axi_stale_carries_recovery_fields(self):
-        catalog = router.read_json(router.CATALOG, "routing catalog")
-        snapshot = {
-            "schemaVersion": QUOTA_AXI_SCHEMA_VERSION,
-            "generatedAt": "2026-08-13T12:38:00Z",
-            "providers": [
-                {
-                    "provider": "grok",
-                    "state": {
-                        "status": "stale",
-                        "stale": True,
-                        "error": "Grok access token expired",
-                        "reason": "credentials_expired",
-                        "remedyCommand": "grok",
-                        "authStatus": "expired_refreshable",
-                        "refreshedAt": "2026-08-13T09:12:47.507Z",
-                    },
-                    "quotaSemantics": {
-                        "status": "unknown",
-                        "description": "The raw quota windows are stale.",
-                    },
-                }
-            ],
-        }
-        runtime = router.quota_axi_runtime(snapshot, catalog["candidates"])
-        quota = runtime["harnesses"]["grok"]["quota"]
-        self.assertEqual("stale", quota["status"])
-        self.assertEqual("Grok access token expired", quota["detail"])
-        self.assertEqual("credentials_expired", quota["cause"])
-        self.assertEqual("grok", quota["remedy"])
-        self.assertEqual("expired_refreshable", quota["auth_status"])
-        self.assertEqual("2026-08-13T09:12:47.507Z", quota["refreshed_at"])
 
     def test_check_stale_quota_pending_names_remedy(self):
         candidate = "grok/grok-4.7/high"
@@ -1815,80 +1614,6 @@ class RouterTest(unittest.TestCase):
             expect_code=1,
         )
         self.assertIn("has no on_quota_unusable fallback", result.stderr)
-
-    def test_load_quota_axi_retries_stale_provider_once(self):
-        catalog = router.read_json(router.CATALOG, "routing catalog")
-        calls = []
-
-        def fake_run(providers=None):
-            calls.append(tuple(providers) if providers else None)
-            if providers == ["grok"]:
-                return {
-                    "schemaVersion": QUOTA_AXI_SCHEMA_VERSION,
-                    "generatedAt": "2026-08-13T12:47:18Z",
-                    "providers": [
-                        {
-                            "provider": "grok",
-                            "state": {"status": "fresh", "stale": False},
-                            "quotaSemantics": {
-                                "status": "known",
-                                "effectiveAvailability": [
-                                    {
-                                        "scope": "all_products",
-                                        "effectivePercentRemaining": 41,
-                                        "boundedBy": ["credits"],
-                                        "pace": {"worstReservePercentPoints": 0},
-                                    }
-                                ],
-                            },
-                        }
-                    ],
-                }
-            return {
-                "schemaVersion": QUOTA_AXI_SCHEMA_VERSION,
-                "generatedAt": "2026-08-13T12:31:48Z",
-                "providers": [
-                    {
-                        "provider": "grok",
-                        "state": {
-                            "status": "stale",
-                            "stale": True,
-                            "error": "Grok access token expired",
-                            "remedyCommand": "grok",
-                        },
-                        "quotaSemantics": {"status": "unknown"},
-                    },
-                    {
-                        "provider": "codex",
-                        "state": {"status": "fresh", "stale": False},
-                        "quotaSemantics": {
-                            "status": "known",
-                            "effectiveAvailability": [
-                                {
-                                    "scope": "all_models",
-                                    "effectivePercentRemaining": 99,
-                                    "boundedBy": ["weekly"],
-                                    "pace": {"worstReservePercentPoints": 10},
-                                }
-                            ],
-                        },
-                    },
-                ],
-            }
-
-        original = router.run_quota_axi
-        router.run_quota_axi = fake_run
-        try:
-            runtime = router.load_quota_axi(catalog["candidates"])
-        finally:
-            router.run_quota_axi = original
-        self.assertEqual([None, ("grok",)], calls)
-        self.assertEqual("known", runtime["harnesses"]["grok"]["quota"]["status"])
-        self.assertEqual(
-            41, runtime["harnesses"]["grok"]["quota"]["effective_percent_remaining"]
-        )
-        self.assertEqual("known", runtime["harnesses"]["codex"]["quota"]["status"])
-        self.assertIn("retried stale provider(s): grok", runtime["notes"][-1])
 
 
 if __name__ == "__main__":

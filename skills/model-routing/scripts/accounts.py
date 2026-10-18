@@ -1,6 +1,6 @@
 """Account discovery, quota reporting, and deterministic account policy.
 
-Discovery and measurements belong to Orca/quota-axi. This adapter reads only
+Orca can discover launch identities; CodexBar CLI alone measures quota. This adapter reads only
 non-secret tool output and carries the measured profile into the launch.
 """
 from __future__ import annotations
@@ -15,13 +15,14 @@ import os
 from pathlib import Path
 import subprocess
 from string import Template
+import codexbar
 
 PROFILE_ENV = {'claude': 'CLAUDE_CONFIG_DIR', 'codex': 'CODEX_HOME'}
 # Explicit credentials override profile selection in vendor CLIs.
 UNSET_ENV = {
     'claude': ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN',
                'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX',
-               'CLAUDE_CODE_USE_FOUNDRY'],
+               'CLAUDE_CODE_USE_FOUNDRY', 'CLAUDE_SECURESTORAGE_CONFIG_DIR'],
     'codex': ['OPENAI_API_KEY', 'OPENAI_BASE_URL'],
 }
 
@@ -44,16 +45,17 @@ def validate(policy, source):
         provider, sep, identity = key.partition(':')
         if provider not in PROFILE_ENV or not sep or not identity or not isinstance(row, dict):
             raise ValueError(f'{source}: invalid profile {key!r}')
-        if set(row) - {'profile', 'label', 'priority', 'min_remaining_percent', 'quota_source'}:
+        if set(row) - {'profile', 'label', 'priority', 'min_remaining_percent', 'quota_source', 'discovery', 'expected_identity'}:
             raise ValueError(f'{source}: unknown profile fields for {key}')
         if not isinstance(row.get('profile'), str) or not Path(row['profile']).expanduser().is_absolute():
             raise ValueError(f'{source}: {key} requires an absolute profile directory')
-        if row.get('quota_source', 'quota-axi') not in ('quota-axi', 'quota-axi-keychain', 'orca'):
-            raise ValueError(f'{source}: invalid quota_source for {key}')
-        if row.get('quota_source') == 'quota-axi-keychain' and provider != 'claude':
-            raise ValueError(f'{source}: quota-axi-keychain requires Claude')
-        if row.get('quota_source') == 'orca' and policy.get('source') != 'orca':
-            raise ValueError(f'{source}: Orca quota requires Orca discovery')
+        if row.get('quota_source', 'codexbar') != 'codexbar':
+            raise ValueError(f'{source}: {key} uses a retired quota source; migrate quota_source to codexbar')
+        if row.get('discovery', 'orca') not in ('orca', 'configured'):
+            raise ValueError(f'{source}: invalid discovery for {key}')
+        expected = row.get('expected_identity', {})
+        if not isinstance(expected, dict) or set(expected) - {'email', 'organizationUuid', 'organization', 'providerAccountId'} or any(not isinstance(v, str) or not v.strip() for v in expected.values()):
+            raise ValueError(f'{source}: invalid expected_identity for {key}')
         for field in ('priority', 'min_remaining_percent'):
             value = row.get(field, 0)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
@@ -62,8 +64,8 @@ def validate(policy, source):
             raise ValueError(f'{source}: invalid min_remaining_percent for {key}')
 
 
-def command_json(argv, env=None):
-    result = subprocess.run(argv, env=env, capture_output=True, text=True, timeout=120)
+def command_json(argv, env=None, *, timeout=120):
+    result = subprocess.run(argv, env=env, capture_output=True, text=True, timeout=timeout)
     if result.returncode not in (0, 1) or not result.stdout.strip():
         raise ValueError(f'{argv[0]} failed (exit {result.returncode}); run its diagnostic command')
     data = json.loads(result.stdout)
@@ -93,26 +95,9 @@ def fresh(value, max_age, now):
         return False
 
 
-def orca_measurement(value):
-    windows = []
-    for key in ('session', 'weekly', 'fableWeekly', 'monthly'):
-        row = value.get(key)
-        if isinstance(row, dict):
-            used = row.get('usedPercent')
-            if isinstance(used, bool) or not isinstance(used, (int, float)) or not math.isfinite(used) or not 0 <= used <= 100:
-                return {'status': 'unknown', 'refreshed_at': stamp(value.get('updatedAt')),
-                        'windows': [], 'detail': 'Invalid Orca quota window', 'source': 'orca'}
-            windows.append({'id': key, 'percentRemaining': 100 - row['usedPercent'],
-                            'resetsAt': stamp(row.get('resetsAt')),
-                            'windowSeconds': row.get('windowMinutes', 0) * 60})
-    return {'status': 'known' if value.get('status') == 'ok' and not value.get('error') and windows else 'unknown',
-            'refreshed_at': stamp(value.get('updatedAt')), 'windows': windows,
-            'detail': value.get('error'), 'source': 'orca'}
-
-
 def profile_environment(row):
     env = os.environ.copy()
-    for key in UNSET_ENV[row['provider']] + ['QUOTA_AXI_SNAPSHOT', 'QUOTA_AXI_CLAUDE_PROFILES']:
+    for key in UNSET_ENV[row['provider']]:
         env.pop(key, None)
     env[PROFILE_ENV[row['provider']]] = row['profile']
     return env
@@ -120,125 +105,112 @@ def profile_environment(row):
 
 def profile_measurement(row, dependency, *, refresh=False):
     env = profile_environment(row)
-    command = ['npx', '-y', f"{dependency['package']}@{dependency['version']}",
-               '--provider', row['provider'], '--full', '--json']
-    keychain = row.get('quota_source') == 'quota-axi-keychain'
-    if keychain:
-        env['QUOTA_AXI_CLAUDE_PROFILES'] = row['profile']
-        command += ['--no-credential-refresh', '--max-age', '0' if refresh else '90s']
-    else:
-        command += ['--profile-only']
-    data = command_json(command, env)
-    accepted_schemas = {dependency['schema_version']}
-    if keychain:
-        accepted_schemas.add(dependency.get('account_schema_version', dependency['schema_version']))
-    if data.get('schemaVersion') not in accepted_schemas:
-        raise ValueError('quota-axi schema does not match the pinned dependency')
-    providers = data.get('providers', [])
-    if keychain:
-        providers = [p for p in providers if p.get('accountLocator', {}).get('path') == row['profile']]
-    if len(providers) != 1 or providers[0].get('provider') != row['provider']:
-        raise ValueError('quota-axi did not return exactly the requested provider')
-    p = providers[0]
-    state = p.get('state', {})
-    return {'status': 'known' if state.get('status') == 'fresh' and not state.get('stale') and p.get('quotaSemantics', {}).get('status') == 'known' else 'unknown',
-            'refreshed_at': state.get('refreshedAt'), 'windows': p.get('windows', []),
-            'scopes': p.get('quotaSemantics', {}).get('effectiveAvailability', []),
-            'detail': state.get('error'), 'source': 'quota-axi-keychain' if keychain else 'quota-axi', 'identity': p.get('account', {})}
-
-
-def verify_claude_launch(row):
-    """Orca quota alone does not prove the configured CLI profile is signed in."""
-    status = command_json(['claude', 'auth', 'status', '--json'], profile_environment(row))
+    native = None
+    if row['provider'] == 'claude':
+        native = command_json(['claude', 'auth', 'status', '--json'], env, timeout=10)
+        expected = row.get('expected_identity', {})
+        if not native.get('loggedIn') or not native.get('email') or not native.get('orgId') or any(
+            expected.get(key) and native.get(remote) != expected[key]
+            for key, remote in [('email', 'email'), ('organizationUuid', 'orgId')]):
+            raise ValueError('Claude profile is signed out or native identity does not match configured account')
+    result = codexbar.read(row['provider'], dependency, env)
+    identity = result.get('identity', {})
     expected = row.get('expected_identity', {})
-    if status.get('loggedIn') is not True or not expected.get('email') or not expected.get('organizationUuid'):
-        return False
-    return all(not expected.get(key) or status.get(remote) == expected[key]
-               for key, remote in [('email', 'email'), ('organizationUuid', 'orgId')])
+    if result['status'] == 'known':
+        if any(expected.get(k) and identity.get(k) != expected[k] for k in ('email', 'organization')):
+            raise ValueError('Measured identity does not match configured account')
+        if native:
+            if identity.get('email') != native['email'] or not native.get('orgName') or identity.get('organization') != native['orgName']:
+                raise ValueError('Measured identity does not match native Claude organization')
+            identity['organizationUuid'] = native['orgId']
+    return result
 
 
-def inventory(policy, dependency, now=None, *, refresh=False):
+def inventory(policy, dependency, now=None, *, refresh=False, providers=None, native_only_providers=()):
     validate(policy, 'account routing')
     supplied_now = now
     now = now or datetime.now(timezone.utc)
     rows = {}
     if policy.get('source') == 'orca':
         data = command_json([orca_command(policy), 'account', 'list', '--json'])['result']
-        limits = data.get('rateLimits', {})
         for provider, group in data.items():
             if not isinstance(group, dict) or not isinstance(group.get('accounts'), list):
                 continue
-            inactive = {x['accountId']: x.get('rateLimits') or {} for x in limits.get('inactive' + provider.title() + 'Accounts', [])}
             for account in group['accounts']:
                 identity = account['id']
                 active = identity == group.get('activeAccountId')
                 key = f'{provider}:{identity}'
+                if policy.get('profiles') and key not in policy['profiles']:
+                    continue
                 rows[key] = {'key': key, 'id': identity, 'provider': provider,
                              'discovery': {'source': 'orca', 'command': orca_command(policy)},
                              'launch_ready': not account.get('needsSignIn', False),
                              'label': account.get('email') or account.get('name') or identity,
-                             'active': active, 'host_active': identity == group.get('activeAccountIdsByRuntime', {}).get('host', group.get('activeAccountId')), 'expected_identity': {k: account[k] for k in ('email', 'providerAccountId', 'organizationUuid') if account.get(k)}, 'runtime': account.get('managedAuthRuntime', account.get('managedHomeRuntime', 'host')),
-                             'measurement': orca_measurement(limits.get(provider, {}) if active else inactive.get(identity, {}))}
+                             'active': active, 'host_active': identity == group.get('activeAccountIdsByRuntime', {}).get('host', group.get('activeAccountId')), 'expected_identity': {k: account[k] for k in ('email', 'providerAccountId', 'organizationUuid') if account.get(k)}, 'runtime': account.get('managedAuthRuntime', account.get('managedHomeRuntime', 'host'))}
     for key, config in policy.get('profiles', {}).items():
-        if policy.get('source') == 'orca' and key not in rows:
+        if policy.get('source') == 'orca' and key not in rows and config.get('discovery') != 'configured':
             continue  # Removed accounts cannot survive discovery through private configuration.
         provider, identity = key.split(':', 1)
         row = rows.setdefault(key, {'key': key, 'id': identity, 'provider': provider, 'label': identity, 'active': False, 'runtime': 'host'})
-        row.update(deepcopy(config))
+        discovered = row.get('expected_identity', {})
+        configured = deepcopy(config)
+        configured.pop('discovery', None)
+        row.update(configured)
+        if discovered:
+            row['expected_identity'] = discovered
         row['profile'] = str(Path(row['profile']).expanduser())
+    codexbar.verify(dependency)
     def measure(row):
-        if row.get('profile') and row.get('quota_source', 'quota-axi') in ('quota-axi', 'quota-axi-keychain'):
+        if row.get('profile'):
             try:
                 row['measurement'] = profile_measurement(row, dependency, refresh=refresh)
             except (ValueError, OSError, subprocess.TimeoutExpired) as exc:
-                row['measurement'] = {'status': 'unknown', 'windows': [], 'source': row.get('quota_source', 'quota-axi'), 'detail': str(exc)}
+                row['measurement'] = {'status': 'unknown', 'windows': [], 'source': 'codexbar', 'detail': str(exc)}
         measurement = row.setdefault('measurement', {'status': 'unknown', 'windows': []})
-        if refresh and measurement.get('source') == 'orca':
-            reason = ('Orca supplies cached snapshots; configure a direct quota source for live reads'
-                      if row.get('profile') else 'No launch profile configured for a direct quota read')
-            measurement['detail'] = '; '.join(filter(None, [measurement.get('detail'), reason]))
         if measurement['status'] == 'known' and not fresh(measurement.get('refreshed_at'), policy.get('max_age_seconds', 300), supplied_now or datetime.now(timezone.utc)):
             measurement['status'] = 'stale'
             measurement['detail'] = '; '.join(filter(None, [measurement.get('detail'), 'Last successful reading exceeds the freshness limit']))
-        identity = measurement.get('identity', {})
-        expected = row.get('expected_identity', {})
-        if any(expected.get(k) and identity.get(remote) != expected[k] for k, remote in [('email', 'email'), ('providerAccountId', 'accountId')]) and measurement.get('source') in ('quota-axi', 'quota-axi-keychain') and measurement['status'] == 'known':
-            measurement['status'] = 'unknown'
-            measurement['detail'] = 'Measured identity does not match discovered account'
-        if row.get('profile') and row['provider'] == 'claude' and measurement.get('source') == 'orca' and measurement['status'] == 'known':
-            try:
-                row['launch_ready'] = row.get('launch_ready', True) and verify_claude_launch(row)
-                if not row['launch_ready']:
-                    measurement['detail'] = 'Claude CLI profile is signed out or does not match the Orca account'
-            except (ValueError, OSError, subprocess.TimeoutExpired) as exc:
-                row['launch_ready'] = False
-                measurement['detail'] = f'Claude profile verification failed: {exc}'
+        if not row.get('profile'):
+            measurement['detail'] = 'No launch profile configured for a CodexBar CLI read'
         row['priority'] = row.get('priority', 0)
         row['min_remaining_percent'] = row.get('min_remaining_percent', policy.get('low_remaining_percent', 10))
         return row
     with ThreadPoolExecutor(max_workers=4) as pool:
-        measured = list(pool.map(measure, rows.values()))
+        selected_rows = [row for row in rows.values()
+                         if (providers is None or row['provider'] in providers)
+                         and (row['provider'] not in native_only_providers
+                              or (row.get('host_active', row.get('active'))
+                                  and row.get('discovery', {}).get('source') == 'orca'))]
+        measured = list(pool.map(measure, selected_rows))
     return {'captured_at': now.isoformat(), 'accounts': measured}
 
 
 def remaining(row, model=''):
     measurement = row['measurement']
-    scopes = measurement.get('scopes')
-    if scopes is not None:
-        model_name = model.split('[')[0]
-        model_scopes = {'model:' + model_name}
-        for family in ('fable', 'sonnet', 'haiku'):
-            if model_name.startswith('claude-' + family + '-'):
-                model_scopes.add('model:' + family)
-        relevant = [s for s in scopes if s.get('scope') in {'all_models', 'all_products'} | model_scopes]
-        if not relevant or any(s.get('status', 'known') != 'known' for s in relevant):
-            return None
-        values = [s.get('effectivePercentRemaining') for s in relevant]
-    else:
-        values = [w.get('percentRemaining') for w in measurement['windows'] if w['id'] != 'fableWeekly' or 'fable' in model]
+    families = {model.split('[')[0], *[f for f in ('fable', 'opus', 'sonnet', 'haiku') if f in model.split('-')]}
+    values = [w.get('percentRemaining') for w in measurement['windows']
+              if w.get('scope', 'all_models') == 'all_models'
+              or w.get('scope', '').removeprefix('model:') in families]
     if not values or any(isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x) or not 0 <= x <= 100 for x in values):
         return None
     return min(values)
+
+
+def failure_category(measurement):
+    """Bounded diagnostic labels; never echo provider error text into decisions."""
+    detail = str(measurement.get('detail') or '').lower()
+    for tokens, label in (
+        (('timed out', 'timeout'), 'timeout'),
+        (('rate limit', '429'), 'provider rate limited'),
+        (('schema',), 'schema mismatch'),
+        (('identity', 'does not match'), 'identity mismatch'),
+        (('fetch failed', 'network', 'connection'), 'source connectivity failure'),
+        (('signed out', 'sign-in', 'unauthorized', 'authentication'), 'sign-in required'),
+        (('freshness',), 'stale reading'),
+    ):
+        if any(token in detail for token in tokens):
+            return label
+    return 'source reading unavailable' if measurement.get('status') != 'known' else 'reserve or launch eligibility'
 
 
 def choose(report, provider, model, *, native_only=False):
@@ -294,8 +266,6 @@ def render(report):
             amounts.append(f'{label}: {left}')
             resets.append(f"{label}: {timestamp(window.get('resetsAt'))}")
         status = {'known': 'Fresh', 'unknown': 'Unavailable', 'stale': 'Stale'}.get(m['status'], cell(m['status']))
-        if m['status'] == 'known' and m.get('source') == 'orca':
-            status = 'Cached'
         identity = short_id(row)
         account = f"{cell(row['label'])}<br>{identity}" + (' · active' if row['active'] else '')
         reading = f"{status}<br>{timestamp(m.get('refreshed_at'))}"
