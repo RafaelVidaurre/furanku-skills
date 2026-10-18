@@ -70,7 +70,7 @@ KNOWN_MANIFESTS = {
             )
         },
         "isolation": True,
-        "account_launch": {"claude": "orca-native", "codex": "orca-native"},
+        "account_launch": {"claude": "orca-native", "codex": "orca-account"},
         "launch_argv": {
             "claude": ["claude", "--model", "{model}", "--effort", "{effort}"],
             "codex": [
@@ -229,11 +229,14 @@ def validate_manifest(manifest, label="manifest"):
         argv_fields(argv, f"{label}.launch_argv.{agent}")
     account_launch = manifest.get('account_launch', {})
     if not isinstance(account_launch, dict) or any(
-        agent not in agents or method not in ('command', 'orca-native') or
-        (method == 'orca-native' and agent not in ('claude', 'codex'))
+        agent not in agents or method not in ('command', 'orca-native', 'orca-account') or
+        (method in ('orca-native', 'orca-account') and agent not in ('claude', 'codex'))
         for agent, method in account_launch.items()
     ):
-        raise Error(f'{label}.account_launch must map launchable providers to command or orca-native')
+        raise Error(f'{label}.account_launch must map launchable providers to command, orca-native or orca-account')
+    for agent, method in account_launch.items():
+        if method == 'orca-account' and not {'model', 'effort'} <= argv_fields(launch_argv.get(agent, []), f'launch_argv.{agent}'):
+            raise Error(f'{label}.account_launch.{agent} requires launch_argv with model and effort')
     principals = manifest.get("principals", PRINCIPALS)
     if not isinstance(principals, (list, tuple)) or not principals or any(
         principal not in PRINCIPALS for principal in principals
@@ -764,7 +767,7 @@ ORCA_READINESS_SPEC = (
 )
 
 
-def orca_preparation_surface(command):
+def orca_preparation_surface(command, *, profile_command=False):
     """Discover commands without starting a process or delivering an assignment."""
     try:
         result = subprocess.run([command, 'agent-context', '--json'],
@@ -782,6 +785,11 @@ def orca_preparation_surface(command):
     attachment = {'spec', 'task', 'terminal', 'run', 'retry-of', 'worktree', 'json'}
     worker = surfaces.get('orchestration worker-start', set())
     if attachment <= worker:
+        if profile_command:
+            if ({'worktree', 'command', 'json'} <= surfaces.get('terminal create', set()) and
+                    {'terminal', 'for', 'timeout-ms', 'json'} <= surfaces.get('terminal wait', set())):
+                return 'profile-command'
+            raise Error('Orca lacks profile-command preparation/attachment capability; preserve the model and resolve launch readiness before task delivery')
         if common <= surfaces.get('agent launch', set()):
             return 'agent-launch'
         if common <= worker:
@@ -789,7 +797,7 @@ def orca_preparation_surface(command):
     raise Error('Orca has no supported native preparation/attachment capability for this binding; preserve the decision and resolve launch readiness before task delivery')
 
 
-def orca_native_preparation(binding, routing):
+def orca_native_preparation(binding, routing, *, allow_profile=False):
     """Public discovery verifies selection; process identity still gates delivery."""
     discovery = binding.get('discovery', {})
     command = discovery.get('command')
@@ -805,7 +813,10 @@ def orca_native_preparation(binding, routing):
         account = next((row for row in group['accounts'] if row['id'] == binding.get('id')), None)
     except (OSError, subprocess.TimeoutExpired, ValueError, KeyError, TypeError, AttributeError):
         raise Error('Orca native account discovery unavailable; task delivery remains blocked')
-    if not account or not binding.get('id') or active != binding['id']:
+    if not account or not binding.get('id'):
+        raise Error('Orca selected account is missing; rerun routing before task delivery')
+    inactive = active != binding['id']
+    if inactive and not allow_profile:
         raise Error('Orca native launch cannot pin the selected account: it differs from the active host account; preserve the decision and resolve account readiness before delivery')
     if account.get('managedAuthRuntime', account.get('managedHomeRuntime', 'host')) != 'host' or account.get('needsSignIn'):
         raise Error('Orca native selected account is not ready on this host')
@@ -813,8 +824,10 @@ def orca_native_preparation(binding, routing):
     if not expected or any(account.get(key) != value for key, value in expected.items()):
         raise Error('Orca native account identity changed or is missing; rerun routing')
     account_binding_argv(binding, routing['agent'])
-    surface = orca_preparation_surface(command)
+    surface = orca_preparation_surface(command, profile_command=inactive)
     account_binding_argv(binding, routing['agent'])  # Discovery may outlast the remaining quota evidence.
+    if surface == 'profile-command':
+        return surface, None
     argv = [command] + (['agent', 'launch'] if surface == 'agent-launch' else
                       ['orchestration', 'worker-start', '--spec', ORCA_READINESS_SPEC])
     argv += ['--agent', routing['agent'], '--model', routing['model'], '--effort', routing['effort']]
@@ -965,10 +978,12 @@ def build_packet(args):
         packet["launch_note"] = launch_note
     binding = decision.get('account_binding')
     prefix = account_binding_argv(binding, agent) if binding else []
-    native = binding and manifest.get('account_launch', {}).get(agent) == 'orca-native'
+    account_method = manifest.get('account_launch', {}).get(agent)
+    surface = None
     template = manifest.get("launch_argv", {}).get(agent)
-    if native:
-        surface, argv = orca_native_preparation(binding, routing)
+    if binding and account_method in ('orca-native', 'orca-account'):
+        surface, argv = orca_native_preparation(binding, routing, allow_profile=account_method == 'orca-account')
+    if surface and surface != 'profile-command':
         packet['account_binding'] = binding
         packet['launch_method'] = 'orca-native'
         packet['prepare_surface'] = surface
@@ -988,6 +1003,14 @@ def build_packet(args):
         if binding:
             packet['account_binding'] = binding
             packet['launch_method'] = 'command'
+        if surface == 'profile-command':
+            packet['prepare_surface'] = surface
+            packet['delivery_gate'] = (
+                "Use this exact launch_command through Orca terminal create in the assigned workspace. "
+                "Follow references/orca.md to verify the actual account/profile, credential overrides, "
+                "model and effort against this fresh binding before task delivery. "
+                "Attach the unchanged assignment to that same verified live terminal."
+            )
         packet["launch_argv"] = argv
         packet["launch_command"] = shlex.join(argv)
         missing = sorted({"model", "effort"} - fields)

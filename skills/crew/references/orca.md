@@ -29,7 +29,11 @@ Read each launch receipt before another launch: success requires `state: ready`,
 
 ### Account-bound launches
 
-A packet with `launch_method: orca-native` uses Orca's native user setup. Crew passes `--native-account-only` to routing before selection, so only the active host account is eligible; it must have its own fresh quota and verified profile. An inactive duplicate with the same email or organization cannot supply that evidence. Packet construction checks the selected account ID against fresh `account list --json` metadata; the public launcher has no Claude/Codex account selector. An inactive selected account is a readiness refusal, even if its email matches the active account. Resolve it within the authorized account policy; neither a global account switch nor a custom-shell fallback is implicit.
+Crew's built-in Codex policy checks all configured accounts before changing a model. It uses native preparation when the selected account is active, and a profile-bound command in an Orca terminal when another account is selected. Both paths preserve the selected model and effort and verify the exact account before delivering work. Packet construction checks fresh `account list --json` metadata and the command registry; it does not change Orca's global active account.
+
+Follow the emitted `launch_method`. For `command`, use the packet's exact `launch_command` through **Custom model arguments** below, including process verification before attachment. The command uses that profile's existing vendor configuration; it does not reproduce extra flags or environment injected by Orca's native launcher. If the principal requires the native launcher or a chat surface, use an explicit `orca-native` account policy and preserve that constraint as a readiness refusal when the selected account cannot be bound.
+
+For `orca-native`, only the active host account is eligible because the public native launcher has no Claude/Codex account selector. This remains the built-in Claude policy. An inactive duplicate cannot supply the active account's quota evidence, even when the email or organization matches. Native preparation proceeds as follows:
 
 1. Build the packet immediately before preparation. Crew reads the binding's exact Orca executable's `agent-context --json` registry and emits `prepare_surface`; missing discovery or tuple/attachment capabilities refuse before launch. Use that same executable and inspect its launcher help if the host rejects a valid discovered invocation. Reuse a prepared, assignment-owned process only after confirming it is live and matches the decision.
 2. Run `prepare_command` with the exact existing `--worktree <selector>` and `--json`. For `agent-launch`, this is native preparation without a prompt. For `readiness-worker`, also append the coordinator's `--run <runId>`: the command contains a fixed readiness-only `--spec` that performs no project work and reports completion through its live preamble. Keep that spec unchanged; the actual assignment remains undispatched. Record its Task, Dispatch, terminal, workspace, and resource effects as preparation owned by this assignment, not a second work contract. Wait up to 60 seconds for readiness completion through the existing inbox collector, then resolve a timeout with **Recover a discrepancy**. A ready start receipt alone does not settle the readiness Task.
@@ -44,17 +48,20 @@ On `agent_readiness` failure, keep the original preparation Task/spec and receip
 
 Follow the receipt's recovery and `projection.nextAction` before retrying. When retry is authorized, use `worker-start --task <same-preparation-task> --retry-of <failed-dispatch> --worktree <exact-selector> --terminal <same-live-handle>`; omit the original `--spec` and tuple flags. A failed readiness start can leave that process live; `worker-stop` may close an owned terminal, so inspect its documented effect before using it. If it has exited, prove that first and settle/release the old resources before a same-Task replacement with the original native tuple. An ambiguous mutation is reconciled through its original request ID, never a duplicate start. Cancellation or binding refusal settles the preparation attempt and accounts for its resources under **Recover a discrepancy** and **Retire resources**. Preserve a pending human-only prompt as an explicit retained resource rather than retrying or abandoning its Task.
 
-A custom mechanism with `launch_method: command` uses the packet's exact `launch_command` through **Custom model arguments**, preserving its profile assignment and credential unsets. This remains available for explicit direct-launch adapters; a bare vendor command does not reproduce Orca's native setup. The creator owns prepared external resources through retirement.
-
-When quota is exhausted, checkpoint the work and follow **Recover a discrepancy** to settle the old attempt before a replacement. Rerun model-routing and follow the replacement packet's launch method before retrying the same task. Preserve the task contract and completed work; if native Orca cannot honor the new account, report that capability gap.
+When quota is exhausted, checkpoint the work and follow **Recover a discrepancy** to settle the old attempt before a replacement. Recheck the same model and effort through model-routing, allowing another eligible account, and follow the replacement packet's launch method before retrying the same task. Preserve the task contract and completed work. An account or launcher refusal is not authorization to downgrade the model; resolve the binding or report that capability gap.
 
 ### Custom model arguments
 
-`worker-start --model … --effort …` is the normal supervised tuple interface; current `agent launch` and `worktree create --agent` also expose model/effort flags. Check the chosen command's help for provider support. For an agent the wrapper cannot parameterize, use the packet's expanded `launch_argv` / `launch_command` after resolving any `launch_warning`. Create one terminal in the selected workspace, wait for readiness, then attach it:
+`worker-start --model … --effort …` is the normal supervised tuple interface; current `agent launch` and `worktree create --agent` also expose model/effort flags. Check the chosen command's help for provider support. For an alternate account or an agent the wrapper cannot parameterize, use the packet's expanded `launch_argv` / `launch_command` after resolving any `launch_warning`. Create one terminal in the selected workspace and wait for readiness:
 
 ```sh
 orca terminal create --worktree <selector> --title "<Role> - <summary>" --command '<exact routed command>' --json
 orca terminal wait --terminal <handle> --for tui-idle --timeout-ms 60000 --json
+```
+
+For an account-bound packet, perform the same process, credential-override, native identity, model/effort and freshness verification in step 3 above. The selected account need not be Orca's active account on this path; its exact profile and identity must match the live process. Resolve trust or sign-in prompts as readiness gaps. Then attach the unchanged assignment:
+
+```sh
 orca orchestration worker-start --run <runId> --spec "<packet spec>" --task-title "<summary>" --worktree <selector> --terminal <handle> --json
 ```
 

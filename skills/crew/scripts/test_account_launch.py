@@ -233,3 +233,82 @@ def test_native_capability_interruption_and_expiry_leave_assignment_undelivered(
             with pytest.raises(module.Error, match=expected):
                 module.orca_native_preparation(binding, decision['selected'])
     assert calls == [['account', 'list', '--json'], ['agent-context', '--json']] * 2
+
+
+@pytest.mark.parametrize('active_remaining, expected_method', [(10, 'command'), (80, 'orca-native')])
+def test_orca_rotates_accounts_before_changing_astra(tmp_path, active_remaining, expected_method):
+    env, argv, path, decision, log, response = native_fixture(tmp_path, provider='codex', active='other')
+    capabilities = tmp_path / 'capabilities.json'
+    data = json.loads(capabilities.read_text())
+    data['commands'] += [
+        {'command': 'terminal create', 'flags': ['worktree', 'command', 'json']},
+        {'command': 'terminal wait', 'flags': ['terminal', 'for', 'timeout-ms', 'json']},
+    ]
+    capabilities.write_text(json.dumps(data))
+    now = datetime.now(timezone.utc).isoformat()
+    rows = []
+    for key, remaining in [('other', active_remaining), ('selected', 99)]:
+        rows.append({'key': 'codex:' + key, 'id': key, 'provider': 'codex', 'runtime': 'host',
+                     'active': key == 'other', 'host_active': key == 'other', 'priority': 0, 'label': key,
+                     'profile': str(tmp_path / ('profile ' + key)), 'min_remaining_percent': 10,
+                     'discovery': decision['account_binding']['discovery'],
+                     'expected_identity': decision['account_binding']['expected_identity'],
+                     'measurement': {'status': 'known', 'refreshed_at': now,
+                                     'windows': [{'id': 'weekly', 'percentRemaining': remaining}]}})
+    runtime = tmp_path / 'runtime.json'
+    runtime.write_text(json.dumps({'account_inventory': {'accounts': rows}, 'account_max_age_seconds': 300}))
+    # Exercise Crew's actual check flags and the real router; only live collection is replaced.
+    wrapper = tmp_path / 'fixture_router.py'
+    wrapper.write_text('import runpy,sys\nsys.path.insert(0, ' + repr(str(ROUTER.parent)) + ')\n'
+                       'sys.argv.remove("--codexbar")\nrunpy.run_path(' + repr(str(ROUTER)) + ', run_name="__main__")\n')
+    subprocess.run([sys.executable, str(ROUTER), 'setup', '--selector', 'agent'], env=env, capture_output=True, check=True)
+    argv = argv[:-2] + ['--candidate', 'codex/gpt-6-astra/high', '--reason', 'Architecture requires Astra reasoning',
+                        '--router', str(wrapper), '--runtime-file', str(runtime)]
+    result = subprocess.run(argv, env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr + result.stdout
+    packet = json.loads(result.stdout)
+    assert packet['routing']['model'] == 'gpt-6-astra' and packet['routing']['effort'] == 'high'
+    assert packet['launch_method'] == expected_method
+    selected = 'selected' if active_remaining == 10 else 'other'
+    assert packet['account_binding']['id'] == selected
+    assert [json.loads(x) for x in log.read_text().splitlines()] == [
+        ['account', 'list', '--json'], ['agent-context', '--json']]
+    if expected_method == 'command':
+        assert packet['prepare_surface'] == 'profile-command'
+        assert 'before task delivery' in packet['delivery_gate']
+        binary = tmp_path / 'bin'; binary.mkdir()
+        stub = binary / 'codex'
+        stub.write_text('#!' + sys.executable + '\nimport os,json,sys\nprint(json.dumps({"profile":os.environ.get("CODEX_HOME"),"override":os.environ.get("OPENAI_API_KEY"),"argv":sys.argv[1:]}))\n')
+        stub.chmod(0o700)
+        env.update(PATH=str(binary) + os.pathsep + env['PATH'], OPENAI_API_KEY='synthetic-other-account')
+        launched = subprocess.run(['/bin/sh', '-c', packet['launch_command']], env=env, capture_output=True, text=True, check=True)
+        assert json.loads(launched.stdout) == {'profile': str(tmp_path / 'profile selected'), 'override': None,
+            'argv': ['--no-alt-screen', '--model', 'gpt-6-astra', '-c', 'model_reasoning_effort=high']}
+
+
+@pytest.mark.parametrize('fault, expected', [
+    ('identity', 'identity changed'), ('signed-out', 'not ready'), ('expired', 'expired'),
+    ('missing-terminal', 'capability'), ('missing-attachment', 'capability'),
+])
+def test_alternate_orca_account_requires_identity_freshness_and_launch_support(tmp_path, fault, expected):
+    env, argv, path, decision, log, response = native_fixture(tmp_path, provider='codex', active='other')
+    if fault == 'identity':
+        decision['account_binding']['expected_identity']['email'] = 'wrong@example.test'
+    elif fault == 'expired':
+        decision['account_binding']['refreshed_at'] = (datetime.now(timezone.utc) - timedelta(seconds=301)).isoformat()
+    elif fault == 'signed-out':
+        data = json.loads(response.read_text())
+        data['result']['codex']['accounts'][0]['needsSignIn'] = True
+        response.write_text(json.dumps(data))
+    elif fault == 'missing-attachment':
+        capabilities = tmp_path / 'capabilities.json'
+        data = json.loads(capabilities.read_text())
+        data['commands'][0]['flags'].remove('terminal')
+        capabilities.write_text(json.dumps(data))
+    path.write_text(json.dumps(decision))
+    result = subprocess.run(argv, env=env, capture_output=True, text=True)
+    assert result.returncode != 0 and expected in result.stderr, result.stderr
+    assert not result.stdout
+    if log.exists():
+        assert all(call in [['account', 'list', '--json'], ['agent-context', '--json']]
+                   for call in map(json.loads, log.read_text().splitlines()))
