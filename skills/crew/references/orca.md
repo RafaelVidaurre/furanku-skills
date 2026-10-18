@@ -78,25 +78,29 @@ Report the exact workspace/terminal and receipt, transfer cleanup responsibility
 
 Use one collector per inbox. Inside Orca, use turn-end waiting when delivery wake is established: drain and acknowledge mail, record pending Dispatches, then end the turn. Orca's inbox notice wakes the next turn. An unacknowledged batch blocks subsequent notices; a duplicate notice with an empty inbox requires no further action.
 
-Without a verified wake, hold one blocking call and resume that same command across harness yields:
+Wait only after draining actionable mail and starting ready work. Eight Workers reporting to one Run share one inbox: a message from any of them can wake its collector while the others continue. Track their Task/Dispatch IDs and handle each result as it arrives; never join Workers one at a time. A nested coordinator also owns its parent-facing inbox obligations; waiting on its child Run must not strand parent steering.
+
+Without a verified wake and with no independent work ready, keep one blocking CLI call alive and resume that same command across harness yields:
 
 ```sh
-orca orchestration check --run <runId> --wait --types worker_done,escalation,question --timeout-ms 900000 --json
+orca orchestration check --run <runId> --wait --types worker_done,escalation,question,status,dispatch,merge_ready,handoff,decision_gate --timeout-ms 900000 --json
 ```
 
-Use a shorter timeout only when the active harness requires it. No parallel collectors or short polling loop. Handle the whole FIFO delivery: `--types` controls waking, not the contents returned. `--peek` and `--all` do not consume the inbox.
+The 900000 ms value is a 15-minute ceiling on this CLI call, not a mandatory delay or an eight-worker completion barrier. A matching message returns it early. The filter includes all current non-heartbeat types because `status` can carry steering or an approval; use a filter only when it includes every actionable type for the assignment. Keepalive lines every 15 seconds prove CLI liveness, not worker progress or a model wake.
+
+The CLI deadline and the harness tool-yield interval are separate. Keep observation calls within the active harness's responsiveness limit; resume the existing CLI operation after a yield rather than replacing it with repeated short checks. If another owned inbox or a scheduled coordination action has an earlier deadline, cap the CLI wait accordingly. Use one collector per inbox and consume its complete FIFO delivery: `--types` controls waking, not returned contents. `--peek` and `--all` do not consume the inbox.
 
 - `question` or `escalation`: resolve from the contract or escalate to the principal. Answer by exact message ID: `orca orchestration reply --id <messageId> --body "<answer>" --json`.
 - `worker_done`: require the expected task/dispatch IDs and outcome, then verify the result against the contract. Orca settles the task; do not separately mark it completed.
 - Status/heartbeat: act on meaningful changes; unchanged liveness needs no progress narrative.
 
-Acknowledge each fully handled batch; this can return the next batch, which must also be handled:
+For every message, capture its ID, instruction or result, and next action in the existing work record or continuation state. Then acknowledge the whole batch immediately, before long commands, implementation, result verification, or ending the turn. Receipt acknowledgement releases FIFO delivery; it does not mean the requested work is fulfilled or accepted. Process every batch returned by acknowledgement the same way until `count: 0`, then execute the resulting actions under the newest applicable instruction. If a delivery replays, recover its captured actions and acknowledge it before doing other work:
 
 ```sh
 orca orchestration check --run <runId> --ack <deliveryId> --json
 ```
 
-Steer an existing owner with `orca orchestration send --to dispatch:<dispatchId> --subject "<summary>" --body "<guidance>" --json`. Enqueued mail does not prove the owner read it. Decisions and resource transfers requiring acknowledgement need an explicit correlated reply.
+Address steering to the inbox the owner actually collects: its Dispatch normally, or its explicitly reported child Run when it coordinates nested work. Keep task/dispatch correlation in replies. Steer an existing owner with `orca orchestration send --to dispatch:<dispatchId> --subject "<summary>" --body "<guidance>" --json`. Enqueued mail does not prove the owner read it. Decisions and resource transfers requiring acknowledgement need an explicit correlated reply.
 
 **Complete when:** the final acknowledgement returns `count: 0`, and every pending assignment still has a collector or verified wake.
 
