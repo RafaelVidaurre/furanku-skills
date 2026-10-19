@@ -26,7 +26,7 @@ npx skills add rafaelvidaurre/furanku-skills --skill testing-best-practices
 
 After install, talk to your agent as usual. When a skill fits, it should load and follow it.
 
-The picker shows skills in groups: most live in the main (**General**) group; skills still proving themselves appear under **Experimental** (currently `council`, `codemap`, and `usage-drain`).
+The picker shows skills in groups: most live in the main (**General**) group; skills still proving themselves appear under **Experimental** (currently `council`, `codemap`, `usage-drain`, and `promo-music-video`).
 
 ## Command-line tool
 
@@ -211,6 +211,19 @@ First use walks you through approving which model tools may run on your machine.
 > What is draining my usage?
 > Break down Claude usage since Monday.
 > Grok usage from Monday through Wednesday.
+```
+
+---
+
+### promo-music-video (experimental)
+
+**Useful if:** you have a song and want to turn it into a music video promoting your product, or want to check lyric timing before choosing the visuals.
+
+**What it does:** takes the work through a timed-lyrics preview, visual direction, credible product footage, music-driven motion, render checks, and playable downloads. It includes a Remotion/FFmpeg route while keeping the product, visual style, and editor adaptable.
+
+```text
+> Use promo-music-video to turn this song into a video for my product. Start with a timing preview.
+> Polish this product music video: the footage is soft and text collides during transitions.
 ```
 
 ---

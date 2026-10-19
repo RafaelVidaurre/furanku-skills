@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Timing player</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #111214; --panel: #1b1c1f; --line: #2f3136; --text: #ececec; --dim: #8a8d93;
+    --estimated: #e0a030; --listened: #4a9eff; --reviewed: #3cc47c; --down: #ff5a5a; --hit: #f5d442;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  header, .controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 10px 16px;
+    background: var(--panel); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 15px; margin: 0; }
+  label { color: var(--dim); }
+  button { background: #2a2c31; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; cursor: pointer; }
+  button:disabled { opacity: .4; cursor: default; }
+  #counts span { margin-right: 10px; }
+  .estimated { color: var(--estimated); } .listened { color: var(--listened); } .reviewed { color: var(--reviewed); }
+  #dirty { color: var(--estimated); }
+  #stage { min-height: 200px; display: flex; flex-direction: column; justify-content: center; align-items: center;
+    gap: 10px; padding: 24px 16px; text-align: center; }
+  #section { color: var(--dim); text-transform: uppercase; letter-spacing: .12em; font-size: 12px; min-height: 1.4em; }
+  #phrase { font-size: clamp(28px, 5vw, 56px); font-weight: 700; min-height: 1.3em; opacity: .3; }
+  #phrase.lit { opacity: 1; }
+  #phrase.has-words { opacity: 1; }
+  #phrase .w { opacity: .3; cursor: pointer; }
+  #phrase .w.sung { opacity: 1; }
+  #phrase .w.now { text-shadow: 0 0 18px rgba(255, 255, 255, .55); }
+  #phrase .w.picked { outline: 2px solid #fff; outline-offset: 2px; }
+  #beat { width: 14px; height: 14px; border-radius: 50%; background: #333; }
+  #beat.on { background: #fff; }
+  #beat.down { background: var(--down); transform: scale(1.4); }
+  #time { font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; }
+  canvas { display: block; width: 100%; background: #16171a; border-bottom: 1px solid var(--line); cursor: crosshair; }
+  #overview { height: 56px; } #detail { height: 110px; }
+  main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 0; }
+  #list { max-height: 42vh; overflow: auto; border-right: 1px solid var(--line); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  td, th { padding: 3px 8px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td.text { white-space: normal; }
+  tr { cursor: pointer; }
+  tr.active { background: #24262b; }
+  tr.selected td:first-child { box-shadow: inset 3px 0 #fff; }
+  #side { padding: 10px 16px; max-height: 42vh; overflow: auto; }
+  #side h2 { font-size: 13px; margin: 0 0 6px; color: var(--dim); }
+  #issues li { color: var(--estimated); }
+  #keys { color: var(--dim); font-size: 12px; }
+  kbd { border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-size: 11px; }
+  #drop { display: none; position: fixed; inset: 0; background: rgba(74, 158, 255, .15); border: 3px dashed var(--listened); }
+  body.dragging #drop { display: block; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Timing player</h1>
+  <label>Mix <input type="file" id="audio-file" accept="audio/*,video/*"></label>
+  <label>Timing map <input type="file" id="map-file" accept=".json,application/json"></label>
+  <span id="counts"></span>
+  <span id="dirty"></span>
+  <button id="download" disabled>Download map</button>
+</header>
+<div id="stage">
+  <div id="section"></div>
+  <div id="phrase"></div>
+  <div id="beat" title="Beat (red: downbeat)"></div>
+</div>
+<div class="controls">
+  <button id="play">Play</button>
+  <span id="time">0:00.000 / 0:00.000</span>
+  <label>Speed <select id="rate"><option value="1">1×</option><option value="0.75">0.75×</option><option value="0.5">0.5×</option></select></label>
+  <label><input type="checkbox" id="loop"> Loop selected phrase</label>
+  <label><input type="checkbox" id="beats" checked> Beat markers</label>
+  <span id="selection"></span>
+</div>
+<canvas id="overview"></canvas>
+<canvas id="detail"></canvas>
+<main>
+  <div id="list"><table><thead><tr><th>#</th><th>Start</th><th>End</th><th>Status</th><th>Phrase</th></tr></thead><tbody id="rows"></tbody></table></div>
+  <div id="side">
+    <h2>Structural issues</h2>
+    <ul id="issues"><li>No timing map loaded.</li></ul>
+    <h2>Keys</h2>
+    <div id="keys">
+      <kbd>Space</kbd> play/pause · <kbd>←</kbd><kbd>→</kbd> seek 1 s · <kbd>↑</kbd><kbd>↓</kbd> previous/next phrase ·
+      <kbd>Enter</kbd> replay phrase · <kbd>L</kbd> loop · <kbd>[</kbd><kbd>]</kbd> set start/end to playhead ·
+      <kbd>,</kbd><kbd>.</kbd> nudge start ∓10 ms · <kbd>&lt;</kbd><kbd>&gt;</kbd> nudge end ∓10 ms ·
+      <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> mark estimated/listened/reviewed · <kbd>H</kbd> toggle hold ·
+      <kbd>Esc</kbd> back to phrase from word. Click a word to edit it. Use wired output for fine sync.
+    </div>
+  </div>
+</main>
+<div id="drop"></div>
+<audio id="audio" preload="auto"></audio>
+<script src="timing-map.js"></script>
+<script>
+"use strict";
+const { STATUSES, validateMap, statusCounts, activeIndex } = window.TimingMap;
+const $ = (id) => document.getElementById(id);
+const audio = $("audio");
+const NUDGE = 0.01;
+const DETAIL_BEFORE = 3, DETAIL_AFTER = 5;
+const css = getComputedStyle(document.documentElement);
+const COLORS = Object.fromEntries(["estimated", "listened", "reviewed", "down", "hit"].map((n) => [n, css.getPropertyValue(`--${n}`).trim()]));
+const state = { map: null, mapName: "timing-map.json", phrase: -1, word: -1, shown: -2, dirty: false, ranges: {} };
+
+function fmt(t) {
+  if (!Number.isFinite(t)) t = 0;
+  const m = Math.floor(t / 60), s = t - m * 60;
+  return `${m}:${s.toFixed(3).padStart(6, "0")}`;
+}
+function phrases() { return (state.map && state.map.phrases) || []; }
+function duration() {
+  if (Number.isFinite(audio.duration) && audio.duration > 0) return audio.duration;
+  const mix = state.map && state.map.mix;
+  if (mix && mix.duration > 0) return mix.duration;
+  return Math.max(1, ...phrases().map((p) => p.end || 0));
+}
+function markerTimes(list) { return ((state.map && state.map[list]) || []).map((m) => m.time); }
+
+// ---- loading ----
+function loadMap(text, name) {
+  let map;
+  try { map = JSON.parse(text); } catch (e) { showIssues([{ path: name, message: `is not valid JSON: ${e.message}` }]); return; }
+  state.map = map; state.mapName = name || state.mapName; state.phrase = phrases().length ? 0 : -1; state.word = -1;
+  setDirty(false); $("download").disabled = false; refresh();
+}
+function loadAudio(src) { audio.src = src; audio.load(); }
+// Fetch served audio whole: static servers without HTTP range support (python -m http.server) leave it unseekable.
+async function loadAudioUrl(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`audio ${url} returned HTTP ${res.status}`);
+  loadAudio(URL.createObjectURL(await res.blob()));
+}
+$("audio-file").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) loadAudio(URL.createObjectURL(f)); });
+$("map-file").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) f.text().then((t) => loadMap(t, f.name)); });
+document.addEventListener("dragover", (e) => { e.preventDefault(); document.body.classList.add("dragging"); });
+document.addEventListener("dragleave", (e) => { if (!e.relatedTarget) document.body.classList.remove("dragging"); });
+document.addEventListener("drop", (e) => {
+  e.preventDefault(); document.body.classList.remove("dragging");
+  for (const f of e.dataTransfer.files) {
+    if (/\.json$/i.test(f.name) || f.type === "application/json") f.text().then((t) => loadMap(t, f.name));
+    else loadAudio(URL.createObjectURL(f));
+  }
+});
+// Served over HTTP: ?map=timing.json[&audio=mix.wav]; without `audio`, mix.asset resolves against the map's URL.
+(async function loadFromQuery() {
+  const q = new URLSearchParams(location.search);
+  if (!q.get("map") && !q.get("audio")) return;
+  const url = new URL(q.get("map") || location.href, location.href);
+  try {
+    if (q.get("map")) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      loadMap(await res.text(), url.pathname.split("/").pop());
+    }
+    const asset = state.map && state.map.mix && state.map.mix.asset;
+    if (q.get("audio")) await loadAudioUrl(new URL(q.get("audio"), location.href));
+    else if (asset) await loadAudioUrl(new URL(asset, url));
+  } catch (e) {
+    showIssues([{ path: url.href, message: `could not be loaded (${e.message}); serve this folder over HTTP or use the file pickers` }]);
+  }
+})();
+
+// ---- editing ----
+function setDirty(dirty) { state.dirty = dirty; $("dirty").textContent = dirty ? "Unsaved corrections" : ""; }
+function target() {
+  const p = phrases()[state.phrase];
+  if (!p) return null;
+  return state.word >= 0 && p.words && p.words[state.word] ? p.words[state.word] : p;
+}
+function edit(fn) {
+  const item = target();
+  if (!item) return;
+  fn(item);
+  const p = phrases()[state.phrase];
+  if (p.status === "estimated") p.status = "listened";  // a correction made by ear is at least listened
+  setDirty(true); refresh();
+}
+const round = (t) => Math.round(t * 1000) / 1000;
+function setEdge(edge, t) { edit((item) => { item[edge] = round(Math.max(0, t)); }); }
+function nudge(edge, delta) { edit((item) => { item[edge] = round(Math.max(0, (item[edge] || 0) + delta)); }); }
+function setStatus(status) {
+  const p = phrases()[state.phrase];
+  if (!p) return;
+  p.status = status; setDirty(true); refresh();
+}
+function toggleHold() {
+  const p = phrases()[state.phrase];
+  if (!p) return;
+  if (p.held) delete p.held; else p.held = true;
+  setDirty(true); refresh();
+}
+$("download").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(state.map, null, 2) + "\n"], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = state.mapName; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000); setDirty(false);
+});
+// Return focus to the page after using a control so Space and the other keys stay shortcuts.
+document.addEventListener("click", (e) => { if (e.target.closest("button")) e.target.closest("button").blur(); });
+document.addEventListener("change", (e) => { if (e.target.matches("input[type=checkbox], select")) e.target.blur(); });
+
+// ---- selection and transport ----
+function select(i, seek) {
+  const list = phrases();
+  if (!list.length) return;
+  state.phrase = Math.max(0, Math.min(list.length - 1, i)); state.word = -1;
+  if (seek) audio.currentTime = list[state.phrase].start;
+  refresh();
+}
+function togglePlay() { if (audio.paused) audio.play(); else audio.pause(); }
+audio.addEventListener("play", () => { $("play").textContent = "Pause"; });
+audio.addEventListener("pause", () => { $("play").textContent = "Play"; });
+$("play").addEventListener("click", togglePlay);
+$("rate").addEventListener("change", (e) => { audio.playbackRate = Number(e.target.value); });
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("input, select") || e.metaKey || e.ctrlKey || e.altKey) return;
+  const t = audio.currentTime;
+  const actions = {
+    " ": togglePlay,
+    ArrowLeft: () => { audio.currentTime = Math.max(0, t - 1); },
+    ArrowRight: () => { audio.currentTime = Math.min(duration(), t + 1); },
+    ArrowUp: () => select(state.phrase - 1, true),
+    ArrowDown: () => select(state.phrase + 1, true),
+    Enter: () => { select(state.phrase, true); audio.play(); },
+    l: () => { $("loop").checked = !$("loop").checked; },
+    "[": () => setEdge("start", t),
+    "]": () => setEdge("end", t),
+    ",": () => nudge("start", -NUDGE),
+    ".": () => nudge("start", NUDGE),
+    "<": () => nudge("end", -NUDGE),
+    ">": () => nudge("end", NUDGE),
+    1: () => setStatus(STATUSES[0]),
+    2: () => setStatus(STATUSES[1]),
+    3: () => setStatus(STATUSES[2]),
+    h: toggleHold,
+    Escape: () => { state.word = -1; refresh(); },
+  };
+  const action = actions[e.key.length === 1 ? e.key.toLowerCase() : e.key] || actions[e.key];
+  if (!action) return;
+  e.preventDefault(); action();
+});
+
+// ---- rendering ----
+function showIssues(issues) {
+  $("issues").innerHTML = "";
+  for (const issue of issues.length ? issues : [{ path: "", message: "None." }]) {
+    const li = document.createElement("li");
+    li.textContent = issue.path ? `${issue.path} ${issue.message}` : issue.message;
+    if (!issues.length) li.style.color = "var(--reviewed)";
+    $("issues").appendChild(li);
+  }
+}
+function refresh() {
+  if (!state.map) return;
+  showIssues(validateMap(state.map, { duration: Number.isFinite(audio.duration) ? audio.duration : undefined }));
+  const c = statusCounts(state.map);
+  $("counts").innerHTML = STATUSES.map((s) => `<span class="${s}">${c[s]} ${s}</span>`).join("");
+  const rows = $("rows");
+  rows.innerHTML = "";
+  phrases().forEach((p, i) => {
+    const tr = document.createElement("tr");
+    tr.dataset.i = i;
+    if (i === state.phrase) tr.classList.add("selected");
+    for (const [text, cls] of [[i + 1], [fmt(p.start)], [fmt(p.end)], [p.status + (p.held ? " (held)" : ""), p.status], [p.text, "text"]]) {
+      const td = document.createElement("td");
+      td.textContent = text;
+      if (cls) td.className = cls;
+      tr.appendChild(td);
+    }
+    tr.addEventListener("click", () => select(i, true));
+    rows.appendChild(tr);
+  });
+  const item = target();
+  state.shown = -2;
+  $("selection").textContent = item ? `Editing ${state.word >= 0 ? "word" : "phrase"} “${item.text}” ${fmt(item.start)}–${fmt(item.end)}` : "";
+}
+audio.addEventListener("loadedmetadata", refresh);
+
+function renderStage(t) {
+  const list = phrases();
+  const i = activeIndex(list, t);
+  const el = $("phrase");
+  if (i !== state.shown) {
+    state.shown = i;
+    el.innerHTML = "";
+    el.className = "";
+    const p = list[i];
+    if (p && p.words && p.words.length) {
+      el.classList.add("has-words");
+      p.words.forEach((w, j) => {
+        const span = document.createElement("span");
+        span.className = "w"; span.textContent = w.text;
+        span.addEventListener("click", () => { state.phrase = i; state.word = j; refresh(); });
+        el.append(span, " ");
+      });
+    } else if (p) {
+      el.textContent = p.text;
+    }
+    for (const tr of $("rows").children) tr.classList.toggle("active", Number(tr.dataset.i) === i);
+  }
+  const p = list[i];
+  if (p && p.words && p.words.length) {
+    const now = activeIndex(p.words, t);
+    [...el.children].forEach((span, j) => {
+      span.classList.toggle("sung", p.words[j].start <= t);
+      span.classList.toggle("now", j === now);
+      span.classList.toggle("picked", i === state.phrase && j === state.word);
+    });
+  } else if (p) {
+    el.classList.add("lit");  // phrase-level timing: light the phrase, never invent word boundaries
+  }
+  const sections = (state.map && state.map.sections) || [];
+  const s = sections[activeIndex(sections, t)];
+  $("section").textContent = s ? s.label : "";
+  const beat = $("beat");
+  const on = $("beats").checked;
+  const recent = (times) => times.some((b) => b <= t && t - b < 0.09);
+  beat.className = on && recent(markerTimes("downbeats")) ? "down" : on && recent((state.map && state.map.beats) || []) ? "on" : "";
+}
+
+function drawLane(canvas, t0, t1, now, detailed) {
+  const ratio = window.devicePixelRatio || 1;
+  const box = canvas.getBoundingClientRect();
+  if (canvas.width !== Math.round(box.width * ratio)) { canvas.width = Math.round(box.width * ratio); canvas.height = Math.round(box.height * ratio); }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  const w = box.width, h = box.height;
+  const x = (t) => ((t - t0) / (t1 - t0)) * w;
+  const visible = (a, b) => b >= t0 && a <= t1;
+  state.ranges[canvas.id] = [t0, t1];
+  ctx.clearRect(0, 0, w, h);
+  ctx.font = "11px system-ui, sans-serif"; ctx.textBaseline = "middle";
+  const map = state.map;
+  if (map) {
+    (map.sections || []).forEach((s, i) => {
+      if (!visible(s.start, s.end)) return;
+      ctx.fillStyle = i % 2 ? "#202227" : "#1a1c20";
+      ctx.fillRect(x(s.start), 0, x(s.end) - x(s.start), 14);
+      ctx.fillStyle = "#8a8d93";
+      if (x(s.end) - x(s.start) > 40) ctx.fillText(s.label || "", x(s.start) + 4, 7);
+    });
+    const top = 18, bottom = h - 18;
+    phrases().forEach((p, i) => {
+      if (!visible(p.start, p.end)) return;
+      const color = COLORS[p.status] || "#888";
+      const left = x(p.start), width = Math.max(1, x(p.end) - left);
+      ctx.globalAlpha = .3; ctx.fillStyle = color; ctx.fillRect(left, top, width, bottom - top);
+      ctx.globalAlpha = 1; ctx.strokeStyle = i === state.phrase ? "#fff" : color; ctx.lineWidth = i === state.phrase ? 2 : 1;
+      ctx.strokeRect(left, top, width, bottom - top);
+      if (!detailed) return;
+      (p.words || []).forEach((wd, j) => {
+        ctx.fillStyle = i === state.phrase && j === state.word ? "#fff" : color;
+        ctx.fillRect(x(wd.start), bottom - 10, 1.5, 10);
+        if (x(wd.end) - x(wd.start) > 24) { ctx.fillStyle = "#cfd2d6"; ctx.fillText(wd.text, x(wd.start) + 3, bottom - 18); }
+      });
+      ctx.save(); ctx.beginPath(); ctx.rect(left, top, width, bottom - top); ctx.clip();
+      ctx.fillStyle = "#ececec"; ctx.fillText(p.text, left + 4, top + 10); ctx.restore();
+    });
+    if ($("beats").checked) {
+      ctx.fillStyle = "#666";
+      for (const b of map.beats || []) if (visible(b, b)) ctx.fillRect(x(b), h - 8, 1, 8);
+      ctx.fillStyle = COLORS.down;
+      for (const b of markerTimes("downbeats")) if (visible(b, b)) ctx.fillRect(x(b) - .5, h - 14, 2, 14);
+    }
+    ctx.fillStyle = COLORS.hit;
+    for (const b of markerTimes("hits")) if (visible(b, b)) { ctx.beginPath(); ctx.moveTo(x(b) - 4, 14); ctx.lineTo(x(b) + 4, 14); ctx.lineTo(x(b), 20); ctx.fill(); }
+  }
+  ctx.fillStyle = "#fff"; ctx.fillRect(x(now) - .5, 0, 1.5, h);
+}
+for (const id of ["overview", "detail"]) {
+  $(id).addEventListener("click", (e) => {
+    const [t0, t1] = state.ranges[id] || [0, duration()];
+    const t = Math.max(0, Math.min(duration(), t0 + (e.offsetX / e.currentTarget.clientWidth) * (t1 - t0)));
+    audio.currentTime = t;
+    const i = activeIndex(phrases(), t);
+    if (i >= 0 && i !== state.phrase) select(i, false);
+  });
+}
+
+// The audio element's own clock drives every frame, so seeking never accumulates drift.
+function frame() {
+  const t = audio.currentTime;
+  const p = phrases()[state.phrase];
+  if ($("loop").checked && p && !audio.paused && t >= p.end) audio.currentTime = p.start;
+  $("time").textContent = `${fmt(t)} / ${fmt(duration())}`;
+  if (state.map) renderStage(t);
+  drawLane($("overview"), 0, duration(), t, false);
+  drawLane($("detail"), t - DETAIL_BEFORE, t + DETAIL_AFTER, t, true);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
