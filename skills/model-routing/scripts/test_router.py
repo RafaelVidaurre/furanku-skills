@@ -242,19 +242,19 @@ class RouterTest(unittest.TestCase):
             if line.startswith("|") and "/" in line
         }
         self.assertIn(
-            "| 0.49 (h) | 0.46 (m, A) | 0.52 (m) | ? | 0.94 (l) | ? | 55 | 1,000,000 |",
+            "| 0.49 (h, A) | 0.46 (m, A) | 0.52 (m) | ? | 0.94 (l) | ? | 55 | 1,000,000 |",
             rows["claude/claude-fable-5-1[1m]/high"],
         )
         self.assertIn(
-            "| 0.49 (h) | 0.70 (m, C) | 0.48 (m) | ? | ? | $3.92 | 52 | 1,050,000 |",
+            "| 0.49 (h, A) | 0.70 (m, C) | 0.48 (m) | ? | ? | $3.92 | 52 | 1,050,000 |",
             rows["codex/gpt-6-astra/high"],
         )
         self.assertIn(
-            "| 0.44 (h) | 0.41 (m, A) | 0.55 (m) | ? | ? | ? | 50 | 500,000 |",
+            "| 0.44 (h, A) | 0.41 (m, A) | 0.55 (m) | ? | ? | ? | 50 | 500,000 |",
             rows["grok/grok-4.7/high"],
         )
         self.assertIn(
-            "Artificial Analysis Intelligence Index v4.3.2",
+            "different versions are not comparable",
             brief,
         )
         self.assertIn(

@@ -9,7 +9,7 @@
     "For Sonnet 5.5 and Haiku 5.5, consider xhigh or max only with task-relevant evidence of improvement over lower effort. Haiku low may skip searches or checks in long agent prompts; use medium or high when those checks determine acceptance. API token prices do not establish subscription-quota savings."
   ],
   "methodology": {
-    "reasoning": "Artificial Analysis Intelligence Index v4.3.2 divided by 100 at the exact effort.",
+    "reasoning": "Artificial Analysis Intelligence Index divided by 100 at the exact effort; the cell names its index version, and different versions are not comparable.",
     "implementation": "CursorBench 4.0 resolved-task rate at the exact effort; candidates without a CursorBench row keep their DeepSWE v1.1 rate, a separate scale that runs about 30 points higher for the same model.",
     "task-cost": "DeepSWE average task cost only when the benchmark names the exact model and effort. An equivalent launch tuple may transfer across harnesses; effort-level proxies remain unknown.",
     "agentic": "AA-Briefcase v1.1 Elo at the exact effort, mapped as (Elo - 500) / 2000.",
@@ -207,6 +207,118 @@
           "status": "unknown",
           "reason": "Launch support only; independent performance evidence for GPT-6.1 Sol at high has not been assessed. GPT-6 Sol scores do not establish this tuple.",
           "researched_at": "2026-09-29"
+        }
+      }
+    },
+    "codex/gpt-6.1-terra/high": {
+      "launch": {
+        "agent": "codex",
+        "model": "gpt-6.1-terra",
+        "effort": "high"
+      },
+      "features": [
+        "tools",
+        "vision",
+        "long-context"
+      ],
+      "context": 1050000,
+      "context_evidence": "https://developers.openai.com/api/docs/models/gpt-6.1-terra",
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.4233,
+          "conservative": 0.4033,
+          "confidence": "medium",
+          "assessed_at": "2026-10-29",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-6-1-terra-high"
+          ],
+          "scale": "AA Intelligence Index v5.0",
+          "note": "High effort, index 42.33445; score = index/100, conservative = score - 0.02 estimated transfer reserve. Different index versions are not comparable."
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "The checked CursorBench 4.0 and DeepSWE v1.1 boards do not establish an exact GPT-6.1 Terra high result; other coding benchmarks are different scales.",
+          "researched_at": "2026-10-29"
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.382,
+          "conservative": 0.357,
+          "confidence": "medium",
+          "assessed_at": "2026-10-29",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-6-1-terra-high",
+            "https://artificialanalysis.ai/evaluations/aa-briefcase"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "High effort Elo 1263.50, 95% CI lower 1253.76; score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 estimated harness-transfer reserve."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "No exact GPT-6.1 Terra high Arena WebDev result was verified.",
+          "researched_at": "2026-10-29"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "No exact GPT-6.1 Terra high Design Arena 3D result was verified.",
+          "researched_at": "2026-10-29"
+        }
+      }
+    },
+    "codex/gpt-6.1-terra/xhigh": {
+      "launch": {
+        "agent": "codex",
+        "model": "gpt-6.1-terra",
+        "effort": "xhigh"
+      },
+      "features": [
+        "tools",
+        "vision",
+        "long-context"
+      ],
+      "context": 1050000,
+      "context_evidence": "https://developers.openai.com/api/docs/models/gpt-6.1-terra",
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.4495,
+          "conservative": 0.4295,
+          "confidence": "medium",
+          "assessed_at": "2026-10-29",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-6-1-terra-xhigh"
+          ],
+          "scale": "AA Intelligence Index v5.0",
+          "note": "Xhigh effort, index 44.95005; score = index/100, conservative = score - 0.02 estimated transfer reserve. Different index versions are not comparable."
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "The checked CursorBench 4.0 and DeepSWE v1.1 boards do not establish an exact GPT-6.1 Terra xhigh result; other coding benchmarks are different scales.",
+          "researched_at": "2026-10-29"
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.416,
+          "conservative": 0.391,
+          "confidence": "medium",
+          "assessed_at": "2026-10-29",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-6-1-terra-xhigh",
+            "https://artificialanalysis.ai/evaluations/aa-briefcase"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Xhigh effort Elo 1332.90, 95% CI lower 1322.14; score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 estimated harness-transfer reserve."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "No exact GPT-6.1 Terra xhigh Arena WebDev result was verified.",
+          "researched_at": "2026-10-29"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "No exact GPT-6.1 Terra xhigh Design Arena 3D result was verified.",
+          "researched_at": "2026-10-29"
         }
       }
     },
