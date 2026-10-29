@@ -121,7 +121,7 @@ Optional deep dive: [interactive testing guide](artifacts/testing-best-practices
 
 **Useful if:** product decisions get lost across chats, agents, or weeks — and you want a durable, trustworthy record of what the product is supposed to be.
 
-**What it does:** keeps a Product Requirements Record in `prr/` at your repo root: requirements, scope exclusions, and open questions, each confirmed with you and backed by verbatim evidence of what you actually said. It also listens while you work — when a coding session drifts into product intent (“users should be able to…”, “that’s out of scope”), it captures it instead of letting it evaporate.
+**What it does:** preserves confirmed product intent in `prr/`, including the context and boundaries a later agent needs to make the same decisions. Agents consult it before planning, changing, reviewing, or evaluating product behavior, and capture new intent as it emerges. Verbatim sources support the record; implementation status stays in the work tracker, while development methods and internal designs stay in engineering guidance. It screens entries for a concrete future product decision and checks relevant requirements for superseding decisions before use. It earns its cost by preventing lost constraints and repeated decisions.
 
 ```text
 > Start tracking product requirements for this project.
