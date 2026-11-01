@@ -1,5 +1,6 @@
 """Cross-process routing to Crew to a synthetic CLI: prove account custody."""
 from datetime import datetime, timezone, timedelta
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -11,17 +12,20 @@ import pytest
 ROOT = Path(__file__).resolve().parents[3]
 ROUTER = ROOT / 'skills/model-routing/scripts/router.py'
 CREW = Path(__file__).with_name('assignment.py')
+ACCOUNT_ENVIRONMENT = json.loads((ROOT / 'skills/model-routing/references/account-environment.json').read_text())
 
 
-def test_gate_binding_survives_crew_shell_and_expires(tmp_path):
+@pytest.mark.parametrize('selection', ['managed', 'managed-default-path', 'native-default'])
+def test_gate_binding_survives_crew_shell_and_expires(tmp_path, selection):
+    native_default = selection == 'native-default'
     env = os.environ.copy()
     env.update(HOME=str(tmp_path / 'home'), CODEX_HOME=str(tmp_path / 'codex'))
-    profile = tmp_path / "profile with space ' and $literal"
-    profile.mkdir()
+    profile = Path(env['HOME']) / '.claude' if selection != 'managed' else tmp_path / "profile with space ' and $literal"
+    profile.mkdir(parents=True)
     now = datetime.now(timezone.utc).isoformat()
     runtime = {'account_max_age_seconds': 300, 'account_inventory': {'accounts': [
         {'provider': 'claude', 'key': 'claude:priority', 'id': 'priority', 'label': 'test@example.test',
-         'runtime': 'host', 'active': False, 'profile': str(profile), 'priority': 100, 'min_remaining_percent': 0,
+         'runtime': 'host', 'active': False, 'profile': str(profile), 'profile_mode': 'native-default' if native_default else 'directory', 'priority': 100, 'min_remaining_percent': 0,
          'measurement': {'status': 'known', 'refreshed_at': now, 'windows': [{'id': 'session', 'percentRemaining': 1}]}}]}}
     runtime_file = tmp_path / 'runtime.json';runtime_file.write_text(json.dumps(runtime))
     subprocess.run([sys.executable, str(ROUTER), 'setup', '--selector', 'agent'], env=env, capture_output=True, check=True)
@@ -34,15 +38,20 @@ def test_gate_binding_survives_crew_shell_and_expires(tmp_path):
     assert packet_result.returncode == 0, packet_result.stderr
     packet = json.loads(packet_result.stdout)
     assert packet['account_binding']['id'] == 'priority'
+    if native_default:
+        assert packet['account_binding']['env'] == {}
+        assert packet['account_binding']['native_default_profile'] == str(profile)
+        assert 'CLAUDE_CONFIG_DIR' in packet['account_binding']['unset_env']
     assert packet['launch_method'] == 'command'
     # Execute the exact quoted command against a harmless fake CLI. No provider call.
     binary = tmp_path / 'bin';binary.mkdir()
     stub = binary / 'claude'
     stub.write_text('#!' + sys.executable + '\nimport os,json\nprint(json.dumps({"profile":os.environ.get("CLAUDE_CONFIG_DIR"),"override":os.environ.get("CLAUDE_CODE_OAUTH_TOKEN")}))\n')
     stub.chmod(0o700)
-    env.update(PATH=str(binary) + os.pathsep + env['PATH'], CLAUDE_CODE_OAUTH_TOKEN='synthetic-other-account')
+    env.update(PATH=str(binary) + os.pathsep + env['PATH'], CLAUDE_CODE_OAUTH_TOKEN='synthetic-other-account',
+               CLAUDE_CONFIG_DIR='/synthetic/ambient-profile')
     launched = subprocess.run(['/bin/sh', '-c', packet['launch_command']], env=env, capture_output=True, text=True, check=True)
-    assert json.loads(launched.stdout) == {'profile': str(profile), 'override': None}
+    assert json.loads(launched.stdout) == {'profile': None if native_default else str(profile), 'override': None}
     decision['account_binding']['refreshed_at'] = (datetime.now(timezone.utc) - timedelta(seconds=301)).isoformat()
     decision_file.write_text(json.dumps(decision))
     expired = subprocess.run(argv, env=env, capture_output=True, text=True)
@@ -52,11 +61,67 @@ def test_gate_binding_survives_crew_shell_and_expires(tmp_path):
 def test_account_binding_refuses_a_manifest_that_cannot_apply_it(tmp_path):
     env = {**os.environ, 'HOME': str(tmp_path), 'CODEX_HOME': str(tmp_path / 'codex')}
     decision = {'status': 'selected', 'selected': {'id': 'fixture', 'agent': 'claude', 'model': 'haiku', 'effort': 'high'}, 'reason': 'Bounded task',
-                'account_binding': {'provider': 'claude', 'id': 'one', 'env': {'CLAUDE_CONFIG_DIR': '/profiles/one'}, 'refreshed_at': datetime.now(timezone.utc).isoformat(), 'max_age_seconds': 300}}
+                'account_binding': {'provider': 'claude', 'id': 'one', 'env': {'CLAUDE_CONFIG_DIR': '/profiles/one'}, 'unset_env': ACCOUNT_ENVIRONMENT['unset_env']['claude'], 'refreshed_at': datetime.now(timezone.utc).isoformat(), 'max_age_seconds': 300}}
     path = tmp_path / 'decision.json';path.write_text(json.dumps(decision))
     manifest = {'mechanism': 'native', 'launchable_agents': ['claude'], 'communication': 'Harness messages', 'retire': 'Harness stop'}
     r = subprocess.run([sys.executable, str(CREW), 'packet', '--repo', str(tmp_path), '--manifest', json.dumps(manifest), '--title', 'Fixture', '--role', 'worker', '--reports-to', 'user', '--work-ref', 'beads:fixture', '--decision-json', str(path)], env=env, capture_output=True, text=True)
     assert r.returncode != 0 and 'cannot bind' in r.stderr
+
+
+@pytest.mark.parametrize('provider, missing', [
+    ('claude', 'CLAUDE_CODE_OAUTH_TOKEN'), ('codex', 'OPENAI_API_KEY'),
+])
+def test_managed_profile_binding_requires_all_credential_removals(tmp_path, provider, missing):
+    env, argv, path, decision, log, response = native_fixture(tmp_path, provider=provider)
+    decision['account_binding']['unset_env'].remove(missing)
+    path.write_text(json.dumps(decision))
+    result = subprocess.run(argv, env=env, capture_output=True, text=True)
+    assert result.returncode != 0 and 'required credential override' in result.stderr
+    assert not result.stdout
+
+
+def test_alternate_router_environment_contract_controls_both_native_binding_checks(tmp_path):
+    env, argv, path, decision, log, response = native_fixture(tmp_path)
+    alternate = tmp_path / 'alternate'
+    (alternate / 'scripts').mkdir(parents=True)
+    (alternate / 'references').mkdir()
+    router = alternate / 'scripts/router.py'
+    router.write_text('# Saved decision replay does not execute this router.\n')
+    contract = json.loads(json.dumps(ACCOUNT_ENVIRONMENT))
+    contract['unset_env']['claude'].append('SYNTHETIC_CREDENTIAL_OVERRIDE')
+    contract_path = alternate / 'references/account-environment.json'
+    contract_path.write_text(json.dumps(contract))
+    wrapper = tmp_path / 'router-wrapper.py'
+    wrapper.write_text('# Saved decisions retain the producer contract through wrappers.\n')
+    decision['account_binding']['environment_contract'] = {'path': str(contract_path), 'sha256': hashlib.sha256(contract_path.read_bytes()).hexdigest()}
+    path.write_text(json.dumps(decision))
+    argv += ['--router', str(wrapper)]
+    refused = subprocess.run(argv, env=env, capture_output=True, text=True)
+    assert refused.returncode != 0 and 'required credential override' in refused.stderr
+    assert not log.exists(), 'Contract refusal precedes native discovery'
+    decision['account_binding']['unset_env'].append('SYNTHETIC_CREDENTIAL_OVERRIDE')
+    path.write_text(json.dumps(decision))
+    admitted = subprocess.run(argv, env=env, capture_output=True, text=True)
+    assert admitted.returncode == 0, admitted.stderr
+    assert json.loads(admitted.stdout)['launch_method'] == 'orca-native'
+    contract['unset_env']['claude'].append('SYNTHETIC_NEW_OVERRIDE')
+    contract_path.write_text(json.dumps(contract))
+    changed = subprocess.run(argv, env=env, capture_output=True, text=True)
+    assert changed.returncode != 0 and 'contract changed' in changed.stderr
+
+
+def test_saved_declared_contract_replays_without_a_sibling_router(tmp_path):
+    env, argv, path, decision, log, response = native_fixture(tmp_path)
+    standalone = tmp_path / 'standalone-crew/scripts/assignment.py'
+    standalone.parent.mkdir(parents=True)
+    standalone.write_bytes(CREW.read_bytes())
+    contract = ROOT / 'skills/model-routing/references/account-environment.json'
+    decision['account_binding']['environment_contract'] = {'path': str(contract), 'sha256': hashlib.sha256(contract.read_bytes()).hexdigest()}
+    path.write_text(json.dumps(decision))
+    argv[1] = str(standalone)
+    replay = subprocess.run(argv, env=env, capture_output=True, text=True)
+    assert replay.returncode == 0, replay.stderr
+    assert json.loads(replay.stdout)['launch_method'] == 'orca-native'
 
 
 def native_fixture(tmp_path, *, active='selected', provider='claude', surface='readiness-worker'):
@@ -89,7 +154,7 @@ def native_fixture(tmp_path, *, active='selected', provider='claude', surface='r
     executable.chmod(0o700)
     binding = {'provider': provider, 'id': 'selected',
                'env': {('CLAUDE_CONFIG_DIR' if provider == 'claude' else 'CODEX_HOME'): '/profiles/current'},
-               'unset_env': ['ANTHROPIC_API_KEY'] if provider == 'claude' else ['OPENAI_API_KEY'],
+               'unset_env': list(ACCOUNT_ENVIRONMENT['unset_env'][provider]),
                'refreshed_at': datetime.now(timezone.utc).isoformat(), 'max_age_seconds': 300,
                'discovery': {'source': 'orca', 'command': str(executable)}, 'expected_identity': identity}
     decision = {'status': 'selected', 'selected': {'id': 'fixture', 'agent': provider, 'model': 'test-model', 'effort': 'high'},
@@ -184,6 +249,66 @@ def test_binding_expiring_during_native_discovery_is_refused(tmp_path):
     with patch.object(module.subprocess, 'run', side_effect=delayed_read):
         with pytest.raises(module.Error, match='expired'):
             module.orca_native_preparation(binding, decision['selected'])
+
+
+@pytest.mark.parametrize('fault', [None, 'path', 'set-profile', 'not-unset', 'codex', 'no-path', 'missing-credential'])
+def test_native_default_profile_is_explicit_and_never_weakens_binding(tmp_path, fault):
+    env, argv, path, decision, log, response = native_fixture(tmp_path)
+    binding = decision['account_binding']
+    binding.update(env={}, native_default_profile=str(Path(env['HOME']) / '.claude'))
+    binding['unset_env'].append('CLAUDE_CONFIG_DIR')
+    if fault == 'path': binding['native_default_profile'] = '/synthetic/other-home/.claude'
+    elif fault == 'set-profile': binding['env']['CLAUDE_CONFIG_DIR'] = binding['native_default_profile']
+    elif fault == 'not-unset': binding['unset_env'].remove('CLAUDE_CONFIG_DIR')
+    elif fault == 'codex':
+        binding['provider'] = 'codex'
+        binding['unset_env'] = list(ACCOUNT_ENVIRONMENT['unset_env']['codex']) + ['CLAUDE_CONFIG_DIR']
+    elif fault == 'no-path': del binding['native_default_profile']
+    elif fault == 'missing-credential': binding['unset_env'] = ['CLAUDE_CONFIG_DIR']
+    path.write_text(json.dumps(decision))
+    result = subprocess.run(argv, env=env, capture_output=True, text=True)
+    if fault is not None:
+        assert result.returncode != 0 and ('required credential override' if fault == 'missing-credential' else 'provider/profile') in result.stderr
+        assert not result.stdout
+        return
+    assert result.returncode == 0, result.stderr
+    packet = json.loads(result.stdout)
+    assert packet['launch_method'] == 'orca-native'
+    assert packet['account_binding'] == binding
+    assert 'launch_command' not in packet
+    assert 'before task delivery' in packet['delivery_gate']
+
+
+@pytest.mark.parametrize('fault', [None, 'active-managed', 'home', 'identity', 'missing-metadata', 'selection', 'organization', 'provider-id'])
+def test_orca_system_default_selection_is_rechecked_without_a_managed_account_id(tmp_path, fault):
+    env, argv, path, decision, log, response = native_fixture(tmp_path, active=None)
+    binding = decision['account_binding']
+    profile = str(Path(env['HOME']) / '.claude')
+    binding.update(id='configured-default', env={}, native_default_profile=profile)
+    binding['unset_env'].append('CLAUDE_CONFIG_DIR')
+    binding['discovery']['selection'] = 'system-default'
+    data = json.loads(response.read_text())
+    group = data['result']['claude']
+    group.update(systemDefaultHome=profile, systemDefaultEmail='same@example.test', systemDefaultOrganizationUuid='shared-org')
+    if fault == 'active-managed': group['activeAccountIdsByRuntime']['host'] = 'selected'
+    elif fault == 'home': group['systemDefaultHome'] = '/synthetic/other-home/.claude'
+    elif fault == 'identity': group['systemDefaultOrganizationUuid'] = 'other-org'
+    elif fault == 'missing-metadata': del group['systemDefaultEmail']
+    elif fault == 'selection': binding['discovery']['selection'] = 'unknown-default'
+    elif fault == 'organization': binding['expected_identity']['organization'] = 'Personal'
+    elif fault == 'provider-id': binding['expected_identity']['providerAccountId'] = 'unprovable'
+    response.write_text(json.dumps(data))
+    path.write_text(json.dumps(decision))
+    result = subprocess.run(argv, env=env, capture_output=True, text=True)
+    if fault not in [None, 'organization']:
+        assert result.returncode != 0 and ('system-default' in result.stderr or 'selection kind' in result.stderr or 'identity changed' in result.stderr)
+        assert not result.stdout
+        return
+    assert result.returncode == 0, result.stderr
+    packet = json.loads(result.stdout)
+    assert packet['launch_method'] == 'orca-native'
+    assert packet['account_binding']['id'] == 'configured-default'
+    assert packet['account_binding']['discovery']['selection'] == 'system-default'
 
 
 @pytest.mark.parametrize('fault', ['missing', 'no-effort', 'no-attachment', 'malformed', 'future-schema', 'legacy-no-attachment'])

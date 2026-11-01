@@ -1,0 +1,19 @@
+{
+  "profile_env": {
+    "claude": "CLAUDE_CONFIG_DIR",
+    "codex": "CODEX_HOME"
+  },
+  "unset_env": {
+    "claude": [
+      "ANTHROPIC_API_KEY",
+      "ANTHROPIC_AUTH_TOKEN",
+      "CLAUDE_CODE_OAUTH_TOKEN",
+      "ANTHROPIC_BASE_URL",
+      "CLAUDE_CODE_USE_BEDROCK",
+      "CLAUDE_CODE_USE_VERTEX",
+      "CLAUDE_CODE_USE_FOUNDRY",
+      "CLAUDE_SECURESTORAGE_CONFIG_DIR"
+    ],
+    "codex": ["OPENAI_API_KEY", "OPENAI_BASE_URL"]
+  }
+}

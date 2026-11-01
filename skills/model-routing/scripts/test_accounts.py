@@ -131,3 +131,21 @@ def test_native_launch_cannot_fall_back_to_unattributed_provider_quota():
         'harnesses': {'claude': {'quota': {'status': 'known', 'effective_percent_remaining': 99}}}},
         'fixture', {'launch': {'agent': 'claude', 'model': 'opus'}})
     assert state['quota']['status'] == 'unavailable'
+
+
+@pytest.mark.parametrize('provider, mode, path, valid', [
+    ('claude', 'directory', 'default', True),
+    ('claude', 'native-default', 'default', True),
+    ('claude', 'native-default', 'managed', False),
+    ('claude', 'automatic', 'default', False),
+    ('codex', 'native-default', 'default', False),
+])
+def test_profile_mode_is_explicit_and_native_default_is_scoped_to_its_home(tmp_path, monkeypatch, provider, mode, path, valid):
+    monkeypatch.setenv('HOME', str(tmp_path))
+    profile = str(tmp_path / ('.claude' if path == 'default' else 'managed'))
+    policy = {'profiles': {provider + ':fixture': {'profile': profile, 'profile_mode': mode}}}
+    if valid:
+        accounts.validate(policy, 'fixture')
+    else:
+        with pytest.raises(ValueError, match='profile_mode|native-default'):
+            accounts.validate(policy, 'fixture')

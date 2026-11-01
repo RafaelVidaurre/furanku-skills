@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import hashlib
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -738,12 +739,38 @@ def routing_summary(decision):
     return summary
 
 
-def account_binding_argv(binding, agent):
+def account_binding_argv(binding, agent, *, router=None):
     """Validate a fresh binding for either a direct command or native preparation."""
     provider = binding.get('provider')
-    expected = {'claude': 'CLAUDE_CONFIG_DIR', 'codex': 'CODEX_HOME'}.get(provider)
+    try:
+        declared = binding.get('environment_contract')
+        if declared is not None:
+            if not isinstance(declared, dict) or set(declared) != {'path', 'sha256'} or not isinstance(declared['path'], str) or not Path(declared['path']).is_absolute() or not isinstance(declared['sha256'], str):
+                raise ValueError('invalid environment contract source')
+            raw = Path(declared['path']).read_bytes()
+            if hashlib.sha256(raw).hexdigest() != declared['sha256']:
+                raise Error('account binding environment contract changed; rerun routing before launch')
+        else:
+            raw = ((Path(router) if router else default_router_path()).parent.parent / 'references/account-environment.json').read_bytes()
+        contract = json.loads(raw)
+        expected = contract['profile_env'][provider]
+        required_unsets = set(contract['unset_env'][provider])
+    except (OSError, ValueError, KeyError, TypeError):
+        raise Error('account binding environment contract unavailable for the launch provider')
     env = binding.get('env', {})
-    if provider != agent or not expected or set(env) != {expected} or not isinstance(env[expected], str) or not Path(env[expected]).is_absolute():
+    native_default = binding.get('native_default_profile')
+    unset = binding.get('unset_env', [])
+    if not isinstance(env, dict) or not isinstance(unset, list) or any(not isinstance(k, str) or not re.fullmatch(r'[A-Z][A-Z0-9_]*', k) for k in unset):
+        raise Error('invalid account profile or credential environment names')
+    if not required_unsets.issubset(unset):
+        raise Error('account binding must unset every required credential override')
+    if native_default is not None:
+        valid_profile = (provider == 'claude' and native_default == str(Path.home() / '.claude')
+                         and not env and expected in unset)
+    else:
+        valid_profile = (set(env) == {expected} and isinstance(env.get(expected), str)
+                         and Path(env[expected]).is_absolute())
+    if provider != agent or not expected or not valid_profile:
         raise Error('account binding does not match the launch provider/profile')
     try:
         age = datetime.now(timezone.utc).timestamp() - datetime.fromisoformat(binding['refreshed_at'].replace('Z', '+00:00')).timestamp()
@@ -752,10 +779,7 @@ def account_binding_argv(binding, agent):
             raise ValueError()
     except (KeyError, TypeError, ValueError):
         raise Error('account decision expired; rerun the routing check before launch')
-    unset = binding.get('unset_env', [])
-    if not isinstance(unset, list) or any(not isinstance(k, str) or not re.fullmatch(r'[A-Z][A-Z0-9_]*', k) for k in unset):
-        raise Error('invalid account credential environment names')
-    return ['env'] + [part for key in unset for part in ('-u', key)] + [f'{expected}={env[expected]}']
+    return ['env'] + [part for key in unset for part in ('-u', key)] + [f'{key}={value}' for key, value in env.items()]
 
 
 ORCA_READINESS_SPEC = (
@@ -797,10 +821,12 @@ def orca_preparation_surface(command, *, profile_command=False):
     raise Error('Orca has no supported native preparation/attachment capability for this binding; preserve the decision and resolve launch readiness before task delivery')
 
 
-def orca_native_preparation(binding, routing, *, allow_profile=False):
+def orca_native_preparation(binding, routing, *, allow_profile=False, router=None):
     """Public discovery verifies selection; process identity still gates delivery."""
     discovery = binding.get('discovery', {})
     command = discovery.get('command')
+    if discovery.get('selection') not in (None, 'system-default'):
+        raise Error('Orca account selection kind is unsupported; task delivery remains blocked')
     if discovery.get('source') != 'orca' or not isinstance(command, str) or not command.strip():
         raise Error('Orca native launch requires an Orca-discovered account; rerun routing with Orca discovery')
     try:
@@ -810,22 +836,39 @@ def orca_native_preparation(binding, routing, *, allow_profile=False):
             raise ValueError()
         group = data['result'][routing['agent']]
         active = group.get('activeAccountIdsByRuntime', {}).get('host', group.get('activeAccountId'))
-        account = next((row for row in group['accounts'] if row['id'] == binding.get('id')), None)
+        if discovery.get('selection') == 'system-default':
+            if routing['agent'] != 'claude' or active is not None or not (
+                    'host' in group.get('activeAccountIdsByRuntime', {}) or 'activeAccountId' in group):
+                raise Error('Orca system-default account is no longer selected on this host')
+            if not binding.get('native_default_profile') or group.get('systemDefaultHome') != binding['native_default_profile']:
+                raise Error('Orca system-default profile changed; rerun routing before task delivery')
+            account = {'email': group.get('systemDefaultEmail'), 'organizationUuid': group.get('systemDefaultOrganizationUuid')}
+            if not all(isinstance(value, str) and value.strip() for value in account.values()) or not {'email', 'organizationUuid'}.issubset(binding.get('expected_identity', {})):
+                raise Error('Orca system-default identity is unavailable; task delivery remains blocked')
+        else:
+            account = next((row for row in group['accounts'] if row['id'] == binding.get('id')), None)
     except (OSError, subprocess.TimeoutExpired, ValueError, KeyError, TypeError, AttributeError):
         raise Error('Orca native account discovery unavailable; task delivery remains blocked')
     if not account or not binding.get('id'):
         raise Error('Orca selected account is missing; rerun routing before task delivery')
-    inactive = active != binding['id']
+    inactive = discovery.get('selection') != 'system-default' and active != binding['id']
     if inactive and not allow_profile:
         raise Error('Orca native launch cannot pin the selected account: it differs from the active host account; preserve the decision and resolve account readiness before delivery')
     if account.get('managedAuthRuntime', account.get('managedHomeRuntime', 'host')) != 'host' or account.get('needsSignIn'):
         raise Error('Orca native selected account is not ready on this host')
     expected = binding.get('expected_identity', {})
-    if not expected or any(account.get(key) != value for key, value in expected.items()):
+    if discovery.get('selection') == 'system-default':
+        if set(expected) - {'email', 'organizationUuid', 'organization'} or (
+                'organization' in expected and (not isinstance(expected['organization'], str) or not expected['organization'].strip())):
+            raise Error('Orca system-default identity pin is unsupported; task delivery remains blocked')
+        public_expected = {key: expected[key] for key in ('email', 'organizationUuid')}
+    else:
+        public_expected = expected
+    if not expected or any(account.get(key) != value for key, value in public_expected.items()):
         raise Error('Orca native account identity changed or is missing; rerun routing')
-    account_binding_argv(binding, routing['agent'])
+    account_binding_argv(binding, routing['agent'], router=router)
     surface = orca_preparation_surface(command, profile_command=inactive)
-    account_binding_argv(binding, routing['agent'])  # Discovery may outlast the remaining quota evidence.
+    account_binding_argv(binding, routing['agent'], router=router)  # Discovery may outlast the remaining quota evidence.
     if surface == 'profile-command':
         return surface, None
     argv = [command] + (['agent', 'launch'] if surface == 'agent-launch' else
@@ -977,12 +1020,13 @@ def build_packet(args):
     if launch_note:
         packet["launch_note"] = launch_note
     binding = decision.get('account_binding')
-    prefix = account_binding_argv(binding, agent) if binding else []
+    binding_router = router_path(args.router) if binding and 'environment_contract' not in binding else None
+    prefix = account_binding_argv(binding, agent, router=binding_router) if binding else []
     account_method = manifest.get('account_launch', {}).get(agent)
     surface = None
     template = manifest.get("launch_argv", {}).get(agent)
     if binding and account_method in ('orca-native', 'orca-account'):
-        surface, argv = orca_native_preparation(binding, routing, allow_profile=account_method == 'orca-account')
+        surface, argv = orca_native_preparation(binding, routing, allow_profile=account_method == 'orca-account', router=binding_router)
     if surface and surface != 'profile-command':
         packet['account_binding'] = binding
         packet['launch_method'] = 'orca-native'

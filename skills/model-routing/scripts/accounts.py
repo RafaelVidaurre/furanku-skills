@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from datetime import datetime, timezone
 from html import escape
+import hashlib
 import json
 import math
 import os
@@ -17,14 +18,13 @@ import subprocess
 from string import Template
 import codexbar
 
-PROFILE_ENV = {'claude': 'CLAUDE_CONFIG_DIR', 'codex': 'CODEX_HOME'}
-# Explicit credentials override profile selection in vendor CLIs.
-UNSET_ENV = {
-    'claude': ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN',
-               'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX',
-               'CLAUDE_CODE_USE_FOUNDRY', 'CLAUDE_SECURESTORAGE_CONFIG_DIR'],
-    'codex': ['OPENAI_API_KEY', 'OPENAI_BASE_URL'],
-}
+ACCOUNT_ENVIRONMENT_PATH = Path(__file__).resolve().parent.parent / 'references/account-environment.json'
+ACCOUNT_ENVIRONMENT_BYTES = ACCOUNT_ENVIRONMENT_PATH.read_bytes()
+ACCOUNT_ENVIRONMENT = json.loads(ACCOUNT_ENVIRONMENT_BYTES)
+PROFILE_ENV = ACCOUNT_ENVIRONMENT['profile_env']
+# Explicit credentials override profile selection in vendor CLIs. The consumer
+# validates this same list before constructing a command or native preparation.
+UNSET_ENV = ACCOUNT_ENVIRONMENT['unset_env']
 
 
 def validate(policy, source):
@@ -45,10 +45,11 @@ def validate(policy, source):
         provider, sep, identity = key.partition(':')
         if provider not in PROFILE_ENV or not sep or not identity or not isinstance(row, dict):
             raise ValueError(f'{source}: invalid profile {key!r}')
-        if set(row) - {'profile', 'label', 'priority', 'min_remaining_percent', 'quota_source', 'discovery', 'expected_identity'}:
+        if set(row) - {'profile', 'profile_mode', 'label', 'priority', 'min_remaining_percent', 'quota_source', 'discovery', 'expected_identity'}:
             raise ValueError(f'{source}: unknown profile fields for {key}')
         if not isinstance(row.get('profile'), str) or not Path(row['profile']).expanduser().is_absolute():
             raise ValueError(f'{source}: {key} requires an absolute profile directory')
+        profile_selection({'provider': provider, **row})
         if row.get('quota_source', 'codexbar') != 'codexbar':
             raise ValueError(f'{source}: {key} uses a retired quota source; migrate quota_source to codexbar')
         if row.get('discovery', 'orca') not in ('orca', 'configured'):
@@ -95,11 +96,30 @@ def fresh(value, max_age, now):
         return False
 
 
+def profile_selection(row):
+    provider = row['provider']
+    selector = PROFILE_ENV[provider]
+    selection = {'env': {selector: row['profile']}, 'unset_env': list(UNSET_ENV[provider])}
+    mode = row.get('profile_mode', 'directory')
+    if mode not in ('directory', 'native-default'):
+        raise ValueError('profile_mode must be directory or native-default')
+    # Claude's native default must use its ordinary credential storage, not an
+    # explicit directory override, even when that override spells the same path.
+    if mode == 'native-default':
+        if provider != 'claude' or Path(row['profile']).expanduser() != Path.home() / '.claude':
+            raise ValueError('native-default requires the current home Claude default profile')
+        selection['env'] = {}
+        selection['unset_env'].append(selector)
+        selection['native_default_profile'] = row['profile']
+    return selection
+
+
 def profile_environment(row):
+    selection = profile_selection(row)
     env = os.environ.copy()
-    for key in UNSET_ENV[row['provider']]:
+    for key in selection['unset_env']:
         env.pop(key, None)
-    env[PROFILE_ENV[row['provider']]] = row['profile']
+    env.update(selection['env'])
     return env
 
 
@@ -131,6 +151,7 @@ def inventory(policy, dependency, now=None, *, refresh=False, providers=None, na
     supplied_now = now
     now = now or datetime.now(timezone.utc)
     rows = {}
+    data = {}
     if policy.get('source') == 'orca':
         data = command_json([orca_command(policy), 'account', 'list', '--json'])['result']
         for provider, group in data.items():
@@ -159,6 +180,23 @@ def inventory(policy, dependency, now=None, *, refresh=False, providers=None, na
         if discovered:
             row['expected_identity'] = discovered
         row['profile'] = str(Path(row['profile']).expanduser())
+        if (key == 'claude:system-default' and config.get('discovery') == 'configured'
+                and not row.get('discovery') and row.get('profile_mode') == 'native-default'
+                and policy.get('source') == 'orca'):
+            group = data.get('claude', {})
+            active_ids = group.get('activeAccountIdsByRuntime', {})
+            active = active_ids.get('host', group.get('activeAccountId'))
+            default_identity = {'email': group.get('systemDefaultEmail'), 'organizationUuid': group.get('systemDefaultOrganizationUuid')}
+            expected = config.get('expected_identity', {})
+            if (('host' in active_ids or 'activeAccountId' in group) and active is None
+                    and group.get('systemDefaultHome') == row['profile']
+                    and all(isinstance(value, str) and value.strip() for value in default_identity.values())
+                    and not expected.get('providerAccountId')
+                    and all(default_identity.get(field) == expected[field]
+                            for field in ('email', 'organizationUuid') if expected.get(field))):
+                row.update(active=True, host_active=True, launch_ready=True,
+                           discovery={'source': 'orca', 'command': orca_command(policy), 'selection': 'system-default'},
+                           expected_identity={**expected, **default_identity})
     codexbar.verify(dependency)
     def measure(row):
         if row.get('profile'):
@@ -226,7 +264,9 @@ def choose(report, provider, model, *, native_only=False):
 
 def binding(row, max_age):
     result = {'key': row['key'], 'provider': row['provider'], 'id': row['id'], 'label': row['label'],
-            'env': {PROFILE_ENV[row['provider']]: row['profile']}, 'unset_env': UNSET_ENV[row['provider']],
+            **profile_selection(row),
+            'environment_contract': {'path': str(ACCOUNT_ENVIRONMENT_PATH),
+                                     'sha256': hashlib.sha256(ACCOUNT_ENVIRONMENT_BYTES).hexdigest()},
             'refreshed_at': row['measurement']['refreshed_at'], 'max_age_seconds': max_age}
     if row.get('discovery'):
         result['discovery'] = deepcopy(row['discovery'])

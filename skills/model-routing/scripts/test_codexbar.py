@@ -116,6 +116,53 @@ def test_orca_snapshots_are_ignored_and_independent_profile_is_explicit():
     assert accounts.choose(report, 'codex', 'test') is None
 
 
+@pytest.mark.parametrize('fault', [None, 'directory', 'active-managed', 'home', 'identity', 'missing-metadata', 'missing-selection', 'auth', 'quota', 'organization', 'organization-mismatch', 'provider-id', 'registered', 'removed', 'other-key'])
+def test_orca_default_selection_requires_explicit_profile_and_measured_identity(tmp_path, monkeypatch, fault):
+    monkeypatch.setenv('HOME', str(tmp_path))
+    monkeypatch.setenv('CODEX_HOME', str(tmp_path / 'codex'))
+    profile = str(tmp_path / '.claude')
+    config = {'profile': profile, 'profile_mode': 'native-default', 'discovery': 'configured',
+              'expected_identity': {'email': 'user@example.test', 'organizationUuid': 'org-personal'}}
+    group = {'accounts': [], 'activeAccountId': None, 'activeAccountIdsByRuntime': {'host': None},
+             'systemDefaultHome': profile, 'systemDefaultEmail': 'user@example.test',
+             'systemDefaultOrganizationUuid': 'org-personal', 'systemDefaultMayBeCopied': True}
+    native = {'loggedIn': True, 'email': 'user@example.test', 'orgId': 'org-personal', 'orgName': 'Personal'}
+    if fault == 'directory': config['profile_mode'] = 'directory'
+    elif fault == 'active-managed': group['activeAccountIdsByRuntime']['host'] = 'managed'
+    elif fault == 'home': group['systemDefaultHome'] = '/synthetic/other-home/.claude'
+    elif fault == 'identity': config['expected_identity']['email'] = 'other@example.test'
+    elif fault == 'missing-metadata': del group['systemDefaultOrganizationUuid']
+    elif fault == 'missing-selection':
+        del group['activeAccountId']
+        del group['activeAccountIdsByRuntime']
+    elif fault == 'auth': native['orgId'] = 'other-org'
+    elif fault == 'organization': config['expected_identity']['organization'] = 'Personal'
+    elif fault == 'organization-mismatch': config['expected_identity']['organization'] = 'Other'
+    elif fault == 'provider-id': config['expected_identity']['providerAccountId'] = 'unprovable'
+    elif fault == 'registered':
+        group['accounts'] = [{'id': 'system-default', 'email': 'registered@example.test', 'organizationUuid': 'registered-org'}]
+        config.pop('expected_identity')
+    elif fault == 'removed': config['discovery'] = 'orca'
+    measurement = {'status': 'unknown', 'windows': []} if fault == 'quota' else codexbar.measurement(payload('claude'), 'claude')
+    policy = {'source': 'orca', 'orca_command': 'synthetic-orca', 'profiles': {'claude:other' if fault in ['removed', 'other-key'] else 'claude:system-default': config}}
+    def command(args, *rest, **kwargs):
+        if args == ['synthetic-orca', 'account', 'list', '--json']: return {'result': {'claude': group}}
+        assert args == ['claude', 'auth', 'status', '--json']
+        return native
+    with patch.object(codexbar, 'verify'), patch.object(accounts, 'command_json', side_effect=command), patch.object(codexbar, 'read', return_value=measurement) as read:
+        report = accounts.inventory(policy, DEP, providers=['claude'], native_only_providers=['claude'])
+    chosen = accounts.choose(report, 'claude', 'opus', native_only=True)
+    if fault in [None, 'organization']:
+        assert chosen['id'] == 'system-default'
+        assert chosen['discovery'] == {'source': 'orca', 'command': 'synthetic-orca', 'selection': 'system-default'}
+        assert accounts.binding(chosen, 300)['native_default_profile'] == profile
+        assert chosen['measurement']['identity']['organizationUuid'] == 'org-personal'
+        if fault == 'organization': assert chosen['expected_identity']['organization'] == 'Personal'
+    else:
+        assert chosen is None
+        if fault not in ['quota', 'organization-mismatch']: read.assert_not_called()
+
+
 @pytest.mark.parametrize('source', ['quota-axi', 'quota-axi-keychain', 'orca'])
 def test_legacy_quota_sources_require_explicit_migration(source):
     with pytest.raises(ValueError, match='retired quota source'):
@@ -147,6 +194,45 @@ def test_real_process_receives_exact_profile_and_scrubbed_credentials(tmp_path, 
     assert result['status'] == 'known'
     env = accounts.profile_environment({'provider': 'claude', 'profile': '/synthetic/claude'})
     assert not set(accounts.UNSET_ENV['claude']) & env.keys()
+
+
+@pytest.mark.parametrize('native_default', [False, True])
+def test_default_directory_keeps_explicit_and_native_selection_distinct(tmp_path, monkeypatch, native_default):
+    monkeypatch.setenv('HOME', str(tmp_path / 'home'))
+    monkeypatch.setenv('CODEX_HOME', str(tmp_path / 'codex'))
+    monkeypatch.setenv('CLAUDE_CONFIG_DIR', '/synthetic/ambient-profile')
+    for name in accounts.UNSET_ENV['claude']:
+        monkeypatch.setenv(name, 'synthetic-override')
+    binary = tmp_path / 'bin'
+    binary.mkdir()
+    monkeypatch.setenv('PATH', str(binary) + os.pathsep + os.environ['PATH'])
+    profile = str(Path.home() / '.claude')
+    profile_check = 'assert \"CLAUDE_CONFIG_DIR\" not in os.environ\n' if native_default else 'assert os.environ.get(\"CLAUDE_CONFIG_DIR\") == ' + repr(profile) + '\n'
+    check_env = (profile_check +
+                 'assert not set(' + repr(accounts.UNSET_ENV['claude']) + ') & os.environ.keys()\n')
+    status = {'loggedIn': True, 'email': 'user@example.test', 'orgId': 'org-personal', 'orgName': 'Personal'}
+    for name, args, output in [
+        ('claude', ['auth', 'status', '--json'], status),
+        ('fake-codexbar', ['usage', '--provider', 'claude', '--source', 'cli', '--format', 'json', '--no-credits'], payload('claude')),
+    ]:
+        script = binary / name
+        script.write_text('#!' + sys.executable + '\nimport os,sys,json\n' + check_env +
+                          'assert sys.argv[1:] == ' + repr(args) + '\nprint(' + repr(json.dumps(output)) + ')\n')
+        script.chmod(0o700)
+    row = {'key': 'claude:default', 'id': 'default', 'provider': 'claude', 'label': 'Synthetic default',
+           'profile': profile, 'profile_mode': 'native-default' if native_default else 'directory', 'expected_identity': {'email': 'user@example.test', 'organizationUuid': 'org-personal'}}
+    row['measurement'] = accounts.profile_measurement(row, {**DEP, 'command': str(binary / 'fake-codexbar')})
+    assert row['measurement']['status'] == 'known'
+    assert row['measurement']['identity']['organizationUuid'] == 'org-personal'
+    binding = accounts.binding(row, 300)
+    if native_default:
+        assert binding['env'] == {}
+        assert binding['native_default_profile'] == profile
+        assert 'CLAUDE_CONFIG_DIR' in binding['unset_env']
+    else:
+        assert binding['env'] == {'CLAUDE_CONFIG_DIR': profile}
+        assert 'native_default_profile' not in binding
+        assert 'CLAUDE_CONFIG_DIR' not in binding['unset_env']
 
 
 def test_timeout_ends_owned_process_and_reports_failure(tmp_path):
