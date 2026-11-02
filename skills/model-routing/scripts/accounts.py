@@ -140,7 +140,10 @@ def profile_measurement(row, dependency, *, refresh=False):
         if any(expected.get(k) and identity.get(k) != expected[k] for k in ('email', 'organization')):
             raise ValueError('Measured identity does not match configured account')
         if native:
-            if identity.get('email') != native['email'] or not native.get('orgName') or identity.get('organization') != native['orgName']:
+            # CodexBar reads this profile's own CLI credential (web sources are refused),
+            # and it omits the organization for personal accounts; a reported name must still agree.
+            measured_org = identity.get('organization')
+            if identity.get('email') != native['email'] or (measured_org and measured_org != native.get('orgName')):
                 raise ValueError('Measured identity does not match native Claude organization')
             identity['organizationUuid'] = native['orgId']
     return result

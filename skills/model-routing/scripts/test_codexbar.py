@@ -94,6 +94,17 @@ def test_native_organization_preflight_and_measured_name_must_match():
         status['orgName'] = 'Team'
         with pytest.raises(ValueError, match='organization'):
             accounts.profile_measurement(row, DEP)
+    personal = payload('claude')
+    personal[0]['usage'].pop('accountOrganization', None)
+    personal[0]['usage'].get('identity', {}).pop('accountOrganization', None)
+    status.update(orgName="user@example.test's Organization")
+    with patch.object(accounts, 'command_json', return_value=status), patch.object(codexbar, 'read', return_value=codexbar.measurement(personal, 'claude')):
+        assert accounts.profile_measurement(row, DEP)['identity']['organizationUuid'] == 'org-personal'
+    personal[0]['usage']['accountEmail'] = 'other@example.test'
+    personal[0]['usage'].get('identity', {}).pop('accountEmail', None)
+    with patch.object(accounts, 'command_json', return_value=status), patch.object(codexbar, 'read', return_value=codexbar.measurement(personal, 'claude')):
+        with pytest.raises(ValueError, match='does not match'):
+            accounts.profile_measurement(row, DEP)
 
 
 def test_codex_profile_identity_mismatch_refuses_without_binding():
