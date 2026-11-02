@@ -1,33 +1,34 @@
 # Orca
 
-Crew's complete Orca procedure. Read when Orca launches, connects, or retires an assignment. Crew owns role, placement, and routing policy; the commands here implement it without loading another orchestration skill. Substitute placeholders with exact returned values. JSON results are under `result`. Consult the affected command's `--help` when its arguments or receipt differ from this procedure.
+Read when Orca launches, connects, or retires a Crew assignment. Orca's version-matched guide owns Orca mechanics: launching workers, waking the coordinator, mail, steering, recovery, remote placement, and cleanup. This file adds only Crew's role, routing, account, and resource rules on top of it.
 
-Resolve the executable once: use `ORCA_CLI_COMMAND` when supplied; otherwise `orca-dev` in an Orca dev environment exposing `ORCA_DEV_REPO_ROOT`, `orca-ide` on Linux outside Orca, or `orca` elsewhere. The examples use `orca`; preserve the resolved executable throughout, including worker instructions and recovery.
-
-## Choose the launch
-
-Apply **Choose execution and placement** in `SKILL.md`. A Captain may execute directly with zero Workers. A supervised assignment retains its `reports_to`; a full handoff transfers ownership to the named principal. Do not turn a supervised Captain into a user handoff because of a launcher's convenience recipe.
-
-A **Run** holds tasks and the coordinator inbox; it is not a scheduler. A **Task** holds the work; a **Dispatch** is one authoritative attempt. Create a Run only when coordinating delegated work, and reuse it for that front. Copy the live injected preamble's authority exactly; old dispatch/session handles grant no authority to a new attempt.
-
-Use `--worktree current` for the enclosing checkout or an exact selector for another existing checkout. Copy the entire `worktree.id` (`<repo-id>::<path>`) into `id:<worktree.id>`. Custom model arguments do not require a worktree. When isolation is justified, use `new-child` for stacked work or `new-top-level` for independent work. Specify the intended base for stacked changes; independent work uses the repository default unless the principal specifies otherwise. Creation flags such as `--name` and `--base-branch` belong only on new-worktree calls.
-
-**Complete when:** mode, principal, workspace, and resource cleanup owner are recorded in the existing work record.
-
-## Start a supervised assignment
-
-Create the Run once, then launch each owner with its gate-checked tuple and unchanged packet spec:
+Before the first Orca command in a session, resolve the executable as the `orca-cli`/`orchestration` skills direct (`ORCA_CLI_COMMAND`, then `orca-dev` in an Orca dev checkout, `orca-ide` on Linux outside Orca, otherwise `orca`), then load the guide:
 
 ```sh
-orca orchestration run-create --objective "<front outcome>" --json
-orca orchestration worker-start --run <runId> --spec "<packet spec>" --task-title "<summary>" --worktree current --agent <agent> --model <model> --effort <effort> --json
+orca skills get orchestration
 ```
 
-For dependent work, create the task with `task-create --run <runId> --spec "<packet spec>" --task-title "<summary>" --deps '["<taskId>"]' --json`. After prerequisites complete, start it with `--task <taskId>` instead of `--spec`. Keep dependency order in the Run rather than a second scheduler.
+Load a guide reference when its situation applies, such as `references/recovery-and-cleanup.md` for a failed start. When this file and the guide disagree about an Orca command or flag, the guide for the installed binary wins; Crew's role, routing, and account gates still apply. The examples here use `orca`; preserve the resolved executable throughout.
 
-Read each launch receipt before another launch: success requires `state: ready`, exact task/dispatch IDs, and the intended `launch.effective`. Record created/reused resources from `effects`; name Crew terminals `<Role> - <summary>`. On failure, inspect `failedStage`, `residualResources`, and `recovery`. Reconcile an unknown mutation result before another start.
+**Complete when:** the guide for the resolved executable has been loaded in this session.
 
-### Account-bound launches
+## Launch a supervised owner
+
+Apply **Choose execution and placement** in `SKILL.md` to choose `--worktree current`, an exact existing selector, `new-child` (stacked work), or `new-top-level` (independent work); let `worker-start` create any new workspace. Build the packet with `--spec-out <private file>`, then start the owner with the packet's routed tuple:
+
+```sh
+orca orchestration worker-start --spec-file <spec file> --task-title "<Role> - <summary>" \
+  --worktree <placement> --agent <routing.agent> --model <routing.model> --effort <routing.effort> \
+  [--run <runId>] --json
+```
+
+The routed model and effort are the user's configured choice, so pass them even though the guide omits `--model` when the user names none. A `--spec` start without `--run` binds a new Run only when this coordinator has none, and otherwise joins the newest bound Run; record the Run each receipt names as the front's Run. Pass that recorded `--run <runId>` on every later start, preparation, and attachment for the front. When a front needs its own Run while another is bound, create it with `run-create` first. Create a Run and dependent Tasks explicitly only for a task DAG, using the guide's coordinator-loop reference. A packet with `account_binding` or a launch note that names a custom command follows the sections below instead.
+
+Record the receipt's Run, Task, and Dispatch IDs, the effective launch tuple, and every workspace or terminal the start created, as the assignment's resource pointers. On failure, do not rerun the start; follow the guide's recovery reference and **Spawn an owner** in `SKILL.md`.
+
+**Complete when:** the receipt is ready with exact Task and Dispatch IDs, its effective agent, model, and effort match the packet, and created resources are recorded.
+
+## Account-bound launches
 
 Crew's built-in Codex policy checks all configured accounts before changing a model. It uses native preparation when the selected account is active, and a profile-bound command in an Orca terminal when another account is selected. Both paths preserve the selected model and effort and verify the exact account before delivering work. Packet construction checks fresh `account list --json` metadata and the command registry; it does not change Orca's global active account.
 
@@ -36,124 +37,58 @@ Follow the emitted `launch_method`. For `command`, use the packet's exact `launc
 For `orca-native`, only the current host selection is eligible because the public native launcher has no Claude/Codex account selector. This is either the exact registered account ID or an explicit `discovery.selection: system-default` binding whose default home, email and organization match public discovery with no managed host account selected. The configured row name for a system-default binding is not a managed account ID. This remains the built-in Claude policy. An inactive duplicate cannot supply the active account's quota evidence, even when the email or organization matches. Native preparation proceeds as follows:
 
 1. Build the packet immediately before preparation. Crew reads the binding's exact Orca executable's `agent-context --json` registry and emits `prepare_surface`; missing discovery or tuple/attachment capabilities refuse before launch. Use that same executable and inspect its launcher help if the host rejects a valid discovered invocation. Reuse a prepared, assignment-owned process only after confirming it is live and matches the decision.
-2. Run `prepare_command` with the exact existing `--worktree <selector>` and `--json`. For `agent-launch`, this is native preparation without a prompt. For `readiness-worker`, also append the coordinator's `--run <runId>`: the command contains a fixed readiness-only `--spec` that performs no project work and reports completion through its live preamble. Keep that spec unchanged; the actual assignment remains undispatched. Record its Task, Dispatch, terminal, workspace, and resource effects as preparation owned by this assignment, not a second work contract. Wait up to 60 seconds for readiness completion through the existing inbox collector, then resolve a timeout with **Recover a discrepancy**. A ready start receipt alone does not settle the readiness Task.
+2. Run `prepare_command` with the exact existing `--worktree <selector>`, `--json`, and, for `readiness-worker`, `--run <runId>` when this front already has a Run. For `agent-launch`, this is native preparation without a prompt; Crew adds `--surface terminal` when the launcher advertises it. For `readiness-worker`, the command contains a fixed readiness-only `--spec` that performs no project work and reports `worker_done`, plus `--keep-open` when advertised so Orca's automatic release does not close the prepared terminal; keep that spec unchanged. The actual assignment remains undispatched. Record its Task, Dispatch, terminal, workspace, and resource effects as preparation owned by this assignment, not a second work contract. A ready start receipt alone does not settle the readiness Task: wait for its `worker_done` wake, and resolve an escalation or missing report through the guide's recovery reference.
 3. Read the receipt's actual surface. For a terminal, wait for `tui-idle`, then verify the live process's profile environment equals `account_binding.env`, every name in `unset_env` is absent, and the native account status and actual model/effort match the decision. For a `native_default_profile` binding, verify the process home resolves to that native default directory with `CLAUDE_CONFIG_DIR` absent; an empty override map alone is insufficient. Inspect only the needed nonsecret routing paths and presence booleans, never credential values. Recheck `account list --json` against the exact selected registered account ID and native identity. For `system-default`, require the host selection to remain null and recheck the bound default home, email and organization instead; duplicate registered accounts are not interchangeable. Recheck quota if the binding expired and compare the new binding with this same process. A workspace trust or sign-in prompt is a readiness gap: preserve it and report it without approving trust, copying credentials, or changing permission flags.
-4. After the readiness Task succeeds (when present) and binding proof passes, attach the unchanged packet spec with `worker-start --terminal <same-handle>` in the same Run and exact workspace. Omit `--agent`, `--model`, and `--effort` on attachment. Record the terminal ownership transfer from preparation to the real assignment; do not release it between these steps. If the receipt returned a chat, continue only through a documented attachment surface with equivalent identity proof. Missing proof or attachment leaves the real assignment blocked: settle or recover preparation and release its resources, or explicitly retain a pending readiness gap with its owner and next action. Never launch another process to evade that refusal.
+4. After the readiness Task succeeds (when present) and binding proof passes, attach the unchanged packet spec with `worker-start --spec-file <spec file> --terminal <same-handle> --worktree <same selector>`, adding `--run <runId>` when the front already has a recorded Run, and record the Run its receipt names. Omit `--agent`, `--model`, and `--effort` on attachment. Record the terminal ownership transfer from preparation to the real assignment; do not release it between these steps. If the receipt returned a chat, continue only through a documented attachment surface with equivalent identity proof. Missing proof or attachment leaves the real assignment blocked: settle or recover preparation and release its resources, or explicitly retain a pending readiness gap with its owner and next action. Never launch another process to evade that refusal.
 
 A tuple alone does not pin an account. Native `worker-start --agent --model --effort` therefore receives only the readiness spec until binding is verified. Preparation, readiness completion, process proof, task delivery, and acknowledgement are separate gates. An idle terminal that returned to a shell is no longer a prepared agent.
 
-#### Interrupted readiness and retry
+On an `agent_readiness` failure, keep the original preparation Task and terminal and follow the guide's recovery reference. An optional vendor update offer can be dismissed with its documented skip/cancel action to continue the installed version; accepting an upgrade, sign-in, trust, permission, or account change needs the principal's authorization. No prompt dismissal proves identity or readiness: repeat the process and binding checks afterward. Preserve a pending human-only prompt as an explicit retained resource rather than retrying or abandoning its Task.
 
-On `agent_readiness` failure, keep the original preparation Task/spec and receipt's exact terminal. Inspect only that failed attempt using bounded recovery reads. An optional vendor update offer can be dismissed with its documented skip/cancel action to continue the installed version; accepting an upgrade, sign-in, trust, permission, or account change needs the principal's authorization. No prompt dismissal proves identity or readiness: repeat the process and binding checks afterward.
-
-Follow the receipt's recovery and `projection.nextAction` before retrying. When retry is authorized, use `worker-start --task <same-preparation-task> --retry-of <failed-dispatch> --worktree <exact-selector> --terminal <same-live-handle>`; omit the original `--spec` and tuple flags. A failed readiness start can leave that process live; `worker-stop` may close an owned terminal, so inspect its documented effect before using it. If it has exited, prove that first and settle/release the old resources before a same-Task replacement with the original native tuple. An ambiguous mutation is reconciled through its original request ID, never a duplicate start. Cancellation or binding refusal settles the preparation attempt and accounts for its resources under **Recover a discrepancy** and **Retire resources**. Preserve a pending human-only prompt as an explicit retained resource rather than retrying or abandoning its Task.
-
-When quota is exhausted, checkpoint the work and follow **Recover a discrepancy** to settle the old attempt before a replacement. Recheck the same model and effort through model-routing, allowing another eligible account, and follow the replacement packet's launch method before retrying the same task. Preserve the task contract and completed work. An account or launcher refusal is not authorization to downgrade the model; resolve the binding or report that capability gap.
+When quota is exhausted, checkpoint the work and settle the old attempt through the guide's recovery reference before a replacement. Recheck the same model and effort through model-routing, allowing another eligible account, and follow the replacement packet's launch method before retrying the same Task. Preserve the task contract and completed work. An account or launcher refusal is not authorization to downgrade the model; resolve the binding or report that capability gap.
 
 ### Custom model arguments
 
-`worker-start --model … --effort …` is the normal supervised tuple interface; current `agent launch` and `worktree create --agent` also expose model/effort flags. Check the chosen command's help for provider support. For an alternate account or an agent the wrapper cannot parameterize, use the packet's expanded `launch_argv` / `launch_command` after resolving any `launch_warning`. Create one terminal in the selected workspace and wait for readiness:
+Use this path for a `command` launch method, or when a launch note says `worker-start` cannot set the routed tuple for that agent. Resolve any `launch_warning` first, then create one terminal in the selected workspace with the packet's exact `launch_command` and wait for readiness:
 
 ```sh
-orca terminal create --worktree <selector> --title "<Role> - <summary>" --command '<exact routed command>' --json
+orca terminal create --worktree <selector> --title "<Role> - <summary>" --command '<exact launch_command>' --json
 orca terminal wait --terminal <handle> --for tui-idle --timeout-ms 60000 --json
 ```
 
-For an account-bound packet, perform the same process, credential-override, native identity, model/effort and freshness verification in step 3 above. The selected account need not be Orca's active account on this path; its exact profile and identity must match the live process. Resolve trust or sign-in prompts as readiness gaps. Then attach the unchanged assignment:
+Proceed only on `wait.satisfied: true`. For an account-bound packet, perform the process, credential-override, native identity, model/effort and freshness verification in step 3 above; the selected account need not be Orca's active account on this path. Resolve trust or sign-in prompts as readiness gaps. Then attach the unchanged assignment:
 
 ```sh
-orca orchestration worker-start --run <runId> --spec "<packet spec>" --task-title "<summary>" --worktree <selector> --terminal <handle> --json
+orca orchestration worker-start --spec-file <spec file> --task-title "<Role> - <summary>" --worktree <selector> --terminal <handle> [--run <runId>] --json
 ```
 
-Proceed only on `wait.satisfied: true`. `--terminal` cannot combine with `--model`/`--effort`; retain the actual command and tuple acceptance as evidence. The creator owns this external terminal even when the attached dispatch has managed lifecycle state.
+`--terminal` cannot combine with `--model`/`--effort`; retain the actual command and tuple acceptance as evidence. The assignment's creator owns this terminal.
 
-**Complete when:** the task has an authoritative Dispatch, delivery has a receipt, and the intended model/effort and resource ownership are established. Input acceptance alone is not an acknowledgement or completion.
+**Complete when:** the task has an authoritative Dispatch, the intended model/effort is evidenced, and resource ownership is recorded. Input acceptance alone is not an acknowledgement or completion.
 
 ## Full handoff
 
-A full handoff transfers the assignment and its resource ownership; it creates no coordinator Run or Task. Create the terminal and wait for `wait.satisfied: true` using **Custom model arguments** above, then send the packet instead of attaching a Dispatch:
+A full handoff transfers the assignment and its resource ownership to the named principal; it creates no Run or Task. For a packet without `account_binding`, use the guide's nothing-back recipe with the packet's tuple: `orca worktree create --name <name> --no-parent --agent <agent> --model <model> --effort <effort> --prompt "<packet spec>" --json` for a new workspace, or `orca agent launch --agent <agent> --worktree <selector> --model <model> --effort <effort> --prompt "<packet spec>" --json` for an existing one. An account-bound packet never sends its spec with the launch: prepare and verify the process first (steps 1–3 above for `orca-native`, settling any readiness Task; **Custom model arguments** for `command`), then deliver the spec to that same verified terminal with `orca terminal send --terminal <handle> --text "<packet spec>" --enter --json`. Without that proof, the handoff stays blocked.
 
-```sh
-orca terminal send --terminal <handle> --text "<packet spec>" --enter --wait-submit 10 --json
-```
+Report the exact workspace and agent session from the receipt, transfer cleanup responsibility, and stop supervising. A supervised assignment keeps its `reports_to`; do not turn it into a handoff for a launcher's convenience.
 
-Report the exact workspace/terminal and receipt, transfer cleanup responsibility, and stop supervising. `accepted: true` proves input acceptance; `turn_started` is stronger submission evidence. A handoff does not require a fresh checkout. When one is justified, `worktree create --repo <selector> --name <slug> --no-parent --json` creates independent work; use `--parent-worktree current` and the intended base for stacked work.
+**Complete when:** the receipt shows the agent started with the packet's tuple and prompt, and the new owner, principal, and resource responsibility are recorded.
 
-**Complete when:** the receipt proves acceptance and the new owner, principal, and resource responsibility are recorded.
+## Wait, answer, and steer
 
-## Collect and answer mail
+Follow the guide: after starting every ready assignment, end the turn; Orca wakes the coordinator when mail arrives, and its `check` marks the returned batch handled. Do not poll, run watch scripts, or read worker terminals for progress. Crew adds:
 
-Use one collector per inbox. Inside Orca, use turn-end waiting when delivery wake is established: drain and acknowledge mail, record pending Dispatches, then end the turn. Orca's inbox notice wakes the next turn. An unacknowledged batch blocks subsequent notices; a duplicate notice with an empty inbox requires no further action.
+- Resolve a `question` or `escalation` from the assignment contract, or escalate it to this owner's principal; reply by exact message ID.
+- Verify a `worker_done` against the contract before accepting it, and record the outcome and its evidence pointers in the work record.
+- A Captain dispatched by a Commander is both a worker and a coordinator: it reports upstream through its own preamble's `ask`/`worker_done` and supervises its Workers through its own Run. Handle both kinds of wake before ending the turn.
+- Steer a running or settled owner with the guide's `send --to dispatch:<dispatchId>`; a decision or resource transfer that needs acknowledgement waits for a correlated reply.
 
-Wait only after draining actionable mail and starting ready work. Eight Workers reporting to one Run share one inbox: a message from any of them can wake its collector while the others continue. Track their Task/Dispatch IDs and handle each result as it arrives; never join Workers one at a time. A nested coordinator also owns its parent-facing inbox obligations; waiting on its child Run must not strand parent steering.
-
-Without a verified wake and with no independent work ready, keep one blocking CLI call alive and resume that same command across harness yields:
-
-```sh
-orca orchestration check --run <runId> --wait --types worker_done,escalation,question,status,dispatch,merge_ready,handoff,decision_gate --timeout-ms 900000 --json
-```
-
-The 900000 ms value is a 15-minute ceiling on this CLI call, not a mandatory delay or an eight-worker completion barrier. A matching message returns it early. The filter includes all current non-heartbeat types because `status` can carry steering or an approval; use a filter only when it includes every actionable type for the assignment. Keepalive lines every 15 seconds prove CLI liveness, not worker progress or a model wake.
-
-The CLI deadline and the harness tool-yield interval are separate. Keep observation calls within the active harness's responsiveness limit; resume the existing CLI operation after a yield rather than replacing it with repeated short checks. If another owned inbox or a scheduled coordination action has an earlier deadline, cap the CLI wait accordingly. Use one collector per inbox and consume its complete FIFO delivery: `--types` controls waking, not returned contents. `--peek` and `--all` do not consume the inbox.
-
-- `question` or `escalation`: resolve from the contract or escalate to the principal. Answer by exact message ID: `orca orchestration reply --id <messageId> --body "<answer>" --json`.
-- `worker_done`: require the expected task/dispatch IDs and outcome, then verify the result against the contract. Orca settles the task; do not separately mark it completed.
-- Status/heartbeat: act on meaningful changes; unchanged liveness needs no progress narrative.
-
-For every message, capture its ID, instruction or result, and next action in the existing work record or continuation state. Then acknowledge the whole batch immediately, before long commands, implementation, result verification, or ending the turn. Receipt acknowledgement releases FIFO delivery; it does not mean the requested work is fulfilled or accepted. Process every batch returned by acknowledgement the same way until `count: 0`, then execute the resulting actions under the newest applicable instruction. If a delivery replays, recover its captured actions and acknowledge it before doing other work:
-
-```sh
-orca orchestration check --run <runId> --ack <deliveryId> --json
-```
-
-Address steering to the inbox the owner actually collects: its Dispatch normally, or its explicitly reported child Run when it coordinates nested work. Keep task/dispatch correlation in replies. Steer an existing owner with `orca orchestration send --to dispatch:<dispatchId> --subject "<summary>" --body "<guidance>" --json`. Enqueued mail does not prove the owner read it. Decisions and resource transfers requiring acknowledgement need an explicit correlated reply.
-
-**Complete when:** the final acknowledgement returns `count: 0`, and every pending assignment still has a collector or verified wake.
-
-## Worker lifecycle
-
-Use the live preamble's executable and exact `--from`, task, dispatch, and capability arguments; copy its lifecycle commands rather than reconstructing authority from environment or older messages.
-
-- Read steering at natural work checkpoints and before completion with the preamble's `check`; handle and acknowledge whole batches. A coordinator that also implements keeps servicing its own inbox at those checkpoints.
-- Ask with `orca orchestration ask --question "<question>" --timeout-ms 600000 <preamble authority> --json`. On timeout, the question stays pending: continue with `--resume <messageId>` instead of creating another question. Follow the principal's actual reply.
-- Send exactly one terminal report using the preamble's `send --type worker_done --outcome succeeded|failed`, including actual evidence, remaining work, and only files/report paths that exist. Then stop until a fresh assignment arrives. Send heartbeats only when the live protocol requires them; a blocked ask already supplies its own liveness.
-
-**Complete when:** the outcome is accepted by Orca for the active Dispatch. `consumer_fenced` means authority ended; stop lifecycle writes rather than retrying stale credentials.
-
-## Recover a discrepancy
-
-Use the current Run's `worker-list --run <runId> --json` and the exact attempt's `worker-show --dispatch <dispatchId> --json`; follow `projection.nextAction`. A running shell is not proof of a running agent, and `unverifiable`, silence, or host loss is not proof of exit.
-
-`worker-read --dispatch <dispatchId> --source auto --limit 50 --json` is available for bounded recovery, such as an ended turn without completion or a receipt directing inspection. Inspect its source/fallback reason and continue its cursor only as needed to resolve that discrepancy. Routine progress sampling is not recovery.
-
-On positive proof that an agent ended without completion, use `worker-stop --dispatch <dispatchId> --json`, then retry a supervised attempt with `worker-start --task <taskId> --retry-of <dispatchId>` and the original placement/agent flags. For a manually created process, fencing the Dispatch does not stop it: the recorded creator must close its exact terminal before replacement. Preserve unknown outcomes and circuit-break refusals.
-
-After an ambiguous mutation, use `orca orchestration request-show --request <requestId> --json`. A completed receipt is authoritative; replay a pending operation only with its original arguments and `--retry-request`. An absent receipt alone does not prove nothing happened. For uncertain prompt delivery, observing/replaying the original request must not submit a second prompt.
-
-**Complete when:** the discrepancy is resolved or explicitly retained with its owner and next action, and no duplicate attempt or unmanaged process is left behind.
+**Complete when:** every returned batch is handled, every pending assignment has a running Dispatch that can wake this coordinator, and any recovery follows the guide's recovery reference.
 
 ## Retire resources
 
-After accepting the outcome, reuse a proven live terminal only for an immediate new assignment with an explicit ownership transfer; otherwise release or retain it deliberately:
+After accepting an outcome, follow the guide's cleanup rules: finished workers in an existing workspace close on their own, while workers started in a new worktree, with `--keep-open`, or on an attached terminal stay open until `worker-release --dispatch <dispatchId> --json`. If release reports `retained` or `no_owned_resource` for a terminal Crew created outside `worker-start`—native `agent launch` preparation or **Custom model arguments**—close that exact terminal with `orca terminal close --terminal <handle> --json` and confirm it is gone from `orca terminal list --worktree <selector> --json`. Never close a pre-existing or user-kept-open terminal, and preserve `release_pending`/`release_unknown` with their recovery pointers.
 
-```sh
-orca orchestration worker-release --dispatch <dispatchId> --json
-orca orchestration worker-list --run <runId> --terminal-state reclaimable --json
-```
+Retire the checkout separately under **Retire an owner** in `SKILL.md`: after integration or authorized abandonment, remove only an assignment-created worktree with `orca worktree rm --worktree id:<worktree.id> --json`, and report dirty or unmerged refusals with an exact pointer.
 
-Managed release archives output and closes its owned agent terminal. Preserve `release_pending`/`release_unknown` and their recovery pointers; do not manually close to bypass them. For debugging, use `worker-retain` and record who will reclaim it.
-
-A custom terminal may be retained as external or return `no_owned_resource`; low-level dispatches do not grant Orca process ownership. Once that Dispatch settles, its recorded creator closes the exact assignment-created terminal with `terminal close --terminal <handle> --json`. Verify `ptyKilled: true` and absence from `terminal list --worktree <selector> --json`. Preserve pre-existing/user-owned terminals.
-
-Apply **Retire an owner** in `SKILL.md` to the checkout separately. After integration or authorized abandonment, remove only the assignment-created worktree with `worktree rm --worktree id:<worktree.id> --json`. Verify worktree and branch disposition independently, including patch evidence for squash/cherry-pick integration. Report dirty/unmerged refusals with an exact pointer; do not hide errors or force removal.
-
-**Complete when:** no reclaimable managed terminals remain, every manually owned process is closed or explicitly retained, and each created worktree/branch is removed or has a reported cleanup owner and next action.
-
-## Remote execution and lost authority
-
-Discover an exact workspace/repository on the execution host. `worker-start --on <environment>` selects only that worker server; the Run remains on its home server. Remote `current` and `new-child` are invalid. Use an existing remote selector or `new-top-level` with the exact remote repository. After launch, address the Dispatch through lifecycle APIs rather than remote terminal guesses. Include `--include-remote` in fleet recovery and follow pagination when present. Contact loss leaves process state unknown; execution-host evidence owns cleanup.
-
-If the CLI reports legacy or fenced coordinator authority, preserve its receipt and consult the indicated command's help. Take over a Run only when the original coordinator is unavailable and ownership has actually transferred. Do not create a competing coordinator or reset live state to evade a refusal.
-
-**Complete when:** one coordinator has authority and the execution host's resources are accounted for, or an explicit unresolved ownership gap is reported.
+**Complete when:** every Dispatch the assignment created is settled and released or retained with a reason, every Crew-created terminal is closed or retained with an owner, and each created worktree and branch is removed or has a reported cleanup owner and next action.

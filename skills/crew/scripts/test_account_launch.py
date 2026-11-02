@@ -137,7 +137,9 @@ def native_fixture(tmp_path, *, active='selected', provider='claude', surface='r
     name = 'agent launch' if surface == 'agent-launch' else 'orchestration worker-start'
     flags = ['agent', 'model', 'effort', 'worktree', 'json']
     if surface == 'readiness-worker':
-        flags += ['spec', 'task', 'terminal', 'run', 'retry-of']
+        flags += ['spec', 'task', 'terminal', 'run', 'retry-of', 'keep-open']
+    if surface == 'agent-launch':
+        flags += ['surface']
     commands = [{'command': name, 'flags': flags}]
     if surface == 'agent-launch':
         commands.append({'command': 'orchestration worker-start',
@@ -182,9 +184,13 @@ def test_orca_native_prepares_through_supported_launcher_without_delivering(tmp_
     if surface == 'agent-launch':
         assert prepare[1:3] == ['agent', 'launch']
         assert '--spec' not in prepare
+        # Process verification needs a terminal even when the user's default is chat.
+        assert prepare[3:5] == ['--surface', 'terminal']
     else:
         assert prepare[1:4] == ['orchestration', 'worker-start', '--spec']
         assert 'readiness only' in prepare[4]
+        # Orca auto-releases finished workers; the prepared terminal must survive verification.
+        assert prepare[5] == '--keep-open'
         assert packet['spec'] not in prepare
     assert 'env' not in prepare and '/profiles/current' not in prepare
     (tmp_path / 'allow-prepare').touch()

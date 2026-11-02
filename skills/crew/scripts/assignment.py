@@ -53,8 +53,8 @@ KNOWN_MANIFESTS = {
         "launchable_agents": ["claude", "codex", "opencode", "grok"],
         "launch_notes": {
             "codex": (
-                "Read Crew's references/orca.md before dispatch for Codex wrapper "
-                "model/effort arguments and supervised terminal attachment."
+                "Read Crew's references/orca.md before dispatch; an account_binding "
+                "selects its launch path."
             ),
             "grok": (
                 "Read Crew's references/orca.md before dispatch. If "
@@ -82,17 +82,18 @@ KNOWN_MANIFESTS = {
             "opencode": ["opencode", "--model", "{model}"],
         },
         "supervised_protocol": (
-            "Read Crew's references/orca.md for mail and lifecycle commands. "
-            "Preserve reports_to above and use the live preamble's Dispatch authority."
+            "Follow the live Orca preamble and Orca's guide (`orca skills get "
+            "orchestration`) for asks, steering, and worker_done; preserve reports_to above."
         ),
         "communication": (
-            "Orca dispatch carries questions, escalation, status, and "
-            "completion; dependency order is represented once in Orca."
+            "Launch with orchestration worker-start per Crew's references/orca.md; "
+            "Orca mail carries questions, escalation, status, and completion and "
+            "wakes the coordinator. Dependency order is represented once in Orca."
         ),
         "retire": (
-            "Follow Crew's references/orca.md to settle the Dispatch, release "
-            "managed resources, and close assignment-created external terminals. "
-            "Then verify dedicated worktree and branch retirement."
+            "Follow Crew's references/orca.md: release kept-open or new-worktree "
+            "workers, close Crew-created terminals, then retire dedicated "
+            "worktrees and branches."
         ),
         "extras": {"front_key": "^[^/]+/[^/]+$"},
     },
@@ -808,16 +809,18 @@ def orca_preparation_surface(command, *, profile_command=False):
     common = {'agent', 'model', 'effort', 'worktree', 'json'}
     attachment = {'spec', 'task', 'terminal', 'run', 'retry-of', 'worktree', 'json'}
     worker = surfaces.get('orchestration worker-start', set())
+    launch = surfaces.get('agent launch', set())
     if attachment <= worker:
         if profile_command:
             if ({'worktree', 'command', 'json'} <= surfaces.get('terminal create', set()) and
                     {'terminal', 'for', 'timeout-ms', 'json'} <= surfaces.get('terminal wait', set())):
-                return 'profile-command'
+                return 'profile-command', []
             raise Error('Orca lacks profile-command preparation/attachment capability; preserve the model and resolve launch readiness before task delivery')
-        if common <= surfaces.get('agent launch', set()):
-            return 'agent-launch'
+        # Verification needs a live terminal that survives Orca's automatic release.
+        if common <= launch:
+            return 'agent-launch', ['--surface', 'terminal'] if 'surface' in launch else []
         if common <= worker:
-            return 'readiness-worker'
+            return 'readiness-worker', ['--keep-open'] if 'keep-open' in worker else []
     raise Error('Orca has no supported native preparation/attachment capability for this binding; preserve the decision and resolve launch readiness before task delivery')
 
 
@@ -867,13 +870,13 @@ def orca_native_preparation(binding, routing, *, allow_profile=False, router=Non
     if not expected or any(account.get(key) != value for key, value in public_expected.items()):
         raise Error('Orca native account identity changed or is missing; rerun routing')
     account_binding_argv(binding, routing['agent'], router=router)
-    surface = orca_preparation_surface(command, profile_command=inactive)
+    surface, options = orca_preparation_surface(command, profile_command=inactive)
     account_binding_argv(binding, routing['agent'], router=router)  # Discovery may outlast the remaining quota evidence.
     if surface == 'profile-command':
         return surface, None
     argv = [command] + (['agent', 'launch'] if surface == 'agent-launch' else
                       ['orchestration', 'worker-start', '--spec', ORCA_READINESS_SPEC])
-    argv += ['--agent', routing['agent'], '--model', routing['model'], '--effort', routing['effort']]
+    argv += options + ['--agent', routing['agent'], '--model', routing['model'], '--effort', routing['effort']]
     return surface, argv
 
 
@@ -1035,7 +1038,7 @@ def build_packet(args):
         packet['prepare_command'] = shlex.join(argv)
         packet['delivery_gate'] = (
             "Preparation only: add the exact --worktree selector and --json; "
-            "for readiness-worker also add the coordinator Run's --run. "
+            "for readiness-worker also add --run <runId> when this front already has a Run. "
             "Follow references/orca.md to verify the actual account/profile, credential "
             "overrides, model and effort against this fresh binding before task delivery. "
             "Settle a readiness-only Task, then attach the unchanged assignment to that "
