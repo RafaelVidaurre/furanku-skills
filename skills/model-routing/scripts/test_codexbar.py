@@ -196,12 +196,13 @@ def test_real_process_receives_exact_profile_and_scrubbed_credentials(tmp_path, 
     monkeypatch.setenv('OPENAI_BASE_URL', 'synthetic-endpoint')
     script = tmp_path / 'fake-codexbar'
     script.write_text('#!' + sys.executable + '\nimport os,sys,json\n'
-        'assert sys.argv[1:] == ["usage","--provider","codex","--source","cli","--format","json","--no-credits"]\n'
+        'assert sys.argv[1:] == ["usage","--provider","codex","--source","cli","--all-accounts","--format","json","--no-credits"]\n'
         'assert os.environ["CODEX_HOME"] == "/synthetic/space profile"\n'
         'assert "OPENAI_API_KEY" not in os.environ and "OPENAI_BASE_URL" not in os.environ\n'
         'print(' + repr(json.dumps(payload())) + ')\n')
     script.chmod(0o700)
-    result = accounts.profile_measurement({'provider': 'codex', 'profile': '/synthetic/space profile'}, {**DEP, 'command': str(script)})
+    result = accounts.profile_measurement({'provider': 'codex', 'profile': '/synthetic/space profile',
+                                           'expected_identity': {'email': 'user@example.test'}}, {**DEP, 'command': str(script)})
     assert result['status'] == 'known'
     env = accounts.profile_environment({'provider': 'claude', 'profile': '/synthetic/claude'})
     assert not set(accounts.UNSET_ENV['claude']) & env.keys()
@@ -268,3 +269,39 @@ def test_proxy_quota_keeps_billing_provider_and_model_limits():
     assert state['quota']['effective_percent_remaining'] == 80
     reasons, _ = router.gate('proxy', candidates['proxy'], runtime, expected_accounts={'codex': 'different@example.test'})
     assert any('measured for account' in reason for reason in reasons)
+
+
+def codex_accounts(*emails):
+    records = []
+    for index, email in enumerate(emails):
+        record = payload(used=10 * (index + 1))[0]
+        record['account'] = email
+        record['usage']['identity']['accountEmail'] = email
+        records.append(record)
+    return records
+
+
+def test_codex_profile_reading_is_selected_by_email_from_every_codexbar_account():
+    listed = codex_accounts('selected@example.test', 'profile@example.test')
+    with patch.object(codexbar, 'run', return_value=json.dumps(listed)) as run:
+        m = codexbar.read('codex', DEP, account_email='profile@example.test')
+    assert '--all-accounts' in run.call_args.args[0]
+    assert m['status'] == 'known' and m['identity']['email'] == 'profile@example.test'
+    assert m['windows'][0]['percentRemaining'] == 80
+
+
+@pytest.mark.parametrize('listed', [('selected@example.test',), ('profile@example.test', 'profile@example.test')])
+def test_codex_profile_without_one_matching_codexbar_account_stays_unknown(listed):
+    with patch.object(codexbar, 'run', return_value=json.dumps(codex_accounts(*listed))):
+        m = codexbar.read('codex', DEP, account_email='profile@example.test')
+    assert m['status'] == 'unknown' and m['windows'] == []
+    assert 'this email' in m['detail']
+
+
+def test_codex_profile_measurement_passes_its_expected_email_and_needs_one():
+    row = {'provider': 'codex', 'profile': '/synthetic/codex', 'expected_identity': {'email': 'profile@example.test'}}
+    with patch.object(codexbar, 'run', return_value=json.dumps(codex_accounts('selected@example.test', 'profile@example.test'))):
+        assert accounts.profile_measurement(row, DEP)['identity']['email'] == 'profile@example.test'
+    with patch.object(codexbar, 'run') as run, pytest.raises(ValueError, match='expected email'):
+        accounts.profile_measurement({**row, 'expected_identity': {}}, DEP)
+    run.assert_not_called()

@@ -133,9 +133,14 @@ def profile_measurement(row, dependency, *, refresh=False):
             expected.get(key) and native.get(remote) != expected[key]
             for key, remote in [('email', 'email'), ('organizationUuid', 'orgId')]):
             raise ValueError('Claude profile is signed out or native identity does not match configured account')
-    result = codexbar.read(row['provider'], dependency, env)
-    identity = result.get('identity', {})
     expected = row.get('expected_identity', {})
+    if row['provider'] == 'codex':
+        if not expected.get('email'):
+            raise ValueError('Codex profile has no expected email; CodexBar selects Codex accounts by email')
+        result = codexbar.read('codex', dependency, env, account_email=expected['email'])
+    else:
+        result = codexbar.read(row['provider'], dependency, env)
+    identity = result.get('identity', {})
     if result['status'] == 'known':
         if any(expected.get(k) and identity.get(k) != expected[k] for k in ('email', 'organization')):
             raise ValueError('Measured identity does not match configured account')

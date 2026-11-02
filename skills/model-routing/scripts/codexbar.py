@@ -31,16 +31,38 @@ def verify(dependency):
         raise ValueError(f"CodexBar version mismatch; install tested version {dependency['version']}")
 
 
-def read(provider, dependency, env=None):
+def read(provider, dependency, env=None, *, account_email=None):
     if provider not in ('claude', 'codex'):
         return {'status': 'unknown', 'windows': [], 'source': 'codexbar',
                 'detail': f'CodexBar routing adapter has no verified quota contract for {provider}'}
-    raw = run([dependency['command'], 'usage', '--provider', provider, '--source', 'cli',
-               '--format', 'json', '--no-credits'], env)
+    argv = [dependency['command'], 'usage', '--provider', provider, '--source', 'cli',
+            '--format', 'json', '--no-credits']
+    # CodexBar reads Codex quota for its own selected account and ignores CODEX_HOME,
+    # so a profile's reading is picked by email from every account CodexBar lists.
+    if account_email is not None:
+        argv.insert(-3, '--all-accounts')
     try:
-        return measurement(json.loads(raw), provider)
+        payload = json.loads(run(argv, env))
     except json.JSONDecodeError:
         raise ValueError('CodexBar returned invalid JSON') from None
+    if account_email is None:
+        return measurement(payload, provider)
+    if not isinstance(payload, list):
+        raise ValueError('CodexBar schema: expected a list of accounts')
+    matches = [record for record in payload if record_email(record) == account_email]
+    if len(matches) != 1:
+        return {'status': 'unknown', 'windows': [], 'source': 'codexbar', 'detail': (
+            'CodexBar lists several accounts with this email; quota cannot be attributed' if matches
+            else 'CodexBar lists no account with this email; add the account to CodexBar')}
+    return measurement(matches, provider)
+
+
+def record_email(record):
+    if not isinstance(record, dict):
+        return None
+    usage = record.get('usage') if isinstance(record.get('usage'), dict) else {}
+    identity = usage.get('identity') if isinstance(usage.get('identity'), dict) else {}
+    return identity.get('accountEmail') or usage.get('accountEmail') or record.get('account')
 
 
 def measurement(payload, provider):
