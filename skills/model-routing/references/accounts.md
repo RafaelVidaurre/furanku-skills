@@ -8,7 +8,7 @@ Run `python3 <skill-dir>/scripts/router.py accounts --repo <root>` and return it
 
 CodexBar CLI is the sole live quota reader. Install the exact version in [runtime-dependencies.json](runtime-dependencies.json), following the [CodexBar skill](../../codexbar/SKILL.md). The adapter checks the installed version and runs `codexbar usage --provider <claude|codex> --source cli --format json --no-credits` once per selected profile. CodexBar reads Codex quota for the accounts it lists, not for `CODEX_HOME`, so a Codex profile adds `--all-accounts` and takes the one entry whose email equals the profile's expected email; a Codex profile without an expected email, an email CodexBar does not list, or an email it lists more than once stays unknown. Add every Codex account to CodexBar. Other billing providers currently return unknown: their CodexBar output contracts have not been qualified by this adapter. Rotating-proxy policies keep their existing pooled semantics.
 
-Claude uses `CLAUDE_CONFIG_DIR`; Codex uses `CODEX_HOME`. Credential overrides are unset. Claude first runs native `claude auth status --json` in the same profile, verifies email and organization ID against configured/discovered identity, then matches CodexBar's email and, when CodexBar reports one, organization name; a blank organization is accepted only when no other configured or discovered Claude account in the inventory shares that email, otherwise the reading stays unknown with an ambiguity reason. Two accounts with one email remain distinct. Profile selection defaults to `profile_mode: directory`, including an explicit override that spells `~/.claude`. Use `profile_mode: native-default` only for Claude's observed native default at that path; collection and launch then keep `CLAUDE_CONFIG_DIR` unset. Its binding carries `native_default_profile` for process-home verification. Selection modes can use different credential storage, so path equality never changes a configured mode. Native identity and attributed quota still have to match. See the [native configuration directory](https://code.claude.com/docs/en/env-vars). CodexBar's Codex CLI output reports email but no stable account ID: the measured email establishes quota attribution; Orca's account ID remains discovery/launch evidence, never a fabricated measured ID. Native launch identity checks remain mandatory.
+Claude uses `CLAUDE_CONFIG_DIR`; Codex uses `CODEX_HOME`. Credential overrides are unset. Claude first runs native `claude auth status --json` in the same profile, verifies email and organization ID against configured/discovered identity, then matches CodexBar's email and, when CodexBar reports one, organization name; a blank organization stays unknown when another configured or discovered Claude account shares that email with a different or missing organization UUID. Registrations with the same email and verified native organization UUID are aliases of one billing identity. The ambiguity check uses the full inventory, including accounts excluded from selection. Profile selection defaults to `profile_mode: directory`, including an explicit override that spells `~/.claude`. Use `profile_mode: native-default` only for Claude's observed native default at that path; collection and launch then keep `CLAUDE_CONFIG_DIR` unset. Its binding carries `native_default_profile` for process-home verification. Selection modes can use different credential storage, so path equality never changes a configured mode. Native identity and attributed quota still have to match. See the [native configuration directory](https://code.claude.com/docs/en/env-vars). CodexBar's Codex CLI output reports email but no stable account ID: the measured email establishes quota attribution; Orca's account ID remains discovery/launch evidence, never a fabricated measured ID. Native launch identity checks remain mandatory.
 
 Only returned windows are reported. Every applicable general and named-model window binds selection; an exhausted week blocks a healthy session. Missing windows remain unreported, never 100%. Invalid percentages, unknown scoped windows, conflicting identity, stale data, and provider errors cannot establish headroom. Claude CLI percentages may be coarse (`percentOnly`); they are not token counts. Credits and paid overage are not enabled.
 
@@ -57,6 +57,19 @@ Add `account_routing` to a version 4 configuration with `config.py write`. The h
 - `max_age_seconds` defaults to 300 (maximum 1800). Passing a reset time does not manufacture fresh headroom. Account priorities do not override model policy, task requirements, or exact routes.
 
 `accounts` / candidate `quota_account` retain their fixed-launcher meaning. Dynamic selection applies only to direct Claude/Codex candidates; external-provider and pooled candidates keep their existing gates.
+
+For a policy that follows the machine's native Claude default, keep `source: orca` and use only this Claude profile row, preserving other providers and unrelated configuration:
+
+```json
+"claude:system-default": {
+  "profile": "~/.claude",
+  "profile_mode": "native-default",
+  "discovery": "configured",
+  "min_remaining_percent": 0
+}
+```
+
+Omit `expected_identity` to follow the identity currently verified by public Orca discovery and native authentication. Write the merged private layer through `config.py write`, then check it with the helper installation the launcher actually uses. A stale project-local helper may lack this mode even when a global copy supports it; refresh it through the supported skills installer before diagnosing sign-in or requesting an account switch.
 
 **Complete when:** the effective report shows the intended policy and a live decision binds the intended provider/profile.
 

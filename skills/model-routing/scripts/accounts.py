@@ -151,6 +151,7 @@ def profile_measurement(row, dependency, *, refresh=False, inventory_rows=()):
             if not measured_org and any(
                     other is not row and other['provider'] == 'claude'
                     and other.get('expected_identity', {}).get('email') == native['email']
+                    and other.get('expected_identity', {}).get('organizationUuid') != native['orgId']
                     for other in inventory_rows):
                 raise ValueError('Measured Claude identity is ambiguous: blank organization and another account shares the email')
             identity['organizationUuid'] = native['orgId']
@@ -248,6 +249,7 @@ def failure_category(measurement):
     """Bounded diagnostic labels; never echo provider error text into decisions."""
     detail = str(measurement.get('detail') or '').lower()
     for tokens, label in (
+        (('ambiguous',), 'ambiguous organization'),
         (('timed out', 'timeout'), 'timeout'),
         (('rate limit', '429'), 'provider rate limited'),
         (('schema',), 'schema mismatch'),
