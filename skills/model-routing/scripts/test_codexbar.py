@@ -107,6 +107,76 @@ def test_native_organization_preflight_and_measured_name_must_match():
             accounts.profile_measurement(row, DEP)
 
 
+@pytest.mark.parametrize('scope', ['configured', 'discovered', 'native-only'])
+def test_blank_claude_organization_refuses_shared_email(tmp_path, monkeypatch, scope):
+    monkeypatch.setenv('HOME', str(tmp_path / 'home'))
+    monkeypatch.setenv('CODEX_HOME', str(tmp_path / 'codex'))
+    policy = {'profiles': {
+        'claude:personal': {'profile': str(tmp_path / 'personal'),
+                            'expected_identity': {'email': 'user@example.test', 'organizationUuid': 'org-personal'}},
+        'claude:team': {'profile': str(tmp_path / 'team'),
+                       'expected_identity': {'email': 'user@example.test', 'organizationUuid': 'org-team'}}}}
+    raw = payload('claude')
+    raw[0]['usage']['identity'].pop('accountOrganization')
+    discovered = {'result': {'claude': {'activeAccountId': 'personal', 'accounts': [
+        {'id': 'personal', 'email': 'user@example.test', 'organizationUuid': 'org-personal'},
+        {'id': 'team', 'email': 'user@example.test', 'organizationUuid': 'org-team'}]}}}
+    if scope != 'configured':
+        policy.update(source='orca', orca_command='synthetic-orca')
+    if scope == 'discovered':
+        del policy['profiles']['claude:team']
+
+    def native(args, env=None, **kwargs):
+        if args == ['synthetic-orca', 'account', 'list', '--json']:
+            return discovered
+        name = Path(env['CLAUDE_CONFIG_DIR']).name
+        return {'loggedIn': True, 'email': 'user@example.test',
+                'orgId': 'org-' + name, 'orgName': name.title()}
+
+    with patch.object(codexbar, 'verify'), patch.object(accounts, 'command_json', side_effect=native), \
+            patch.object(codexbar, 'read', side_effect=lambda *a, **kw: codexbar.measurement(raw, 'claude')):
+        report = accounts.inventory(policy, DEP, providers=['claude'],
+                                    native_only_providers=['claude'] if scope == 'native-only' else [])
+    assert {account['id'] for account in report['accounts']} == ({'personal', 'team'} if scope == 'configured' else {'personal'})
+    for account in report['accounts']:
+        measurement = account['measurement']
+        assert measurement['status'] == 'unknown'
+        assert measurement['windows'] == []
+        assert 'ambiguous' in measurement['detail'].lower()
+        assert 'email' in measurement['detail'].lower()
+    assert accounts.choose(report, 'claude', 'opus') is None
+
+
+@pytest.mark.parametrize('other_provider, other_email, organization, expected_status', [
+    ('claude', 'other@example.test', None, 'known'),
+    ('codex', 'user@example.test', None, 'known'),
+    ('claude', 'user@example.test', 'Personal', 'known'),
+    ('claude', 'user@example.test', 'Other', 'unknown'),
+])
+def test_claude_inventory_preserves_unambiguous_and_named_organization_checks(
+        tmp_path, monkeypatch, other_provider, other_email, organization, expected_status):
+    monkeypatch.setenv('HOME', str(tmp_path / 'home'))
+    monkeypatch.setenv('CODEX_HOME', str(tmp_path / 'codex'))
+    policy = {'profiles': {
+        'claude:personal': {'profile': str(tmp_path / 'personal'),
+                            'expected_identity': {'email': 'user@example.test', 'organizationUuid': 'org-personal'}},
+        other_provider + ':other': {'profile': str(tmp_path / 'other'),
+                                    'expected_identity': {'email': other_email}}}}
+    raw = payload('claude')
+    raw[0]['usage']['identity']['accountOrganization'] = organization
+    native = {'loggedIn': True, 'email': 'user@example.test', 'orgId': 'org-personal', 'orgName': 'Personal'}
+    with patch.object(codexbar, 'verify'), patch.object(accounts, 'command_json', return_value=native), \
+            patch.object(codexbar, 'read', side_effect=lambda *a, **kw: codexbar.measurement(raw, 'claude')):
+        report = accounts.inventory(policy, DEP, providers=['claude'])
+    personal = next(account for account in report['accounts'] if account['id'] == 'personal')
+    assert personal['measurement']['status'] == expected_status
+    if expected_status == 'known':
+        assert personal['measurement']['identity']['organizationUuid'] == 'org-personal'
+        assert accounts.choose({'accounts': [personal]}, 'claude', 'opus') is personal
+    else:
+        assert 'does not match native Claude organization' in personal['measurement']['detail']
+
+
 def test_codex_profile_identity_mismatch_refuses_without_binding():
     policy = {'profiles': {'codex:one': {'profile': '/synthetic/one', 'expected_identity': {'email': 'other@example.test'}}}}
     with patch.object(codexbar, 'verify'), patch.object(codexbar, 'read', return_value=codexbar.measurement(payload(), 'codex')):

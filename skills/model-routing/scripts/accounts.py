@@ -123,7 +123,7 @@ def profile_environment(row):
     return env
 
 
-def profile_measurement(row, dependency, *, refresh=False):
+def profile_measurement(row, dependency, *, refresh=False, inventory_rows=()):
     env = profile_environment(row)
     native = None
     if row['provider'] == 'claude':
@@ -145,11 +145,14 @@ def profile_measurement(row, dependency, *, refresh=False):
         if any(expected.get(k) and identity.get(k) != expected[k] for k in ('email', 'organization')):
             raise ValueError('Measured identity does not match configured account')
         if native:
-            # CodexBar reads this profile's own CLI credential (web sources are refused),
-            # and it omits the organization for personal accounts; a reported name must still agree.
             measured_org = identity.get('organization')
             if identity.get('email') != native['email'] or (measured_org and measured_org != native.get('orgName')):
                 raise ValueError('Measured identity does not match native Claude organization')
+            if not measured_org and any(
+                    other is not row and other['provider'] == 'claude'
+                    and other.get('expected_identity', {}).get('email') == native['email']
+                    for other in inventory_rows):
+                raise ValueError('Measured Claude identity is ambiguous: blank organization and another account shares the email')
             identity['organizationUuid'] = native['orgId']
     return result
 
@@ -169,8 +172,6 @@ def inventory(policy, dependency, now=None, *, refresh=False, providers=None, na
                 identity = account['id']
                 active = identity == group.get('activeAccountId')
                 key = f'{provider}:{identity}'
-                if policy.get('profiles') and key not in policy['profiles']:
-                    continue
                 rows[key] = {'key': key, 'id': identity, 'provider': provider,
                              'discovery': {'source': 'orca', 'command': orca_command(policy)},
                              'launch_ready': not account.get('needsSignIn', False),
@@ -209,7 +210,7 @@ def inventory(policy, dependency, now=None, *, refresh=False, providers=None, na
     def measure(row):
         if row.get('profile'):
             try:
-                row['measurement'] = profile_measurement(row, dependency, refresh=refresh)
+                row['measurement'] = profile_measurement(row, dependency, refresh=refresh, inventory_rows=rows.values())
             except (ValueError, OSError, subprocess.TimeoutExpired) as exc:
                 row['measurement'] = {'status': 'unknown', 'windows': [], 'source': 'codexbar', 'detail': str(exc)}
         measurement = row.setdefault('measurement', {'status': 'unknown', 'windows': []})
@@ -223,7 +224,8 @@ def inventory(policy, dependency, now=None, *, refresh=False, providers=None, na
         return row
     with ThreadPoolExecutor(max_workers=4) as pool:
         selected_rows = [row for row in rows.values()
-                         if (providers is None or row['provider'] in providers)
+                         if (not policy.get('profiles') or row['key'] in policy['profiles'])
+                         and (providers is None or row['provider'] in providers)
                          and (row['provider'] not in native_only_providers
                               or (row.get('host_active', row.get('active'))
                                   and row.get('discovery', {}).get('source') == 'orca'))]
