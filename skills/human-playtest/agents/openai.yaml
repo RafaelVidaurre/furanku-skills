@@ -1,0 +1,4 @@
+interface:
+  display_name: "Human Playtest"
+  short_description: "Record spoken feedback with audio and visual evidence"
+  default_prompt: "Use $human-playtest to record this app window and my spoken feedback, then organize it with timestamps and visual evidence."

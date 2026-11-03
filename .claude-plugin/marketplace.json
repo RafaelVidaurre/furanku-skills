@@ -12,7 +12,8 @@
         "./skills/council",
         "./skills/codemap",
         "./skills/usage-drain",
-        "./skills/promo-music-video"
+        "./skills/promo-music-video",
+        "./skills/human-playtest"
       ]
     }
   ]

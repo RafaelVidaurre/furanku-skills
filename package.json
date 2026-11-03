@@ -15,10 +15,12 @@
     "skills/*/references/**",
     "skills/*/scripts/**",
     "skills/*/assets/**",
+    "skills/human-playtest/agents/**",
     "skills/decision-trail/LICENSE.txt",
     "!skills/**/__pycache__/**"
   ],
   "scripts": {
+    "test:human-playtest": "python3 -m unittest discover -s test/human-playtest -p 'test_*.py' -v",
     "check:routing": "python3 -m pytest skills/model-routing/scripts/test_native_default_contract.py skills/model-routing/scripts/test_codexbar.py skills/crew/scripts/test_account_launch.py -q",
     "test": "node --test test/*.test.js skills/guidance-composer/test/*.test.js && python3 -m pytest skills/crew/scripts skills/model-routing/scripts skills/agent-readable-logs/scripts skills/codemap/scripts skills/usage-drain/scripts -q"
   },
