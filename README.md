@@ -26,7 +26,7 @@ npx skills add rafaelvidaurre/furanku-skills --skill testing-best-practices
 
 After install, talk to your agent as usual. When a skill fits, it should load and follow it.
 
-The picker shows skills in groups: most live in the main (**General**) group; skills still proving themselves appear under **Experimental** (currently `council`, `codemap`, `usage-drain`, and `promo-music-video`).
+The picker shows skills in groups: most live in the main (**General**) group; skills still proving themselves appear under **Experimental** (currently `council`, `codemap`, `usage-drain`, `promo-music-video`, and `human-playtest`).
 
 ## Command-line tool
 
@@ -84,6 +84,20 @@ node bin/furanku-skills.js guidance-composer inject --ids simplest-current --mod
 ```
 
 ## Skills (what each one is for)
+
+### human-playtest
+
+**Useful if:** you want to speak feedback while using an app, website, prototype or game, or turn an existing recording into reliable notes.
+
+**What it does:** quietly records video and microphone audio for an exact macOS window or display, with timestamped screenshots (default four per second). It keeps machine-local project preferences and live limits, then extracts feedback with quotes, timestamps and visual evidence and organizes it by topic and user intent. It produces portable results with selected evidence and an agreed source-retention policy. Feedback collection does not authorize fixes or tracker issues. See the [skill and capture requirements](skills/human-playtest/SKILL.md).
+
+```text
+> Record this app window and my voice while I give feedback.
+> Remove this session's storage cap without restarting the recording.
+> Review the playtest recording and organize the feedback by topic.
+```
+
+---
 
 ### guidance-composer
 

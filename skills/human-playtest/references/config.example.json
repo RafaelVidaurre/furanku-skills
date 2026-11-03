@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "settings": {
+    "interval": 0.25,
+    "max_seconds": 3600,
+    "max_bytes": 2147483648,
+    "audio": "microphone",
+    "target": null
+  },
+  "scopes": [
+    {
+      "path": "/path/to/projects",
+      "settings": {
+        "interval": 0.5,
+        "audio": "none"
+      }
+    },
+    {
+      "path": "/path/to/projects/demo-app",
+      "settings": {
+        "interval": 0.25,
+        "max_bytes": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Human playtest machine configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "settings",
+    "scopes"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "settings": {
+      "$ref": "#/$defs/settings"
+    },
+    "scopes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "settings"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?:/|~/)"
+          },
+          "settings": {
+            "$ref": "#/$defs/settings"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "interval": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "max_seconds": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_bytes": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9223372036854775807
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "audio": {
+          "enum": [
+            "microphone",
+            "none"
+          ]
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "id"
+              ],
+              "properties": {
+                "type": {
+                  "enum": [
+                    "window",
+                    "display"
+                  ]
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          ]
+        },
+        "output_root": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?:/|~/)"
+        }
+      }
+    }
+  }
+}

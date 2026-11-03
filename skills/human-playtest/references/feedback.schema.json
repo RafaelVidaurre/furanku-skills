@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Human playtest feedback with speech and visual provenance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "session_id", "items"],
+  "properties": {
+    "version": {"const": 1},
+    "session_id": {"type": "string", "minLength": 1},
+    "items": {"type": "array", "items": {"$ref": "#/$defs/item"}}
+  },
+  "$defs": {
+    "quote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "text", "transcript_file", "segment_ids", "speaker", "accuracy", "source_kind"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "text": {"type": "string", "minLength": 1},
+        "transcript_file": {"type": "string", "minLength": 1, "description": "Source-document pointer: audio transcript, preserved user message, or live note according to source_kind. The field name does not imply an audio source."},
+        "source_kind": {"enum": ["user_text", "machine_asr", "reviewed_audio", "live_agent_note"]},
+        "segment_ids": {"type": "array", "minItems": 1, "items": {"type": ["string", "integer"]}},
+        "speaker": {"enum": ["user", "assistant", "other", "unknown"]},
+        "accuracy": {"enum": ["machine_asr_unverified", "reviewed", "uncertain"]},
+        "uncertainty": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "media_seconds", "relation"],
+      "properties": {
+        "file": {"type": "string", "minLength": 1},
+        "media_seconds": {"type": ["number", "null"], "minimum": 0},
+        "relation": {"enum": ["matching_screen", "nearby_context", "earlier_evidence", "uncertain"]},
+        "uncertainty": {"type": "string"}
+      }
+    },
+    "occurrence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "media_start", "media_end", "timing_basis", "quotes", "frames", "evidence_status", "evidence_uncertainty"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "media_start": {"type": ["number", "null"], "minimum": 0},
+        "media_end": {"type": ["number", "null"], "minimum": 0},
+        "timing_basis": {"enum": ["media_timeline", "pre_recording", "receipt_only", "unknown"]},
+        "feedback_received_at": {"type": "string", "format": "date-time"},
+        "quotes": {"type": "array", "items": {"$ref": "#/$defs/quote"}},
+        "frames": {"type": "array", "items": {"$ref": "#/$defs/frame"}},
+        "evidence_status": {"enum": ["matched", "partial", "pending", "pre_recording", "unavailable"]},
+        "evidence_uncertainty": {"type": "array", "items": {"type": "string"}},
+        "source_note": {"type": "string"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"timing_basis": {"const": "media_timeline"}}},
+          "then": {"properties": {"media_start": {"type": "number"}, "media_end": {"type": "number"}}}
+        },
+        {
+          "if": {"properties": {"timing_basis": {"enum": ["pre_recording", "receipt_only", "unknown"]}}},
+          "then": {"properties": {"media_start": {"type": "null"}, "media_end": {"type": "null"}}}
+        }
+      ]
+    },
+    "suggestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "specificity", "source_quote_ids"],
+      "properties": {
+        "text": {"type": "string", "minLength": 1},
+        "specificity": {"enum": ["direction_only", "example", "concrete_action", "exact_replacement"]},
+        "source_quote_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      }
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "statement", "topics", "intent", "occurrences", "suggestions", "disposition"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "statement": {"type": "string", "minLength": 1, "description": "One concrete concern or positive observation; distinct concerns remain separate even on the same screen."},
+        "topics": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "intent": {"enum": ["clear_change_direction", "clear_observation", "tentative", "exploratory", "positive"]},
+        "occurrences": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/occurrence"}},
+        "suggestions": {"type": "array", "items": {"$ref": "#/$defs/suggestion"}},
+        "disposition": {"enum": ["candidate", "undecided", "reference_only", "withdrawn"]},
+        "priority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["user_words", "source_quote_id"],
+          "properties": {
+            "user_words": {"type": "string", "minLength": 1},
+            "source_quote_id": {"type": "string", "minLength": 1}
+          },
+          "description": "Omit unless the user explicitly gave a priority. Never derive priority from model confidence or evidence availability."
+        },
+        "withdrawals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["occurrence_id", "source_quote_id", "scope", "retained_in_transcript"],
+            "properties": {
+              "occurrence_id": {"type": "string", "minLength": 1},
+              "source_quote_id": {"type": "string", "minLength": 1},
+              "scope": {"type": "string", "minLength": 1},
+              "retained_in_transcript": {"const": true}
+            }
+          }
+        },
+        "related_item_ids": {"type": "array", "items": {"type": "string"}},
+        "deduplication_note": {"type": "string", "description": "Consolidate only repeated occurrences of the same concern; margins and redundant wording are separate topics and items."}
+      }
+    }
+  }
+}
