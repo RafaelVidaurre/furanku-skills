@@ -1,6 +1,6 @@
 ---
 name: model-routing
-description: Choose an agent, model, and effort using capability evidence, routing preferences, and live quota, then gate-check the launch decision. Use before delegating work; to list accounts and usage quotas, configure account priorities, list models, or set a model and effort enabled, disabled, or explicit; when changing routing configuration; when diagnosing a routing brief or launch gate; when setting up routing preferences; or when an assignment fails to start or stops because of a usage limit.
+description: Choose an agent, model, and effort using capability evidence, routing preferences, and live quota, then gate-check the launch decision. Use before delegating work; to list accounts and usage quotas, configure account priorities, list models, or set a model and effort enabled, disabled, or explicit; when reviewing or editing routing setup; when diagnosing a routing brief or launch gate; when setting up routing preferences; or when an assignment fails to start or stops because of a usage limit.
 ---
 
 # Model routing
@@ -15,9 +15,9 @@ For `$model-routing accounts` or `$model-routing list`, run `python3 <skill-dir>
 
 ## Set up or change preferences
 
-For initial setup or a request to change recovery behavior, read [Setup](references/setup.md). It asks only missing choices, previews the selected scope, and applies the approved result idempotently. Incomplete setup does not block routing; continuing after an unanswered question requires a configured preference. Jev selection is retired; existing private routes and preferences remain authoritative.
+For initial setup or a request to review or edit existing routing preferences, read [Setup](references/setup.md). Show the human-readable current setup first, offer to keep or change it, then preview scoped edits and apply the approved result idempotently. Incomplete setup does not block routing; continuing after an unanswered question requires a configured preference. Jev selection is retired; existing private routes and preferences remain authoritative.
 
-**Complete when:** setup reports the effective choices and their sources, or the next unanswered choice. Ordinary launches continue through the brief below without repeating setup.
+**Complete when:** the user keeps the displayed setup, approved changes are saved and summarized, or a specific setup question is pending. Ordinary launches continue through the brief below without opening a setup review.
 
 ## Generate the brief
 

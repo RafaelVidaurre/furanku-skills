@@ -2,5 +2,7 @@
   "quota_question": "**Assignment reached its usage limit**\n\nCompleted work is preserved. Choose an allowed equivalent alternative, wait for quota, or stop this assignment.\n\n**Response window:** {seconds} seconds. **If unanswered:** {no_reply}, according to your configured preference. Independent work can continue.",
   "recovered": "**Assignment ready to resume**\n\n{replacement} passed the routing checks. Resume the preserved assignment through the existing orchestrator and verify that it starts.",
   "wait": "**Assignment waiting for quota**\n\nRecheck at {deadline}. A reset estimate does not prove refreshed allowance. Independent work can continue.",
-  "stopped": "**Assignment paused**\n\nPreserve its work and resume when the user changes the decision or allowance becomes available. Independent work can continue."
+  "stopped": "**Assignment paused**\n\nPreserve its work and resume when the user changes the decision or allowance becomes available. Independent work can continue.",
+  "setup_overview": "**Your routing setup**\n\n{context}\n\n| Setting | Current behavior | Source |\n| --- | --- | --- |\n{behavior_rows}\n\n**Quota**\n\n{quota_summary}\n\n**Models and roles**\n\n{model_role_summary}\n\n**Overrides**\n\n{override_summary}\n\nWould you like to keep this setup or change something?\n\n**Keep current setup** \u00b7 **Change settings** \u00b7 **Review overrides**",
+  "setup_change_preview": "**Proposed setup changes**\n\n**Applies to:** {scope}\n\n| Setting | Current | Proposed |\n| --- | --- | --- |\n{change_rows}\n\n**Effective result:** {effective_result}\n\n{confirmation}"
 }
