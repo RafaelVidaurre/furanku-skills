@@ -28,6 +28,38 @@ def payload(provider='codex', used=20):
                        'tertiary': None}}]
 
 
+def cursor_payload():
+    return [{'provider': 'cursor', 'source': 'web',
+             'rateWindowLabels': {'primary': 'Total', 'secondary': 'Cursor', 'tertiary': 'Third Party'},
+             'usage': {'updatedAt': datetime.now(timezone.utc).isoformat(),
+                       'identity': {'providerID': 'cursor', 'accountID': 'synthetic-cursor', 'loginMethod': 'Cursor Free'},
+                       'primary': {'usedPercent': 0, 'windowMinutes': 44640},
+                       'secondary': {'usedPercent': 20, 'windowMinutes': 44640},
+                       'tertiary': {'usedPercent': 80, 'windowMinutes': 44640}}}]
+
+
+def test_cursor_reports_three_distinct_pools_without_claiming_cli_identity_or_entitlement():
+    m = codexbar.measurement(cursor_payload(), 'cursor')
+    assert m['identity'] == {'account_id': 'synthetic-cursor', 'login_method': 'Cursor Free'}
+    assert [(w['label'], w['percentRemaining'], w['scope']) for w in m['windows']] == [
+        ('Total', 100, 'all_models'), ('Cursor', 80, 'cursor_models'), ('Third Party', 20, 'third_party')]
+    assert m['status'] == 'unknown' and m['report_only']
+    assert 'launch CLI account' in m['detail']
+
+
+@pytest.mark.parametrize('change', ['percentage', 'duration', 'labels', 'identity', 'provider', 'source'])
+def test_malformed_cursor_contract_never_becomes_a_usable_reading(change):
+    raw = cursor_payload()
+    if change == 'percentage': raw[0]['usage']['tertiary']['usedPercent'] = float('nan')
+    if change == 'duration': raw[0]['usage']['secondary']['windowMinutes'] = -1
+    if change == 'labels': raw[0]['rateWindowLabels']['tertiary'] = 'Unknown budget'
+    if change == 'identity': raw[0]['usage']['identity'].pop('accountID')
+    if change == 'provider': raw[0]['usage']['identity']['providerID'] = 'codex'
+    if change == 'source': raw[0]['source'] = 'cli'
+    with pytest.raises(ValueError):
+        codexbar.measurement(raw, 'cursor')
+
+
 def test_weekly_only_is_reported_without_invented_session_or_account_id():
     reading = codexbar.measurement(payload(), 'codex')
     assert reading['status'] == 'known'
@@ -72,10 +104,12 @@ def test_unusable_contract_is_explicit(change):
         assert change in ('email', 'source', 'extra-account')
 
 
-def test_cli_error_ignores_cached_usage_and_is_not_retried():
-    raw = payload(); raw[0]['error'] = {'message': 'HTTP 429: rate limited', 'kind': 'provider'}
+@pytest.mark.parametrize('provider', ['codex', 'cursor'])
+def test_cli_error_ignores_cached_usage_and_is_not_retried(provider):
+    raw = cursor_payload() if provider == 'cursor' else payload()
+    raw[0]['error'] = {'message': 'HTTP 429: rate limited', 'kind': 'provider'}
     with patch.object(codexbar, 'run', return_value=json.dumps(raw)) as run:
-        m = codexbar.read('codex', DEP)
+        m = codexbar.read(provider, DEP)
     assert run.call_count == 1 and m['status'] == 'unknown' and m['windows'] == []
     assert '429' in m['detail']
 

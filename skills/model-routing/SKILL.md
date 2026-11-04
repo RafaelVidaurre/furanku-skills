@@ -9,7 +9,7 @@ description: Choose an agent, model, and effort using capability evidence, routi
 
 ## Accounts and usage
 
-For `$model-routing accounts` or `$model-routing list`, run `python3 <skill-dir>/scripts/router.py accounts --repo <root>` and return its compact table unchanged. It reads configured profiles through CodexBar CLI and explains failures below the table. Account reporting needs no selector setup. For account discovery, priorities, reserves, or account-bound launch/recovery, read [Accounts](references/accounts.md).
+For `$model-routing accounts` or `$model-routing list`, run `python3 <skill-dir>/scripts/router.py accounts --repo <root>` and return its compact table unchanged. It reads configured profiles and reports every catalog billing provider with a reading or explicit gap. Account reporting needs no selector setup. For account discovery, priorities, reserves, or account-bound launch/recovery, read [Accounts](references/accounts.md).
 
 **Complete when:** the requested report is shown with account identities, quota windows, reset times, and freshness, or the tool failure is reported.
 
@@ -23,7 +23,9 @@ For Jev setup, `key-required`, toggling, or provider errors, read [Jev setup and
 
 ## Generate the brief
 
-Generate the brief before choosing; its Exact routes section is the normative source for when a configured route applies. An instruction naming only a mechanism or orchestration surface is a consumer launch constraint, not an exact-route request or routing override. For example, “use Orca” does not bind any `agent` or exclude catalog agents that surface can launch. A launcher that serves models no other launcher can reach is a distinct capability identity and carries its own catalog `agent` token, so naming it does bind routing: `claudex` is such a token, and its candidates are unreachable to a consumer whose launchable-agent set omits it. A combined instruction that also names an agent, model, or effort binds launch and routing independently. Generate the brief with live quota and, when known, limit it to what the consumer can launch:
+For Cursor candidates or a request to use Cursor as the harness, read [Cursor routing](references/cursor.md) before selection or launch.
+
+Generate the brief before choosing; its Exact routes section is the normative source for when a configured route applies. An instruction naming only a mechanism or orchestration surface is a consumer launch constraint, not an exact-route request or routing override. For example, “use Orca” does not bind any `agent` or exclude catalog agents that surface can launch. A model-serving harness carries its own catalog `agent` token, including when it serves several vendors: naming `cursor` or `claudex` binds routing to that capability identity. Its candidates are unreachable to a consumer whose launchable-agent set omits it. A combined instruction that also names an agent, model, or effort binds launch and routing independently. Generate the brief with live quota and, when known, limit it to what the consumer can launch:
 
 ```sh
 python3 <skill-dir>/scripts/router.py brief --repo <root> --codexbar \

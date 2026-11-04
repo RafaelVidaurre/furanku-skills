@@ -149,6 +149,42 @@ class RouterTest(unittest.TestCase):
         self.assertIn("- (global) Captains default to gpt-6-astra at high.", brief)
         self.assertIn("claude-fable-5-1[1m] or gpt-6-astra at high", brief)
 
+    def test_cursor_routes_keep_vendor_quota_separate_and_gate_launch_surface(self):
+        brief = json.loads(self.run_router("brief", "--format", "json", "--launchable-via", "cursor").stdout)
+        self.assertEqual(
+            {"gpt-6.1-sol", "claude-opus-5-5", "claude-fable-5-1", "grok-4.7"},
+            {row["launch"]["model"] for row in brief["candidates"].values()},
+        )
+        self.assertTrue(all(row["launch"]["agent"] == "cursor" for row in brief["candidates"].values()))
+        vendor_runtime = {"harnesses": {agent: {"quota": {"status": "exhausted"}}
+                                       for agent in ("codex", "claude", "grok")}}
+        for model in ("gpt-6.1-sol", "claude-opus-5-5", "claude-fable-5-1", "grok-4.7"):
+            candidate_id = f"cursor/{model}/high"
+            args = ("--candidate", candidate_id, "--reason", "Use the requested Cursor harness.")
+            with self.subTest(model=model):
+                pending = self.check(*args, runtime=vendor_runtime, expect_code=2)
+                self.assertEqual("unknown", pending["quota"]["status"])
+                ready = {"harnesses": {**vendor_runtime["harnesses"], "cursor": {"quota": {"status": "known"}}}}
+                self.assertEqual(candidate_id, self.check(*args, "--launchable-via", "cursor", runtime=ready)["selected"]["id"])
+                refused = self.check(*args, "--launchable-via", "codex,claude,grok", runtime=ready, expect_code=1)
+                self.assertEqual("refused", refused["status"])
+                unavailable = {"harnesses": {"cursor": {"status": "unsupported", "quota": {"status": "known"}}}}
+                self.assertIn("runtime status unsupported", self.check(*args, runtime=unavailable, expect_code=1)["reasons"])
+
+    def test_cursor_codexbar_runtime_is_attributed_to_cursor_only(self):
+        candidates = {
+            "cursor/opus/high": {"launch": {"agent": "cursor", "model": "claude-opus-5-5", "effort": "high"}},
+            "claude/opus/high": {"launch": {"agent": "claude", "model": "claude-opus-5-5", "effort": "high"}},
+        }
+        runtime = router.codexbar_runtime({"cursor": {
+            "status": "unknown", "windows": [], "detail": "No verified Cursor quota contract",
+        }}, candidates)
+        self.assertEqual({"cursor"}, set(runtime["harnesses"]))
+        self.assertEqual({"cursor/opus/high"}, set(runtime["candidates"]))
+        quota = router.runtime_for(runtime, "cursor/opus/high", candidates["cursor/opus/high"])["quota"]
+        self.assertEqual("unknown", quota["status"])
+        self.assertEqual("cursor", quota["account"]["provider"])
+
     def test_builtin_preferences_reach_agent_and_jev_in_scope_order(self):
         import jev_context
 

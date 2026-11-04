@@ -72,7 +72,7 @@ Optional `principals` restricts supported `reports_to` values; omitting it allow
 
 ### harness-native (default)
 
-Always available: the native coordination facilities of whatever harness is running. Resolve the native profile from capabilities visible in the current session, not from the launcher executable's name. Prefer a native orchestration surface that represents dependencies, shared progress, and correlated completion; use individual subagents or background agents when the harness has no such surface. Set `launchable_agents` to the catalog agent tokens that surface can actually start—a stock harness launches only its own vendor's models, and Crew carries that constraint into routing.
+Always available: the native coordination facilities of whatever harness is running. Resolve the native profile from capabilities visible in the current session, not from the launcher executable's name. Prefer a native orchestration surface that represents dependencies, shared progress, and correlated completion; use individual subagents or background agents when the harness has no such surface. Set `launchable_agents` to the catalog agent tokens that surface can actually start. A harness may serve multiple vendors through its own capability token, such as `cursor`; model vendor alone does not establish launchability.
 
 #### Claude Code workflow profile
 
@@ -117,9 +117,19 @@ For another native harness, define a profile that names its strongest matching c
 
 ### orca
 
-Read [Crew's Orca procedure](orca.md) before launching, supervising, or retiring an owner. It loads Orca's version-matched orchestration guide for Orca mechanics and adds Crew's role, routing, account, and resource rules. Orca supports cross-vendor launch, dispatch DAGs, terminals, and optional worktrees. Its manifest ships in `assignment.py`: `seams` attaches it when orca is selected, and `packet --manifest orca` resolves it by id — launchable agents `claude`, `codex`, `opencode`, `grok`; isolation available; required extra `front_key` matching `<run-key>/<front>`. Selected launch notes carry wrapper-specific guidance into packets.
+Read [Crew's Orca procedure](orca.md) before launching, supervising, or retiring an owner. It loads Orca's version-matched orchestration guide for Orca mechanics and adds Crew's role, routing, account, and resource rules. Orca supports cross-vendor launch, dispatch DAGs, terminals, and optional worktrees. Its manifest ships in `assignment.py`: `seams` attaches it when orca is selected, and `packet --manifest orca` resolves it by id — launchable agents `claude`, `codex`, `opencode`, `grok`, `cursor`; isolation available; required extra `front_key` matching `<run-key>/<front>`. Selected launch notes carry wrapper-specific guidance into packets.
 
 Pass `--extra front_key=<run-key>/<front>`. Name each Crew Orca tab `<Role> - <work summary>` (for example `Captain - payments integration`) so the role is visible at a glance.
+
+### Cursor
+
+Use routing agent `cursor` for models served through Cursor, regardless of model vendor. Read [Cursor routing](../../model-routing/references/cursor.md) for supported tuples, availability limits, and billing evidence before selecting or launching one.
+
+The verified CLI accepts `cursor-agent --model '<model>[effort=<effort>]'`. Crew's Orca manifest expands this from the routed tuple. Discover any harness-native subagent model controls from the current session; a model available to the parent CLI need not be selectable for a native subagent. Include `cursor` in a native manifest only when that surface can honor the packet's model and effort.
+
+For Orca, use [Custom model arguments](orca.md#custom-model-arguments) to create a terminal with the packet's command, verify the requested tuple, and attach the unchanged packet to that same terminal. Retain the command, readiness evidence, and Dispatch; the assignment creator owns terminal cleanup.
+
+**Complete when:** the selected surface can honor the exact Cursor tuple, availability and tuple acceptance are verified, and delivery and cleanup ownership are recorded.
 
 ### Custom mechanisms
 

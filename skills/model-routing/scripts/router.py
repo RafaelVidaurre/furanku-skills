@@ -368,7 +368,7 @@ def compile_brief(repo=".", defaults=None):
 HARD_QUOTA_STATUSES = {"exhausted", "unavailable", "auth-required"}
 HARD_RUNTIME_STATUSES = {"unavailable", "auth-required", "unsupported"}
 HARD_HEALTH_STATUSES = {"unhealthy", "offline"}
-PROVIDER_TO_HARNESS = {"claude": "claude", "codex": "codex", "grok": "grok"}
+PROVIDER_TO_HARNESS = {"claude": "claude", "codex": "codex", "grok": "grok", "cursor": "cursor"}
 HARNESS_TO_PROVIDER = {
     harness: provider for provider, harness in PROVIDER_TO_HARNESS.items()
 }
@@ -496,6 +496,49 @@ def attach_account(state, identity):
     return state
 
 
+def billing_provider(candidate):
+    return (candidate.get('quota_pool', {}).get('provider')
+            or candidate.get('quota_provider', {}).get('provider')
+            or candidate.get('quota_account')
+            or HARNESS_TO_PROVIDER.get(candidate['launch']['agent'], candidate['launch']['agent']))
+
+
+def account_report(compiled, dependency, *, source=None):
+    """Account for every catalog billing provider, including unsupported readers."""
+    import accounts
+    import codexbar
+    policy = compiled.get('account_routing') or {'source': 'configured'}
+    if source:
+        policy = {**policy, 'source': source}
+    report = accounts.inventory(policy, dependency, refresh=True)
+    covered = {row['provider'] for row in report['accounts']}
+    providers = {billing_provider(candidate) for candidate in compiled['candidates'].values()}
+    for provider in sorted(providers - covered):
+        candidates = [c for c in compiled['candidates'].values() if billing_provider(c) == provider]
+        pooled = all(c.get('quota_pool') for c in candidates)
+        if pooled:
+            measurement = {'status': 'pooled', 'source': 'routing policy', 'windows': [],
+                           'detail': POOLED_QUOTA_DETAIL}
+        elif provider in accounts.PROFILE_ENV:
+            measurement = {'status': 'unknown', 'source': 'configuration', 'windows': [],
+                           'detail': 'No launch profile configured for a CodexBar CLI read'}
+        else:
+            try:
+                measurement = codexbar.read(provider, dependency)
+            except (ValueError, OSError) as exc:
+                measurement = {'status': 'unknown', 'source': 'codexbar', 'windows': [], 'detail': str(exc)}
+        identity = measurement.get('identity', {})
+        account_id = identity.get('account_id') or identity.get('email') or 'unattributed'
+        report['accounts'].append({
+            'key': f'{provider}:{account_id}', 'id': account_id, 'provider': provider,
+            'label': identity.get('email') or identity.get('login_method') or ('Rotating pool' if pooled else 'Account unverified'),
+            'active': False, 'runtime': 'host', 'launch_ready': False,
+            'priority': 0, 'min_remaining_percent': policy.get('low_remaining_percent', 10),
+            'measurement': measurement,
+        })
+    return report
+
+
 def codexbar_runtime(measurements, candidates):
     import accounts
     from datetime import datetime, timezone
@@ -519,7 +562,7 @@ def codexbar_runtime(measurements, candidates):
         if harness:
             generated['harnesses'][harness] = state()
         for key, candidate in candidates.items():
-            billing = candidate.get('quota_provider', {}).get('provider') or candidate.get('quota_account') or HARNESS_TO_PROVIDER.get(candidate['launch']['agent'])
+            billing = billing_provider(candidate)
             if billing == provider:
                 generated['candidates'][key] = state(candidate['launch']['model'])
     return generated
@@ -1544,9 +1587,7 @@ def load_runtime(args, candidates):
     provider_candidates = {key: c for key, c in candidates.items()
                            if not (policy is not None and c['launch']['agent'] in account_providers
                                    and not any(c.get(k) for k in ('quota_pool', 'quota_provider', 'quota_account')))}
-    providers = sorted({c.get('quota_provider', {}).get('provider') or c.get('quota_account')
-                        or HARNESS_TO_PROVIDER.get(c['launch']['agent'], c['launch']['agent'])
-                        for c in provider_candidates.values()})
+    providers = sorted({billing_provider(c) for c in provider_candidates.values()})
     if args.codexbar and provider_candidates:
         try:
             runtime = load_codexbar(provider_candidates, providers)
@@ -1656,10 +1697,7 @@ def main(argv=None):
         compiled = compile_brief(args.repo, args.defaults)
         if args.command in ('accounts', 'list'):
             import accounts as account_routing
-            policy = compiled.get('account_routing') or {'source': 'configured'}
-            if args.account_source:
-                policy = {**policy, 'source': args.account_source}
-            report = account_routing.inventory(policy, runtime_dependency('codexbar'), refresh=True)
+            report = account_report(compiled, runtime_dependency('codexbar'), source=args.account_source)
             if args.format == 'json':
                 emit(report, args.compact)
             else:

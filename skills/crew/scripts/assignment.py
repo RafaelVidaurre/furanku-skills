@@ -50,8 +50,16 @@ SEAM_KEYS = {"version", "work_record", "mechanism", "mechanisms"}
 KNOWN_MANIFESTS = {
     "orca": {
         "mechanism": "orca",
-        "launchable_agents": ["claude", "codex", "opencode", "grok"],
+        "launchable_agents": ["claude", "codex", "opencode", "grok", "cursor"],
         "launch_notes": {
+            "cursor": (
+                "Read Crew's references/seams.md#cursor and references/orca.md#custom-model-arguments "
+                "before dispatch. Verify the model and effort with `cursor-agent models`; "
+                "GPT-6.1 Sol was not listed in the verified inventory. Use the packet's "
+                "launch_command in a fresh Orca terminal, verify tuple acceptance, then "
+                "attach that same terminal through worker-start --terminal. Cursor's "
+                "--model bracket override sets effort; no separate --effort flag exists."
+            ),
             "codex": (
                 "Read Crew's references/orca.md before dispatch; an account_binding "
                 "selects its launch path."
@@ -73,6 +81,7 @@ KNOWN_MANIFESTS = {
         "isolation": True,
         "account_launch": {"claude": "orca-native", "codex": "orca-account"},
         "launch_argv": {
+            "cursor": ["cursor-agent", "--model", "{model}[effort={effort}]"],
             "claude": ["claude", "--model", "{model}", "--effort", "{effort}"],
             "codex": [
                 "codex", "--no-alt-screen", "--model", "{model}",

@@ -3,6 +3,7 @@
 
 import json
 import os
+import shlex
 from pathlib import Path
 import subprocess
 import sys
@@ -532,6 +533,25 @@ class PacketTest(unittest.TestCase):
         result = run(*packet_args(decision))
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(decision["decision_id"], json.loads(result.stdout)["routing"]["decision_id"])
+
+    def test_builtin_orca_cursor_packet_encodes_model_and_effort_together(self):
+        for model, effort in (("gpt-6.1-sol", "high"), ("claude-opus-5-5", "max"),
+                              ("claude-fable-5-1", "medium"), ("grok-4.7", "xhigh")):
+            with self.subTest(model=model, effort=effort):
+                decision = {**SELECTED, "selected": {"id": f"cursor/{model}/{effort}",
+                            "agent": "cursor", "model": model, "effort": effort}}
+                args = packet_args(decision)
+                args[args.index(json.dumps(ORCA_MANIFEST))] = "orca"
+                result = run(*args)
+                self.assertEqual(0, result.returncode, result.stderr)
+                packet = json.loads(result.stdout)
+                expected = ["cursor-agent", "--model", f"{model}[effort={effort}]"]
+                self.assertEqual(expected, packet["launch_argv"])
+                self.assertEqual(expected, shlex.split(packet["launch_command"]))
+                self.assertNotIn("launch_warning", packet)
+                self.assertEqual(model, packet["routing"]["model"])
+                self.assertEqual(effort, packet["routing"]["effort"])
+                self.assertIn("launch_note:", packet["spec"])
 
     def test_launch_command_preserves_tuple_through_posix_shell(self):
         with tempfile.TemporaryDirectory() as directory:

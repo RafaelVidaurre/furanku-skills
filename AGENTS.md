@@ -22,6 +22,8 @@ Groups live in `.claude-plugin/marketplace.json`, not in the directory tree: a s
 
 `npm test` runs everything: the Node suites (`test/`, `skills/guidance-composer/test/`) and the Python suites (`skills/crew/scripts`, `skills/model-routing/scripts`). Tests must stay hermetic — a suite that reads real user config (`$CODEX_HOME`, `$HOME`) pins those variables to a temp dir so a run never writes to the machine's own files.
 
+After changing Crew/model-routing harness or model support, run `npm run check:routing`. It checks catalog visibility, billing-provider coverage in both account-report commands, quota parsing and launch gates, and Crew packet commands through isolated public entrypoints. A provider without a usable reader must appear with an explicit status and reason.
+
 Work is tracked in [Beads](https://github.com/gastownhall/beads) (`bd`): `.beads/issues.jsonl` is the shared record, the Dolt database beside it is local-only. This repo is public — keep personal data out of anything tracked there.
 
 ## When editing an existing skill

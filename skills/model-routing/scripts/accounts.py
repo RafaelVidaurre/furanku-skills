@@ -318,6 +318,8 @@ def render(report):
             amounts.append(f'{label}: {left}')
             resets.append(f"{label}: {timestamp(window.get('resetsAt'))}")
         status = {'known': 'Fresh', 'unknown': 'Unavailable', 'stale': 'Stale'}.get(m['status'], cell(m['status']))
+        if m.get('report_only') and m.get('windows'):
+            status = 'Unverified'
         identity = short_id(row)
         account = f"{cell(row['label'])}<br>{identity}" + (' · active' if row['active'] else '')
         reading = f"{status}<br>{timestamp(m.get('refreshed_at'))}"

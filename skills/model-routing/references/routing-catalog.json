@@ -1746,6 +1746,561 @@
           "source": "https://artificialanalysis.ai/models/claude-haiku-5-5"
         }
       }
+    },
+    "cursor/gpt-6.1-sol/high": {
+      "launch": {
+        "agent": "cursor",
+        "model": "gpt-6.1-sol",
+        "effort": "high"
+      },
+      "features": [
+        "tools"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for gpt-6.1-sol at high has not been assessed. User-requested route; absent from the checked Cursor model inventory. Verify availability before launch.",
+          "researched_at": "2026-10-21"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for gpt-6.1-sol at high has not been assessed. User-requested route; absent from the checked Cursor model inventory. Verify availability before launch.",
+          "researched_at": "2026-10-21"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for gpt-6.1-sol at high has not been assessed. User-requested route; absent from the checked Cursor model inventory. Verify availability before launch.",
+          "researched_at": "2026-10-21"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for gpt-6.1-sol at high has not been assessed. User-requested route; absent from the checked Cursor model inventory. Verify availability before launch.",
+          "researched_at": "2026-10-21"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for gpt-6.1-sol at high has not been assessed. User-requested route; absent from the checked Cursor model inventory. Verify availability before launch.",
+          "researched_at": "2026-10-21"
+        }
+      }
+    },
+    "cursor/claude-opus-5-5/low": {
+      "launch": {
+        "agent": "cursor",
+        "model": "claude-opus-5-5",
+        "effort": "low"
+      },
+      "features": [
+        "tools"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at low has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at low has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at low has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at low has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at low has not been assessed.",
+          "researched_at": "2026-10-21"
+        }
+      }
+    },
+    "cursor/claude-opus-5-5/medium": {
+      "launch": {
+        "agent": "cursor",
+        "model": "claude-opus-5-5",
+        "effort": "medium"
+      },
+      "features": [
+        "tools"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at medium has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at medium has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at medium has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at medium has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at medium has not been assessed.",
+          "researched_at": "2026-10-21"
+        }
+      }
+    },
+    "cursor/claude-opus-5-5/high": {
+      "launch": {
+        "agent": "cursor",
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "features": [
+        "tools"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at high has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at high has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at high has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at high has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at high has not been assessed.",
+          "researched_at": "2026-10-21"
+        }
+      }
+    },
+    "cursor/claude-opus-5-5/xhigh": {
+      "launch": {
+        "agent": "cursor",
+        "model": "claude-opus-5-5",
+        "effort": "xhigh"
+      },
+      "features": [
+        "tools"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at xhigh has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at xhigh has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at xhigh has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at xhigh has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at xhigh has not been assessed.",
+          "researched_at": "2026-10-21"
+        }
+      }
+    },
+    "cursor/claude-opus-5-5/max": {
+      "launch": {
+        "agent": "cursor",
+        "model": "claude-opus-5-5",
+        "effort": "max"
+      },
+      "features": [
+        "tools"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at max has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at max has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at max has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at max has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-opus-5-5 at max has not been assessed.",
+          "researched_at": "2026-10-21"
+        }
+      }
+    },
+    "cursor/claude-fable-5-1/low": {
+      "launch": {
+        "agent": "cursor",
+        "model": "claude-fable-5-1",
+        "effort": "low"
+      },
+      "features": [
+        "tools"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at low has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at low has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at low has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at low has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at low has not been assessed.",
+          "researched_at": "2026-10-21"
+        }
+      }
+    },
+    "cursor/claude-fable-5-1/medium": {
+      "launch": {
+        "agent": "cursor",
+        "model": "claude-fable-5-1",
+        "effort": "medium"
+      },
+      "features": [
+        "tools"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at medium has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at medium has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at medium has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at medium has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at medium has not been assessed.",
+          "researched_at": "2026-10-21"
+        }
+      }
+    },
+    "cursor/claude-fable-5-1/high": {
+      "launch": {
+        "agent": "cursor",
+        "model": "claude-fable-5-1",
+        "effort": "high"
+      },
+      "features": [
+        "tools"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at high has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at high has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at high has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at high has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at high has not been assessed.",
+          "researched_at": "2026-10-21"
+        }
+      }
+    },
+    "cursor/claude-fable-5-1/xhigh": {
+      "launch": {
+        "agent": "cursor",
+        "model": "claude-fable-5-1",
+        "effort": "xhigh"
+      },
+      "features": [
+        "tools"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at xhigh has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at xhigh has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at xhigh has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at xhigh has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at xhigh has not been assessed.",
+          "researched_at": "2026-10-21"
+        }
+      }
+    },
+    "cursor/claude-fable-5-1/max": {
+      "launch": {
+        "agent": "cursor",
+        "model": "claude-fable-5-1",
+        "effort": "max"
+      },
+      "features": [
+        "tools"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at max has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at max has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at max has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at max has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at max has not been assessed.",
+          "researched_at": "2026-10-21"
+        }
+      }
+    },
+    "cursor/grok-4.7/low": {
+      "launch": {
+        "agent": "cursor",
+        "model": "grok-4.7",
+        "effort": "low"
+      },
+      "features": [
+        "tools"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at low has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at low has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at low has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at low has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at low has not been assessed.",
+          "researched_at": "2026-10-21"
+        }
+      }
+    },
+    "cursor/grok-4.7/medium": {
+      "launch": {
+        "agent": "cursor",
+        "model": "grok-4.7",
+        "effort": "medium"
+      },
+      "features": [
+        "tools"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at medium has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at medium has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at medium has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at medium has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at medium has not been assessed.",
+          "researched_at": "2026-10-21"
+        }
+      }
+    },
+    "cursor/grok-4.7/high": {
+      "launch": {
+        "agent": "cursor",
+        "model": "grok-4.7",
+        "effort": "high"
+      },
+      "features": [
+        "tools"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at high has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at high has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at high has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at high has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at high has not been assessed.",
+          "researched_at": "2026-10-21"
+        }
+      }
+    },
+    "cursor/grok-4.7/xhigh": {
+      "launch": {
+        "agent": "cursor",
+        "model": "grok-4.7",
+        "effort": "xhigh"
+      },
+      "features": [
+        "tools"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at xhigh has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at xhigh has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at xhigh has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at xhigh has not been assessed.",
+          "researched_at": "2026-10-21"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Launch support only; exact Cursor evidence for grok-4.7 at xhigh has not been assessed.",
+          "researched_at": "2026-10-21"
+        }
+      }
     }
   }
 }
