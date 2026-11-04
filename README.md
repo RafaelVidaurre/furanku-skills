@@ -26,7 +26,7 @@ npx skills add rafaelvidaurre/furanku-skills --skill testing-best-practices
 
 After install, talk to your agent as usual. When a skill fits, it should load and follow it.
 
-The picker shows skills in groups: most live in the main (**General**) group; skills still proving themselves appear under **Experimental** (currently `council`, `codemap`, `usage-drain`, `promo-music-video`, and `human-playtest`).
+The picker shows skills in groups: most live in the main (**General**) group; skills still proving themselves appear under **Experimental** (currently `council`, `codemap`, `usage-drain`, `promo-music-video`, `token-speed`, and `human-playtest`).
 
 ## Command-line tool
 
@@ -238,6 +238,18 @@ First use walks you through approving which model tools may run on your machine.
 ```text
 > Use promo-music-video to turn this song into a video for my product. Start with a timing preview.
 > Polish this product music video: the footage is soft and text collides during transitions.
+```
+
+### token-speed (experimental)
+
+**Useful if:** you want to see how fast each model and effort level is producing tokens, and to change the time step, the range, and which models are on the chart.
+
+**What it does:** reads local session logs and opens one HTML chart of output tokens per second. A point is a Codex or Claude response, or a Grok turn. Tool execution sits outside the clock. Codex times reasoning and message items. Claude times the request until the last streamed fragment, which includes time to first token. Grok sums the model loops in a turn. The scanned window is the trailing 7 days unless you name a range. The log clocks differ and may move, so this skill is experimental.
+
+```text
+> How fast are my models generating?
+> Chart tokens per second for Codex since Monday.
+> Open token speed for Claude, last 24 hours.
 ```
 
 ---

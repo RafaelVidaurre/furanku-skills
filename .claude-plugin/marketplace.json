@@ -13,6 +13,7 @@
         "./skills/codemap",
         "./skills/usage-drain",
         "./skills/promo-music-video",
+        "./skills/token-speed",
         "./skills/human-playtest"
       ]
     }
