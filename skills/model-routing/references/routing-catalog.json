@@ -1,13 +1,7 @@
 {
   "version": 2,
   "routes": {},
-  "preferences": [
-    "Prefer GPT-6 Astra (gpt-6-astra) for 3D modelling, including mesh and geometry creation, CAD, and 3D scene composition. This is a routing preference, not a benchmark claim; choose an eligible Astra candidate subject to task constraints and launch gates.",
-    "For bounded routine source collection, mechanical edits, repetitive migrations, and focused checks with explicit acceptance criteria, prefer an eligible gpt-6-luna at max. Keep novel architecture, critical behavior decisions, and final integration judgment with a suitably capable owner. When choosing a stronger candidate for that routine work, name the specific uncertainty or failure consequence that makes Luna insufficient; project importance or write access alone is not that reason. This is a task-routing preference, not a benchmark or measured quota-cost claim.",
-    "Effort labels compare budgets within the same model; max on a smaller model does not by itself make that candidate a premium or exceptional choice across models. Apply maximum-effort proportionality against eligible lower efforts of that same model, and judge cross-model task fit separately.",
-    "For Claude launches, consider Sonnet 5.5 medium for well-specified coding and multistep tool work, high for harder or longer tasks, and low for short latency-sensitive requests. Consider Haiku 5.5 medium for bounded subagent work, summarization, extraction, classification, and routine coding; use high for longer tasks or stricter instruction following. Prefer Sonnet over Haiku for complex agentic coding. This task-fit guidance comes from Anthropic, not a cross-provider benchmark ranking; apply exact-effort evidence, principal preferences, and launch gates.",
-    "For Sonnet 5.5 and Haiku 5.5, consider xhigh or max only with task-relevant evidence of improvement over lower effort. Haiku low may skip searches or checks in long agent prompts; use medium or high when those checks determine acceptance. API token prices do not establish subscription-quota savings."
-  ],
+  "preferences": [],
   "methodology": {
     "reasoning": "Artificial Analysis Intelligence Index divided by 100 at the exact effort; the cell names its index version, and different versions are not comparable.",
     "implementation": "CursorBench 4.0 resolved-task rate at the exact effort; candidates without a CursorBench row keep their DeepSWE v1.1 rate, a separate scale that runs about 30 points higher for the same model.",

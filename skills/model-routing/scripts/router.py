@@ -3,7 +3,7 @@
 
 The brief hands the spawning agent the information it lacks — candidate
 research evidence, economics, live quota, configured exact routes, and the
-user's routing preferences. The configured selector (Jev or the spawning agent) judges task fit; `check`
+user's routing preferences. The spawning agent judges task fit; `check`
 enforces hard gates and the explicit justification required for maximum effort.
 """
 
@@ -326,11 +326,13 @@ def compile_brief(repo=".", defaults=None):
     account_policy = None
     paths = exact_config.locations(repo)
     exact = exact_config.resolve(paths, defaults=defaults)
+    recovery_layers = [{'scope': 'builtin', 'path': str(CATALOG), 'config': catalog}]
     for scope in exact_config.SCOPES:
         path = paths[scope]
         if not path.exists():
             continue
         config = exact_config.load(path)
+        recovery_layers.append({'scope': scope, 'path': str(path), 'config': config})
         for text in config.get("preferences", []):
             preferences.append({"scope": scope, "text": text.strip()})
         # Narrower scopes win in the private account registry. A candidate
@@ -362,6 +364,7 @@ def compile_brief(repo=".", defaults=None):
         "methodology": catalog["methodology"],
         "exact": exact,
         "layers": exact["layers_low_to_high"],
+        "recovery_layers": recovery_layers,
     }
 
 
@@ -388,6 +391,8 @@ def runtime_for(runtime, candidate_id, candidate):
     """
     runtime = runtime or {}
     agent = candidate["launch"]["agent"]
+    if billing_provider(candidate) in runtime.get('blocked_quota_pools', []):
+        return {'quota': {'status': 'exhausted', 'detail': 'Confirmed usage-limit observation for this billing pool'}}
     harnesses = runtime.get("harnesses", {})
     if not isinstance(harnesses, dict):
         raise Error("runtime harnesses must be an object")
@@ -402,7 +407,7 @@ def runtime_for(runtime, candidate_id, candidate):
                                      native_only=agent in runtime.get("native_account_only", []))
         if row is None:
             considered = ', '.join(r['key'] + ' (' + r['measurement']['status'] + '; source=' + r['measurement'].get('source', 'unknown') + '; ' + account_routing.failure_category(r['measurement']) + ')' for r in runtime['account_inventory']['accounts'] if r['provider'] == agent)
-            return {"quota": {"status": "unavailable", "detail": f"No measured account is fresh, launch-bound, and above its reserve. Considered: {considered or 'none'}. Restore the configured account source or native sign-in/profile readiness, then re-check this same decision once. After a failed CodexBar read, wait for a readiness change; repeating the full accounts report does not repair the source. Unknown quota cannot establish an account binding."}}
+            return {"quota": {"status": "unavailable", "detail": f"No measured account is fresh, launch-bound, and has positive allowance. Considered: {considered or 'none'}. Restore the configured account source or native sign-in/profile readiness, then re-check this same decision once. After a failed CodexBar read, wait for a readiness change; repeating the full accounts report does not repair the source. Unknown quota cannot establish an account binding."}}
         state = {"quota": {"status": "known", "effective_percent_remaining": account_routing.remaining(row, candidate["launch"]["model"]),
                            "account": {"provider": agent, "email": row.get('expected_identity', {}).get('email') or row['measurement'].get('identity', {}).get('email'),
                                        "label": row['label'], "account_id": row['id'], "routing_account": row['key']}}}
@@ -411,7 +416,8 @@ def runtime_for(runtime, candidate_id, candidate):
                 state['health'] = source['health']
             if source.get('status') in {'unavailable', 'unsupported'}:
                 state['status'] = source['status']
-        state['account_binding'] = account_routing.binding(row, runtime['account_max_age_seconds'])
+        state['account_binding'] = account_routing.binding(row, runtime.get('account_max_age_seconds', account_routing.DEFAULT_MAX_AGE_SECONDS))
+        state['quota']['reserve_percent'] = row.get('min_remaining_percent', account_routing.DEFAULT_RESERVE_PERCENT)
         return state
     harness = harnesses.get(agent, {})
     if not isinstance(harness, dict):
@@ -548,7 +554,7 @@ def codexbar_runtime(measurements, candidates):
         identity = {**measurement.get('identity', {}), 'provider': provider}
         def state(model=''):
             status = measurement['status']
-            if status == 'known' and not accounts.fresh(measurement.get('refreshed_at'), 300, datetime.now(timezone.utc)):
+            if status == 'known' and not accounts.fresh(measurement.get('refreshed_at'), accounts.DEFAULT_MAX_AGE_SECONDS, datetime.now(timezone.utc)):
                 status = 'stale'
             left = accounts.remaining({'measurement': measurement}, model)
             quota = {'status': status, 'refreshed_at': measurement.get('refreshed_at')}
@@ -603,7 +609,7 @@ def quota_summary(state):
     if not isinstance(quota, dict) or not quota:
         return {"status": "unknown"}
     summary = {"status": quota.get("status", "unknown")}
-    for key in ("effective_percent_remaining", "pressure", "bounded_by", "account"):
+    for key in ("effective_percent_remaining", "reserve_percent", "pressure", "bounded_by", "account"):
         if quota.get(key) is not None:
             summary[key] = quota[key]
     for key in QUOTA_DIAGNOSTIC_KEYS:
@@ -934,8 +940,17 @@ def gate_launch(
     )
 
 
-def planned_quota_fallback(row):
-    policy = exact_config.quota_unusable_policy(row)
+def quota_fallback_policy(row, resolved=None):
+    fallback = exact_config.quota_unusable_policy(row)
+    if fallback and resolved and 'on_no_reply' in resolved['configured_fields']:
+        if resolved['policy']['on_no_reply'] == 'stop':
+            return None
+        fallback['ask_seconds'] = resolved['policy']['response_seconds']
+    return fallback
+
+
+def planned_quota_fallback(row, resolved=None):
+    policy = quota_fallback_policy(row, resolved)
     if not policy:
         return None
     return {
@@ -963,7 +978,7 @@ def parse_allowed_launchers(values):
     return allowed
 
 
-def _check(compiled, args, runtime):
+def _check(compiled, args, runtime, resolved=None):
     if bool(args.candidate) == bool(args.exact_route):
         raise Error("check requires exactly one of --candidate or --exact-route")
     allowed_launchers = parse_allowed_launchers(args.launchable_via)
@@ -1006,7 +1021,7 @@ def _check(compiled, args, runtime):
             raise Error(f"configured route not found: {args.exact_route}")
         launch = exact_config.launch_of(row)
         candidate_id = match_candidate(compiled, launch)
-        fallback_policy = exact_config.quota_unusable_policy(row)
+        fallback_policy = quota_fallback_policy(row, resolved)
         fallback_id = match_candidate(compiled, fallback_policy["launch"]) if fallback_policy else None
         if explicit_basis and not any(
             compiled["candidates"][item].get("explicit", False)
@@ -1042,10 +1057,10 @@ def _check(compiled, args, runtime):
             return refusal
         pending, acceptance = acceptance_terms(quota, args.accept_quota_unknown)
         if pending and args.use_quota_fallback:
-            policy = exact_config.quota_unusable_policy(row)
+            policy = quota_fallback_policy(row, resolved)
             if not policy:
                 raise Error(
-                    f"route {args.exact_route!r} has no on_quota_unusable fallback"
+                    f"route {args.exact_route!r} has no on_quota_unusable fallback permitted by its recovery on_no_reply preference"
                 )
             fallback_launch = policy["launch"]
             fallback_id = match_candidate(compiled, fallback_launch)
@@ -1099,7 +1114,7 @@ def _check(compiled, args, runtime):
                     ],
                     "warnings": warnings + fb_warnings,
                     "quota": quota,
-                    "quota_fallback": planned_quota_fallback(row),
+                    "quota_fallback": planned_quota_fallback(row, resolved),
                 }
                 return decision
             used = {
@@ -1135,7 +1150,7 @@ def _check(compiled, args, runtime):
                 "warnings": warnings,
                 "quota": quota,
             }
-            planned = planned_quota_fallback(row)
+            planned = planned_quota_fallback(row, resolved)
             if planned:
                 decision["quota_fallback"] = planned
             return decision
@@ -1233,7 +1248,11 @@ def _check(compiled, args, runtime):
 
 
 def check(compiled, args, runtime):
-    decision = _check(compiled, args, runtime)
+    import policy
+    overrides = read_json(Path(args.policy_file), 'assignment policy') if getattr(args, 'policy_file', None) else None
+    resolved = policy.resolve_layers(compiled.get('recovery_layers', []), role=getattr(args, 'role', None),
+                                     route=getattr(args, 'exact_route', None), overrides=overrides)
+    decision = _check(compiled, args, runtime, resolved)
     if decision.get("status") in {"selected", "exact"}:
         selected = decision['selected']
         candidate_id = selected.get('id') or match_candidate(compiled, {k: selected[k] for k in ('agent', 'model', 'effort')})
@@ -1244,6 +1263,13 @@ def check(compiled, args, runtime):
     basis = getattr(args, "explicit_basis", None)
     if basis and basis.strip():
         decision["explicit_basis"] = basis.strip()
+    decision['recovery'] = resolved
+    decision['requirements'] = {'features': list(args.require_feature), 'minimum_context': args.minimum_context,
+                                'launchable_agents': sorted(parse_allowed_launchers(args.launchable_via) or []),
+                                'native_account_only': list(getattr(args, 'native_account_only', []))}
+    decision['role'] = getattr(args, 'role', None)
+    if getattr(args, 'require_original', False):
+        decision['require_original'] = True
     return decision
 
 
@@ -1605,11 +1631,11 @@ def load_runtime(args, candidates):
     if policy is not None and args.codexbar and account_providers:
         import accounts as account_routing
         try:
-            runtime['account_inventory'] = account_routing.inventory(policy, runtime_dependency('codexbar'), providers=account_providers, native_only_providers=getattr(args, 'native_account_only', []))
+            runtime['account_inventory'] = account_routing.inventory(policy, runtime_dependency('codexbar'), refresh=getattr(args, 'refresh_quota', False), providers=account_providers, native_only_providers=getattr(args, 'native_account_only', []))
         except (ValueError, OSError, subprocess.TimeoutExpired) as exc:
             runtime['account_inventory'] = {'accounts': []}
             runtime.setdefault('notes', []).append(f'Account discovery failed: {exc}')
-        runtime['account_max_age_seconds'] = policy.get('max_age_seconds', 300)
+        runtime['account_max_age_seconds'] = policy.get('max_age_seconds', account_routing.DEFAULT_MAX_AGE_SECONDS)
     if args.runtime_file:
         runtime = merge_runtime(
             runtime,
@@ -1621,12 +1647,18 @@ def load_runtime(args, candidates):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("brief", "check", "route", "setup", "status", "accounts", "list"))
-    parser.add_argument("--selector", choices=("agent", "jev"), help="machine-wide choice for setup")
-    parser.add_argument("--task-file", help="Jev task context JSON")
-    parser.add_argument("--allow-model", action="append", default=[], help="principal-required model, repeatable")
-    parser.add_argument("--allow-effort", action="append", default=[], help="principal-required effort, repeatable")
-    parser.add_argument("--require-zdr", action="store_true", help="require Gateway zero data retention")
+    parser.add_argument("command", choices=("brief", "check", "route", "setup", "status", "accounts", "list", "recover"))
+    parser.add_argument("--selector", choices=("agent", "jev"), help=argparse.SUPPRESS)
+    parser.add_argument("--role", choices=("commander", "captain", "worker"))
+    parser.add_argument("--policy-file", help="assignment-specific recovery overrides JSON")
+    parser.add_argument("--scope", choices=exact_config.SCOPES, help="explicit setup save scope")
+    parser.add_argument("--setup-file", help="setup choices JSON; emits a preview without saving")
+    parser.add_argument("--apply-setup", help="apply an approved setup preview JSON")
+    parser.add_argument("--event-file", help="confirmed orchestrator observation JSON for recovery")
+    parser.add_argument("--alternative", help="agent-judged equivalent candidate; checked with the original requirements")
+    parser.add_argument("--equivalence-reason", help="why the proposed alternative can perform this assignment")
+    parser.add_argument("--require-original", action="store_true", help="principal requires the original model and effort; preserve on recovery")
+    parser.add_argument("--refresh-quota", action="store_true", help="bypass cached quota readings")
     parser.add_argument("--repo", default=".")
     parser.add_argument("--account-source", choices=("orca", "configured"), help="account report discovery override")
     parser.add_argument("--defaults", help="consumer-owned default routes file, below persisted layers")
@@ -1687,14 +1719,33 @@ def main(argv=None):
     args = parser.parse_args(argv)
     # Extensions import router; keep CLI and imported exception types identical.
     sys.modules.setdefault("router", sys.modules[__name__])
-    import selector
-    import jev
     try:
+        if args.selector == 'jev':
+            raise Error('Jev routing is retired. The spawning agent selects; run setup to configure recovery preferences.')
         if args.command in ("setup", "status"):
-            result = selector.setup(args.selector) if args.command == "setup" else selector.status()
+            import routing_setup
+            if args.apply_setup:
+                if args.setup_file or args.command != 'setup':
+                    raise Error('--apply-setup applies only to setup and cannot be combined with --setup-file')
+                result = routing_setup.apply(read_json(Path(args.apply_setup), 'setup preview'))
+            elif args.setup_file:
+                if not args.scope or args.command != 'setup':
+                    raise Error('setup --setup-file requires an explicit --scope')
+                result = routing_setup.preview(args.repo, args.scope, read_json(Path(args.setup_file), 'setup choices'),
+                                               role=args.role, route=args.exact_route)
+            else:
+                result = routing_setup.status(args.repo, role=args.role, route=args.exact_route)
             emit(result, args.compact)
-            return 0 if result["status"] == "ready" else 2
+            return 0
         compiled = compile_brief(args.repo, args.defaults)
+        if args.command == 'recover':
+            import recovery
+            event = recovery.read_event(args.event_file)
+            recovery.prepare(args, event)
+            compiled = recovery.pinned_original(compiled, args, event['decision'])
+            cache_invalidated = recovery.invalidate(event, runtime_dependency('codexbar'))
+            if event['cause'] == 'quota_exhausted':
+                args.refresh_quota = True
         if args.command in ('accounts', 'list'):
             import accounts as account_routing
             report = account_report(compiled, runtime_dependency('codexbar'), source=args.account_source)
@@ -1719,7 +1770,7 @@ def main(argv=None):
                 )
             return 0
         runtime_candidates = compiled['candidates']
-        if args.command == 'check':
+        if args.command in {'check', 'route', 'recover'}:
             runtime_candidates = {args.candidate: compiled['candidates'][args.candidate]} if args.candidate in compiled['candidates'] else {}
             if args.exact_route:
                 row = compiled['exact']['config']['routes'].get(args.exact_route)
@@ -1732,15 +1783,34 @@ def main(argv=None):
                         candidate_id = match_candidate(compiled, launch)
                         key = candidate_id or f'route-runtime-{index}'
                         runtime_candidates[key] = compiled['candidates'][candidate_id] if candidate_id else {'launch': launch}
+        if args.alternative:
+            if args.alternative not in compiled['candidates']:
+                raise Error('Alternative is absent or malformed in the effective catalog')
+            runtime_candidates[args.alternative] = compiled['candidates'][args.alternative]
         runtime = load_runtime(args, runtime_candidates)
-        decision = selector.route(compiled, args, runtime) if args.command == "route" else check(compiled, args, runtime)
+        if args.command == 'recover':
+            if event['cause'] == 'quota_exhausted':
+                import accounts as account_routing
+                binding = event['decision'].get('account_binding') or {}
+                for row in runtime.get('account_inventory', {}).get('accounts', []):
+                    if recovery.same_allowance(binding, row):
+                        cache_invalidated = account_routing.invalidate_quota_cache(row, runtime_dependency('codexbar')) and cache_invalidated
+            decision = recovery.plan(compiled, args, runtime, event)
+            if not cache_invalidated:
+                decision['refresh_required'] = True
+                decision['warnings'] = ['An exhausted quota cache entry could not be removed. Use --refresh-quota for subsequent checks until invalidation succeeds.']
+        else:
+            decision = check(compiled, args, runtime)
+            if args.alternative:
+                import recovery
+                decision = recovery.reserve_alternative(compiled, args, runtime, decision)
         emit(decision, args.compact)
         if decision["status"] == "refused":
             return 1
-        if decision["status"] == "needs-acceptance":
+        if decision["status"] in {"needs-acceptance", "alternative-available", "recovery"}:
             return 2
         return 0
-    except (Error, exact_config.Error, jev.Error, OSError, ValueError, subprocess.TimeoutExpired) as exc:
+    except (Error, exact_config.Error, OSError, ValueError, subprocess.TimeoutExpired) as exc:
         print(f"model-routing: {exc}", file=sys.stderr)
         return 1
 

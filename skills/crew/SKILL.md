@@ -60,14 +60,14 @@ Record created versus reused resources under **Retire an owner** below.
 
 Use model-routing's classification of launch constraints and routing instructions. A preference among agents, models, or efforts—"prefer sol-6.1 high for code work"—is a routing instruction: apply it in each pick's judgment and keep it out of `--launch-constraint`. Record each principal or inherited launch constraint verbatim in the assignment packet with repeatable `--launch-constraint`; satisfy it at dispatch and propagate it unchanged into every descendant packet. A combined instruction carries its launch and routing parts through their respective fields.
 
-Load the `model-routing` skill and complete its one-time setup and follow its configured selector. Use Crew's adapter to show only candidates the mechanism can launch; it derives launchability from the manifest and loads live quota:
+Load the `model-routing` skill; the spawning agent selects using its effective preferences and gates. Use Crew's adapter to show only candidates the mechanism can launch; it derives launchability from the manifest and loads live quota:
 
 ```sh
 python3 <crew-skill-dir>/scripts/assignment.py brief --repo <root> \
   [--manifest <mechanism-id-or-manifest>]
 ```
 
-The adapter supplies Crew's [routing defaults](references/routing-defaults.json) through model-routing's `--defaults` interface; model-routing's Configuration reference defines precedence. When Jev is enabled, use model-routing's `route` command with `--defaults <crew-skill-dir>/references/routing-defaults.json`, task facts, and the manifest's launchable agents. Save its successful decision privately and supply it to `packet --decision-json <file>` in place of candidate/reason arguments. For agent selection, judge the pick from the brief. Build one gate-checked packet per owner:
+Crew ships no Captain or Worker model choices. Private or project routes remain opt-in, and role-specific recovery settings are resolved by model-routing. For initial preferences, use model-routing's idempotent setup. Judge the pick from the brief. Build one gate-checked packet per owner:
 
 ```sh
 python3 <crew-skill-dir>/scripts/assignment.py packet --repo <root> \
@@ -82,9 +82,9 @@ When the brief's activation rule applies, replace `--candidate` and `--reason` w
 
 Omit `--manifest` when the active configured mechanism supplies one; pass a manifest for a session-specific or dynamically discovered harness profile. Pass an existing contract as `--work-ref` unchanged. Otherwise use `--request "<verbatim user request>"`; `packet` infers a configured work-record adapter, while `--work-record <adapter|none>` records a session override. When a later packet rebuild is likely, add `--decision-out <file>` to save the raw gate-check result; rebuild with `--decision-json <file>` instead of candidate or route arguments so the unchanged check is not rerun.
 
-When the decision carries `account_binding`, follow the packet's `launch_method`: `command` applies its exact profile environment through a command-capable launcher; `orca-native` follows [Orca's account-bound preparation and delivery](references/orca.md#account-bound-launches). Built-in Orca can bind another Codex account through `command` when the active account lacks quota. Preserve the selected model and effort while resolving account readiness; one account's reserve is not a model downgrade instruction. Read model-routing's Accounts reference for exhaustion/checkpoint recovery and rerun the gate before replacement.
+When the decision carries `account_binding`, follow the packet's `launch_method`: `command` applies its exact profile through a command-capable launcher; `orca-native` follows [Orca's account-bound preparation and delivery](references/orca.md#account-bound-launches). Keep `routing_decision` with the assignment's existing coordination state. If it cannot start or is interrupted, use the mechanism's failure evidence and [model-routing recovery](../model-routing/references/recovery.md); the orchestrator owns settlement, waiting, replacement, and wake-up. Pass `--require-original` when the principal requires an exact model/effort, and `--policy-file` for assignment-specific recovery overrides. A soft reserve diverts work only when an eligible equivalent exists.
 
-When the launcher needs a prompt file, add `--spec-out <private path>` to write the exact emitted spec without reconstructing it. If model-routing supplies a `decision_id`, preserve it through launch and use that version's documented journal interface to link the actual returned session or dispatch ID.
+When the launcher needs a prompt file, add `--spec-out <private path>` to write the exact emitted spec without reconstructing it.
 
 `packet` refuses missing mechanism extras and unlaunchable or unaccepted decisions. Its error includes the routing verdict unchanged on refusal or pending acceptance; follow model-routing's **Gate-check the decision** for recovery.
 

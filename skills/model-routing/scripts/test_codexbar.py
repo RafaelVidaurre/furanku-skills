@@ -18,6 +18,12 @@ import router
 DEP = router.runtime_dependency('codexbar')
 
 
+@pytest.fixture(autouse=True)
+def private_test_home(tmp_path, monkeypatch):
+    monkeypatch.setenv('HOME', str(tmp_path / 'home'))
+    monkeypatch.setenv('CODEX_HOME', str(tmp_path / 'codex'))
+
+
 def payload(provider='codex', used=20):
     return [{'provider': provider, 'source': 'codex-cli' if provider == 'codex' else 'claude',
              'rateWindowLabels': {'primary': 'Session', 'secondary': 'Weekly'},
@@ -124,21 +130,21 @@ def test_native_organization_preflight_and_measured_name_must_match():
         read.assert_not_called()
     status.update(orgId='org-personal', orgName='Personal')
     with patch.object(accounts, 'command_json', return_value=status), patch.object(codexbar, 'read', return_value=codexbar.measurement(payload('claude'), 'claude')):
-        assert accounts.profile_measurement(row, DEP)['identity']['organizationUuid'] == 'org-personal'
+        assert accounts.profile_measurement(row, DEP, refresh=True)['identity']['organizationUuid'] == 'org-personal'
         status['orgName'] = 'Team'
         with pytest.raises(ValueError, match='organization'):
-            accounts.profile_measurement(row, DEP)
+            accounts.profile_measurement(row, DEP, refresh=True)
     personal = payload('claude')
     personal[0]['usage'].pop('accountOrganization', None)
     personal[0]['usage'].get('identity', {}).pop('accountOrganization', None)
     status.update(orgName="user@example.test's Organization")
     with patch.object(accounts, 'command_json', return_value=status), patch.object(codexbar, 'read', return_value=codexbar.measurement(personal, 'claude')):
-        assert accounts.profile_measurement(row, DEP)['identity']['organizationUuid'] == 'org-personal'
+        assert accounts.profile_measurement(row, DEP, refresh=True)['identity']['organizationUuid'] == 'org-personal'
     personal[0]['usage']['accountEmail'] = 'other@example.test'
     personal[0]['usage'].get('identity', {}).pop('accountEmail', None)
     with patch.object(accounts, 'command_json', return_value=status), patch.object(codexbar, 'read', return_value=codexbar.measurement(personal, 'claude')):
         with pytest.raises(ValueError, match='does not match'):
-            accounts.profile_measurement(row, DEP)
+            accounts.profile_measurement(row, DEP, refresh=True)
 
 
 @pytest.mark.parametrize('scope', ['configured', 'discovered', 'native-only'])
@@ -286,7 +292,7 @@ def test_legacy_quota_sources_require_explicit_migration(source):
 
 def test_stale_measurement_and_unsupported_provider_remain_unknown():
     m = codexbar.measurement(payload(), 'codex')
-    m['refreshed_at'] = (datetime.now(timezone.utc) - timedelta(seconds=301)).isoformat()
+    m['refreshed_at'] = (datetime.now(timezone.utc) - timedelta(seconds=accounts.DEFAULT_MAX_AGE_SECONDS + 1)).isoformat()
     runtime = router.codexbar_runtime({'codex': m}, {})
     assert runtime['harnesses']['codex']['quota']['status'] == 'stale'
     with patch.object(codexbar, 'run') as run:

@@ -47,7 +47,43 @@ def test_reserve_keeps_active_until_low_and_never_uses_exhausted_week():
     active['measurement']['windows'][0]['percentRemaining'] = 10
     assert accounts.choose(report, 'claude', 'sonnet')['id'] == 'other'
     other['measurement']['windows'].append({'id': 'weekly', 'percentRemaining': 0})
+    assert accounts.choose(report, 'claude', 'sonnet')['id'] == 'active'
+    active['measurement']['windows'][0]['percentRemaining'] = 0
     assert accounts.choose(report, 'claude', 'sonnet') is None
+
+
+def test_above_reserve_alternative_precedes_priority_but_low_headroom_still_launches():
+    preferred, backup = row('preferred', 2, 100), row('backup', 6)
+    preferred['min_remaining_percent'] = backup['min_remaining_percent'] = 5
+    report = {'accounts': [preferred, backup]}
+    assert accounts.choose(report, 'claude', 'sonnet') is backup
+    backup['measurement']['status'] = 'unknown'
+    assert accounts.choose(report, 'claude', 'sonnet') is preferred
+    backup['measurement']['status'] = 'known'
+    backup['measurement']['windows'][0]['percentRemaining'] = 5
+    assert accounts.choose(report, 'claude', 'sonnet') is preferred
+
+
+def test_report_only_reading_cannot_supply_positive_headroom():
+    candidate = row('unverified')
+    candidate['measurement']['report_only'] = True
+    assert accounts.choose({'accounts': [candidate]}, 'claude', 'sonnet') is None
+
+
+@pytest.mark.parametrize('duration', [0, -1, True, float('nan'), float('inf')])
+def test_freshness_requires_finite_positive_duration(duration):
+    with pytest.raises(ValueError, match='max_age_seconds'):
+        accounts.validate({'max_age_seconds': duration}, 'test')
+
+
+def test_binding_carries_verified_quota_identity_for_static_profiles():
+    candidate = row('static')
+    identity = {'email': 'user@example.test', 'organizationUuid': 'org-personal'}
+    candidate['measurement']['identity'] = identity
+    binding = accounts.binding(candidate, 3600)
+    assert binding['quota_identity'] == identity
+    identity['organizationUuid'] = 'changed'
+    assert binding['quota_identity']['organizationUuid'] == 'org-personal'
 
 
 @pytest.mark.parametrize('bad', [None, float('nan'), -1, 101, True])

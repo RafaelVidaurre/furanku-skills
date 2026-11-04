@@ -6,7 +6,7 @@ Read only for configuration views, changes, or brief diagnosis.
 
 | Order | Scope | Location | Responsibility |
 | --- | --- | --- | --- |
-| 0 | `builtin` | `references/routing-catalog.json` | Research-backed candidates, evidence methodology, and default routing preferences |
+| 0 | `builtin` | `references/routing-catalog.json` | Research-backed candidates and evidence methodology; no model favorites |
 | 1 | `consumer` | Optional file supplied with `--defaults` | Consumer-owned default exact routes |
 | 2 | `global` | `~/.furanku-skills/model-routing/config.json` | Machine-wide exact routes, preferences, and candidate overrides |
 | 3 | `repo` | `<repo>/.furanku-skills/model-routing/config.json` | Shared, version-tracked project configuration |
@@ -16,11 +16,11 @@ Repository key = canonical Git common directory (the resolved project path outsi
 
 Exact `routes` use whole-row replacement in the layer order above. `preferences` accumulate: the brief lists every layer's entries low scope to high, each tagged with its source, and states the binding conflict-precedence order in its header—that header is the single normative statement of the order. `candidates` use JSON merge-patch semantics per candidate ID: objects merge recursively, arrays and scalars replace, `null` inside an override removes a field, and a top-level `"<candidate-id>": null` tombstone removes the whole candidate.
 
-The catalog ships no exact routes. A consumer may supply a version 4 file containing only `version` and `routes` to `router.py brief|check|route` or `config.py resolve|report` with `--defaults <file>`. Use the same file throughout one decision, including retries and Jev selection. Consumer defaults are read-only inputs; missing or invalid files fail closed. Persisted overrides remain authoritative, and routes still activate only on a principal request. Without consumer defaults or persisted routes, the effective routes table is empty and ordinary candidate selection still works.
+The catalog ships no exact routes. A consumer may supply a version 4 file containing only `version` and `routes` to `router.py brief|check|route` or `config.py resolve|report` with `--defaults <file>`. Use the same file throughout one decision, including retries. Consumer defaults are read-only inputs; missing or invalid files fail closed. Persisted overrides remain authoritative, and routes still activate only on a principal request. Without consumer defaults or persisted routes, the effective routes table is empty and ordinary candidate selection still works.
 
 ## Schema
 
-Persisted layers and consumer defaults are version 4 documents. A persisted layer defines only the routes it overrides. `preferences`, `candidates`, and `account_routing` are optional in persisted layers. [Accounts](accounts.md) defines discovery, reporting, private profile configuration, and launch binding; the highest defining layer replaces that entire policy. Route IDs are consumer-defined dotted tokens with no required role names; every route requires `agent`, `model`, and `effort`, and may carry a non-empty `work` description. Existing version 4 rows with or without `work` remain valid:
+Persisted layers and consumer defaults are version 4 documents. A persisted layer defines only the routes it overrides. `preferences`, `candidates`, `account_routing`, `recovery`, and `role_recovery` are optional in persisted layers. [Accounts](accounts.md) defines discovery, reporting, private profile configuration, and launch binding; the highest defining layer replaces that entire account policy. Route IDs are consumer-defined dotted tokens with no required role names; every route requires `agent`, `model`, and `effort`, and may carry a non-empty `work` description or partial `recovery` policy. Existing version 4 rows with or without these optional fields remain valid:
 
 ```json
 {
@@ -32,15 +32,14 @@ Persisted layers and consumer defaults are version 4 documents. A persisted laye
       "model": "grok-4.7",
       "effort": "high",
       "on_quota_unusable": {
-        "ask_seconds": 120,
+        "ask_seconds": 600,
         "fallback": { "agent": "codex", "model": "gpt-6-astra", "effort": "high" }
       }
     }
   },
   "preferences": [
-    "Prefer gpt-6-astra at high for design work.",
-    "Prefer gpt-6-astra at high over claude-fable-5-1[1m] for intelligence, architecture, and complex problems; this is a routing preference, not a benchmark score.",
-    "Use grok-4.7 at high for bounded implementation and agentic execution."
+    "For architecture, prioritize reasoning quality over response speed.",
+    "Use lower effort for routine changes when it is sufficient for the task."
   ],
   "candidates": {
     "opencode/kimi-for-coding/k3/max": { "enabled": false },
@@ -64,7 +63,7 @@ Persisted layers and consumer defaults are version 4 documents. A persisted laye
 ```
 
 - `preferences` are plain-language routing statements addressed to the spawning agent. They may name models, candidates, tiers, budgets, or conditions—anything the user wants weighed. They are not machine-enforced; the brief presents them and the spawn guidance makes them binding on the agent's judgment.
-- `on_quota_unusable` is optional on any route. Omit it or set `"ask"` to keep asking. An object requires a `fallback` launch tuple different from the route and may set `ask_seconds` (default 120): the agent asks once per quota blocker, then `check --use-quota-fallback` may take that fallback if the principal has not answered. Whole-row replacement still applies — a later layer that omits the field removes the fallback.
+- `on_quota_unusable` is optional on any route. Omit it or set `"ask"` to keep asking. An object requires a `fallback` launch tuple different from the route and may set `ask_seconds` (default 600): the agent asks once per quota blocker, then `check --use-quota-fallback` may take that fallback if the principal has not answered. Whole-row replacement still applies — a later layer that omits the field removes the fallback.
 - `candidates` add new launchable candidates or patch builtin ones. A candidate carries one exact `agent/model/effort` launch tuple; capability assessments carry a score, conservative value, confidence, date, public evidence, and a `scale` naming the benchmark and version; unavailable evidence remains unknown. `{"enabled": false}` makes it unavailable. `{"enabled": true, "explicit": true}` requires a principal request for that model and effort, recorded with `check --explicit-basis`. The default is enabled; `explicit: false` restores ordinary selection. A candidate whose launcher always bills one fixed account sets `quota_account` to that account's provider key in `accounts`.
 - The `agent` token names the launcher capability that can serve the model, not a vendor. Two launchers reaching the same model hold different tokens — `codex/gpt-6-astra/high` and `claudex/gpt-6-astra/high` are the same model through different surfaces. Give a launcher its own token whenever it serves models no other launcher can reach, so that a consumer omitting it from `check --launchable-via` genuinely loses those models. Folding such a launcher under a broader token makes its exclusive models unrefusable: the gate compares tokens, so a model reachable only through a parked launcher stays selectable under the shared token. Keep the launcher out of the model name; the token carries it.
 - `quota_pool` marks a candidate that does not bill the account its launch harness uses — the same model reached through a proxy that holds several credentials and picks one per request. It carries the billed `provider` and a `detail` explaining the arrangement. Such a candidate never inherits its harness's quota and never borrows a single credential's number. Its quota reports `pooled`, which passes with a warning: the surface has no one account to measure and rotates off exhausted credentials itself, so this is a settled state rather than a failed reading, and acceptance stays for quota that is normally readable and currently is not. The harness's authentication and health still gate it: the proxy supplies the account, not the ability to run.
@@ -75,6 +74,38 @@ Persisted layers and consumer defaults are version 4 documents. A persisted laye
 - Runtime authentication, health, inventory, and quota remain ephemeral inputs; never persist them as capability evidence.
 
 After layers merge, each compiled candidate is validated independently. A malformed entry is omitted from the launchable table and listed as excluded in `router.py brief` and `config.py report`. `check --candidate` of that id, or `check --exact-route` whose launch matches only that entry, fails closed with that entry's diagnostic. A valid sibling remains checkable; the malformed row is not repaired from a lower layer. Invalid layer JSON, document schema, or route rows remain hard errors for the whole document.
+
+## Recovery policy
+
+Use [agent-guided setup](setup.md) to inspect unanswered preferences and review a complete document before saving. Recovery is structured behavior and bounds; ordinary model preferences remain in `preferences` and candidate settings.
+
+| Field | Values | Builtin default |
+| --- | --- | --- |
+| `on_limit` | `equivalent`, `ask`, `wait` | `equivalent` |
+| `on_no_reply` | `stop`, `continue` | `stop` |
+| `response_seconds` | Positive integer | `600` |
+| `max_wait_seconds` | Positive integer | `1800` |
+| `max_replacements` | Non-negative integer | `2` |
+
+`equivalent` permits an eligible replacement that preserves the task's capability and constraints. `ask` requests a decision; `wait` bounds the pause by `max_wait_seconds`. `response_seconds` bounds the wait for an answer; `on_no_reply` governs its expiry. `continue` authorizes only recovery within the other policy limits. A zero replacement limit prevents replacement launches. Unknown fields, booleans in integer fields, and unknown roles are rejected.
+
+```json
+{
+  "version": 4,
+  "routes": {},
+  "recovery": { "on_limit": "equivalent", "on_no_reply": "stop" },
+  "role_recovery": {
+    "commander": { "on_limit": "ask" },
+    "worker": { "max_replacements": 1 }
+  }
+}
+```
+
+Policy merges field by field through builtin → global → repo → machine-repo. Within each layer, apply general `recovery`, then the selected role's `role_recovery`, then the selected named route's `recovery`; command or assignment overrides apply last. Role names are `commander`, `captain`, and `worker`. A later general policy can override an earlier role or route policy. A launch-row replacement does not erase lower-scope recovery fields: recovery has its own fieldwise resolution. Consumer default files supply exact launch routes; persisted recovery policy and explicit overrides govern recovery.
+
+The resolver returns the effective `policy`, a source for every field, and `configured_fields` that distinguishes explicit settings from builtin defaults. Setup asks unanswered behavior preferences even though safe defaults let routing proceed; an explicit `stop` is already an answer. When the user chooses `continue`, setup offers duration customization and includes the accepted duration in the approval preview. Missing preferences never imply permission to continue after silence.
+
+Existing `on_quota_unusable` fallback authorization and its `ask_seconds` remain compatible until `on_no_reply` is explicitly configured. Then `stop` suppresses unattended legacy fallback, while `continue` uses the resolved `response_seconds` for its window. An explicit acceptance of unknown quota is a separate user decision.
 
 ## View configuration
 

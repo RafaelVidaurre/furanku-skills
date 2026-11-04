@@ -9,13 +9,9 @@ refreshing scores. Research notes alone do not update routing.
 
 - `router.py brief` renders conservative scores, confidence, benchmark scale,
   assessment dates, source URLs, and uncertainty for the spawning agent.
-- With the agent selector, the spawning agent judges task fit using that brief
+- The spawning agent judges task fit using that brief
   and applicable preferences. There is no weighted overall score or automatic
   leaderboard winner.
-- With Jev, `jev_context.py` projects capability scores, conservative values,
-  scales, dates, notes, economics, and quota into candidate offers. Source URLs
-  remain in the local catalog; Jev receives the evidence summaries. Jev chooses
-  among eligible offers, then the local router checks the decision.
 - `check` enforces eligibility, features, context, launch surface, authentication,
   quota, and maximum-effort proportionality. It does not validate the selector's
   comparative benchmark reasoning or apply a minimum capability score.
@@ -40,8 +36,7 @@ API prices, benchmark dollars per task, output speed, and subscription quota
 answer different questions. Local usage-drain reports are not automatically
 ingested into routing, and no local evaluation feeds capability scores.
 
-After an evidence refresh, validate the catalog and inspect both the brief and
-Jev candidate projection. Completion means each changed score has a source,
+After an evidence refresh, validate the catalog and inspect the brief. Completion means each changed score has a source,
 date, exact effort, scale, and documented conservative derivation; unsupported
 dimensions remain unknown.
 
@@ -57,9 +52,6 @@ Haiku 5.5; verify the installed launcher against the
 before launch. The catalog uses full model IDs because provider aliases can
 resolve to older models. Catalog eligibility alone does not prove the installed
 CLI can serve a model.
-The catalog's task-fit preferences come from Anthropic's
-[per-model effort guidance](https://platform.claude.com/docs/en/build-with-claude/effort)
-and [Haiku release](https://www.anthropic.com/claude-haiku-5-5).
 
 Independent exact-effort coding measurements come from
 [CursorBench 4.0](https://cursor.com/evals). Vendor launch-table results on

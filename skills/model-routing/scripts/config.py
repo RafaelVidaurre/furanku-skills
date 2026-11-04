@@ -2,6 +2,7 @@
 """Read, write, resolve, and report model-routing configuration."""
 
 import argparse
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -22,8 +23,9 @@ TOKEN = r"[a-z0-9]+(?:-[a-z0-9]+)*"
 ROUTE_ID = re.compile(rf"^{TOKEN}(?:\.{TOKEN})*$")
 LAUNCH_FIELDS = ("agent", "model", "effort")
 PROVIDERS = ("claude", "codex", "grok")
-OPTIONAL_ROUTE_FIELDS = {"on_quota_unusable"}
-DEFAULT_ASK_SECONDS = 120
+OPTIONAL_ROUTE_FIELDS = {"on_quota_unusable", "recovery"}
+from policy import DEFAULTS as RECOVERY_DEFAULTS
+DEFAULT_ASK_SECONDS = RECOVERY_DEFAULTS["response_seconds"]
 
 
 class Error(Exception):
@@ -153,6 +155,16 @@ def validate_rows(routes, source):
             validate_on_quota_unusable(
                 row["on_quota_unusable"], row, source, route_id
             )
+        if "recovery" in row:
+            validate_recovery(row["recovery"], f"route {route_id!r} recovery in {source}")
+
+
+def validate_recovery(value, source, roles=False):
+    import policy
+    try:
+        (policy.validate_roles if roles else policy.validate)(value, source)
+    except ValueError as exc:
+        raise Error(str(exc)) from exc
 
 
 def validate_preferences(preferences, source):
@@ -201,7 +213,8 @@ def validate_accounts(accounts, source):
 def validate_schema(config, source):
     if type(config.get("version")) is not int or config["version"] != VERSION:
         raise Error(f"{source} must use routing config version {VERSION}")
-    allowed = {"version", "routes", "preferences", "candidates", "accounts", "account_routing"}
+    allowed = {"version", "routes", "preferences", "candidates", "accounts", "account_routing",
+               "recovery", "role_recovery"}
     unknown = sorted(set(config) - allowed)
     if unknown or "routes" not in config:
         raise Error(
@@ -211,6 +224,8 @@ def validate_schema(config, source):
     validate_preferences(config.get("preferences", []), source)
     validate_candidate_overrides(config.get("candidates", {}), source)
     validate_accounts(config.get("accounts", {}), source)
+    validate_recovery(config.get("recovery", {}), f"{source} recovery")
+    validate_recovery(config.get("role_recovery", {}), f"{source} role_recovery", roles=True)
     if "account_routing" in config:
         import accounts as account_routing
         try:
@@ -416,8 +431,40 @@ def report_markdown(report):
     return "\n".join(lines) + "\n"
 
 
-def save(path, config, private):
-    path.parent.mkdir(parents=True, exist_ok=True)
+def file_digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else "missing"
+
+
+@contextmanager
+def lock_paths(paths):
+    """Hold the shared writer locks in canonical order; refuse another owner."""
+    acquired = []
+    try:
+        targets = {Path(path).parent.resolve() / Path(path).name for path in paths}
+        for path in sorted(targets, key=str):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            lock_path = path.with_name(f".{path.name}.lock")
+            try:
+                descriptor = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            except FileExistsError as exc:
+                raise Error(f"configuration write lock exists: {lock_path}; retry after its owner finishes") from exc
+            acquired.append(lock_path)
+            os.close(descriptor)
+        yield
+    finally:
+        for lock_path in reversed(acquired):
+            lock_path.unlink()
+
+
+def save(path, config, private, expected_digest=None):
+    with lock_paths([path]):
+        _save_unlocked(path, config, private, expected_digest)
+
+
+def _save_unlocked(path, config, private, expected_digest=None):
+    """Write within an existing lock_paths transaction, preserving target CAS."""
+    if expected_digest is not None and file_digest(path) != expected_digest:
+        raise Error(f"configuration changed since preview: {path}; create a fresh preview")
     descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
         if hasattr(os, "fchmod"):
@@ -693,9 +740,10 @@ def main():
             if not args.yes:
                 raise Error("delete requires --yes after user confirmation")
             path = paths[args.scope]
-            existed = path.exists()
-            if existed:
-                path.unlink()
+            with lock_paths([path]):
+                existed = path.exists()
+                if existed:
+                    path.unlink()
             emit({"scope": args.scope, "path": str(path), "deleted": existed})
     except (Error, OSError) as error:
         print(f"model-routing-config: {error}", file=sys.stderr)

@@ -45,7 +45,7 @@ A tuple alone does not pin an account. Native `worker-start --agent --model --ef
 
 On an `agent_readiness` failure, keep the original preparation Task and terminal and follow the guide's recovery reference. An optional vendor update offer can be dismissed with its documented skip/cancel action to continue the installed version; accepting an upgrade, sign-in, trust, permission, or account change needs the principal's authorization. No prompt dismissal proves identity or readiness: repeat the process and binding checks afterward. Preserve a pending human-only prompt as an explicit retained resource rather than retrying or abandoning its Task.
 
-When quota is exhausted, checkpoint the work and settle the old attempt through the guide's recovery reference before a replacement. Recheck the same model and effort through model-routing, allowing another eligible account, and follow the replacement packet's launch method before retrying the same Task. Preserve the task contract and completed work. An account or launcher refusal is not authorization to downgrade the model; resolve the binding or report that capability gap.
+When the guide reports confirmed quota exhaustion, preserve work and settle the attempt through that same guide. Follow [model-routing recovery](../../model-routing/references/recovery.md) with the saved routing decision and the correlated Orca evidence. Apply its next action through Orca's existing wait, question, and replacement procedures. Model-routing does not launch, monitor, or maintain a second Dispatch lifecycle. Verify the replacement's account/model/effort and carry forward existing workers when replacing a Captain.
 
 ### Custom model arguments
 

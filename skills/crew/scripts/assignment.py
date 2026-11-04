@@ -10,8 +10,8 @@ then builds the assignment packet a spawning owner delivers.
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 from datetime import datetime, timezone
-import hashlib
 import hashlib
 import json
 import math
@@ -443,7 +443,7 @@ def validate_decision(decision):
         route_basis = decision.get("route_basis")
         if not isinstance(route_basis, str) or not route_basis.strip():
             raise Error("exact route decision requires a recorded route basis")
-    if status in {"refused", "needs-acceptance"}:
+    if status in {"refused", "needs-acceptance", "alternative-available"}:
         raise Error(
             "model-routing decision is not launchable; follow model-routing's "
             "Gate-check the decision for recovery. Routing verdict: "
@@ -544,6 +544,10 @@ def route_decision(args, manifest):
             args.accept_quota_unknown,
             args.use_quota_fallback,
             args.runtime_file,
+            args.policy_file,
+            args.alternative,
+            args.equivalence_reason,
+            True if args.require_original else None,
         )
         if any(value is not None and value != [] for value in modifiers):
             raise Error(
@@ -572,6 +576,8 @@ def route_decision(args, manifest):
         "check",
         "--repo",
         args.repo,
+        "--role",
+        args.role,
         "--defaults",
         str(ROUTING_DEFAULTS),
         "--launchable-via",
@@ -597,12 +603,17 @@ def route_decision(args, manifest):
         ("--accept-quota-unknown", args.accept_quota_unknown),
         ("--use-quota-fallback", args.use_quota_fallback),
         ("--runtime-file", args.runtime_file),
+        ("--policy-file", args.policy_file),
+        ("--alternative", args.alternative),
+        ("--equivalence-reason", args.equivalence_reason),
     )
     for flag, value in scalar_options:
         if value is not None:
             command += [flag, str(value)]
     for feature in args.require_feature:
         command += ["--require-feature", feature]
+    if args.require_original:
+        command += ['--require-original']
 
     result = subprocess.run(command, capture_output=True, text=True, check=False)
     try:
@@ -618,18 +629,22 @@ def route_decision(args, manifest):
         "exact": 0,
         "refused": 1,
         "needs-acceptance": 2,
+        "alternative-available": 2,
     }.get(status)
     if expected_exit is None or result.returncode != expected_exit:
         raise Error(
             "model-routing check returned an inconsistent result: "
             f"status {status!r} requires exit {expected_exit}, got {result.returncode}"
         )
+    checked = decision.get("original") if status == "alternative-available" else decision
+    if not isinstance(checked, dict):
+        raise Error("model-routing alternative verdict lacks its checked original decision")
     expected_explicit_basis = args.explicit_basis.strip() if args.explicit_basis else None
-    if decision.get("explicit_basis") != expected_explicit_basis:
+    if checked.get("explicit_basis") != expected_explicit_basis:
         raise Error("model-routing check returned a different explicit basis than requested")
     if args.candidate:
-        returned_candidate = decision.get("candidate")
-        selected = decision.get("selected")
+        returned_candidate = checked.get("candidate")
+        selected = checked.get("selected")
         if isinstance(selected, dict):
             returned_candidate = selected.get("id", returned_candidate)
         if returned_candidate != args.candidate:
@@ -637,15 +652,15 @@ def route_decision(args, manifest):
                 "model-routing check returned a different candidate than requested"
             )
         if (
-            status in {"selected", "needs-acceptance"}
-            and decision.get("reason") != args.reason.strip()
+            checked.get("status") in {"selected", "needs-acceptance"}
+            and checked.get("reason") != args.reason.strip()
         ):
             raise Error(
                 "model-routing check returned a different candidate rationale than requested"
             )
     elif (
-        decision.get("exact_route") != args.exact_route
-        or decision.get("route_basis") != args.route_basis.strip()
+        checked.get("exact_route") != args.exact_route
+        or checked.get("route_basis") != args.route_basis.strip()
     ):
         raise Error(
             "model-routing check returned a different exact route or route basis than requested"
@@ -719,16 +734,17 @@ def parse_work(args, configured_adapter=None):
 
 def routing_summary(decision):
     selected = decision["selected"]
-    summary = {
+    # Keep the complete checked contract for recovery; the flat fields below
+    # are convenience aliases used by the assignment spec and older consumers.
+    summary = deepcopy(decision)
+    summary.update({
         "status": decision["status"],
         "agent": selected["agent"],
         "model": selected["model"],
         "effort": selected["effort"],
         "warnings": decision.get("warnings", []),
         "quota": decision.get("quota"),
-    }
-    if decision.get("decision_id"):
-        summary["decision_id"] = decision["decision_id"]
+    })
     if decision["status"] == "selected":
         summary["candidate"] = selected["id"]
         summary["reason"] = decision["reason"]
@@ -738,14 +754,6 @@ def routing_summary(decision):
         summary["source"] = decision["provenance"]["winner"]
         if selected.get("id"):
             summary["candidate"] = selected["id"]
-    if decision.get("account_binding"):
-        summary["account_binding"] = decision["account_binding"]
-    if decision.get("quota_acceptance"):
-        summary["quota_acceptance"] = decision["quota_acceptance"]
-    if decision.get("explicit_basis"):
-        summary["explicit_basis"] = decision["explicit_basis"]
-    if decision.get("quota_fallback"):
-        summary["quota_fallback"] = decision["quota_fallback"]
     return summary
 
 
@@ -785,7 +793,7 @@ def account_binding_argv(binding, agent, *, router=None):
     try:
         age = datetime.now(timezone.utc).timestamp() - datetime.fromisoformat(binding['refreshed_at'].replace('Z', '+00:00')).timestamp()
         max_age = binding['max_age_seconds']
-        if isinstance(max_age, bool) or not isinstance(max_age, (int, float)) or not math.isfinite(max_age) or not 0 <= age <= max_age <= 1800:
+        if isinstance(max_age, bool) or not isinstance(max_age, (int, float)) or (isinstance(max_age, float) and not math.isfinite(max_age)) or max_age <= 0 or not 0 <= age <= max_age:
             raise ValueError()
     except (KeyError, TypeError, ValueError):
         raise Error('account decision expired; rerun the routing check before launch')
@@ -1028,6 +1036,7 @@ def build_packet(args):
         "routing": routing,
         "mechanism": {"id": manifest["mechanism"], "extras": extras},
         "spec": "\n".join(lines) + "\n",
+        "routing_decision": decision,
     }
     if launch_note:
         packet["launch_note"] = launch_note
@@ -1145,6 +1154,10 @@ def main(argv=None):
         help="hard model feature requirement, repeatable",
     )
     packet.add_argument("--minimum-context", type=int)
+    packet.add_argument('--policy-file', help='assignment recovery override JSON')
+    packet.add_argument('--alternative', help='ready equivalent candidate for conditional reserve')
+    packet.add_argument('--equivalence-reason', help='task-specific equivalence judgment')
+    packet.add_argument('--require-original', action='store_true', help='principal requires this exact model/effort during recovery')
     packet.add_argument(
         "--accept-quota-unknown",
         help="who accepted launching without live quota, and why",

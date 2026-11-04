@@ -65,11 +65,11 @@ class JevClientTest(unittest.TestCase):
             self.assertEqual(jc.load_key(), "env-test-key")
             self.assertEqual(jc.key_source(), "environment")
 
-    def test_missing_key_names_model_routing_setup_and_never_networks(self):
+    def test_missing_key_names_codemap_setup_and_never_networks(self):
         with mock.patch("urllib.request.OpenerDirector.open") as transport, self.assertRaises(jc.Error) as caught:
             jc.evaluate(PAYLOAD)
         transport.assert_not_called()
-        self.assertIn("model-routing skill's jev.py setup", str(caught.exception))
+        self.assertIn("gateway_credentials.py setup", str(caught.exception))
         self.assertIn("AI_GATEWAY_API_KEY", str(caught.exception))
 
     def test_unsafe_or_linked_credential_is_refused(self):
@@ -195,7 +195,7 @@ class JevClientTest(unittest.TestCase):
 
     def test_http_errors_map_to_hints_without_echoing_bodies_or_retrying(self):
         store_key("test-key")
-        expectations = {400: "invalid", 401: "jev.py setup", 402: "credits", 403: "access",
+        expectations = {400: "invalid", 401: "gateway_credentials.py setup", 402: "credits", 403: "access",
                         422: "invalid", 429: "rate limited", 529: "overloaded", 500: "evaluation failed"}
         for code, hint in expectations.items():
             failure = urllib.error.HTTPError(jc.ENDPOINT, code, "private-reason", {}, io.BytesIO(b"private-body test-key"))

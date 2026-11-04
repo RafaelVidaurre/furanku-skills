@@ -2,8 +2,7 @@
 
 Researched 2026-09-20. Scope: setup, documented API contract, and integration design; no implementation or authenticated model request. Public documentation and published npm source were inspected. Examples below are proposed, unexecuted code, not observed responses.
 
-Follow-up: a credential setup command and non-launching trial runner now exist.
-Use [the current Jev instructions](../../skills/model-routing/references/jev.md)
+Jev routing and its trial runner have since been retired. Use [routing setup](../../skills/model-routing/references/setup.md)
 for the implemented interface; the design below records the earlier research.
 
 ## Recommendation

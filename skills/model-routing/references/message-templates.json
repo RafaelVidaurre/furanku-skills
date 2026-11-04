@@ -1,0 +1,6 @@
+{
+  "quota_question": "**Assignment reached its usage limit**\n\nCompleted work is preserved. Choose an allowed equivalent alternative, wait for quota, or stop this assignment.\n\n**Response window:** {seconds} seconds. **If unanswered:** {no_reply}, according to your configured preference. Independent work can continue.",
+  "recovered": "**Assignment ready to resume**\n\n{replacement} passed the routing checks. Resume the preserved assignment through the existing orchestrator and verify that it starts.",
+  "wait": "**Assignment waiting for quota**\n\nRecheck at {deadline}. A reset estimate does not prove refreshed allowance. Independent work can continue.",
+  "stopped": "**Assignment paused**\n\nPreserve its work and resume when the user changes the decision or allowance becomes available. Independent work can continue."
+}

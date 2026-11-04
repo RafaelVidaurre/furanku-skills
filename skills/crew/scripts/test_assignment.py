@@ -122,7 +122,7 @@ def fake_router(
 
 
 class PacketTest(unittest.TestCase):
-    def test_real_router_uses_crew_defaults_and_preserves_user_override(self):
+    def test_real_router_requires_user_routes_and_preserves_their_selection(self):
         router = SCRIPT.parents[2] / "model-routing" / "scripts" / "router.py"
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -149,11 +149,15 @@ class PacketTest(unittest.TestCase):
                      "--router", str(bridge), "--runtime-file", str(runtime)],
                     text=True, capture_output=True, env=env, check=False,
                 )
+                if not config:
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertIn('configured route not found: worker', result.stderr)
+                    continue
                 self.assertEqual(0, result.returncode, result.stderr)
                 routing = json.loads(result.stdout)["routing"]
-                self.assertEqual("global" if config else "consumer", routing["source"]["scope"])
-                self.assertEqual("gpt-6.1-sol" if config else "gpt-6-luna", routing["model"])
-                self.assertEqual("high" if config else "max", routing["effort"])
+                self.assertEqual("global", routing["source"]["scope"])
+                self.assertEqual("gpt-6.1-sol", routing["model"])
+                self.assertEqual("high", routing["effort"])
 
     def test_sol61_packet_uses_real_catalog_gate_and_preserves_descendant_constraint(self):
         router = SCRIPT.parents[2] / "model-routing" / "scripts" / "router.py"
@@ -387,6 +391,25 @@ class PacketTest(unittest.TestCase):
         self.assertNotEqual(0, result.returncode)
         self.assertIn("inconsistent result", result.stderr)
 
+    def test_checked_reserve_alternative_is_reported_without_an_assignment(self):
+        alternative = {"status": "alternative-available", "original": SELECTED,
+                       "alternative": GROK_SELECTED,
+                       "reason": "A ready equivalent preserves the reserve."}
+        with tempfile.TemporaryDirectory() as directory:
+            router = fake_router(Path(directory), ["check", "--alternative", GROK_SELECTED["selected"]["id"]],
+                                 alternative, exit_code=2)
+            destination = Path(directory) / "assignment.spec"
+            result = run(*BASE, "--candidate", SELECTED["selected"]["id"],
+                         "--reason", SELECTED["reason"], "--router", str(router),
+                         "--alternative", GROK_SELECTED["selected"]["id"],
+                         "--equivalence-reason", "Both meet this bounded task.",
+                         "--spec-out", str(destination))
+            self.assertFalse(destination.exists(), "a reserve suggestion cannot produce a launchable spec")
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual("", result.stdout)
+        self.assertNotIn("inconsistent result", result.stderr)
+        self.assertEqual(alternative, json.loads(result.stderr.split("Routing verdict: ", 1)[1]))
+
     def test_packet_rejects_router_response_for_another_candidate(self):
         with tempfile.TemporaryDirectory() as directory:
             router = fake_router(Path(directory), ["check"], SELECTED)
@@ -533,6 +556,28 @@ class PacketTest(unittest.TestCase):
         result = run(*packet_args(decision))
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(decision["decision_id"], json.loads(result.stdout)["routing"]["decision_id"])
+
+    def test_packet_routing_preserves_complete_decision_for_recovery_and_replay(self):
+        for exact in (False, True):
+            with self.subTest(exact=exact):
+                decision = {**SELECTED, "role": "worker", "require_original": True,
+                            "max_effort_basis": "Final acceptance requires the extra reasoning budget.",
+                            "requirements": {"features": ["tools"], "launchable_agents": ["codex"]},
+                            "recovery": {"policy": {"max_replacements": 0},
+                                         "sources": {"max_replacements": {"scope": "repo", "selector": "role_recovery.worker"}}},
+                            "extension": {"original_evidence": "mechanism:event"}}
+                if exact:
+                    decision.update(status="exact", exact_route="worker.review", route_basis=ROUTE_BASIS,
+                                    provenance={"winner": {"scope": "repo", "path": "/synthetic/config.json"}})
+                result = run(*packet_args(decision))
+                self.assertEqual(0, result.returncode, result.stderr)
+                packet = json.loads(result.stdout)
+                self.assertEqual(decision, packet["routing_decision"])
+                self.assertEqual(decision, {key: packet["routing"][key] for key in decision})
+                replay = run(*packet_args(packet["routing"]))
+                self.assertEqual(0, replay.returncode, replay.stderr)
+                replayed = json.loads(replay.stdout)
+                self.assertEqual(decision, {key: replayed["routing_decision"][key] for key in decision})
 
     def test_builtin_orca_cursor_packet_encodes_model_and_effort_together(self):
         for model, effort in (("gpt-6.1-sol", "high"), ("claude-opus-5-5", "max"),
@@ -741,6 +786,7 @@ class PacketTest(unittest.TestCase):
                 "quota": {"status": "stale", "remedy": "example-provider"},
                 "quota_fallback": {"ask_seconds": 120, "launch": SELECTED["selected"]},
             },
+            {"status": "alternative-available", "original": SELECTED, "alternative": GROK_SELECTED},
         ]
         for decision in verdicts:
             with self.subTest(status=decision["status"], quota=decision.get("quota")):

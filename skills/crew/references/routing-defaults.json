@@ -1,15 +1,4 @@
 {
   "version": 4,
-  "routes": {
-    "captain": {
-      "agent": "codex",
-      "model": "gpt-6-astra",
-      "effort": "high"
-    },
-    "worker": {
-      "agent": "codex",
-      "model": "gpt-6-luna",
-      "effort": "max"
-    }
-  }
+  "routes": {}
 }

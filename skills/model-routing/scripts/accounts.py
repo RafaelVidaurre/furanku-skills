@@ -6,6 +6,7 @@ non-secret tool output and carries the measured profile into the launch.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from copy import deepcopy
 from datetime import datetime, timezone
 from html import escape
@@ -14,9 +15,16 @@ import json
 import math
 import os
 from pathlib import Path
+import secrets
+import stat
 import subprocess
 from string import Template
 import codexbar
+
+DEFAULT_RESERVE_PERCENT = 5
+DEFAULT_MAX_AGE_SECONDS = 1800
+QUOTA_CACHE_CONTRACT = 1
+QUOTA_CACHE_MAX_BYTES = 128 * 1024
 
 ACCOUNT_ENVIRONMENT_PATH = Path(__file__).resolve().parent.parent / 'references/account-environment.json'
 ACCOUNT_ENVIRONMENT_BYTES = ACCOUNT_ENVIRONMENT_PATH.read_bytes()
@@ -34,9 +42,12 @@ def validate(policy, source):
         raise ValueError(f'{source}: account_routing.source must be configured or orca')
     if 'orca_command' in policy and (not isinstance(policy['orca_command'], str) or not policy['orca_command'].strip()):
         raise ValueError(f'{source}: orca_command must be an executable')
-    for key, default, upper in [('low_remaining_percent', 10, 100), ('max_age_seconds', 300, 1800)]:
+    for key, default in [('low_remaining_percent', DEFAULT_RESERVE_PERCENT), ('max_age_seconds', DEFAULT_MAX_AGE_SECONDS)]:
         value = policy.get(key, default)
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= upper:
+        if (isinstance(value, bool) or not isinstance(value, (int, float))
+                or (isinstance(value, float) and not math.isfinite(value))
+                or value < 0 or (key == 'max_age_seconds' and value == 0)
+                or (key == 'low_remaining_percent' and value > 100)):
             raise ValueError(f'{source}: invalid {key}')
     profiles = policy.get('profiles', {})
     if not isinstance(profiles, dict):
@@ -123,8 +134,185 @@ def profile_environment(row):
     return env
 
 
-def profile_measurement(row, dependency, *, refresh=False, inventory_rows=()):
+def quota_cache_key(row, dependency):
+    """Address a reading by launch identity and the tested reader contract."""
+    contract = {
+        'version': QUOTA_CACHE_CONTRACT, 'reader': dependency,
+        'environment': hashlib.sha256(ACCOUNT_ENVIRONMENT_BYTES).hexdigest(),
+        'account': row.get('key'), 'provider': row['provider'],
+        'profile': str(Path(row['profile']).expanduser().resolve()),
+        'profile_mode': row.get('profile_mode', 'directory'),
+        'expected_identity': row.get('expected_identity', {}),
+    }
+    return hashlib.sha256(json.dumps(contract, sort_keys=True).encode()).hexdigest()
+
+
+def quota_cache_path(key):
+    if not isinstance(key, str) or len(key) != 64 or any(c not in '0123456789abcdef' for c in key):
+        raise ValueError('Invalid quota cache key')
+    return Path.home() / '.furanku-skills/model-routing/quota-cache' / (key + '.json')
+
+
+@contextmanager
+def quota_cache_directory(key, *, create=False):
+    """Open a trusted directory chain without following any symlinks.
+
+    Descriptor-relative operations keep subsequent file access anchored to the
+    checked directories. Hosts without ownership/no-follow support skip caching.
+    """
+    if (not hasattr(os, 'getuid') or not getattr(os, 'O_NOFOLLOW', 0)
+            or not getattr(os, 'O_DIRECTORY', 0) or os.open not in os.supports_dir_fd):
+        raise OSError('Private quota caching is unsupported on this filesystem interface')
+    path = quota_cache_path(key)
+    parts = path.parent.parts
+    if not path.is_absolute() or any(part in ('.', '..') for part in parts):
+        raise OSError('Unsafe quota cache path')
+    uid = os.getuid()
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    descriptor = os.open(path.anchor, flags)
+    try:
+        for index, part in enumerate(parts):
+            if index:
+                try:
+                    child = os.open(part, flags, dir_fd=descriptor)
+                except FileNotFoundError:
+                    if not create:
+                        raise
+                    try:
+                        os.mkdir(part, mode=0o700, dir_fd=descriptor)
+                    except FileExistsError:
+                        pass
+                    child = os.open(part, flags, dir_fd=descriptor)
+                os.close(descriptor)
+                descriptor = child
+            metadata = os.fstat(descriptor)
+            mode = stat.S_IMODE(metadata.st_mode)
+            private = index == len(parts) - 1
+            sticky_root = metadata.st_uid == 0 and mode & stat.S_ISVTX
+            if (metadata.st_uid not in (0, uid)
+                    or (mode & 0o022 and not sticky_root)
+                    or (private and (metadata.st_uid != uid or mode != 0o700))):
+                raise OSError('Unsafe quota cache directory ownership or permissions')
+        yield descriptor
+    finally:
+        os.close(descriptor)
+
+
+def private_cache_file(metadata):
+    return (stat.S_ISREG(metadata.st_mode) and metadata.st_uid == os.getuid()
+            and stat.S_IMODE(metadata.st_mode) == 0o600 and metadata.st_nlink == 1)
+
+
+def invalidate_quota_cache(row, dependency):
+    """Remove a row's reading, or a binding's quota_cache_key, after a usage limit.
+
+    Rows require provider, profile, optional key/profile_mode/expected_identity;
+    bindings carry the opaque cache key emitted by binding(). False means the
+    file could not be removed, so callers must bypass reuse with refresh=True.
+    """
+    key = row.get('quota_cache_key') or quota_cache_key(row, dependency)
+    try:
+        with quota_cache_directory(key) as directory:
+            name = quota_cache_path(key).name
+            metadata = os.stat(name, dir_fd=directory, follow_symlinks=False)
+            if not private_cache_file(metadata):
+                return False
+            os.unlink(name, dir_fd=directory)
+        return True
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+
+
+def cacheable_measurement(result, max_age, now):
+    if (not isinstance(result, dict) or result.get('status') != 'known'
+            or result.get('source') != 'codexbar' or result.get('report_only')
+            or not isinstance(result.get('identity'), dict)
+            or not result['identity'].get('email')
+            or not fresh(result.get('refreshed_at'), max_age, now)):
+        return False
+    windows = result.get('windows')
+    if not isinstance(windows, list) or not windows:
+        return False
+    for window in windows:
+        if not isinstance(window, dict):
+            return False
+        value = window.get('percentRemaining')
+        if (isinstance(value, bool) or not isinstance(value, (int, float))
+                or not 0 <= value <= 100
+                or window.get('scope', 'all_models') not in
+                ('all_models', 'model:fable', 'model:opus', 'model:sonnet', 'model:haiku')):
+            return False
+        # A crossed reset requires a new reading, never inferred headroom.
+        reset = window.get('resetsAt')
+        if reset is not None:
+            try:
+                if datetime.fromisoformat(stamp(reset).replace('Z', '+00:00')).timestamp() <= now.timestamp():
+                    return False
+            except (ValueError, TypeError, AttributeError, OverflowError):
+                return False
+    return any(w.get('scope', 'all_models') == 'all_models' for w in windows)
+
+
+def read_quota_cache(key, max_age, now):
+    try:
+        with quota_cache_directory(key) as directory:
+            descriptor = os.open(quota_cache_path(key).name,
+                                 os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+            with os.fdopen(descriptor, 'rb') as source:
+                metadata = os.fstat(source.fileno())
+                if not private_cache_file(metadata) or metadata.st_size > QUOTA_CACHE_MAX_BYTES:
+                    return None
+                payload = source.read(QUOTA_CACHE_MAX_BYTES + 1)
+                if len(payload) > QUOTA_CACHE_MAX_BYTES:
+                    return None
+        result = json.loads(payload)
+        return result if cacheable_measurement(result, max_age, now) else None
+    except (OSError, ValueError, TypeError, RecursionError):
+        return None
+
+
+def write_quota_cache(key, result):
+    # Persist quota facts only; vendor output and credentials never enter cache.
+    facts = {field: result[field] for field in
+             ('status', 'source', 'windows', 'refreshed_at', 'identity', 'data_confidence')
+             if field in result}
+    try:
+        payload = json.dumps(facts, allow_nan=False).encode()
+        if len(payload) > QUOTA_CACHE_MAX_BYTES:
+            return
+        with quota_cache_directory(key, create=True) as directory:
+            name = quota_cache_path(key).name
+            try:
+                if not private_cache_file(os.stat(name, dir_fd=directory, follow_symlinks=False)):
+                    return
+            except FileNotFoundError:
+                pass
+            temporary = '.quota-' + secrets.token_hex(12)
+            descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                                 mode=0o600, dir_fd=directory)
+            try:
+                with os.fdopen(descriptor, 'wb') as target:
+                    target.write(payload)
+                os.replace(temporary, name, src_dir_fd=directory, dst_dir_fd=directory)
+            finally:
+                try:
+                    os.unlink(temporary, dir_fd=directory)
+                except FileNotFoundError:
+                    pass
+    except (OSError, ValueError, TypeError, RecursionError):
+        pass  # A cache failure never prevents a supported provider read.
+
+
+def profile_measurement(row, dependency, *, refresh=False, inventory_rows=(),
+                        max_age_seconds=DEFAULT_MAX_AGE_SECONDS, now=None):
+    supplied_now = now
+    now = now or datetime.now(timezone.utc)
     env = profile_environment(row)
+    key = quota_cache_key(row, dependency)
+    if refresh:
+        invalidate_quota_cache({'quota_cache_key': key}, dependency)
     native = None
     if row['provider'] == 'claude':
         native = command_json(['claude', 'auth', 'status', '--json'], env, timeout=10)
@@ -134,12 +322,19 @@ def profile_measurement(row, dependency, *, refresh=False, inventory_rows=()):
             for key, remote in [('email', 'email'), ('organizationUuid', 'orgId')]):
             raise ValueError('Claude profile is signed out or native identity does not match configured account')
     expected = row.get('expected_identity', {})
-    if row['provider'] == 'codex':
-        if not expected.get('email'):
-            raise ValueError('Codex profile has no expected email; CodexBar selects Codex accounts by email')
-        result = codexbar.read('codex', dependency, env, account_email=expected['email'])
-    else:
-        result = codexbar.read(row['provider'], dependency, env)
+    if row['provider'] == 'codex' and not expected.get('email'):
+        raise ValueError('Codex profile has no expected email; CodexBar selects Codex accounts by email')
+    result = None if refresh else read_quota_cache(key, max_age_seconds, now)
+    if result and native and result['identity'].get('organizationUuid') != native['orgId']:
+        result = None
+    cache_hit = result is not None
+    if not cache_hit:
+        # A failed refresh cannot leave an older success reusable on next launch.
+        invalidate_quota_cache({'quota_cache_key': key}, dependency)
+        if row['provider'] == 'codex':
+            result = codexbar.read('codex', dependency, env, account_email=expected['email'])
+        else:
+            result = codexbar.read(row['provider'], dependency, env)
     identity = result.get('identity', {})
     if result['status'] == 'known':
         if any(expected.get(k) and identity.get(k) != expected[k] for k in ('email', 'organization')):
@@ -155,6 +350,9 @@ def profile_measurement(row, dependency, *, refresh=False, inventory_rows=()):
                     for other in inventory_rows):
                 raise ValueError('Measured Claude identity is ambiguous: blank organization and another account shares the email')
             identity['organizationUuid'] = native['orgId']
+    if not cache_hit and cacheable_measurement(result, max_age_seconds, supplied_now or datetime.now(timezone.utc)):
+        write_quota_cache(key, result)
+    row['quota_cache_key'] = key
     return result
 
 
@@ -211,17 +409,18 @@ def inventory(policy, dependency, now=None, *, refresh=False, providers=None, na
     def measure(row):
         if row.get('profile'):
             try:
-                row['measurement'] = profile_measurement(row, dependency, refresh=refresh, inventory_rows=rows.values())
+                row['measurement'] = profile_measurement(row, dependency, refresh=refresh, inventory_rows=rows.values(),
+                    max_age_seconds=policy.get('max_age_seconds', DEFAULT_MAX_AGE_SECONDS), now=supplied_now)
             except (ValueError, OSError, subprocess.TimeoutExpired) as exc:
                 row['measurement'] = {'status': 'unknown', 'windows': [], 'source': 'codexbar', 'detail': str(exc)}
         measurement = row.setdefault('measurement', {'status': 'unknown', 'windows': []})
-        if measurement['status'] == 'known' and not fresh(measurement.get('refreshed_at'), policy.get('max_age_seconds', 300), supplied_now or datetime.now(timezone.utc)):
+        if measurement['status'] == 'known' and not fresh(measurement.get('refreshed_at'), policy.get('max_age_seconds', DEFAULT_MAX_AGE_SECONDS), supplied_now or datetime.now(timezone.utc)):
             measurement['status'] = 'stale'
             measurement['detail'] = '; '.join(filter(None, [measurement.get('detail'), 'Last successful reading exceeds the freshness limit']))
         if not row.get('profile'):
             measurement['detail'] = 'No launch profile configured for a CodexBar CLI read'
         row['priority'] = row.get('priority', 0)
-        row['min_remaining_percent'] = row.get('min_remaining_percent', policy.get('low_remaining_percent', 10))
+        row['min_remaining_percent'] = row.get('min_remaining_percent', policy.get('low_remaining_percent', DEFAULT_RESERVE_PERCENT))
         return row
     with ThreadPoolExecutor(max_workers=4) as pool:
         selected_rows = [row for row in rows.values()
@@ -269,9 +468,10 @@ def choose(report, provider, model, *, native_only=False):
         if native_only and (not row.get('host_active', row.get('active')) or row.get('discovery', {}).get('source') != 'orca'):
             continue
         left = remaining(row, model)
-        if row['provider'] == provider and row.get('profile') and row.get('runtime') == 'host' and row.get('launch_ready', True) and row['measurement']['status'] == 'known' and left is not None and left > row['min_remaining_percent']:
+        if row['provider'] == provider and row.get('profile') and row.get('runtime') == 'host' and row.get('launch_ready', True) and row['measurement']['status'] == 'known' and not row['measurement'].get('report_only') and left is not None and left > 0:
             eligible.append(row)
-    return min(eligible, key=lambda r: (-r['priority'], not r.get('active', False), -remaining(r, model), r['key'])) if eligible else None
+    above_reserve = [r for r in eligible if remaining(r, model) > r['min_remaining_percent']]
+    return min(above_reserve or eligible, key=lambda r: (-r['priority'], not r.get('active', False), -remaining(r, model), r['key'])) if eligible else None
 
 
 def binding(row, max_age):
@@ -279,7 +479,10 @@ def binding(row, max_age):
             **profile_selection(row),
             'environment_contract': {'path': str(ACCOUNT_ENVIRONMENT_PATH),
                                      'sha256': hashlib.sha256(ACCOUNT_ENVIRONMENT_BYTES).hexdigest()},
+            'quota_identity': deepcopy(row['measurement'].get('identity', {})),
             'refreshed_at': row['measurement']['refreshed_at'], 'max_age_seconds': max_age}
+    if row.get('quota_cache_key'):
+        result['quota_cache_key'] = row['quota_cache_key']
     if row.get('discovery'):
         result['discovery'] = deepcopy(row['discovery'])
         result['expected_identity'] = deepcopy(row.get('expected_identity', {}))

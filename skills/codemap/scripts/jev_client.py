@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Codemap's Jev client: Choice, Score, and Boolean questions through Vercel AI Gateway.
 
-Transport rules mirror the model-routing skill's jev.py: TypeSafe-only routing,
+Transport uses TypeSafe-only routing,
 no redirects or retries, bounded request and response, one deadline per call,
 and errors that never echo provider bodies or credentials.
 """
@@ -11,69 +11,19 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import os
 from pathlib import Path
-import stat
 import sys
 import time
 import urllib.error
 import urllib.request
+
+from gateway_credentials import Error, SETUP_HINT, credential_path, key_source, load_key, saved_key
 
 
 MODEL = "typesafe-ai/jev"
 ENDPOINT = "https://ai-gateway.vercel.sh/v1/evaluate"
 MAX_BYTES = 1_000_000
 QUESTION_TYPES = ("choice", "score", "boolean")
-SETUP_HINT = ("set AI_GATEWAY_API_KEY or run the model-routing skill's jev.py setup "
-              "(python3 <model-routing skill dir>/scripts/jev.py setup)")
-
-
-class Error(Exception):
-    """An actionable diagnostic that contains no credential or response body."""
-
-
-def credential_path():
-    """The key saved by the model-routing skill; shared by every skill on this machine."""
-    return Path.home() / ".furanku-skills/model-routing/secrets/gateway.json"
-
-
-def valid_key(value):
-    if not isinstance(value, str) or not value or len(value) > 8192:
-        raise Error("The AI Gateway API key is empty or malformed; " + SETUP_HINT + ".")
-    if any(ord(c) < 33 or ord(c) > 126 for c in value):
-        raise Error("The AI Gateway API key must be a single token without whitespace; " + SETUP_HINT + ".")
-    return value
-
-
-def saved_key():
-    path = credential_path()
-    if path.is_symlink() or path.parent.is_symlink():
-        raise Error("Gateway credential storage must be a regular file and directory; " + SETUP_HINT + ".")
-    try:
-        info = path.stat()
-        if not stat.S_ISREG(info.st_mode) or info.st_size > 16384:
-            raise Error("Invalid Gateway credential file; " + SETUP_HINT + ".")
-        if os.name == "posix" and (info.st_mode & 0o077 or info.st_uid != os.getuid()):
-            raise Error("Gateway credential must be owned by you with mode 600; " + SETUP_HINT + ".")
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        raise Error("Gateway key is missing; " + SETUP_HINT + ".") from None
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        raise Error("Cannot read the Gateway credential; " + SETUP_HINT + ".") from None
-    if not isinstance(data, dict):
-        raise Error("Invalid Gateway credential file; " + SETUP_HINT + ".")
-    return valid_key(data.get("AI_GATEWAY_API_KEY"))
-
-
-def key_source():
-    return "environment" if "AI_GATEWAY_API_KEY" in os.environ else "machine"
-
-
-def load_key():
-    """Return the Gateway key: the process environment first, then the machine credential."""
-    if "AI_GATEWAY_API_KEY" in os.environ:
-        return valid_key(os.environ["AI_GATEWAY_API_KEY"])
-    return saved_key()
 
 
 def _nonempty_text(value):

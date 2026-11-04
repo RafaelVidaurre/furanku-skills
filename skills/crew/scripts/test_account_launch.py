@@ -16,14 +16,17 @@ ACCOUNT_ENVIRONMENT = json.loads((ROOT / 'skills/model-routing/references/accoun
 
 
 @pytest.mark.parametrize('selection', ['managed', 'managed-default-path', 'native-default'])
-def test_gate_binding_survives_crew_shell_and_expires(tmp_path, selection):
+@pytest.mark.parametrize('max_age', [300, 3600])
+def test_gate_binding_survives_crew_shell_and_expires(tmp_path, selection, max_age):
     native_default = selection == 'native-default'
     env = os.environ.copy()
     env.update(HOME=str(tmp_path / 'home'), CODEX_HOME=str(tmp_path / 'codex'))
     profile = Path(env['HOME']) / '.claude' if selection != 'managed' else tmp_path / "profile with space ' and $literal"
     profile.mkdir(parents=True)
-    now = datetime.now(timezone.utc).isoformat()
-    runtime = {'account_max_age_seconds': 300, 'account_inventory': {'accounts': [
+    # A configured longer duration must survive both routing and Crew's gate.
+    measured_age = 1801 if max_age > 1800 else 0
+    now = (datetime.now(timezone.utc) - timedelta(seconds=measured_age)).isoformat()
+    runtime = {'account_max_age_seconds': max_age, 'account_inventory': {'accounts': [
         {'provider': 'claude', 'key': 'claude:priority', 'id': 'priority', 'label': 'test@example.test',
          'runtime': 'host', 'active': False, 'profile': str(profile), 'profile_mode': 'native-default' if native_default else 'directory', 'priority': 100, 'min_remaining_percent': 0,
          'measurement': {'status': 'known', 'refreshed_at': now, 'windows': [{'id': 'session', 'percentRemaining': 1}]}}]}}
@@ -52,7 +55,7 @@ def test_gate_binding_survives_crew_shell_and_expires(tmp_path, selection):
                CLAUDE_CONFIG_DIR='/synthetic/ambient-profile')
     launched = subprocess.run(['/bin/sh', '-c', packet['launch_command']], env=env, capture_output=True, text=True, check=True)
     assert json.loads(launched.stdout) == {'profile': None if native_default else str(profile), 'override': None}
-    decision['account_binding']['refreshed_at'] = (datetime.now(timezone.utc) - timedelta(seconds=301)).isoformat()
+    decision['account_binding']['refreshed_at'] = (datetime.now(timezone.utc) - timedelta(seconds=max_age + 1)).isoformat()
     decision_file.write_text(json.dumps(decision))
     expired = subprocess.run(argv, env=env, capture_output=True, text=True)
     assert expired.returncode != 0 and 'expired' in expired.stderr
@@ -66,6 +69,16 @@ def test_account_binding_refuses_a_manifest_that_cannot_apply_it(tmp_path):
     manifest = {'mechanism': 'native', 'launchable_agents': ['claude'], 'communication': 'Harness messages', 'retire': 'Harness stop'}
     r = subprocess.run([sys.executable, str(CREW), 'packet', '--repo', str(tmp_path), '--manifest', json.dumps(manifest), '--title', 'Fixture', '--role', 'worker', '--reports-to', 'user', '--work-ref', 'beads:fixture', '--decision-json', str(path)], env=env, capture_output=True, text=True)
     assert r.returncode != 0 and 'cannot bind' in r.stderr
+
+
+def test_finite_integer_freshness_does_not_require_float_conversion(tmp_path):
+    env, argv, path, decision, log, response = native_fixture(tmp_path)
+    decision['account_binding']['max_age_seconds'] = 10**400
+    decision['account_binding']['refreshed_at'] = (datetime.now(timezone.utc) - timedelta(seconds=1801)).isoformat()
+    path.write_text(json.dumps(decision))
+    result = subprocess.run(argv, env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)['launch_method'] == 'orca-native'
 
 
 @pytest.mark.parametrize('provider, missing', [
@@ -212,6 +225,7 @@ def test_orca_native_prepares_through_supported_launcher_without_delivering(tmp_
     ('old', 'expired'), ('identity', 'identity changed'), ('signed-out', 'not ready'),
     ('unavailable', 'discovery unavailable'), ('unknown', 'discovery unavailable'),
     ('remote', 'not ready'), ('bool-age', 'expired'),
+    ('zero-age', 'expired'), ('negative-age', 'expired'), ('nonfinite-age', 'expired'),
 ])
 def test_native_account_refusal_never_launches_or_falls_back(tmp_path, fault, expected):
     env, argv, path, decision, log, response = native_fixture(tmp_path, active='other' if fault == 'inactive' else 'selected')
@@ -222,6 +236,8 @@ def test_native_account_refusal_never_launches_or_falls_back(tmp_path, fault, ex
         binding['refreshed_at'] = (datetime.now(timezone.utc) - timedelta(seconds=301)).isoformat()
     elif fault == 'bool-age':
         binding['max_age_seconds'] = True
+    elif fault in ('zero-age', 'negative-age', 'nonfinite-age'):
+        binding['max_age_seconds'] = {'zero-age': 0, 'negative-age': -1, 'nonfinite-age': float('inf')}[fault]
     elif fault == 'identity':
         binding['expected_identity']['organizationUuid'] = 'different-org'
     elif fault in ('signed-out', 'remote'):

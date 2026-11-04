@@ -14,7 +14,6 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import router
-import jev_context
 
 
 SCRIPT = Path(__file__).with_name("router.py")
@@ -185,29 +184,21 @@ class RouterTest(unittest.TestCase):
         self.assertEqual("unknown", quota["status"])
         self.assertEqual("cursor", quota["account"]["provider"])
 
-    def test_builtin_preferences_reach_agent_and_jev_in_scope_order(self):
-        import jev_context
-
+    def test_preferences_reach_agent_in_scope_order(self):
         self.write_repo_layer({"version": 4, "routes": {},
                                "preferences": ["Prefer a different model for this repo."]})
-        with mock.patch.dict(os.environ, {"HOME": str(self.home),
-                                          "CODEX_HOME": str(self.home / "codex")}):
+        catalog = json.loads(router.CATALOG.read_text())
+        catalog["preferences"] = ["Prefer candidates suited to the task constraints."]
+        catalog_path = self.base / "catalog.json"
+        catalog_path.write_text(json.dumps(catalog))
+        with mock.patch.object(router, "CATALOG", catalog_path):
             compiled = router.compile_brief(self.repo)
-        expected = [
-            {"scope": "builtin", "text": text}
-            for text in router.exact_config.builtin()["preferences"]
-        ]
-        self.assertTrue(expected)
-        self.assertEqual(expected, compiled["preferences"][:len(expected)])
-        self.assertEqual("global", compiled["preferences"][len(expected)]["scope"])
-        self.assertEqual("repo", compiled["preferences"][-1]["scope"])
-        brief = self.run_router("brief").stdout
-        for entry in expected:
-            self.assertIn(f"- (builtin) {entry['text']}", brief)
-        payload, _, _ = jev_context.prepare_case(
-            compiled, {}, {"task": {"outcome": "Model a 3D object."}}, {"codex"}
-        )
-        self.assertEqual(compiled["preferences"], payload["state"]["preferences"])
+        self.assertEqual(["builtin", "global", "global", "repo"],
+                         [entry["scope"] for entry in compiled["preferences"]])
+        brief = router.brief_markdown(compiled, {}, self.repo)
+        rendered = [line for line in brief.splitlines() if line.startswith("- (")]
+        self.assertEqual([f"- ({entry['scope']}) {entry['text']}" for entry in compiled["preferences"]],
+                         rendered)
 
     def test_brief_limits_candidates_to_consumer_launchers(self):
         brief = self.run_router("brief", "--launchable-via", "codex").stdout
@@ -328,7 +319,7 @@ class RouterTest(unittest.TestCase):
     def test_brief_json_carries_candidates_preferences_and_layers(self):
         payload = json.loads(self.run_router("brief", "--format", "json").stdout)
         self.assertIn("claude/claude-fable-5-1[1m]/high", payload["candidates"])
-        self.assertEqual("builtin", payload["preferences"][0]["scope"])
+        self.assertEqual("global", payload["preferences"][-1]["scope"])
         self.assertEqual(router.EXACT_ROUTE_SEMANTICS, payload["routes"]["semantics"])
         self.assertEqual(
             router.MAX_EFFORT_POLICY,
@@ -472,7 +463,7 @@ class RouterTest(unittest.TestCase):
         self.assertEqual("refused", decision["status"])
         self.assertIn("disabled by configuration", decision["reasons"])
 
-    def test_explicit_candidate_requires_principal_basis_and_is_excluded_from_jev(self):
+    def test_explicit_candidate_requires_principal_basis(self):
         candidate = "codex/gpt-6-astra/high"
         self.write_repo_layer({"version": 4, "routes": {}, "candidates": {candidate: {"explicit": True}}})
         brief = self.run_router("brief").stdout
@@ -487,13 +478,6 @@ class RouterTest(unittest.TestCase):
                               runtime={"harnesses": {"codex": {"quota": {"status": "known"}}}})
         self.assertEqual("selected", selected["status"])
         self.assertEqual("Use Astra at high for this task.", selected["explicit_basis"])
-        compiled = router.compile_brief(self.repo)
-        _payload, mapping, excluded = jev_context.prepare_case(
-            compiled, {}, {"task": "A bounded coding task."}, {"codex"}
-        )
-        self.assertIn(candidate, excluded)
-        self.assertNotIn(candidate, mapping.values())
-
     def test_exact_route_does_not_bypass_explicit_state(self):
         self.write_repo_layer({"version": 4, "routes": {},
                                "candidates": {"grok/grok-4.7/high": {"explicit": True}}})

@@ -115,8 +115,8 @@ Every error is a JSON `{"status":"error","error":"…"}` on stderr, never contai
 
 | Error | Action |
 | --- | --- |
-| Gateway key is missing / empty / malformed | Set `AI_GATEWAY_API_KEY` for this process, or run the model-routing skill's `jev.py setup` (`python3 <model-routing skill dir>/scripts/jev.py setup`). |
-| credential must be owned by you with mode 600 / storage must be a regular file | Delete `~/.furanku-skills/model-routing/secrets/gateway.json` and run the setup command again. |
+| Gateway key is missing / empty / malformed | Set `AI_GATEWAY_API_KEY` for this process, or run `python3 <skill-dir>/scripts/gateway_credentials.py setup`. |
+| credential must be owned by you with mode 600 / storage must be a regular file | Restore an owned regular credential file with mode `600`; for Codemap storage, move aside an invalid file or link and run the setup command again. A legacy credential can be retained while setup saves a new Codemap key. |
 | HTTP 400 or 422 | The request shape was rejected. Reproduce with `--dry-run` and report a codemap bug with that request. |
 | HTTP 401 | The key was refused; save a valid key with the setup command. |
 | HTTP 402 | The Gateway team is out of credits or over budget; top up, then rerun. |
