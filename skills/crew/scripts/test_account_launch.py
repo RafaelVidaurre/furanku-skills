@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import runpy
 import subprocess
 import sys
 
@@ -13,6 +14,57 @@ ROOT = Path(__file__).resolve().parents[3]
 ROUTER = ROOT / 'skills/model-routing/scripts/router.py'
 CREW = Path(__file__).with_name('assignment.py')
 ACCOUNT_ENVIRONMENT = json.loads((ROOT / 'skills/model-routing/references/account-environment.json').read_text())
+
+
+@pytest.mark.parametrize('native_only', [False, True])
+def test_orca_routes_measured_claude_default_without_switching_active_account(tmp_path, native_only):
+    """The default profile has quota even when Orca selected a different account."""
+    home = tmp_path / 'home'
+    profile = home / '.claude'
+    profile.mkdir(parents=True)
+    env = {**os.environ, 'HOME': str(home), 'CODEX_HOME': str(home / 'codex')}
+    runtime = {'account_inventory': {'accounts': [{
+        'provider': 'claude', 'key': 'claude:system-default', 'id': 'system-default',
+        'label': 'Configured default', 'runtime': 'host', 'active': False, 'host_active': False,
+        'profile': str(profile), 'profile_mode': 'native-default', 'priority': 0,
+        'min_remaining_percent': 5,
+        'measurement': {'status': 'known', 'refreshed_at': datetime.now(timezone.utc).isoformat(),
+                        'identity': {'email': 'fixture@example.test', 'organizationUuid': 'fixture-org'},
+                        'windows': [{'id': 'session', 'percentRemaining': 24}]}}]}}
+    runtime_file = tmp_path / 'runtime.json'
+    runtime_file.write_text(json.dumps(runtime))
+    # Exercise both public CLIs with supplied quota facts, never a real provider.
+    wrapper = tmp_path / 'fixture-router.py'
+    wrapper.write_text('import subprocess,sys\n'
+                       f'raise SystemExit(subprocess.call([sys.executable, {str(ROUTER)!r}] + '
+                       '[arg for arg in sys.argv[1:] if arg != "--codexbar"]))\n')
+    manifest = 'orca'
+    if native_only:
+        custom = runpy.run_path(str(CREW))['KNOWN_MANIFESTS']['orca']
+        custom['account_launch']['claude'] = 'orca-native'
+        manifest = json.dumps(custom)
+    command = [sys.executable, str(CREW), 'packet', '--repo', str(tmp_path), '--manifest', manifest,
+               '--router', str(wrapper), '--runtime-file', str(runtime_file),
+               '--candidate', 'claude/claude-opus-5-5/high', '--reason', 'Bounded UI implementation.',
+               '--title', 'Fixture', '--role', 'worker', '--reports-to', 'captain',
+               '--work-ref', 'beads:fixture', '--extra', 'front_key=fixture/board']
+    result = subprocess.run(command, env=env, capture_output=True, text=True)
+    if native_only:
+        assert result.returncode != 0 and 'not launchable' in result.stderr
+        assert 'positive allowance' in result.stderr and 'native-only launch' in result.stderr
+        assert 'Restore the configured account source' not in result.stderr
+        assert not result.stdout
+        return
+    assert result.returncode == 0, result.stderr
+    packet = json.loads(result.stdout)
+    assert packet['launch_method'] == 'command'
+    assert packet['account_binding']['native_default_profile'] == str(profile)
+    assert packet['routing_decision']['requirements']['native_account_only'] == []
+    assert packet['account_binding']['env'] == {}
+    assert 'CLAUDE_CONFIG_DIR' in packet['account_binding']['unset_env']
+    assert '--model claude-opus-5-5 --effort high' in packet['launch_command']
+    assert 'quota_identity' in packet['delivery_gate']
+    assert 'worker-start --terminal' in packet['delivery_gate']
 
 
 @pytest.mark.parametrize('selection', ['managed', 'managed-default-path', 'native-default'])
@@ -137,7 +189,7 @@ def test_saved_declared_contract_replays_without_a_sibling_router(tmp_path):
     assert json.loads(replay.stdout)['launch_method'] == 'orca-native'
 
 
-def native_fixture(tmp_path, *, active='selected', provider='claude', surface='readiness-worker'):
+def native_fixture(tmp_path, *, active='selected', provider='claude', surface='readiness-worker', native_only=True):
     """Fake public discovery; preparation execution requires explicit opt-in."""
     env = {**os.environ, 'HOME': str(tmp_path / 'home'), 'CODEX_HOME': str(tmp_path / 'codex')}
     log = tmp_path / 'calls.jsonl'
@@ -176,10 +228,43 @@ def native_fixture(tmp_path, *, active='selected', provider='claude', surface='r
                 'reason': 'Fixture', 'account_binding': binding}
     path = tmp_path / 'decision.json'
     path.write_text(json.dumps(decision))
-    argv = [sys.executable, str(CREW), 'packet', '--repo', str(tmp_path), '--manifest', 'orca',
+    manifest = 'orca'
+    if native_only and provider == 'claude':
+        custom = runpy.run_path(str(CREW))['KNOWN_MANIFESTS']['orca']
+        custom['account_launch']['claude'] = 'orca-native'
+        manifest = json.dumps(custom)
+    argv = [sys.executable, str(CREW), 'packet', '--repo', str(tmp_path), '--manifest', manifest,
             '--extra', 'front_key=fixture/test', '--title', 'Fixture', '--role', 'worker',
             '--reports-to', 'captain', '--work-ref', 'beads:fixture', '--decision-json', str(path)]
     return env, argv, path, decision, log, response
+
+
+@pytest.mark.parametrize('selection', ['active', 'inactive', 'configured', 'command', 'unbound'])
+def test_saved_native_only_constraint_survives_a_broader_manifest(tmp_path, selection):
+    env, argv, path, decision, log, _ = native_fixture(
+        tmp_path, active='selected' if selection == 'active' else 'other', native_only=False)
+    decision['requirements'] = {'native_account_only': ['claude']}
+    if selection == 'configured':
+        decision['account_binding'].pop('discovery')
+    elif selection == 'command':
+        manifest = runpy.run_path(str(CREW))['KNOWN_MANIFESTS']['orca']
+        manifest['account_launch']['claude'] = 'command'
+        argv[argv.index('--manifest') + 1] = json.dumps(manifest)
+    elif selection == 'unbound':
+        decision.pop('account_binding')
+    path.write_text(json.dumps(decision))
+    capabilities = tmp_path / 'capabilities.json'
+    data = json.loads(capabilities.read_text())
+    data['commands'] += [{'command': 'terminal create', 'flags': ['worktree', 'command', 'json']},
+                         {'command': 'terminal wait', 'flags': ['terminal', 'for', 'timeout-ms', 'json']}]
+    capabilities.write_text(json.dumps(data))
+    result = subprocess.run(argv, env=env, capture_output=True, text=True)
+    if selection == 'active':
+        assert result.returncode == 0, result.stderr
+        assert json.loads(result.stdout)['launch_method'] == 'orca-native'
+    else:
+        assert result.returncode != 0, 'A saved native-only requirement cannot become a command launch'
+        assert not result.stdout
 
 
 @pytest.mark.parametrize('provider', ['claude', 'codex'])
@@ -383,8 +468,9 @@ def test_native_capability_interruption_and_expiry_leave_assignment_undelivered(
 
 
 @pytest.mark.parametrize('active_remaining, expected_method', [(10, 'command'), (80, 'orca-native')])
-def test_orca_rotates_accounts_before_changing_astra(tmp_path, active_remaining, expected_method):
-    env, argv, path, decision, log, response = native_fixture(tmp_path, provider='codex', active='other')
+@pytest.mark.parametrize('provider,model', [('codex', 'gpt-6-astra'), ('claude', 'claude-opus-5-5')])
+def test_orca_rotates_accounts_before_changing_model(tmp_path, active_remaining, expected_method, provider, model):
+    env, argv, path, decision, log, response = native_fixture(tmp_path, provider=provider, active='other', native_only=False)
     capabilities = tmp_path / 'capabilities.json'
     data = json.loads(capabilities.read_text())
     data['commands'] += [
@@ -395,7 +481,7 @@ def test_orca_rotates_accounts_before_changing_astra(tmp_path, active_remaining,
     now = datetime.now(timezone.utc).isoformat()
     rows = []
     for key, remaining in [('other', active_remaining), ('selected', 99)]:
-        rows.append({'key': 'codex:' + key, 'id': key, 'provider': 'codex', 'runtime': 'host',
+        rows.append({'key': provider + ':' + key, 'id': key, 'provider': provider, 'runtime': 'host',
                      'active': key == 'other', 'host_active': key == 'other', 'priority': 0, 'label': key,
                      'profile': str(tmp_path / ('profile ' + key)), 'min_remaining_percent': 10,
                      'discovery': decision['account_binding']['discovery'],
@@ -409,12 +495,12 @@ def test_orca_rotates_accounts_before_changing_astra(tmp_path, active_remaining,
     wrapper.write_text('import runpy,sys\nsys.path.insert(0, ' + repr(str(ROUTER.parent)) + ')\n'
                        'sys.argv.remove("--codexbar")\nrunpy.run_path(' + repr(str(ROUTER)) + ', run_name="__main__")\n')
     subprocess.run([sys.executable, str(ROUTER), 'setup', '--selector', 'agent'], env=env, capture_output=True, check=True)
-    argv = argv[:-2] + ['--candidate', 'codex/gpt-6-astra/high', '--reason', 'Architecture requires Astra reasoning',
+    argv = argv[:-2] + ['--candidate', f'{provider}/{model}/high', '--reason', 'Preserve the task model while selecting an eligible account.',
                         '--router', str(wrapper), '--runtime-file', str(runtime)]
     result = subprocess.run(argv, env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr + result.stdout
     packet = json.loads(result.stdout)
-    assert packet['routing']['model'] == 'gpt-6-astra' and packet['routing']['effort'] == 'high'
+    assert packet['routing']['model'] == model and packet['routing']['effort'] == 'high'
     assert packet['launch_method'] == expected_method
     selected = 'selected' if active_remaining == 10 else 'other'
     assert packet['account_binding']['id'] == selected
@@ -424,13 +510,16 @@ def test_orca_rotates_accounts_before_changing_astra(tmp_path, active_remaining,
         assert packet['prepare_surface'] == 'profile-command'
         assert 'before task delivery' in packet['delivery_gate']
         binary = tmp_path / 'bin'; binary.mkdir()
-        stub = binary / 'codex'
-        stub.write_text('#!' + sys.executable + '\nimport os,json,sys\nprint(json.dumps({"profile":os.environ.get("CODEX_HOME"),"override":os.environ.get("OPENAI_API_KEY"),"argv":sys.argv[1:]}))\n')
+        stub = binary / provider
+        profile_env, override_env = ('CODEX_HOME', 'OPENAI_API_KEY') if provider == 'codex' else ('CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_OAUTH_TOKEN')
+        stub.write_text('#!' + sys.executable + '\nimport os,json,sys\n'
+                        f'print(json.dumps({{"profile":os.environ.get({profile_env!r}),"override":os.environ.get({override_env!r}),"argv":sys.argv[1:]}}))\n')
         stub.chmod(0o700)
-        env.update(PATH=str(binary) + os.pathsep + env['PATH'], OPENAI_API_KEY='synthetic-other-account')
+        env.update(PATH=str(binary) + os.pathsep + env['PATH'])
+        env[override_env] = 'synthetic-other-account'
         launched = subprocess.run(['/bin/sh', '-c', packet['launch_command']], env=env, capture_output=True, text=True, check=True)
-        assert json.loads(launched.stdout) == {'profile': str(tmp_path / 'profile selected'), 'override': None,
-            'argv': ['--no-alt-screen', '--model', 'gpt-6-astra', '-c', 'model_reasoning_effort=high']}
+        expected_argv = ['--no-alt-screen', '--model', model, '-c', 'model_reasoning_effort=high'] if provider == 'codex' else ['--model', model, '--effort', 'high']
+        assert json.loads(launched.stdout) == {'profile': str(tmp_path / 'profile selected'), 'override': None, 'argv': expected_argv}
 
 
 @pytest.mark.parametrize('fault, expected', [

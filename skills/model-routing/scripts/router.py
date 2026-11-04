@@ -406,6 +406,12 @@ def runtime_for(runtime, candidate_id, candidate):
         row = account_routing.choose(runtime["account_inventory"], agent, candidate["launch"]["model"],
                                      native_only=agent in runtime.get("native_account_only", []))
         if row is None:
+            if (agent in runtime.get('native_account_only', []) and
+                    account_routing.choose(runtime['account_inventory'], agent, candidate['launch']['model']) is not None):
+                return {'quota': {'status': 'unavailable', 'cause': 'native_account_mismatch',
+                                  'detail': 'A verified profile has positive allowance, but this native-only launch cannot bind it. '
+                                            'Preserve any explicit native-only requirement; otherwise use a profile-capable mechanism. '
+                                            'This is a launch-surface mismatch, not quota exhaustion.'}}
             considered = ', '.join(r['key'] + ' (' + r['measurement']['status'] + '; source=' + r['measurement'].get('source', 'unknown') + '; ' + account_routing.failure_category(r['measurement']) + ')' for r in runtime['account_inventory']['accounts'] if r['provider'] == agent)
             return {"quota": {"status": "unavailable", "detail": f"No measured account is fresh, launch-bound, and has positive allowance. Considered: {considered or 'none'}. Restore the configured account source or native sign-in/profile readiness, then re-check this same decision once. After a failed CodexBar read, wait for a readiness change; repeating the full accounts report does not repair the source. Unknown quota cannot establish an account binding."}}
         state = {"quota": {"status": "known", "effective_percent_remaining": account_routing.remaining(row, candidate["launch"]["model"]),

@@ -79,7 +79,7 @@ KNOWN_MANIFESTS = {
             )
         },
         "isolation": True,
-        "account_launch": {"claude": "orca-native", "codex": "orca-account"},
+        "account_launch": {"claude": "orca-account", "codex": "orca-account"},
         "launch_argv": {
             "cursor": ["cursor-agent", "--model", "{model}[effort={effort}]"],
             "claude": ["claude", "--model", "{model}", "--effort", "{effort}"],
@@ -1044,9 +1044,18 @@ def build_packet(args):
     binding_router = router_path(args.router) if binding and 'environment_contract' not in binding else None
     prefix = account_binding_argv(binding, agent, router=binding_router) if binding else []
     account_method = manifest.get('account_launch', {}).get(agent)
+    if agent in decision.get('requirements', {}).get('native_account_only', []):
+        if not binding or account_method not in ('orca-native', 'orca-account'):
+            raise Error('saved routing decision requires a native-only account launch; this mechanism cannot preserve it')
+        account_method = 'orca-native'
     surface = None
     template = manifest.get("launch_argv", {}).get(agent)
-    if binding and account_method in ('orca-native', 'orca-account'):
+    if binding and account_method == 'orca-account' and not binding.get('discovery'):
+        # A configured profile does not need an Orca account registration to
+        # run an exact environment-bound command. Execution still owns the
+        # capability/readiness proof; do not invent native account discovery.
+        surface = 'profile-command'
+    elif binding and account_method in ('orca-native', 'orca-account'):
         surface, argv = orca_native_preparation(binding, routing, allow_profile=account_method == 'orca-account', router=binding_router)
     if surface and surface != 'profile-command':
         packet['account_binding'] = binding
@@ -1071,9 +1080,12 @@ def build_packet(args):
         if surface == 'profile-command':
             packet['prepare_surface'] = surface
             packet['delivery_gate'] = (
+                "Verify the installed Orca guide supports terminal create, wait, and worker-start --terminal attachment. "
                 "Use this exact launch_command through Orca terminal create in the assigned workspace. "
                 "Follow references/orca.md to verify the actual account/profile, credential overrides, "
                 "model and effort against this fresh binding before task delivery. "
+                "A configured-only profile uses native authentication matched to quota_identity; "
+                "it does not require an Orca account registration. "
                 "Attach the unchanged assignment to that same verified live terminal."
             )
         packet["launch_argv"] = argv

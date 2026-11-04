@@ -30,11 +30,11 @@ Record the receipt's Run, Task, and Dispatch IDs, the effective launch tuple, an
 
 ## Account-bound launches
 
-Crew's built-in Codex policy checks all configured accounts before changing a model. It uses native preparation when the selected account is active, and a profile-bound command in an Orca terminal when another account is selected. Both paths preserve the selected model and effort and verify the exact account before delivering work. Packet construction checks fresh `account list --json` metadata and the command registry; it does not change Orca's global active account.
+Crew's built-in Claude and Codex policies check all configured accounts before changing a model. An active Orca-discovered account uses native preparation; an inactive discovered account or configured-only profile uses a profile-bound command in an Orca terminal. Both paths preserve the selected model and effort and verify the exact account before delivering work. For discovered accounts, packet construction checks fresh `account list --json` metadata and the command registry. Configured-only profiles need no Orca account registration: the command path verifies capability and actual process/native identity before delivery. Neither path changes Orca's global active account.
 
 Follow the emitted `launch_method`. For `command`, use the packet's exact `launch_command` through **Custom model arguments** below, including process verification before attachment. The command uses that profile's existing vendor configuration; it does not reproduce extra flags or environment injected by Orca's native launcher. If the principal requires the native launcher or a chat surface, use an explicit `orca-native` account policy and preserve that constraint as a readiness refusal when the selected account cannot be bound.
 
-For `orca-native`, only the current host selection is eligible because the public native launcher has no Claude/Codex account selector. This is either the exact registered account ID or an explicit `discovery.selection: system-default` binding whose default home, email and organization match public discovery with no managed host account selected. The configured row name for a system-default binding is not a managed account ID. This remains the built-in Claude policy. An inactive duplicate cannot supply the active account's quota evidence, even when the email or organization matches. Native preparation proceeds as follows:
+For an explicit `orca-native` policy, only the current host selection is eligible because the public native launcher has no Claude/Codex account selector. This is either the exact registered account ID or an explicit `discovery.selection: system-default` binding whose default home, email and organization match public discovery with no managed host account selected. The configured row name for a system-default binding is not a managed account ID. An inactive duplicate cannot supply the active account's quota evidence, even when the email or organization matches. Native preparation proceeds as follows:
 
 1. Build the packet immediately before preparation. Crew reads the binding's exact Orca executable's `agent-context --json` registry and emits `prepare_surface`; missing discovery or tuple/attachment capabilities refuse before launch. Use that same executable and inspect its launcher help if the host rejects a valid discovered invocation. Reuse a prepared, assignment-owned process only after confirming it is live and matches the decision.
 2. Run `prepare_command` with the exact existing `--worktree <selector>`, `--json`, and, for `readiness-worker`, `--run <runId>` when this front already has a Run. For `agent-launch`, this is native preparation without a prompt; Crew adds `--surface terminal` when the launcher advertises it. For `readiness-worker`, the command contains a fixed readiness-only `--spec` that performs no project work and reports `worker_done`, plus `--keep-open` when advertised so Orca's automatic release does not close the prepared terminal; keep that spec unchanged. The actual assignment remains undispatched. Record its Task, Dispatch, terminal, workspace, and resource effects as preparation owned by this assignment, not a second work contract. A ready start receipt alone does not settle the readiness Task: wait for its `worker_done` wake, and resolve an escalation or missing report through the guide's recovery reference.
@@ -49,14 +49,14 @@ When the guide reports confirmed quota exhaustion, preserve work and settle the 
 
 ### Custom model arguments
 
-Use this path for a `command` launch method, or when a launch note says `worker-start` cannot set the routed tuple for that agent. Resolve any `launch_warning` first, then create one terminal in the selected workspace with the packet's exact `launch_command` and wait for readiness:
+Use this path for a `command` launch method, or when a launch note says `worker-start` cannot set the routed tuple for that agent. Confirm the installed guide supports terminal creation, readiness wait, and attachment, and resolve any `launch_warning` first. Create one terminal in the selected workspace with the packet's exact `launch_command` and wait for readiness:
 
 ```sh
 orca terminal create --worktree <selector> --title "<Role> - <summary>" --command '<exact launch_command>' --json
 orca terminal wait --terminal <handle> --for tui-idle --timeout-ms 60000 --json
 ```
 
-Proceed only on `wait.satisfied: true`. For an account-bound packet, perform the process, credential-override, native identity, model/effort and freshness verification in step 3 above; the selected account need not be Orca's active account on this path. Resolve trust or sign-in prompts as readiness gaps. Then attach the unchanged assignment:
+Proceed only on `wait.satisfied: true`. For an account-bound packet, verify the process profile/home, absence of credential overrides, model/effort and freshness as in step 3 above; the selected account need not be Orca's active account. Match its native authentication identity to `account_binding.quota_identity` (refresh routing if that identity is missing). Recheck Orca account metadata only when `account_binding.discovery.source` is `orca`; a configured-only profile has no Orca registration to prove. Resolve trust or sign-in prompts as readiness gaps. Then attach the unchanged assignment:
 
 ```sh
 orca orchestration worker-start --spec-file <spec file> --task-title "<Role> - <summary>" --worktree <selector> --terminal <handle> [--run <runId>] --json
@@ -65,6 +65,8 @@ orca orchestration worker-start --spec-file <spec file> --task-title "<Role> - <
 `--terminal` cannot combine with `--model`/`--effort`; retain the actual command and tuple acceptance as evidence. The assignment's creator owns this terminal.
 
 **Complete when:** the task has an authoritative Dispatch, the intended model/effort is evidenced, and resource ownership is recorded. Input acceptance alone is not an acknowledgement or completion.
+
+An available profile excluded by a native-only policy is a launch-surface mismatch, not quota exhaustion. Keep the checked model and account while resolving that constraint; use the command path only when permitted. Report a remaining blocker with its specific cause and next action. Routine automatic surface selection needs no user question or repeated quota reports.
 
 ## Full handoff
 
