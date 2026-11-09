@@ -3,7 +3,8 @@
 ## The build this skill needs
 
 The run queue, owned jobs, verified transfers and `winremote-client` come from
-the host-runs fork of winremote-mcp, <https://github.com/RafaelVidaurre/winremote-mcp>.
+the host-runs build at <https://github.com/RafaelVidaurre/winremote-mcp>, a fork
+of [winremote-mcp](https://github.com/dddabtc/winremote-mcp).
 Upstream releases lack them. Install the same release on the Windows host and on
 every agent machine. The current release is `v0.4.23-hostruns.4`:
 
