@@ -13,7 +13,8 @@
         "./skills/codemap",
         "./skills/usage-drain",
         "./skills/promo-music-video",
-        "./skills/human-playtest"
+        "./skills/human-playtest",
+        "./skills/winremote-host-runs"
       ]
     }
   ]

@@ -16,6 +16,7 @@
     "skills/*/scripts/**",
     "skills/*/assets/**",
     "skills/human-playtest/agents/**",
+    "skills/winremote-host-runs/agents/**",
     "skills/decision-trail/LICENSE.txt",
     "!skills/**/__pycache__/**"
   ],

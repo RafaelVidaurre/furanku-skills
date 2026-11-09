@@ -242,6 +242,20 @@ First use walks you through approving which model tools may run on your machine.
 
 ---
 
+### winremote-host-runs (experimental)
+
+**Useful if:** your agents build, test or benchmark on a Windows machine they reach over the network, and several of them share it.
+
+**What it does:** runs each command through a queue on the Windows machine, where it keeps running if the agent disconnects, is cleaned up when it ends, and declares the folders, ports or desktop it uses, so conflicting work waits instead of colliding. It moves files with hash checks, and walks through setting up a Windows host and connecting agent machines. It needs the host-runs fork of [winremote-mcp](https://github.com/RafaelVidaurre/winremote-mcp) on both machines, so it is experimental until that work is upstream. See the [skill](skills/winremote-host-runs/SKILL.md).
+
+```text
+> Run the test suite on the Windows host and bring back the report.
+> Set up this Windows PC as a winremote host for my agents.
+> Benchmark this build on the host with nothing else running.
+```
+
+---
+
 ### crew
 
 **Useful if:** you run multi-agent work and want clear ownership (who plans, who implements, who reports to whom) instead of a pile of unnamed agents.
