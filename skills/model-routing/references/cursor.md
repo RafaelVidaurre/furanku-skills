@@ -7,7 +7,7 @@ The catalog adds availability; it does not change user routes or preferences.
 ## Launch contract
 
 The local Cursor CLI help and account model inventory were checked on
-2026-10-21. The [official CLI parameters](https://cursor.com/docs/cli/reference/parameters)
+2026-10-21; the Fable 5.2 aliases were checked on 2026-11-10. The [official CLI parameters](https://cursor.com/docs/cli/reference/parameters)
 document `--model`, `--list-models`, and workspace selection. The installed CLI
 also documents quoted parameter overrides such as
 `--model 'claude-opus-5-5[effort=high]'`; effort is part of the model selection,
@@ -18,12 +18,12 @@ name `agent` may belong to another harness.
 | --- | --- | --- |
 | `gpt-6.1-sol` | high | User-requested route; absent from the checked Cursor inventory |
 | `claude-opus-5-5` | low, medium, high, xhigh, max | Effort-suffixed aliases listed |
-| `claude-fable-5-1` | low, medium, high, xhigh, max | Effort-suffixed aliases listed |
+| `claude-fable-5-2` | medium, high, xhigh, max | Effort-suffixed aliases listed |
 | `grok-4.7` | low, medium, high, xhigh | Effort-suffixed aliases listed |
 
 Catalog models use the base ID; the launch template adds `[effort=<effort>]`.
 The checked inventory listed aliases such as `claude-opus-5-5-high`,
-`claude-fable-5-1-high`, and `grok-4.7-high`. Fast and Thinking variants are
+`claude-fable-5-2-high`, and `grok-4.7-high`. Fast and Thinking variants are
 separate selections and are outside these additions.
 
 Before launch, run `cursor-agent models` and inspect `cursor-agent --help`.

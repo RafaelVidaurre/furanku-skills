@@ -248,29 +248,6 @@ class CandidateIsolationTest(unittest.TestCase):
                 self.assertIn("malformed", result.stderr)
                 self.assertFalse(result.stdout.strip())
 
-    def test_quota_fallback_rejects_erased_candidate_launch(self):
-        fallback_id = "codex/gpt-6-astra/high"
-        self.write_repo_layer({
-            "version": 4, "routes": {"worker": {
-                "agent": "grok", "model": "grok-4.7", "effort": "high",
-                "on_quota_unusable": {"fallback": {
-                    "agent": "codex", "model": "gpt-6-astra", "effort": "high",
-                }},
-            }},
-            "candidates": {fallback_id: {"launch": {"effort": None}}},
-        })
-        result = self.check(
-            "--exact-route", "worker", "--route-basis", ROUTE_BASIS,
-            "--use-quota-fallback", "Principal did not respond within 120s.",
-            runtime={"harnesses": {
-                "grok": {"quota": {"status": "stale"}},
-                "codex": {"quota": {"status": "known"}},
-            }}, expect_code=1,
-        )
-        self.assertIn(fallback_id, result.stderr)
-        self.assertIn("malformed", result.stderr)
-        self.assertFalse(result.stdout.strip())
-
     def test_valid_same_launch_candidate_still_serves_exact_route(self):
         self.write_repo_layer({
             "version": 4, "routes": {}, "candidates": {

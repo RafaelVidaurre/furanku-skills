@@ -28,20 +28,18 @@ def test_codex_check_collects_only_bound_codex_profiles():
 
 
 @pytest.mark.parametrize('exact', [False, True])
-def test_cli_check_limits_collection_but_keeps_exact_fallback(exact, capsys):
+def test_cli_check_limits_collection_to_the_checked_launch(exact, capsys):
     primary = {'launch': {'agent': 'codex', 'model': 'test', 'effort': 'high'}}
-    fallback = {'launch': {'agent': 'grok', 'model': 'test', 'effort': 'high'}}
-    compiled = {'candidates': {'primary': primary, 'fallback': fallback, 'unrelated': {'launch': {'agent': 'claude', 'model': 'other', 'effort': 'low'}}},
+    compiled = {'candidates': {'primary': primary, 'unrelated': {'launch': {'agent': 'claude', 'model': 'other', 'effort': 'low'}}},
                 'exact': {'config': {'routes': {'worker': primary['launch']}}}}
     args = ['check', '--codexbar'] + (['--exact-route', 'worker', '--route-basis', 'requested'] if exact else ['--candidate', 'primary', '--reason', 'test'])
     with patch.object(router, 'compile_brief', return_value=compiled), \
          patch.object(router.exact_config, 'repo_info', return_value=('.', None)), \
-         patch.object(router.exact_config, 'quota_unusable_policy', return_value={'launch': fallback['launch']}), \
          patch.object(router, 'match_candidate', side_effect=lambda c, launch: next(k for k, v in c['candidates'].items() if v['launch'] == launch)), \
          patch.object(router, 'load_runtime', return_value={}) as collect, \
          patch.object(router, 'check', return_value={'status': 'refused'}):
         assert router.main(args) == 1
-    assert set(collect.call_args.args[1]) == ({'primary', 'fallback'} if exact else {'primary'})
+    assert set(collect.call_args.args[1]) == {'primary'}
 
 
 def test_failed_profile_read_stays_unavailable_with_recovery_guidance():
@@ -82,7 +80,6 @@ def test_exact_route_without_catalog_match_still_collects_quota(capsys):
     compiled = {'candidates': {}, 'exact': {'config': {'routes': {'worker': launch}}}}
     with patch.object(router, 'compile_brief', return_value=compiled), \
          patch.object(router.exact_config, 'repo_info', return_value=('.', None)), \
-         patch.object(router.exact_config, 'quota_unusable_policy', return_value=None), \
          patch.object(router, 'load_runtime', return_value={}) as collect, \
          patch.object(router, 'check', return_value={'status': 'refused'}):
         router.main(['check', '--exact-route', 'worker', '--route-basis', 'requested', '--codexbar'])

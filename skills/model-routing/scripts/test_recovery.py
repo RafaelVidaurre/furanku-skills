@@ -28,8 +28,8 @@ def case(tmp_path, monkeypatch):
     args = SimpleNamespace(repo=str(repo), role='worker', exact_route=None, route_basis=None,
                            candidate=ORIGINAL, reason='Implement the bounded change.',
                            explicit_basis=None, max_effort_basis=None, require_feature=[],
-                           minimum_context=None, launchable_via=['codex,grok'], accept_quota_unknown=None,
-                           use_quota_fallback=None, native_account_only=[], policy_file=None,
+                           launchable_via=['codex,grok'], accept_quota_unknown=None,
+                           native_account_only=[], policy_file=None,
                            require_original=False, alternative=ALTERNATIVE,
                            equivalence_reason='Both candidates meet this bounded implementation task.')
     runtime = {'harnesses': {name: {'quota': {'status': 'known', 'effective_percent_remaining': 50}}
@@ -177,22 +177,6 @@ def test_candidate_override_cannot_rewrite_a_saved_tuple(case):
     case[0]['candidates'][ORIGINAL]['launch'] = deepcopy(case[0]['candidates'][ALTERNATIVE]['launch'])
     with pytest.raises(ValueError, match='Original launch tuple'):
         plan(case)
-
-
-def test_structured_no_reply_policy_governs_legacy_fallback(case):
-    exact_assignment(case)
-    compiled, args, runtime, _ = case
-    compiled['exact']['config']['routes']['review']['on_quota_unusable'] = {
-        'ask_seconds': 90, 'fallback': deepcopy(compiled['candidates'][ALTERNATIVE]['launch'])}
-    runtime['harnesses']['codex']['quota']['status'] = 'unknown'
-    assert router.check(compiled, args, runtime)['quota_fallback']['ask_seconds'] == 90
-    configure(case, on_no_reply='stop')
-    assert 'quota_fallback' not in router.check(compiled, args, runtime)
-    args.use_quota_fallback = 'Waited for the response deadline.'
-    with pytest.raises(router.Error, match='on_no_reply'):
-        router.check(compiled, args, runtime)
-    configure(case, on_no_reply='continue', response_seconds=700)
-    assert router.check(compiled, args, runtime)['quota_fallback']['ask_seconds'] == 700
 
 
 def test_legacy_flat_crew_route_retains_its_tuple(case):

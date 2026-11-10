@@ -52,7 +52,7 @@ class PolicyTests(unittest.TestCase):
         config.validate_schema({"version": 4, "routes": {}}, "legacy")
         config.validate_schema({"version": 4, "routes": {
             "review": {"agent": "test", "model": "test", "effort": "high",
-                       "on_quota_unusable": "ask", "recovery": {"on_limit": "wait"}}},
+                       "recovery": {"on_limit": "wait"}}},
             "role_recovery": {"worker": {"max_replacements": 0}},
             "recovery": {"on_no_reply": "stop"}}, "partial")
 

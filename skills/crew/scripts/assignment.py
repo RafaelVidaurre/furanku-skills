@@ -540,9 +540,7 @@ def route_decision(args, manifest):
             args.max_effort_basis,
             args.explicit_basis,
             args.require_feature,
-            args.minimum_context,
             args.accept_quota_unknown,
-            args.use_quota_fallback,
             args.runtime_file,
             args.policy_file,
             args.alternative,
@@ -558,10 +556,8 @@ def route_decision(args, manifest):
     if args.candidate:
         if not args.reason or not args.reason.strip():
             raise Error("--candidate requires --reason with the task judgment")
-        if args.route_basis is not None or args.use_quota_fallback is not None:
-            raise Error(
-                "--route-basis and --use-quota-fallback apply only to --exact-route"
-            )
+        if args.route_basis is not None:
+            raise Error("--route-basis applies only to --exact-route")
     else:
         if not args.route_basis or not args.route_basis.strip():
             raise Error(
@@ -599,9 +595,7 @@ def route_decision(args, manifest):
     scalar_options = (
         ("--max-effort-basis", args.max_effort_basis),
         ("--explicit-basis", args.explicit_basis),
-        ("--minimum-context", args.minimum_context),
         ("--accept-quota-unknown", args.accept_quota_unknown),
-        ("--use-quota-fallback", args.use_quota_fallback),
         ("--runtime-file", args.runtime_file),
         ("--policy-file", args.policy_file),
         ("--alternative", args.alternative),
@@ -1004,11 +998,6 @@ def build_packet(args):
             "routing_quota_acceptance: "
             + json.dumps(routing["quota_acceptance"], ensure_ascii=False)
         )
-    if routing.get("quota_fallback"):
-        lines.append(
-            "routing_quota_fallback: "
-            + json.dumps(routing["quota_fallback"], ensure_ascii=False, sort_keys=True)
-        )
     if work["type"] == "ref":
         lines += [
             f"work_ref: {work['adapter']}:{work['ref']}",
@@ -1165,7 +1154,6 @@ def main(argv=None):
         default=[],
         help="hard model feature requirement, repeatable",
     )
-    packet.add_argument("--minimum-context", type=int)
     packet.add_argument('--policy-file', help='assignment recovery override JSON')
     packet.add_argument('--alternative', help='ready equivalent candidate for conditional reserve')
     packet.add_argument('--equivalence-reason', help='task-specific equivalence judgment')
@@ -1173,10 +1161,6 @@ def main(argv=None):
     packet.add_argument(
         "--accept-quota-unknown",
         help="who accepted launching without live quota, and why",
-    )
-    packet.add_argument(
-        "--use-quota-fallback",
-        help="basis for using an exact route's configured quota fallback",
     )
     packet.add_argument(
         "--runtime-file", help="additional ephemeral routing runtime JSON"

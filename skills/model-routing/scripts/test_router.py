@@ -52,7 +52,7 @@ class RouterTest(unittest.TestCase):
             "preferences": [
                 "Captains default to gpt-6-astra at high.",
                 "For the most complex architecture or systems design, use "
-                "claude-fable-5-1[1m] or gpt-6-astra at high.",
+                "claude-fable-5-2 or gpt-6-astra at high.",
             ],
         }
         path = self.home / ".furanku-skills" / "model-routing" / "config.json"
@@ -122,8 +122,7 @@ class RouterTest(unittest.TestCase):
         brief = json.loads(self.run_router("brief", "--format", "json").stdout)
         candidate = brief["candidates"][candidate_id]
         self.assertEqual({"agent": "codex", "model": "gpt-6.1-sol", "effort": "high"}, candidate["launch"])
-        self.assertFalse(candidate.get("context"))
-        self.assertFalse(candidate.get("features"))
+        self.assertEqual(["vision"], candidate.get("features"))
         self.assertFalse(candidate.get("economics"))
         self.assertEqual(set(router.DIMENSIONS), set(candidate["capabilities"]))
         for cell in candidate["capabilities"].values():
@@ -138,26 +137,25 @@ class RouterTest(unittest.TestCase):
         self.assertEqual(candidate_id, selected["selected"]["id"])
         exhausted = self.check(*args, runtime={"harnesses": {"codex": {"quota": {"status": "exhausted"}}}}, expect_code=1)
         self.assertEqual("refused", exhausted["status"])
-        self.assertIn("missing features: vision", self.check(*args, "--require-feature", "vision", runtime=runtime, expect_code=1)["reasons"])
-        self.assertIn("context capacity unknown", self.check(*args, "--minimum-context", "1000", runtime=runtime, expect_code=1)["reasons"])
+        self.assertEqual("selected", self.check(*args, "--require-feature", "vision", runtime=runtime)["status"])
         self.assertEqual("refused", self.check(*args, "--launchable-via", "claude", runtime=runtime, expect_code=1)["status"])
 
     def test_brief_shows_preferences_with_scope_tags(self):
         brief = self.run_router("brief").stdout
         self.assertIn("## Routing preferences", brief)
         self.assertIn("- (global) Captains default to gpt-6-astra at high.", brief)
-        self.assertIn("claude-fable-5-1[1m] or gpt-6-astra at high", brief)
+        self.assertIn("claude-fable-5-2 or gpt-6-astra at high", brief)
 
     def test_cursor_routes_keep_vendor_quota_separate_and_gate_launch_surface(self):
         brief = json.loads(self.run_router("brief", "--format", "json", "--launchable-via", "cursor").stdout)
         self.assertEqual(
-            {"gpt-6.1-sol", "claude-opus-5-5", "claude-fable-5-1", "grok-4.7"},
+            {"gpt-6.1-sol", "claude-opus-5-5", "claude-fable-5-2", "grok-4.7"},
             {row["launch"]["model"] for row in brief["candidates"].values()},
         )
         self.assertTrue(all(row["launch"]["agent"] == "cursor" for row in brief["candidates"].values()))
         vendor_runtime = {"harnesses": {agent: {"quota": {"status": "exhausted"}}
                                        for agent in ("codex", "claude", "grok")}}
-        for model in ("gpt-6.1-sol", "claude-opus-5-5", "claude-fable-5-1", "grok-4.7"):
+        for model in ("gpt-6.1-sol", "claude-opus-5-5", "claude-fable-5-2", "grok-4.7"):
             candidate_id = f"cursor/{model}/high"
             args = ("--candidate", candidate_id, "--reason", "Use the requested Cursor harness.")
             with self.subTest(model=model):
@@ -258,10 +256,10 @@ class RouterTest(unittest.TestCase):
         brief = self.run_router("brief").stdout
         self.assertIn(router.EXACT_ROUTE_SEMANTICS, brief)
         self.assertIn(
-            "| captain | — | codex | gpt-6-astra | high | global | ask |",
+            "| captain | — | codex | gpt-6-astra | high | global |",
             brief,
         )
-        self.assertIn("claude/claude-fable-5-1[1m]/high", brief)
+        self.assertIn("claude/claude-fable-5-2/high", brief)
         self.assertIn(router.MAX_EFFORT_POLICY, brief)
         rows = {
             line.split("|", 2)[1].strip(): line
@@ -269,15 +267,15 @@ class RouterTest(unittest.TestCase):
             if line.startswith("|") and "/" in line
         }
         self.assertIn(
-            "| 0.49 (h, A) | 0.46 (m, A) | 0.52 (m) | ? | 0.94 (l) | ? | 55 | 1,000,000 |",
-            rows["claude/claude-fable-5-1[1m]/high"],
+            "| 0.60 (h, C) | 0.54 (m, A) | 0.56 (m) | ? | ? | ? | 94 |",
+            rows["claude/claude-fable-5-2/high"],
         )
         self.assertIn(
-            "| 0.49 (h, A) | 0.70 (m, C) | 0.48 (m) | ? | ? | $3.92 | 52 | 1,050,000 |",
+            "| 0.49 (h, A) | 0.70 (m, C) | 0.48 (m) | ? | ? | $3.92 | 52 |",
             rows["codex/gpt-6-astra/high"],
         )
         self.assertIn(
-            "| 0.44 (h, A) | 0.41 (m, A) | 0.55 (m) | ? | ? | ? | 50 | 500,000 |",
+            "| 0.44 (h, A) | 0.41 (m, A) | 0.55 (m) | ? | ? | ? | 50 |",
             rows["grok/grok-4.7/high"],
         )
         self.assertIn(
@@ -318,7 +316,7 @@ class RouterTest(unittest.TestCase):
 
     def test_brief_json_carries_candidates_preferences_and_layers(self):
         payload = json.loads(self.run_router("brief", "--format", "json").stdout)
-        self.assertIn("claude/claude-fable-5-1[1m]/high", payload["candidates"])
+        self.assertIn("claude/claude-fable-5-2/high", payload["candidates"])
         self.assertEqual("global", payload["preferences"][-1]["scope"])
         self.assertEqual(router.EXACT_ROUTE_SEMANTICS, payload["routes"]["semantics"])
         self.assertEqual(
@@ -496,24 +494,6 @@ class RouterTest(unittest.TestCase):
                                  "--explicit-basis", "Use test-frontier at max.", expect_code=1)
         self.assertIn("applies only to an explicit candidate", result.stderr)
 
-    def test_quota_fallback_needs_its_own_explicit_model_request(self):
-        worker = {"agent": "grok", "model": "grok-4.7", "effort": "high",
-                  "on_quota_unusable": {"fallback": {"agent": "codex", "model": "gpt-6-astra", "effort": "high"}}}
-        self.write_repo_layer({"version": 4, "routes": {"worker": worker},
-                               "candidates": {"grok/grok-4.7/high": {"explicit": True},
-                                              "codex/gpt-6-astra/high": {"explicit": True}}})
-        runtime = {"harnesses": {"grok": {"quota": {"status": "unknown"}},
-                                 "codex": {"quota": {"status": "known"}}}}
-        base = ("--exact-route", "worker", "--route-basis", ROUTE_BASIS,
-                "--use-quota-fallback", "Waited 120 seconds.")
-        refused = self.check(*base, "--explicit-basis", "Use grok-4.7 at high.",
-                             runtime=runtime, expect_code=1)
-        self.assertIn("quota fallback refused: explicit basis must name gpt-6-astra", refused["reasons"][0])
-        chosen = self.check(*base, "--explicit-basis", "Use grok-4.7 at high; if unavailable, use Astra at high.",
-                            runtime=runtime)
-        self.assertEqual("exact", chosen["status"])
-        self.assertEqual("codex/gpt-6-astra/high", chosen["selected"]["id"])
-
     def test_brief_candidate_table_has_matching_column_count(self):
         brief = self.run_router("brief").stdout.splitlines()
         header = next(index for index, line in enumerate(brief) if line.startswith("| Candidate | State |"))
@@ -679,27 +659,31 @@ class RouterTest(unittest.TestCase):
         )
         self.assertEqual("selected", decision["status"])
 
-    def test_check_enforces_feature_and_context_gates(self):
+    def test_check_enforces_feature_gate(self):
         decision = self.check(
             "--candidate",
             "codex/gpt-5.6-terra/max",
             "--reason",
-            "Needs the full monorepo in context.",
-            "--minimum-context",
-            "800000",
-            expect_code=1,
-        )
-        self.assertIn("context capacity unknown", decision["reasons"])
-        decision = self.check(
-            "--candidate",
-            "codex/gpt-5.6-terra/max",
-            "--reason",
-            "Needs long-context support.",
+            "Needs to watch a screen recording.",
             "--require-feature",
-            "long-context",
+            "video",
             expect_code=1,
         )
-        self.assertIn("missing features: long-context", decision["reasons"])
+        self.assertIn("missing features: video", decision["reasons"])
+
+    def test_check_rejects_a_feature_no_candidate_declares(self):
+        result = self.run_router(
+            "check",
+            "--candidate",
+            "codex/gpt-5.6-terra/max",
+            "--reason",
+            "Misspelled requirement.",
+            "--require-feature",
+            "image",
+            expect_code=1,
+        )
+        self.assertIn("unknown feature image", result.stderr)
+        self.assertIn("vision", result.stderr)
 
     def test_check_unknown_candidate_lists_launchable_ids(self):
         result = self.run_router(
@@ -711,7 +695,7 @@ class RouterTest(unittest.TestCase):
             expect_code=1,
         )
         self.assertIn("unknown candidate", result.stderr)
-        self.assertIn("claude/claude-fable-5-1[1m]/high", result.stderr)
+        self.assertIn("claude/claude-fable-5-2/high", result.stderr)
 
     def test_check_exact_route_keeps_provenance(self):
         decision = self.check(
@@ -842,7 +826,7 @@ class RouterTest(unittest.TestCase):
         )
 
     def test_harness_exhaustion_dominates_candidate_quota(self):
-        candidate = "claude/claude-fable-5-1[1m]/high"
+        candidate = "claude/claude-fable-5-2/high"
         decision = self.check(
             "--candidate",
             candidate,
@@ -883,7 +867,7 @@ class RouterTest(unittest.TestCase):
         )
         brief = self.run_router("brief").stdout
         self.assertIn(
-            "| captain | — | codex | gpt-6-astra | high | global | ask |", brief
+            "| captain | — | codex | gpt-6-astra | high | global |", brief
         )
         routes = json.loads(self.run_router("brief", "--format", "json").stdout)["routes"]["effective"]
         self.assertEqual({"captain"}, set(routes))
@@ -1386,255 +1370,6 @@ class RouterTest(unittest.TestCase):
         self.assertIn("--accept-quota-unknown", pending)
         self.assertEqual("Grok access token expired", decision["quota"]["detail"])
         self.assertEqual("grok", decision["quota"]["remedy"])
-
-    def test_exact_route_needs_acceptance_exposes_configured_fallback(self):
-        self.write_repo_layer(
-            {
-                "version": 4,
-                "routes": {
-                    "worker": {
-                        "agent": "grok",
-                        "model": "grok-4.7",
-                        "effort": "high",
-                        "on_quota_unusable": {
-                            "ask_seconds": 90,
-                            "fallback": {
-                                "agent": "codex",
-                                "model": "gpt-6-astra",
-                                "effort": "high",
-                            },
-                        },
-                    }
-                },
-            }
-        )
-        brief = self.run_router("brief").stdout
-        self.assertIn(
-            "| worker | — | grok | grok-4.7 | high | repo | "
-            "ask 90s → codex/gpt-6-astra/high |",
-            brief,
-        )
-        decision = self.check(
-            "--exact-route",
-            "worker",
-            "--route-basis",
-            ROUTE_BASIS,
-            runtime={"harnesses": {"grok": {"quota": {"status": "stale"}}}},
-            expect_code=2,
-        )
-        self.assertEqual("needs-acceptance", decision["status"])
-        self.assertEqual("grok", decision["selected"]["agent"])
-        self.assertEqual(90, decision["quota_fallback"]["ask_seconds"])
-        self.assertEqual(
-            {
-                "agent": "codex",
-                "model": "gpt-6-astra",
-                "effort": "high",
-            },
-            decision["quota_fallback"]["launch"],
-        )
-        self.assertIn("--use-quota-fallback", decision["quota_fallback"]["next"])
-
-    def test_use_quota_fallback_after_wait_selects_fallback(self):
-        self.write_repo_layer(
-            {
-                "version": 4,
-                "routes": {
-                    "worker": {
-                        "agent": "grok",
-                        "model": "grok-4.7",
-                        "effort": "high",
-                        "on_quota_unusable": {
-                            "fallback": {
-                                "agent": "codex",
-                                "model": "gpt-6-astra",
-                                "effort": "high",
-                            }
-                        },
-                    }
-                },
-            }
-        )
-        decision = self.check(
-            "--exact-route",
-            "worker",
-            "--route-basis",
-            ROUTE_BASIS,
-            "--use-quota-fallback",
-            "principal did not respond within 120s",
-            runtime={
-                "harnesses": {
-                    "grok": {"quota": {"status": "stale"}},
-                    "codex": {
-                        "quota": {
-                            "status": "known",
-                            "effective_percent_remaining": 99,
-                        }
-                    },
-                }
-            },
-        )
-        self.assertEqual("exact", decision["status"])
-        self.assertEqual("codex", decision["selected"]["agent"])
-        self.assertEqual("gpt-6-astra", decision["selected"]["model"])
-        self.assertEqual("high", decision["selected"]["effort"])
-        self.assertTrue(decision["quota_fallback"]["used"])
-        self.assertEqual(
-            "principal did not respond within 120s",
-            decision["quota_fallback"]["basis"],
-        )
-        self.assertIn("used quota fallback after wait", decision["warnings"][-1])
-
-    def test_use_quota_fallback_keeps_primary_when_quota_is_now_known(self):
-        self.write_repo_layer(
-            {
-                "version": 4,
-                "routes": {
-                    "worker": {
-                        "agent": "grok",
-                        "model": "grok-4.7",
-                        "effort": "high",
-                        "on_quota_unusable": {
-                            "fallback": {
-                                "agent": "codex",
-                                "model": "gpt-6-astra",
-                                "effort": "high",
-                            }
-                        },
-                    }
-                },
-            }
-        )
-        decision = self.check(
-            "--exact-route",
-            "worker",
-            "--route-basis",
-            ROUTE_BASIS,
-            "--use-quota-fallback",
-            "waited 120s",
-            runtime={"harnesses": {"grok": {"quota": {"status": "known"}}}},
-        )
-        self.assertEqual("exact", decision["status"])
-        self.assertEqual("grok", decision["selected"]["agent"])
-        self.assertNotIn("quota_fallback", decision)
-
-    def test_use_quota_fallback_does_not_bypass_exhausted_primary(self):
-        self.write_repo_layer(
-            {
-                "version": 4,
-                "routes": {
-                    "worker": {
-                        "agent": "grok",
-                        "model": "grok-4.7",
-                        "effort": "high",
-                        "on_quota_unusable": {
-                            "fallback": {
-                                "agent": "codex",
-                                "model": "gpt-6-astra",
-                                "effort": "high",
-                            }
-                        },
-                    }
-                },
-            }
-        )
-        decision = self.check(
-            "--exact-route",
-            "worker",
-            "--route-basis",
-            ROUTE_BASIS,
-            "--use-quota-fallback",
-            "waited 120s",
-            runtime={
-                "harnesses": {
-                    "grok": {"quota": {"status": "exhausted"}},
-                    "codex": {"quota": {"status": "known"}},
-                }
-            },
-            expect_code=1,
-        )
-        self.assertEqual("refused", decision["status"])
-        self.assertIn("quota exhausted (account unattributed)", decision["reasons"])
-        self.assertEqual("grok/grok-4.7/high", decision["candidate"])
-
-    def test_use_quota_fallback_stays_pending_when_fallback_also_stale(self):
-        self.write_repo_layer(
-            {
-                "version": 4,
-                "routes": {
-                    "worker": {
-                        "agent": "grok",
-                        "model": "grok-4.7",
-                        "effort": "high",
-                        "on_quota_unusable": {
-                            "fallback": {
-                                "agent": "codex",
-                                "model": "gpt-6-astra",
-                                "effort": "high",
-                            }
-                        },
-                    }
-                },
-            }
-        )
-        decision = self.check(
-            "--exact-route",
-            "worker",
-            "--route-basis",
-            ROUTE_BASIS,
-            "--use-quota-fallback",
-            "waited 120s",
-            runtime={
-                "harnesses": {
-                    "grok": {"quota": {"status": "stale"}},
-                    "codex": {"quota": {"status": "stale"}},
-                }
-            },
-            expect_code=2,
-        )
-        self.assertEqual("needs-acceptance", decision["status"])
-        self.assertEqual("grok", decision["selected"]["agent"])
-        self.assertIn(
-            "configured fallback also has unknown or stale quota",
-            decision["pending"],
-        )
-
-    def test_use_quota_fallback_requires_exact_route_and_basis(self):
-        result = self.run_router(
-            "check",
-            "--candidate",
-            "grok/grok-4.7/high",
-            "--reason",
-            "Cheap pick.",
-            "--use-quota-fallback",
-            "waited",
-            expect_code=1,
-        )
-        self.assertIn("requires --exact-route", result.stderr)
-        result = self.run_router(
-            "check",
-            "--exact-route",
-            "worker",
-            "--route-basis",
-            ROUTE_BASIS,
-            "--use-quota-fallback",
-            "   ",
-            expect_code=1,
-        )
-        self.assertIn("requires the wait basis", result.stderr)
-        result = self.run_router(
-            "check",
-            "--exact-route",
-            "worker",
-            "--route-basis",
-            ROUTE_BASIS,
-            "--use-quota-fallback",
-            "waited 120s",
-            runtime={"harnesses": {"grok": {"quota": {"status": "stale"}}}},
-            expect_code=1,
-        )
-        self.assertIn("has no on_quota_unusable fallback", result.stderr)
-
 
 if __name__ == "__main__":
     unittest.main()

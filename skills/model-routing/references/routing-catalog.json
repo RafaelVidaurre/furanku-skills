@@ -14,83 +14,275 @@
     "scale": "Every known cell names its benchmark and version in scale. Scores on different scales are not comparable; the brief letters each scale where a column mixes them."
   },
   "candidates": {
-    "claude/claude-fable-5-1[1m]/high": {
+    "claude/claude-fable-5-2/medium": {
       "launch": {
         "agent": "claude",
-        "model": "claude-fable-5-1[1m]",
-        "effort": "high"
+        "model": "claude-fable-5-2",
+        "effort": "medium"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
-      "context": 1000000,
-      "context_evidence": "https://platform.claude.com/docs/en/models/fable-5-1/overview",
       "capabilities": {
         "reasoning": {
           "status": "known",
-          "score": 0.51,
-          "conservative": 0.49,
+          "score": 0.5641,
+          "conservative": 0.5441,
           "confidence": "high",
-          "assessed_at": "2026-09-22",
+          "assessed_at": "2026-11-10",
           "evidence": [
-            "https://artificialanalysis.ai/models/claude-fable-5-1-high"
+            "https://artificialanalysis.ai/models/claude-fable-5-2-medium",
+            "https://artificialanalysis.ai/models/releases/claude-fable-5-2"
           ],
-          "scale": "AA Intelligence Index v4.3.2",
-          "note": "Claude Fable 5.1 (high with fallback) 51.15 on v4.3.2; score = index/100, conservative = score - 0.02."
+          "scale": "AA Intelligence Index v5.0.1",
+          "note": "Exact medium with Default Fallback row 56.40832 on v5.0.1; score = index/100, conservative = score - 0.02. v5.0.1 is not comparable with v4.3.2 cells."
         },
         "implementation": {
           "status": "known",
-          "score": 0.492,
-          "conservative": 0.462,
+          "score": 0.548,
+          "conservative": 0.518,
           "confidence": "medium",
-          "assessed_at": "2026-09-22",
+          "assessed_at": "2026-11-10",
           "evidence": [
             "https://cursor.com/evals"
           ],
           "scale": "CursorBench 4.0",
-          "note": "CursorBench 4.0 exact row 49.2% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
+          "note": "CursorBench 4.0 exact medium row 54.8% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
         },
         "agentic": {
           "status": "known",
-          "score": 0.546,
-          "conservative": 0.522,
+          "score": 0.5611,
+          "conservative": 0.5365,
           "confidence": "medium",
-          "assessed_at": "2026-09-22",
+          "assessed_at": "2026-11-10",
           "evidence": [
-            "https://artificialanalysis.ai/models/claude-fable-5-1-high",
-            "https://artificialanalysis.ai/evaluations/aa-briefcase",
-            "https://artificialanalysis.ai/methodology/intelligence-benchmarking"
+            "https://artificialanalysis.ai/models/claude-fable-5-2-medium",
+            "https://artificialanalysis.ai/models/releases/claude-fable-5-2"
           ],
           "scale": "AA-Briefcase v1.1 Elo, mapped",
-          "note": "Exact AA-Briefcase v1.1 Elo 1592.21 (95% CI lower 1583.15); mapped with AA's own clamp((Elo - 500) / 2000); conservative = mapped lower bound - 0.02 harness transfer (Stirrup to launcher)."
+          "note": "Exact medium with Default Fallback Elo 1622.24 (95% CI lower 1613.04); score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 for Stirrup-to-launcher transfer. Snapshot 2026-11-10; older catalog peers have earlier assessment dates."
         },
         "ui": {
           "status": "unknown",
-          "reason": "Arena WebDev (vote cutoff 2026-09-11) lists only claude-fable-5.1-max (rank 2), not high. The max rank is not carried to high.",
-          "researched_at": "2026-09-22"
+          "reason": "Arena WebDev (page date 2026-11-08, 156 models) lists only Claude Fable 5.2 (xHigh), an AutoEval row; no exact-effort row for this tuple, and xhigh is not transferred.",
+          "researched_at": "2026-11-10"
         },
         "spatial-3d": {
-          "status": "known",
-          "score": 0.993,
-          "conservative": 0.943,
-          "confidence": "low",
-          "assessed_at": "2026-09-22",
-          "evidence": [
-            "https://www.designarena.ai/leaderboard/3d-design",
-            "https://platform.claude.com/docs/en/models/fable-5-1/overview"
-          ],
-          "scale": "Design Arena 3D rank, percentile",
-          "note": "claude-fable-5-1 rank 2 of 153, Elo 1423, data stamp 2026-09-22T16:06Z. Design Arena does not label effort; Anthropic's default for Fable 5.1 is high, so high is inferred, not stated. score = 1 - (rank - 1)/(N - 1); conservative = score - 0.05."
+          "status": "unknown",
+          "reason": "Design Arena added claude-fable-5-2 on 2026-11-09, but the 3D board (data stamp 2026-11-10T10:06Z, 178 models) has no row for it, and the registry labels no effort. The Fable 5.1 rank is not carried over.",
+          "researched_at": "2026-11-10"
         }
       },
       "economics": {
         "output_tokens_per_second": {
-          "value": 55.4,
-          "basis": "Artificial Analysis, high with default fallback",
-          "assessed_at": "2026-09-22",
-          "source": "https://artificialanalysis.ai/models/claude-fable-5-1-high"
+          "value": 87.01,
+          "basis": "Artificial Analysis, exact medium with Default Fallback, headline output speed (5-day average); not a median and not end-to-end task latency",
+          "assessed_at": "2026-11-10",
+          "source": "https://artificialanalysis.ai/models/claude-fable-5-2-medium"
+        }
+      }
+    },
+    "claude/claude-fable-5-2/high": {
+      "launch": {
+        "agent": "claude",
+        "model": "claude-fable-5-2",
+        "effort": "high"
+      },
+      "features": [
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.6182,
+          "conservative": 0.5982,
+          "confidence": "high",
+          "assessed_at": "2026-11-10",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-fable-5-2-high",
+            "https://artificialanalysis.ai/models/releases/claude-fable-5-2"
+          ],
+          "scale": "AA Intelligence Index v5.0.1",
+          "note": "Exact high with Default Fallback row 61.82188 on v5.0.1; score = index/100, conservative = score - 0.02. v5.0.1 is not comparable with v4.3.2 cells."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.569,
+          "conservative": 0.539,
+          "confidence": "medium",
+          "assessed_at": "2026-11-10",
+          "evidence": [
+            "https://cursor.com/evals"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact high row 56.9% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.5887,
+          "conservative": 0.5637,
+          "confidence": "medium",
+          "assessed_at": "2026-11-10",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-fable-5-2-high",
+            "https://artificialanalysis.ai/models/releases/claude-fable-5-2"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact high with Default Fallback Elo 1677.44 (95% CI lower 1667.48); score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 for Stirrup-to-launcher transfer. Snapshot 2026-11-10; older catalog peers have earlier assessment dates."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Arena WebDev (page date 2026-11-08, 156 models) lists only Claude Fable 5.2 (xHigh), an AutoEval row; no exact-effort row for this tuple, and xhigh is not transferred.",
+          "researched_at": "2026-11-10"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Design Arena added claude-fable-5-2 on 2026-11-09, but the 3D board (data stamp 2026-11-10T10:06Z, 178 models) has no row for it, and the registry labels no effort. The Fable 5.1 rank is not carried over.",
+          "researched_at": "2026-11-10"
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 93.5,
+          "basis": "Artificial Analysis, exact high with Default Fallback, headline output speed (5-day average); not a median and not end-to-end task latency",
+          "assessed_at": "2026-11-10",
+          "source": "https://artificialanalysis.ai/models/claude-fable-5-2-high"
+        }
+      }
+    },
+    "claude/claude-fable-5-2/xhigh": {
+      "launch": {
+        "agent": "claude",
+        "model": "claude-fable-5-2",
+        "effort": "xhigh"
+      },
+      "features": [
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.6222,
+          "conservative": 0.6022,
+          "confidence": "high",
+          "assessed_at": "2026-11-10",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-fable-5-2-xhigh",
+            "https://artificialanalysis.ai/models/releases/claude-fable-5-2"
+          ],
+          "scale": "AA Intelligence Index v5.0.1",
+          "note": "Exact xhigh with Default Fallback row 62.21674 on v5.0.1; score = index/100, conservative = score - 0.02. v5.0.1 is not comparable with v4.3.2 cells."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.563,
+          "conservative": 0.533,
+          "confidence": "medium",
+          "assessed_at": "2026-11-10",
+          "evidence": [
+            "https://cursor.com/evals"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact xhigh row 56.3% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.6189,
+          "conservative": 0.5939,
+          "confidence": "medium",
+          "assessed_at": "2026-11-10",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-fable-5-2-xhigh",
+            "https://artificialanalysis.ai/models/releases/claude-fable-5-2"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact xhigh with Default Fallback Elo 1737.78 (95% CI lower 1727.89); score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 for Stirrup-to-launcher transfer. Snapshot 2026-11-10; older catalog peers have earlier assessment dates."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Arena WebDev (page date 2026-11-08, 156 models) lists Claude Fable 5.2 (xHigh) at rank 1 only as an AutoEval reward-model estimate with no human votes; held unknown until a voted rank replaces it.",
+          "researched_at": "2026-11-10"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Design Arena added claude-fable-5-2 on 2026-11-09, but the 3D board (data stamp 2026-11-10T10:06Z, 178 models) has no row for it, and the registry labels no effort. The Fable 5.1 rank is not carried over.",
+          "researched_at": "2026-11-10"
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 102.54,
+          "basis": "Artificial Analysis, exact xhigh with Default Fallback, headline output speed (5-day average); not a median and not end-to-end task latency",
+          "assessed_at": "2026-11-10",
+          "source": "https://artificialanalysis.ai/models/claude-fable-5-2-xhigh"
+        }
+      }
+    },
+    "claude/claude-fable-5-2/max": {
+      "launch": {
+        "agent": "claude",
+        "model": "claude-fable-5-2",
+        "effort": "max"
+      },
+      "features": [
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.6456,
+          "conservative": 0.6256,
+          "confidence": "high",
+          "assessed_at": "2026-11-10",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-fable-5-2",
+            "https://artificialanalysis.ai/models/releases/claude-fable-5-2"
+          ],
+          "scale": "AA Intelligence Index v5.0.1",
+          "note": "Exact max with Default Fallback row 64.56360 on v5.0.1; score = index/100, conservative = score - 0.02. v5.0.1 is not comparable with v4.3.2 cells."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.6,
+          "conservative": 0.57,
+          "confidence": "medium",
+          "assessed_at": "2026-11-10",
+          "evidence": [
+            "https://cursor.com/evals"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "CursorBench 4.0 exact max row 60.0% in Cursor's harness; conservative = score - 0.03 harness-transfer reserve (no published interval)."
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.6427,
+          "conservative": 0.6169,
+          "confidence": "medium",
+          "assessed_at": "2026-11-10",
+          "evidence": [
+            "https://artificialanalysis.ai/models/claude-fable-5-2",
+            "https://artificialanalysis.ai/models/releases/claude-fable-5-2"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact max with Default Fallback Elo 1785.32 (95% CI lower 1773.79); score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 for Stirrup-to-launcher transfer. Snapshot 2026-11-10; older catalog peers have earlier assessment dates."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Arena WebDev (page date 2026-11-08, 156 models) lists only Claude Fable 5.2 (xHigh), an AutoEval row; no exact-effort row for this tuple, and xhigh is not transferred.",
+          "researched_at": "2026-11-10"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Design Arena added claude-fable-5-2 on 2026-11-09, but the 3D board (data stamp 2026-11-10T10:06Z, 178 models) has no row for it, and the registry labels no effort. The Fable 5.1 rank is not carried over.",
+          "researched_at": "2026-11-10"
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 102.36,
+          "basis": "Artificial Analysis, exact max with Default Fallback, headline output speed (5-day average); not a median and not end-to-end task latency",
+          "assessed_at": "2026-11-10",
+          "source": "https://artificialanalysis.ai/models/claude-fable-5-2"
         }
       }
     },
@@ -101,7 +293,6 @@
         "effort": "max"
       },
       "features": [
-        "tools",
         "vision"
       ],
       "capabilities": {
@@ -175,7 +366,9 @@
         "model": "gpt-6.1-sol",
         "effort": "high"
       },
-      "features": [],
+      "features": [
+        "vision"
+      ],
       "capabilities": {
         "reasoning": {
           "status": "unknown",
@@ -211,12 +404,8 @@
         "effort": "high"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
-      "context": 1050000,
-      "context_evidence": "https://developers.openai.com/api/docs/models/gpt-6.1-terra",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -267,12 +456,8 @@
         "effort": "xhigh"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
-      "context": 1050000,
-      "context_evidence": "https://developers.openai.com/api/docs/models/gpt-6.1-terra",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -323,12 +508,8 @@
         "effort": "max"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
-      "context": 1050000,
-      "context_evidence": "https://developers.openai.com/api/docs/models/gpt-6-sol",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -388,12 +569,8 @@
         "effort": "max"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
-      "context": 1050000,
-      "context_evidence": "https://developers.openai.com/api/docs/models/gpt-6-luna",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -453,13 +630,9 @@
         "effort": "max"
       },
       "features": [
-        "tools",
         "vision",
-        "video",
-        "long-context"
+        "video"
       ],
-      "context": 1048576,
-      "context_evidence": "https://www.kimi.com/code/docs/en/kimi-code/models.html",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -547,12 +720,8 @@
         "effort": "max"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
-      "context": 1000000,
-      "context_evidence": "Kimi documents K3 with a 1,000,000-token context window (https://platform.kimi.com/); the [1m] launch alias requests that window from Claude Code.",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -644,12 +813,8 @@
         "effort": "high"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
-      "context": 1000000,
-      "context_evidence": "https://platform.claude.com/docs/en/models/opus-5-5/overview",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -708,11 +873,8 @@
         "effort": "high"
       },
       "features": [
-        "tools",
         "vision"
       ],
-      "context": 500000,
-      "context_evidence": "https://docs.x.ai/developers/grok-4-7",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -783,11 +945,8 @@
         "effort": "high"
       },
       "features": [
-        "tools",
         "vision"
       ],
-      "context": 500000,
-      "context_evidence": "https://docs.x.ai/developers/grok-4-7",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -854,9 +1013,7 @@
         "effort": "high"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
       "capabilities": {
         "reasoning": {
@@ -921,9 +1078,7 @@
           "assessed_at": "2026-09-22",
           "source": "https://artificialanalysis.ai/models/gpt-6-astra-high"
         }
-      },
-      "context": 1050000,
-      "context_evidence": "https://developers.openai.com/api/docs/models/gpt-6-astra"
+      }
     },
     "claudex/gpt-6-astra/high": {
       "launch": {
@@ -932,9 +1087,7 @@
         "effort": "high"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
       "capabilities": {
         "reasoning": {
@@ -1003,9 +1156,7 @@
       "quota_provider": {
         "provider": "codex",
         "detail": "This proxy route bills the Codex provider rather than the claudex launcher. Configure quota_pool in a private layer when the deployment rotates credentials."
-      },
-      "context": 1050000,
-      "context_evidence": "https://developers.openai.com/api/docs/models/gpt-6-astra"
+      }
     },
     "claude/claude-sonnet-5-5/low": {
       "launch": {
@@ -1014,12 +1165,8 @@
         "effort": "low"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
-      "context": 1000000,
-      "context_evidence": "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -1086,12 +1233,8 @@
         "effort": "medium"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
-      "context": 1000000,
-      "context_evidence": "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -1158,12 +1301,8 @@
         "effort": "high"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
-      "context": 1000000,
-      "context_evidence": "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -1237,12 +1376,8 @@
         "effort": "xhigh"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
-      "context": 1000000,
-      "context_evidence": "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -1316,12 +1451,8 @@
         "effort": "max"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
-      "context": 1000000,
-      "context_evidence": "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -1388,12 +1519,8 @@
         "effort": "low"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
-      "context": 1000000,
-      "context_evidence": "https://platform.claude.com/docs/en/models/haiku-5-5/overview",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -1460,12 +1587,8 @@
         "effort": "medium"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
-      "context": 1000000,
-      "context_evidence": "https://platform.claude.com/docs/en/models/haiku-5-5/overview",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -1532,12 +1655,8 @@
         "effort": "high"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
-      "context": 1000000,
-      "context_evidence": "https://platform.claude.com/docs/en/models/haiku-5-5/overview",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -1604,12 +1723,8 @@
         "effort": "xhigh"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
-      "context": 1000000,
-      "context_evidence": "https://platform.claude.com/docs/en/models/haiku-5-5/overview",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -1676,12 +1791,8 @@
         "effort": "max"
       },
       "features": [
-        "tools",
-        "vision",
-        "long-context"
+        "vision"
       ],
-      "context": 1000000,
-      "context_evidence": "https://platform.claude.com/docs/en/models/haiku-5-5/overview",
       "capabilities": {
         "reasoning": {
           "status": "known",
@@ -1747,9 +1858,6 @@
         "model": "gpt-6.1-sol",
         "effort": "high"
       },
-      "features": [
-        "tools"
-      ],
       "capabilities": {
         "reasoning": {
           "status": "unknown",
@@ -1784,9 +1892,6 @@
         "model": "claude-opus-5-5",
         "effort": "low"
       },
-      "features": [
-        "tools"
-      ],
       "capabilities": {
         "reasoning": {
           "status": "unknown",
@@ -1821,9 +1926,6 @@
         "model": "claude-opus-5-5",
         "effort": "medium"
       },
-      "features": [
-        "tools"
-      ],
       "capabilities": {
         "reasoning": {
           "status": "unknown",
@@ -1858,9 +1960,6 @@
         "model": "claude-opus-5-5",
         "effort": "high"
       },
-      "features": [
-        "tools"
-      ],
       "capabilities": {
         "reasoning": {
           "status": "unknown",
@@ -1895,9 +1994,6 @@
         "model": "claude-opus-5-5",
         "effort": "xhigh"
       },
-      "features": [
-        "tools"
-      ],
       "capabilities": {
         "reasoning": {
           "status": "unknown",
@@ -1932,9 +2028,6 @@
         "model": "claude-opus-5-5",
         "effort": "max"
       },
-      "features": [
-        "tools"
-      ],
       "capabilities": {
         "reasoning": {
           "status": "unknown",
@@ -1963,188 +2056,139 @@
         }
       }
     },
-    "cursor/claude-fable-5-1/low": {
+    "cursor/claude-fable-5-2/medium": {
       "launch": {
         "agent": "cursor",
-        "model": "claude-fable-5-1",
-        "effort": "low"
-      },
-      "features": [
-        "tools"
-      ],
-      "capabilities": {
-        "reasoning": {
-          "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at low has not been assessed.",
-          "researched_at": "2026-10-21"
-        },
-        "implementation": {
-          "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at low has not been assessed.",
-          "researched_at": "2026-10-21"
-        },
-        "agentic": {
-          "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at low has not been assessed.",
-          "researched_at": "2026-10-21"
-        },
-        "ui": {
-          "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at low has not been assessed.",
-          "researched_at": "2026-10-21"
-        },
-        "spatial-3d": {
-          "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at low has not been assessed.",
-          "researched_at": "2026-10-21"
-        }
-      }
-    },
-    "cursor/claude-fable-5-1/medium": {
-      "launch": {
-        "agent": "cursor",
-        "model": "claude-fable-5-1",
+        "model": "claude-fable-5-2",
         "effort": "medium"
       },
-      "features": [
-        "tools"
-      ],
       "capabilities": {
         "reasoning": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at medium has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at medium has not been assessed.",
+          "researched_at": "2026-11-10"
         },
         "implementation": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at medium has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at medium has not been assessed.",
+          "researched_at": "2026-11-10"
         },
         "agentic": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at medium has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at medium has not been assessed.",
+          "researched_at": "2026-11-10"
         },
         "ui": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at medium has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at medium has not been assessed.",
+          "researched_at": "2026-11-10"
         },
         "spatial-3d": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at medium has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at medium has not been assessed.",
+          "researched_at": "2026-11-10"
         }
       }
     },
-    "cursor/claude-fable-5-1/high": {
+    "cursor/claude-fable-5-2/high": {
       "launch": {
         "agent": "cursor",
-        "model": "claude-fable-5-1",
+        "model": "claude-fable-5-2",
         "effort": "high"
       },
-      "features": [
-        "tools"
-      ],
       "capabilities": {
         "reasoning": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at high has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at high has not been assessed.",
+          "researched_at": "2026-11-10"
         },
         "implementation": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at high has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at high has not been assessed.",
+          "researched_at": "2026-11-10"
         },
         "agentic": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at high has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at high has not been assessed.",
+          "researched_at": "2026-11-10"
         },
         "ui": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at high has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at high has not been assessed.",
+          "researched_at": "2026-11-10"
         },
         "spatial-3d": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at high has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at high has not been assessed.",
+          "researched_at": "2026-11-10"
         }
       }
     },
-    "cursor/claude-fable-5-1/xhigh": {
+    "cursor/claude-fable-5-2/xhigh": {
       "launch": {
         "agent": "cursor",
-        "model": "claude-fable-5-1",
+        "model": "claude-fable-5-2",
         "effort": "xhigh"
       },
-      "features": [
-        "tools"
-      ],
       "capabilities": {
         "reasoning": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at xhigh has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at xhigh has not been assessed.",
+          "researched_at": "2026-11-10"
         },
         "implementation": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at xhigh has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at xhigh has not been assessed.",
+          "researched_at": "2026-11-10"
         },
         "agentic": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at xhigh has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at xhigh has not been assessed.",
+          "researched_at": "2026-11-10"
         },
         "ui": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at xhigh has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at xhigh has not been assessed.",
+          "researched_at": "2026-11-10"
         },
         "spatial-3d": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at xhigh has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at xhigh has not been assessed.",
+          "researched_at": "2026-11-10"
         }
       }
     },
-    "cursor/claude-fable-5-1/max": {
+    "cursor/claude-fable-5-2/max": {
       "launch": {
         "agent": "cursor",
-        "model": "claude-fable-5-1",
+        "model": "claude-fable-5-2",
         "effort": "max"
       },
-      "features": [
-        "tools"
-      ],
       "capabilities": {
         "reasoning": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at max has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at max has not been assessed.",
+          "researched_at": "2026-11-10"
         },
         "implementation": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at max has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at max has not been assessed.",
+          "researched_at": "2026-11-10"
         },
         "agentic": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at max has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at max has not been assessed.",
+          "researched_at": "2026-11-10"
         },
         "ui": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at max has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at max has not been assessed.",
+          "researched_at": "2026-11-10"
         },
         "spatial-3d": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-1 at max has not been assessed.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for claude-fable-5-2 at max has not been assessed.",
+          "researched_at": "2026-11-10"
         }
       }
     },
@@ -2154,9 +2198,6 @@
         "model": "grok-4.7",
         "effort": "low"
       },
-      "features": [
-        "tools"
-      ],
       "capabilities": {
         "reasoning": {
           "status": "unknown",
@@ -2191,9 +2232,6 @@
         "model": "grok-4.7",
         "effort": "medium"
       },
-      "features": [
-        "tools"
-      ],
       "capabilities": {
         "reasoning": {
           "status": "unknown",
@@ -2228,9 +2266,6 @@
         "model": "grok-4.7",
         "effort": "high"
       },
-      "features": [
-        "tools"
-      ],
       "capabilities": {
         "reasoning": {
           "status": "unknown",
@@ -2265,9 +2300,6 @@
         "model": "grok-4.7",
         "effort": "xhigh"
       },
-      "features": [
-        "tools"
-      ],
       "capabilities": {
         "reasoning": {
           "status": "unknown",

@@ -83,7 +83,6 @@ def prepare(args, event):
     args.max_effort_basis = args.max_effort_basis or original.get('max_effort_basis')
     required = original['requirements']
     args.require_feature = sorted(set(required.get('features', [])) | set(args.require_feature))
-    args.minimum_context = max(required.get('minimum_context') or 0, args.minimum_context or 0) or None
     original_launchers = set(required.get('launchable_agents', []))
     requested = router.parse_allowed_launchers(args.launchable_via)
     if not original_launchers:
@@ -150,7 +149,6 @@ def equivalent(compiled, args, runtime):
     # A request for the original model never authorizes an explicit-only substitute.
     alternative_args.explicit_basis = None
     alternative_args.accept_quota_unknown = None
-    alternative_args.use_quota_fallback = None
     decision = router.check(compiled, alternative_args, runtime)
     if decision['status'] != 'selected':
         return None

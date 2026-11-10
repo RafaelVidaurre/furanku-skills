@@ -141,7 +141,7 @@ class ConfigTest(unittest.TestCase):
     def test_models_source_names_state_layer_after_unrelated_override(self):
         self.run_config("set", "explicit", "gpt-6-astra", "high", "--agent", "codex", "--repo", str(self.repo))
         self.write("repo", {"version": 4, "routes": {},
-                            "candidates": {"codex/gpt-6-astra/high": {"context": 123456}}}, self.repo)
+                            "candidates": {"codex/gpt-6-astra/high": {"features": ["vision"]}}}, self.repo)
         rows = json.loads(self.run_config("models", "--format", "json", "--repo", str(self.repo)).stdout)["models"]
         row = next(row for row in rows if row["candidate"] == "codex/gpt-6-astra/high")
         self.assertEqual("explicit", row["state"])
@@ -578,42 +578,12 @@ class ConfigTest(unittest.TestCase):
         )
         self.assertEqual(primary["path"], secondary["path"])
 
-    def test_on_quota_unusable_ask_then_fallback(self):
+    def test_removed_on_quota_unusable_points_to_recovery_policy(self):
         config = self.base_config()
-        config["routes"]["worker"]["on_quota_unusable"] = {
-            "ask_seconds": 90,
-            "fallback": row("codex", "gpt-6-astra", "high"),
-        }
-        self.write("global", config)
-        result = json.loads(
-            self.run_config("resolve", "--repo", str(self.repo), "--compact").stdout
-        )
-        self.assertEqual(
-            {
-                "ask_seconds": 90,
-                "fallback": row("codex", "gpt-6-astra", "high"),
-            },
-            result["worker"]["on_quota_unusable"],
-        )
-
-        same = self.base_config()
-        same["routes"]["worker"]["on_quota_unusable"] = {
-            "fallback": row("worker-agent", "worker-model", "medium"),
-        }
-        refused = self.run_config("write", "global", input_value=same, ok=False)
-        self.assertIn("fallback must differ from the route", refused.stderr)
-
-        bad_seconds = self.base_config()
-        bad_seconds["routes"]["worker"]["on_quota_unusable"] = {
-            "ask_seconds": 0,
-            "fallback": row("codex", "gpt-6-astra", "high"),
-        }
-        refused = self.run_config("write", "global", input_value=bad_seconds, ok=False)
-        self.assertIn("ask_seconds must be a positive integer", refused.stderr)
-
-        ask_only = self.base_config()
-        ask_only["routes"]["worker"]["on_quota_unusable"] = "ask"
-        self.write("global", ask_only)
+        config["routes"]["worker"]["on_quota_unusable"] = "ask"
+        refused = self.run_config("write", "global", input_value=config, ok=False)
+        self.assertIn("removed on_quota_unusable", refused.stderr)
+        self.assertIn("on_no_reply", refused.stderr)
 
 
 if __name__ == "__main__":

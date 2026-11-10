@@ -23,9 +23,7 @@ TOKEN = r"[a-z0-9]+(?:-[a-z0-9]+)*"
 ROUTE_ID = re.compile(rf"^{TOKEN}(?:\.{TOKEN})*$")
 LAUNCH_FIELDS = ("agent", "model", "effort")
 PROVIDERS = ("claude", "codex", "grok")
-OPTIONAL_ROUTE_FIELDS = {"on_quota_unusable", "recovery"}
-from policy import DEFAULTS as RECOVERY_DEFAULTS
-DEFAULT_ASK_SECONDS = RECOVERY_DEFAULTS["response_seconds"]
+OPTIONAL_ROUTE_FIELDS = {"recovery"}
 
 
 class Error(Exception):
@@ -94,36 +92,6 @@ def validate_launch_tuple(row, label):
         raise Error(f"{label} has an empty value")
 
 
-def quota_unusable_policy(row):
-    """Return the ask-then-fallback policy, or None when the route only asks."""
-    policy = row.get("on_quota_unusable", "ask")
-    if policy == "ask":
-        return None
-    return {
-        "ask_seconds": policy.get("ask_seconds", DEFAULT_ASK_SECONDS),
-        "launch": dict(policy["fallback"]),
-    }
-
-
-def validate_on_quota_unusable(value, row, source, route_id):
-    label = f"route {route_id!r} on_quota_unusable in {source}"
-    if value == "ask":
-        return
-    if not isinstance(value, dict):
-        raise Error(f"{label} must be \"ask\" or an object")
-    allowed = {"ask_seconds", "fallback"}
-    unknown = sorted(set(value) - allowed)
-    if "fallback" not in value or unknown:
-        raise Error(f"{label} requires fallback and only: ask_seconds, fallback")
-    validate_launch_tuple(value["fallback"], f"{label}.fallback")
-    if launch_of(value["fallback"]) == launch_of(row):
-        raise Error(f"{label}.fallback must differ from the route")
-    if "ask_seconds" in value:
-        seconds = value["ask_seconds"]
-        if type(seconds) is not int or isinstance(seconds, bool) or seconds < 1:
-            raise Error(f"{label}.ask_seconds must be a positive integer")
-
-
 def validate_rows(routes, source):
     if not isinstance(routes, dict):
         raise Error(f"{source} routes must be an object")
@@ -139,6 +107,11 @@ def validate_rows(routes, source):
                 f"route {route_id!r} in {source} requires: "
                 f"{', '.join(sorted(required))}"
             )
+        if "on_quota_unusable" in unknown:
+            raise Error(
+                f"route {route_id!r} in {source} uses removed on_quota_unusable; "
+                "set recovery policy (on_limit, on_no_reply) instead"
+            )
         if unknown:
             raise Error(
                 f"route {route_id!r} in {source} has unknown fields: "
@@ -151,10 +124,6 @@ def validate_rows(routes, source):
             not isinstance(row["work"], str) or not row["work"].strip()
         ):
             raise Error(f"route {route_id!r} in {source} work must be a non-empty string")
-        if "on_quota_unusable" in row:
-            validate_on_quota_unusable(
-                row["on_quota_unusable"], row, source, route_id
-            )
         if "recovery" in row:
             validate_recovery(row["recovery"], f"route {route_id!r} recovery in {source}")
 

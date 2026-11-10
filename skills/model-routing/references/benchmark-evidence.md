@@ -12,7 +12,7 @@ refreshing scores. Research notes alone do not update routing.
 - The spawning agent judges task fit using that brief
   and applicable preferences. There is no weighted overall score or automatic
   leaderboard winner.
-- `check` enforces eligibility, features, context, launch surface, authentication,
+- `check` enforces eligibility, features, launch surface, authentication,
   quota, and maximum-effort proportionality. It does not validate the selector's
   comparative benchmark reasoning or apply a minimum capability score.
 - Crew consumes the resulting decision and launch tuple; it does not maintain
@@ -43,7 +43,7 @@ dimensions remain unknown.
 ## Claude 5.5 evidence added on 2026-10-08
 
 Sonnet 5.5 and Haiku 5.5 each expose all five efforts. Their verified model
-IDs, context and modalities come from the official
+IDs and modalities come from the official
 [Sonnet overview](https://platform.claude.com/docs/en/models/sonnet-5-5/overview)
 and [Haiku overview](https://platform.claude.com/docs/en/models/haiku-5-5/overview).
 Claude Code requires v2.1.284 or later for Sonnet 5.5 and v2.1.293 or later for
@@ -59,3 +59,15 @@ Terminal-Bench or FrontierCode are separate evidence and do not populate the
 CursorBench dimension. Each remaining measurement cites its operator in the
 catalog. Performance in those operators' harnesses is not a local Claude Code
 acceptance run.
+
+## Claude Fable 5.2 evidence added on 2026-11-10
+
+Fable 5.2 replaces Fable 5.1 at medium, high, xhigh and max. The model ID,
+native 1M context (no `[1m]` suffix) and efforts come from the official
+[Fable 5.2 overview](https://platform.claude.com/docs/en/models/fable-5-2/overview);
+Claude Code requires v2.1.321 or later. Its reasoning cells are on AA
+Intelligence Index v5.0.1, which the brief letters separately from the
+v4.3.2 cells of older candidates: compare Fable 5.2 reasoning only with
+other v5.0.1 cells. Its speed is AA's headline output speed, not the median
+earlier cells record. UI, spatial-3d and task cost are unknown at every
+effort; the only Arena WebDev row is an unvoted AutoEval estimate at xhigh.

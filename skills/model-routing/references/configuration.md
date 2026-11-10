@@ -30,11 +30,7 @@ Persisted layers and consumer defaults are version 4 documents. A persisted laye
     "implementation": {
       "agent": "grok",
       "model": "grok-4.7",
-      "effort": "high",
-      "on_quota_unusable": {
-        "ask_seconds": 600,
-        "fallback": { "agent": "codex", "model": "gpt-6-astra", "effort": "high" }
-      }
+      "effort": "high"
     }
   },
   "preferences": [
@@ -63,7 +59,6 @@ Persisted layers and consumer defaults are version 4 documents. A persisted laye
 ```
 
 - `preferences` are plain-language routing statements addressed to the spawning agent. They may name models, candidates, tiers, budgets, or conditions—anything the user wants weighed. They are not machine-enforced; the brief presents them and the spawn guidance makes them binding on the agent's judgment.
-- `on_quota_unusable` is optional on any route. Omit it or set `"ask"` to keep asking. An object requires a `fallback` launch tuple different from the route and may set `ask_seconds` (default 600): the agent asks once per quota blocker, then `check --use-quota-fallback` may take that fallback if the principal has not answered. Whole-row replacement still applies — a later layer that omits the field removes the fallback.
 - `candidates` add new launchable candidates or patch builtin ones. A candidate carries one exact `agent/model/effort` launch tuple; capability assessments carry a score, conservative value, confidence, date, public evidence, and a `scale` naming the benchmark and version; unavailable evidence remains unknown. `{"enabled": false}` makes it unavailable. `{"enabled": true, "explicit": true}` requires a principal request for that model and effort, recorded with `check --explicit-basis`. The default is enabled; `explicit: false` restores ordinary selection. A candidate whose launcher always bills one fixed account sets `quota_account` to that account's provider key in `accounts`.
 - The `agent` token names the launcher capability that can serve the model, not a vendor. Two launchers reaching the same model hold different tokens — `codex/gpt-6-astra/high` and `claudex/gpt-6-astra/high` are the same model through different surfaces. Give a launcher its own token whenever it serves models no other launcher can reach, so that a consumer omitting it from `check --launchable-via` genuinely loses those models. Folding such a launcher under a broader token makes its exclusive models unrefusable: the gate compares tokens, so a model reachable only through a parked launcher stays selectable under the shared token. Keep the launcher out of the model name; the token carries it.
 - `quota_pool` marks a candidate that does not bill the account its launch harness uses — the same model reached through a proxy that holds several credentials and picks one per request. It carries the billed `provider` and a `detail` explaining the arrangement. Such a candidate never inherits its harness's quota and never borrows a single credential's number. Its quota reports `pooled`, which passes with a warning: the surface has no one account to measure and rotates off exhausted credentials itself, so this is a settled state rather than a failed reading, and acceptance stays for quota that is normally readable and currently is not. The harness's authentication and health still gate it: the proxy supplies the account, not the ability to run.
@@ -104,8 +99,6 @@ Use [agent-guided setup](setup.md) to inspect unanswered preferences and review 
 Policy merges field by field through builtin → global → repo → machine-repo. Within each layer, apply general `recovery`, then the selected role's `role_recovery`, then the selected named route's `recovery`; command or assignment overrides apply last. Role names are `commander`, `captain`, and `worker`. A later general policy can override an earlier role or route policy. A launch-row replacement does not erase lower-scope recovery fields: recovery has its own fieldwise resolution. Consumer default files supply exact launch routes; persisted recovery policy and explicit overrides govern recovery.
 
 The resolver returns the effective `policy`, a source for every field, and `configured_fields` that distinguishes explicit settings from builtin defaults. Setup asks unanswered behavior preferences even though safe defaults let routing proceed; an explicit `stop` is already an answer. When the user chooses `continue`, setup offers duration customization and includes the accepted duration in the approval preview. Missing preferences never imply permission to continue after silence.
-
-Existing `on_quota_unusable` fallback authorization and its `ask_seconds` remain compatible until `on_no_reply` is explicitly configured. Then `stop` suppresses unattended legacy fallback, while `continue` uses the resolved `response_seconds` for its window. An explicit acceptance of unknown quota is a separate user decision.
 
 ## View configuration
 
@@ -168,8 +161,7 @@ python3 "$ROUTER" check --repo <root> --candidate <id> --reason "<judgment>" \
   [--max-effort-basis "<why xhigh or the strongest lower effort is insufficient>"] \
   [--launchable-via <agent,...>] [--accept-quota-unknown "<basis>"] [--codexbar]
 python3 "$ROUTER" check --repo <root> --exact-route <id> \
-  --route-basis "<verbatim principal request>" \
-  [--use-quota-fallback "<who waited and how long>"] --codexbar
+  --route-basis "<verbatim principal request>" --codexbar
 ```
 
-`check` hard-gates what its runtime inputs actually establish: `--codexbar` supplies provider authentication and quota, so those gates are live in the documented flow; runtime health and inventory gate only when a `--runtime-file` supplies that state. It also refuses a judged `max` candidate that has enabled lower-effort siblings for the same agent and model until `--max-effort-basis` explicitly names the strongest lower effort and records why it is materially insufficient; exact routes use the principal's route basis instead. When quota stays unknown or stale after the runtime inputs, `check` exits 2 with status `needs-acceptance` until `--accept-quota-unknown` records who accepted launching without live quota. `--use-quota-fallback` is valid only with `--exact-route`: preserve the same `--route-basis`, re-check the primary route first, and use the configured fallback only while quota is still unknown or stale.
+`check` hard-gates what its runtime inputs actually establish: `--codexbar` supplies provider authentication and quota, so those gates are live in the documented flow; runtime health and inventory gate only when a `--runtime-file` supplies that state. It also refuses a judged `max` candidate that has enabled lower-effort siblings for the same agent and model until `--max-effort-basis` explicitly names the strongest lower effort and records why it is materially insufficient; exact routes use the principal's route basis instead. When quota stays unknown or stale after the runtime inputs, `check` exits 2 with status `needs-acceptance` until `--accept-quota-unknown` records who accepted launching without live quota.

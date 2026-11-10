@@ -177,11 +177,6 @@ def validate_compiled_candidate(candidate_id, candidate):
         not isinstance(x, str) for x in features
     ):
         raise Error(f"{label}.features must be a string array")
-    context = candidate.get("context")
-    if context is not None and (
-        isinstance(context, bool) or not isinstance(context, int) or context <= 0
-    ):
-        raise Error(f"{label}.context must be a positive integer")
     capabilities = candidate.get("capabilities", {})
     if not isinstance(capabilities, dict):
         raise Error(f"{label}.capabilities must be an object")
@@ -648,7 +643,6 @@ def gate(
     candidate,
     runtime,
     required_features=(),
-    minimum_context=None,
     allowed_launchers=None,
     expected_accounts=None,
     explicit_basis=None,
@@ -673,14 +667,6 @@ def gate(
     missing = sorted(set(required_features) - set(candidate.get("features", [])))
     if missing:
         reasons.append("missing features: " + ", ".join(missing))
-    if minimum_context is not None:
-        available_context = candidate.get("context")
-        if available_context is None:
-            reasons.append("context capacity unknown")
-        elif available_context < minimum_context:
-            reasons.append(
-                f"context {available_context} below required {minimum_context}"
-            )
     state = runtime_for(runtime, candidate_id, candidate)
     if not isinstance(state, dict):
         raise Error(f"runtime state for {candidate_id} must be an object")
@@ -744,7 +730,6 @@ def gate_check(
     candidate,
     runtime,
     required_features=(),
-    minimum_context=None,
     allowed_launchers=None,
     expected_accounts=None,
     explicit_basis=None,
@@ -756,7 +741,6 @@ def gate_check(
         candidate,
         runtime,
         required_features=required_features,
-        minimum_context=minimum_context,
         allowed_launchers=allowed_launchers,
         expected_accounts=expected_accounts,
         explicit_basis=explicit_basis,
@@ -924,15 +908,14 @@ def gate_launch(
             compiled["candidates"][candidate_id],
             runtime,
             required_features=args.require_feature,
-            minimum_context=args.minimum_context,
             allowed_launchers=allowed_launchers,
             expected_accounts=expected_accounts,
             explicit_basis=getattr(args, "explicit_basis", None),
             model_names={candidate["launch"]["model"] for candidate in compiled["candidates"].values()},
         )
-    if args.require_feature or args.minimum_context is not None:
+    if args.require_feature:
         raise Error(
-            "feature and context gates need candidate evidence; "
+            "feature gates need candidate evidence; "
             f"{unmatched_label} matches no configured candidate"
         )
     return gate_check(
@@ -944,30 +927,6 @@ def gate_launch(
         explicit_basis=getattr(args, "explicit_basis", None),
         model_names={candidate["launch"]["model"] for candidate in compiled["candidates"].values()},
     )
-
-
-def quota_fallback_policy(row, resolved=None):
-    fallback = exact_config.quota_unusable_policy(row)
-    if fallback and resolved and 'on_no_reply' in resolved['configured_fields']:
-        if resolved['policy']['on_no_reply'] == 'stop':
-            return None
-        fallback['ask_seconds'] = resolved['policy']['response_seconds']
-    return fallback
-
-
-def planned_quota_fallback(row, resolved=None):
-    policy = quota_fallback_policy(row, resolved)
-    if not policy:
-        return None
-    return {
-        "ask_seconds": policy["ask_seconds"],
-        "launch": policy["launch"],
-        "next": (
-            f"Ask the principal. If they do not answer within "
-            f"{policy['ask_seconds']}s, re-check this exact route with "
-            '--use-quota-fallback "<who waited and how long>".'
-        ),
-    }
 
 
 def parse_allowed_launchers(values):
@@ -984,7 +943,17 @@ def parse_allowed_launchers(values):
     return allowed
 
 
-def _check(compiled, args, runtime, resolved=None):
+def reject_unknown_features(compiled, required):
+    """A misspelled requirement would otherwise refuse every candidate."""
+    known = {feature for row in compiled["candidates"].values() for feature in row.get("features", [])}
+    if unknown := sorted(set(required) - known):
+        raise Error(
+            "unknown feature " + ", ".join(unknown)
+            + "; no candidate declares it. Known features: " + ", ".join(sorted(known))
+        )
+
+
+def _check(compiled, args, runtime):
     if bool(args.candidate) == bool(args.exact_route):
         raise Error("check requires exactly one of --candidate or --exact-route")
     allowed_launchers = parse_allowed_launchers(args.launchable_via)
@@ -1011,11 +980,6 @@ def _check(compiled, args, runtime, resolved=None):
         raise Error(
             "--reason applies to --candidate; exact routes record --route-basis"
         )
-    if args.use_quota_fallback is not None:
-        if not args.exact_route:
-            raise Error("--use-quota-fallback requires --exact-route")
-        if not args.use_quota_fallback.strip():
-            raise Error("--use-quota-fallback requires the wait basis as its value")
     if args.exact_route:
         route_context = {
             "exact_route": args.exact_route,
@@ -1027,13 +991,10 @@ def _check(compiled, args, runtime, resolved=None):
             raise Error(f"configured route not found: {args.exact_route}")
         launch = exact_config.launch_of(row)
         candidate_id = match_candidate(compiled, launch)
-        fallback_policy = quota_fallback_policy(row, resolved)
-        fallback_id = match_candidate(compiled, fallback_policy["launch"]) if fallback_policy else None
-        if explicit_basis and not any(
-            compiled["candidates"][item].get("explicit", False)
-            for item in (candidate_id, fallback_id) if item is not None
+        if explicit_basis and not (
+            candidate_id is not None and compiled["candidates"][candidate_id].get("explicit", False)
         ):
-            raise Error("--explicit-basis applies only to an explicit candidate or quota fallback")
+            raise Error("--explicit-basis applies only to an explicit candidate")
         if candidate_id is None:
             refuse_malformed_route_target(compiled, args.exact_route, launch)
         reasons, warnings, quota = gate_launch(
@@ -1062,91 +1023,6 @@ def _check(compiled, args, runtime, resolved=None):
                 )
             return refusal
         pending, acceptance = acceptance_terms(quota, args.accept_quota_unknown)
-        if pending and args.use_quota_fallback:
-            policy = quota_fallback_policy(row, resolved)
-            if not policy:
-                raise Error(
-                    f"route {args.exact_route!r} has no on_quota_unusable fallback permitted by its recovery on_no_reply preference"
-                )
-            fallback_launch = policy["launch"]
-            fallback_id = match_candidate(compiled, fallback_launch)
-            if fallback_id is None:
-                refuse_malformed_route_target(
-                    compiled, args.exact_route, fallback_launch
-                )
-            fb_reasons, fb_warnings, fb_quota = gate_launch(
-                compiled,
-                fallback_launch,
-                fallback_id,
-                runtime,
-                args,
-                allowed_launchers,
-                f"route {args.exact_route!r} quota fallback",
-            )
-            if fb_reasons:
-                refusal = {
-                    "status": "refused",
-                    **route_context,
-                    "reasons": [
-                        f"quota fallback refused: {reason}" for reason in fb_reasons
-                    ],
-                    "warnings": warnings + fb_warnings,
-                    "route_provenance": compiled["exact"]["route_provenance"][
-                        args.exact_route
-                    ],
-                    "quota_fallback": {
-                        "used": False,
-                        "from": launch,
-                        "to": fallback_launch,
-                        "ask_seconds": policy["ask_seconds"],
-                        "basis": args.use_quota_fallback.strip(),
-                    },
-                }
-                if fallback_id is not None:
-                    refusal["candidate"] = fallback_id
-                    refusal["candidate_sources"] = compiled["candidate_sources"].get(
-                        fallback_id, []
-                    )
-                return refusal
-            fb_pending, _fb_acceptance = acceptance_terms(fb_quota, None)
-            if fb_pending:
-                decision = {
-                    "status": "needs-acceptance",
-                    "selected": {"id": candidate_id, **launch},
-                    **route_context,
-                    "pending": [
-                        pending,
-                        "configured fallback also has unknown or stale quota",
-                    ],
-                    "warnings": warnings + fb_warnings,
-                    "quota": quota,
-                    "quota_fallback": planned_quota_fallback(row, resolved),
-                }
-                return decision
-            used = {
-                "used": True,
-                "from": launch,
-                "to": fallback_launch,
-                "ask_seconds": policy["ask_seconds"],
-                "basis": args.use_quota_fallback.strip(),
-            }
-            decision = {
-                "status": "exact",
-                "selected": {"id": fallback_id, **fallback_launch},
-                **route_context,
-                "provenance": compiled["exact"]["route_provenance"][args.exact_route],
-                "warnings": warnings
-                + fb_warnings
-                + [
-                    "used quota fallback after wait: "
-                    f"{launch['agent']}/{launch['model']}/{launch['effort']} → "
-                    f"{fallback_launch['agent']}/{fallback_launch['model']}/"
-                    f"{fallback_launch['effort']}"
-                ],
-                "quota": fb_quota,
-                "quota_fallback": used,
-            }
-            return decision
         if pending:
             decision = {
                 "status": "needs-acceptance",
@@ -1156,9 +1032,6 @@ def _check(compiled, args, runtime, resolved=None):
                 "warnings": warnings,
                 "quota": quota,
             }
-            planned = planned_quota_fallback(row, resolved)
-            if planned:
-                decision["quota_fallback"] = planned
             return decision
         decision = {
             "status": "exact",
@@ -1188,7 +1061,6 @@ def _check(compiled, args, runtime, resolved=None):
         candidate,
         runtime,
         required_features=args.require_feature,
-        minimum_context=args.minimum_context,
         allowed_launchers=allowed_launchers,
         expected_accounts=compiled.get("accounts", {}),
         explicit_basis=explicit_basis,
@@ -1258,7 +1130,7 @@ def check(compiled, args, runtime):
     overrides = read_json(Path(args.policy_file), 'assignment policy') if getattr(args, 'policy_file', None) else None
     resolved = policy.resolve_layers(compiled.get('recovery_layers', []), role=getattr(args, 'role', None),
                                      route=getattr(args, 'exact_route', None), overrides=overrides)
-    decision = _check(compiled, args, runtime, resolved)
+    decision = _check(compiled, args, runtime)
     if decision.get("status") in {"selected", "exact"}:
         selected = decision['selected']
         candidate_id = selected.get('id') or match_candidate(compiled, {k: selected[k] for k in ('agent', 'model', 'effort')})
@@ -1270,7 +1142,7 @@ def check(compiled, args, runtime):
     if basis and basis.strip():
         decision["explicit_basis"] = basis.strip()
     decision['recovery'] = resolved
-    decision['requirements'] = {'features': list(args.require_feature), 'minimum_context': args.minimum_context,
+    decision['requirements'] = {'features': list(args.require_feature),
                                 'launchable_agents': sorted(parse_allowed_launchers(args.launchable_via) or []),
                                 'native_account_only': list(getattr(args, 'native_account_only', []))}
     decision['role'] = getattr(args, 'role', None)
@@ -1322,17 +1194,6 @@ def economics_cells(candidate):
     return (
         f"${cost:.2f}" if isinstance(cost, (int, float)) else "?",
         f"{speed:.0f}" if isinstance(speed, (int, float)) else "?",
-    )
-
-
-def quota_unusable_cell(row):
-    policy = exact_config.quota_unusable_policy(row)
-    if not policy:
-        return "ask"
-    fallback = policy["launch"]
-    return (
-        f"ask {policy['ask_seconds']}s → "
-        f"{fallback['agent']}/{fallback['model']}/{fallback['effort']}"
     )
 
 
@@ -1437,16 +1298,15 @@ def brief_markdown(compiled, runtime, repo_root, allowed_launchers=None):
         "",
         EXACT_ROUTE_SEMANTICS,
         "",
-        "| Route | Intended work | Agent | Model | Effort | Source | If quota unusable |",
-        "| --- | --- | --- | --- | --- | --- | --- |",
+        "| Route | Intended work | Agent | Model | Effort | Source |",
+        "| --- | --- | --- | --- | --- | --- |",
     ]
     for route, row in compiled["exact"]["config"]["routes"].items():
         source = compiled["exact"]["route_sources"][route]["scope"]
         lines.append(
             f"| {markdown_cell(route)} | {markdown_cell(row.get('work', '—'))} "
             f"| {markdown_cell(row['agent'])} | {markdown_cell(row['model'])} "
-            f"| {markdown_cell(row['effort'])} | {markdown_cell(source)} "
-            f"| {markdown_cell(quota_unusable_cell(row))} |"
+            f"| {markdown_cell(row['effort'])} | {markdown_cell(source)} |"
         )
     lines += [
         "",
@@ -1481,14 +1341,13 @@ def brief_markdown(compiled, runtime, repo_root, allowed_launchers=None):
             )
         lines.append("")
     lines += [
-        "| Candidate | State | Reasoning | Impl | Agentic | UI | 3D | $/task | tok/s | Context | Quota |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| Candidate | State | Reasoning | Impl | Agentic | UI | 3D | $/task | tok/s | Quota |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for candidate_id, candidate in sorted(candidates.items(), key=candidate_sort_key):
         if not candidate.get("enabled", True):
             continue
         cost, speed = economics_cells(candidate)
-        context = candidate.get("context")
         state = runtime_for(runtime, candidate_id, candidate)
         lines.append(
             f"| {markdown_cell(candidate_id)} "
@@ -1499,7 +1358,6 @@ def brief_markdown(compiled, runtime, repo_root, allowed_launchers=None):
             f"| {capability_cell(candidate, 'ui', mixed.get('ui'))} "
             f"| {capability_cell(candidate, 'spatial-3d', mixed.get('spatial-3d'))} "
             f"| {cost} | {speed} "
-            f"| {f'{context:,}' if context else '?'} "
             f"| {markdown_cell(quota_cell(state) if runtime else 'not loaded')} |"
         )
     disabled = sorted(
@@ -1697,7 +1555,6 @@ def main(argv=None):
         default=[],
         help="hard feature requirement, repeatable",
     )
-    parser.add_argument("--minimum-context", type=int)
     parser.add_argument(
         "--launchable-via",
         action="append",
@@ -1707,10 +1564,6 @@ def main(argv=None):
     parser.add_argument(
         "--accept-quota-unknown",
         help="who accepted launching without live quota, and why",
-    )
-    parser.add_argument(
-        "--use-quota-fallback",
-        help="after the configured ask wait, use the exact route's quota fallback",
     )
     parser.add_argument("--native-account-only", action="append", choices=("claude", "codex"), default=[],
                         help="consumer can launch only the active Orca host account for this provider")
@@ -1781,14 +1634,10 @@ def main(argv=None):
             if args.exact_route:
                 row = compiled['exact']['config']['routes'].get(args.exact_route)
                 if row:
-                    launches = [exact_config.launch_of(row)]
-                    fallback = exact_config.quota_unusable_policy(row)
-                    if fallback:
-                        launches.append(fallback['launch'])
-                    for index, launch in enumerate(launches):
-                        candidate_id = match_candidate(compiled, launch)
-                        key = candidate_id or f'route-runtime-{index}'
-                        runtime_candidates[key] = compiled['candidates'][candidate_id] if candidate_id else {'launch': launch}
+                    launch = exact_config.launch_of(row)
+                    candidate_id = match_candidate(compiled, launch)
+                    key = candidate_id or 'route-runtime-0'
+                    runtime_candidates[key] = compiled['candidates'][candidate_id] if candidate_id else {'launch': launch}
         if args.alternative:
             if args.alternative not in compiled['candidates']:
                 raise Error('Alternative is absent or malformed in the effective catalog')
@@ -1806,6 +1655,7 @@ def main(argv=None):
                 decision['refresh_required'] = True
                 decision['warnings'] = ['An exhausted quota cache entry could not be removed. Use --refresh-quota for subsequent checks until invalidation succeeds.']
         else:
+            reject_unknown_features(compiled, args.require_feature)
             decision = check(compiled, args, runtime)
             if args.alternative:
                 import recovery

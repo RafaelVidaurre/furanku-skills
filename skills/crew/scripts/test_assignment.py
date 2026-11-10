@@ -221,8 +221,6 @@ class PacketTest(unittest.TestCase):
                     "--codexbar",
                     "--max-effort-basis",
                     "xhigh is materially insufficient.",
-                    "--minimum-context",
-                    "200000",
                     "--accept-quota-unknown",
                     "Principal accepted unknown quota.",
                     "--runtime-file",
@@ -266,8 +264,6 @@ class PacketTest(unittest.TestCase):
                 str(router),
                 "--max-effort-basis",
                 "xhigh is materially insufficient.",
-                "--minimum-context",
-                "200000",
                 "--accept-quota-unknown",
                 "Principal accepted unknown quota.",
                 "--runtime-file",
@@ -321,10 +317,6 @@ class PacketTest(unittest.TestCase):
                     "--launchable-via",
                     "claude",
                     "--codexbar",
-                    "--use-quota-fallback",
-                    "Principal did not answer within 120s.",
-                    "--minimum-context",
-                    "100000",
                     "--require-feature",
                     "tools",
                 ],
@@ -366,10 +358,6 @@ class PacketTest(unittest.TestCase):
                 ROUTE_BASIS,
                 "--router",
                 str(router),
-                "--use-quota-fallback",
-                "Principal did not answer within 120s.",
-                "--minimum-context",
-                "100000",
                 "--require-feature",
                 "tools",
             )
@@ -474,7 +462,7 @@ class PacketTest(unittest.TestCase):
             ROUTE_BASIS,
         )
         self.assertNotEqual(0, candidate.returncode)
-        self.assertIn("apply only to --exact-route", candidate.stderr)
+        self.assertIn("applies only to --exact-route", candidate.stderr)
 
         exact = run(
             *BASE,
@@ -581,7 +569,7 @@ class PacketTest(unittest.TestCase):
 
     def test_builtin_orca_cursor_packet_encodes_model_and_effort_together(self):
         for model, effort in (("gpt-6.1-sol", "high"), ("claude-opus-5-5", "max"),
-                              ("claude-fable-5-1", "medium"), ("grok-4.7", "xhigh")):
+                              ("claude-fable-5-2", "medium"), ("grok-4.7", "xhigh")):
             with self.subTest(model=model, effort=effort):
                 decision = {**SELECTED, "selected": {"id": f"cursor/{model}/{effort}",
                             "agent": "cursor", "model": model, "effort": effort}}
@@ -784,7 +772,6 @@ class PacketTest(unittest.TestCase):
                 "status": "needs-acceptance", "selected": SELECTED["selected"],
                 "pending": ["quota needs refresh"],
                 "quota": {"status": "stale", "remedy": "example-provider"},
-                "quota_fallback": {"ask_seconds": 120, "launch": SELECTED["selected"]},
             },
             {"status": "alternative-available", "original": SELECTED, "alternative": GROK_SELECTED},
         ]
@@ -819,31 +806,6 @@ class PacketTest(unittest.TestCase):
         self.assertIn(f'route_basis: "{ROUTE_BASIS}"', payload["spec"])
         self.assertIn("route_source: global — /tmp/config.json", payload["spec"])
         self.assertNotIn("candidate:", payload["spec"])
-
-    def test_exact_decision_records_used_quota_fallback(self):
-        decision = {
-            "status": "exact",
-            "selected": {
-                "id": "codex/gpt-6-astra/high",
-                "agent": "codex",
-                "model": "gpt-6-astra",
-                "effort": "high",
-            },
-            "exact_route": "worker",
-            "route_basis": ROUTE_BASIS,
-            "provenance": {"winner": {"scope": "global", "path": "/tmp/config.json"}},
-            "quota_fallback": {
-                "used": True,
-                "from": {"agent": "grok", "model": "grok-4.7", "effort": "high"},
-                "to": {"agent": "codex", "model": "gpt-6-astra", "effort": "high"},
-                "ask_seconds": 120,
-                "basis": "principal did not respond within 120s",
-            },
-        }
-        result = run(*packet_args(decision), "--format", "spec")
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("routing_quota_fallback:", result.stdout)
-        self.assertIn("principal did not respond within 120s", result.stdout)
 
     def test_rejects_exact_decision_for_wrong_role(self):
         decision = {
