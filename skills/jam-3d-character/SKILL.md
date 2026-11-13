@@ -9,11 +9,11 @@ The job is one **character**: a generated mesh, quad-remeshed, unwrapped, textur
 
 `jam-3d`, its stage skills and `tools/jam/docs/contracts.md` govern briefs, paid jobs, records and reviews; this skill adds what a character that animates needs. When `tools/jam/jam.mjs` is missing from the project, use the `jam-setup` skill first (when it is not installed: `npx skills add rafaelvidaurre/furanku-skills --skill jam-setup`).
 
-Everything the scripts know about a character comes from its **`character.json`** ([character-spec.md](references/character-spec.md)): name, height, part names, colour classes, hands. The scripts ship in this skill's `scripts/` folder: `$S` is that folder, `$B` is `<blender> --background --python-exit-code 1 --python $S/blender` with `<blender>` from `blender` in `jam.local.json` or on PATH, and `$P` is `python` from `jam.local.json`, else `python3`. [scripts.md](references/scripts.md) lists what each script reads, writes and assumes.
+Everything the scripts know about a character comes from its **`character.json`** ([character-spec.md](references/character-spec.md)): name, height, part names, colour classes, hands. The scripts ship in this skill's `scripts/` folder; `<S>` stands for that folder's absolute path and `<W>` for the run folder. Every command runs from the project root through the jam CLI, `node tools/jam/jam.mjs blender <script> -- <args>` (headless Blender) or `node tools/jam/jam.mjs python <script> <args>`, which pick Blender and Python from `jam.local.json` or PATH and pass the arguments without a shell: the same line works in PowerShell, cmd and POSIX shells. Fill in the placeholders and wrap any path that contains spaces in double quotes. [scripts.md](references/scripts.md) lists what each script reads, writes and assumes.
 
 ## Choose the branch
 
-- **A new character** (player, NPC, creature on the Mannequin skeleton): follow [body.md](references/body.md); `$S/character.py run` drives its local stages and stops at each review gate. Its decisions (proportions, hands, parts, physics) are settled in its `character.json` before any image is made.
+- **A new character** (player, NPC, creature on the Mannequin skeleton): follow [body.md](references/body.md); `<S>/character.py run` drives its local stages and stops at each review gate. Its decisions (proportions, hands, parts, physics) are settled in its `character.json` before any image is made.
 - **Swappable parts** for a character whose head, hair or hands must be shared or swapped: the swappable-parts section of [body.md](references/body.md#swappable-parts), chosen at the start because it adds steps.
 - **An outfit, hat or other wearable** for an existing character: follow [outfit.md](references/outfit.md), which needs that character's delivery and `character.json`.
 - **A script change** only: [scripts.md](references/scripts.md).
@@ -30,7 +30,7 @@ Everything the scripts know about a character comes from its **`character.json`*
 
 ## Engine and game
 
-Import and check in Unreal before the delivery review: `$S/unreal/import_1_textures.py` to `import_4_save.py` for a character, `import_outfit.py` for an outfit, each through the editor's Python tool after setting its CONFIG block (the delivery folder; the rest comes from `character.json`; [scripts.md](references/scripts.md#unreal-scripts-sunreal)). Follow the project's own Unreal editor guidance when it has one. Then:
+Import and check in Unreal before the delivery review: `<S>/unreal/import_1_textures.py` to `import_4_save.py` for a character, `import_outfit.py` for an outfit, each through the editor's Python tool after setting its CONFIG block (the delivery folder; the rest comes from `character.json`; [scripts.md](references/scripts.md#unreal-scripts-sunreal)). Follow the project's own Unreal editor guidance when it has one. Then:
 
 1. Confirm every mesh's skeleton is `SK_Mannequin` in the import result, and that no `.uasset` holds an absolute machine path (run `strings` over each new `.uasset`).
 2. Run the project's engine tests. With parts or outfits, every piece worn together must share the character's reference skeleton: add or run a test that checks it.
