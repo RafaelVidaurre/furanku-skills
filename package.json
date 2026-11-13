@@ -18,12 +18,17 @@
     "skills/human-playtest/agents/**",
     "skills/winremote-host-runs/agents/**",
     "skills/decision-trail/LICENSE.txt",
-    "!skills/**/__pycache__/**"
+    "!skills/**/__pycache__/**",
+    "!skills/**/node_modules/**",
+    "!skills/jam-setup/assets/toolkit/test/**",
+    "!skills/jam-setup/assets/toolkit/catalog/test/**",
+    "!skills/jam-3d-character/scripts/test_charspec.py"
   ],
   "scripts": {
     "test:human-playtest": "python3 -m unittest discover -s test/human-playtest -p 'test_*.py' -v",
     "check:routing": "python3 -m pytest skills/model-routing/scripts/test_native_default_contract.py skills/model-routing/scripts/test_codexbar.py skills/crew/scripts/test_account_launch.py -q",
-    "test": "node --test test/*.test.js skills/guidance-composer/test/*.test.js && python3 -m pytest skills/crew/scripts skills/model-routing/scripts skills/agent-readable-logs/scripts skills/codemap/scripts skills/usage-drain/scripts -q"
+    "test": "node --test test/*.test.js skills/guidance-composer/test/*.test.js && python3 -m pytest skills/crew/scripts skills/model-routing/scripts skills/agent-readable-logs/scripts skills/codemap/scripts skills/usage-drain/scripts skills/jam-3d-character/scripts/test_charspec.py -q",
+    "test:jam-toolkit": "npm ci --prefix skills/jam-setup/assets/toolkit --ignore-scripts && npm ci --prefix skills/jam-setup/assets/toolkit/catalog --ignore-scripts && node --test skills/jam-setup/assets/toolkit/test/ && python3 -m pytest skills/jam-setup/assets/toolkit/test -q && npm test --prefix skills/jam-setup/assets/toolkit/catalog"
   },
   "repository": {
     "type": "git",

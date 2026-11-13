@@ -4,9 +4,9 @@ This repo is a public collection of agent skills, installable via `npx skills ad
 
 ## Layout
 
-One skill = one directory: `skills/<name>/SKILL.md`, with optional `references/`, `scripts/`, `assets/`, and human docs (`README.md`, `LICENSE.txt`) beside it. A skill that ships its own CLI also carries `bin/`, `lib/`, `test/`, and `package.json` — `guidance-composer` is the only one today. Anything a skill ships must be listed in the root `package.json` `files` array, or it is missing from the published package.
+One skill = one directory: `skills/<name>/SKILL.md`, with optional `references/`, `scripts/`, `assets/`, and human docs (`README.md`, `LICENSE.txt`) beside it. A skill that ships its own CLI also carries `bin/`, `lib/`, `test/`, and `package.json` — `guidance-composer` is the only one today. `jam-setup` instead vendors a toolkit into the user's project: its source is `skills/jam-setup/assets/toolkit/` (with its own `package.json` and tests) and `scripts/install.mjs` copies it to `tools/jam/`; every other `jam-*` skill calls that installed copy. Anything a skill ships must be listed in the root `package.json` `files` array, or it is missing from the published package.
 
-Groups live in `.claude-plugin/marketplace.json`, not in the directory tree: a skill listed under a plugin entry there shows under that group in `npx skills`; unlisted skills form the main (General) group. The `experimental` group holds skills whose behavior or interface may still change — move a skill between groups by editing the manifest, never by moving its directory.
+Groups live in `.claude-plugin/marketplace.json`, not in the directory tree: a skill listed under a plugin entry there shows under that group in `npx skills`; unlisted skills form the main (General) group. The `experimental` group holds skills whose behavior or interface may still change; the `jam` group holds the optional game-asset pipeline — move a skill between groups by editing the manifest, never by moving its directory.
 
 ## Rules for skills in this repo
 
@@ -20,7 +20,7 @@ Groups live in `.claude-plugin/marketplace.json`, not in the directory tree: a s
 
 ## Tests and issue tracking
 
-`npm test` runs everything: the Node suites (`test/`, `skills/guidance-composer/test/`) and the Python suites (`skills/crew/scripts`, `skills/model-routing/scripts`). Tests must stay hermetic — a suite that reads real user config (`$CODEX_HOME`, `$HOME`) pins those variables to a temp dir so a run never writes to the machine's own files.
+`npm test` runs everything: the Node suites (`test/`, `skills/guidance-composer/test/`) and the Python suites (`skills/crew/scripts`, `skills/model-routing/scripts`). The vendored jam toolkit and its catalog have their own dependencies and a browser suite; run them with `npm run test:jam-toolkit` after changing anything under `skills/jam-setup/assets/toolkit/`. Tests must stay hermetic — a suite that reads real user config (`$CODEX_HOME`, `$HOME`) pins those variables to a temp dir so a run never writes to the machine's own files.
 
 Work is tracked in [Beads](https://github.com/gastownhall/beads) (`bd`): `.beads/issues.jsonl` is the shared record, the Dolt database beside it is local-only. This repo is public — keep personal data out of anything tracked there.
 

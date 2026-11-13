@@ -21,3 +21,7 @@ __pycache__/
 
 # pytest caches
 .pytest_cache/
+
+# Installed dependencies of vendored packages (jam-setup toolkit)
+node_modules/
+.venv/
