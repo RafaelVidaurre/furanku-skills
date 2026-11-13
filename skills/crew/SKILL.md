@@ -51,6 +51,8 @@ Choose placement independently of role, model, and custom launch arguments:
 - Use an existing checkout for read-only work and sequential edits with one active writer.
 - Use separate worktrees for concurrent changes that need independent Git state, conflicting writes, or an independent delivery branch. Account for generated files and shared build state, not just source-file overlap.
 - Share a checkout among concurrent writers only with explicit disjoint write ownership and one owner of index, branch, and integration operations. A worktree does not isolate ports, devices, databases, or other external resources; coordinate those separately.
+- When the mechanism records workspace lineage, nest every new workspace under the launching owner's workspace—a Captain's under Commander's, a Worker's under its Captain's—so the workspace tree mirrors ownership, even when the delegated front is independent of the launcher's own edits. Create a parentless workspace only when the principal asks for one or the work leaves the Crew with nothing reported back.
+- Lineage does not choose the Git starting point. When the result integrates into the launcher's branch or depends on its unintegrated work, commit that work and start the new worktree from the launcher's branch; otherwise start from the repository's default base.
 
 Record created versus reused resources under **Retire an owner** below.
 

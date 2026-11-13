@@ -14,7 +14,7 @@ Load a guide reference when its situation applies, such as `references/recovery-
 
 ## Launch a supervised owner
 
-Apply **Choose execution and placement** in `SKILL.md` to choose `--worktree current`, an exact existing selector, `new-child` (stacked work), or `new-top-level` (independent work); let `worker-start` create any new workspace. Build the packet with `--spec-out <private file>`, then start the owner with the packet's routed tuple:
+Apply **Choose execution and placement** in `SKILL.md` to choose the placement, and let `worker-start` create any new workspace. Orca records lineage, so map placement as: an existing checkout → `--worktree current` or its exact selector; a new workspace → `--worktree new-child`, which nests it under this coordinator's workspace, plus `--base-branch <launcher branch>` when the new owner must start from the launcher's branch; `new-top-level` only for the parentless case `SKILL.md` allows. Orca's guide prefers `current` unless sharing would conflict; Crew's placement rules decide when a new workspace is needed. Build the packet with `--spec-out <private file>`, then start the owner with the packet's routed tuple:
 
 ```sh
 orca orchestration worker-start --spec-file <spec file> --task-title "<Role> - <summary>" \
