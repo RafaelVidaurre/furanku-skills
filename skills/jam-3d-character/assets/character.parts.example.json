@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "name": "Explorer",
+  "heightMeters": 1.83,
+  "parts": {"head": "Head", "hair": "Hair_Base", "body": "Outfit_Base", "hands": "Hands"},
+  "classes": {
+    "hair": {"rgb": [126, 74, 42], "roughness": 0.7, "part": "hair", "hsv": {"hue": [5, 50], "saturation": [0.5, 1], "value": [0, 0.72]}},
+    "skin": {"rgb": [224, 162, 112], "roughness": 0.6, "part": "head", "hsv": {"hue": [349, 40], "saturation": [0.3, 1], "value": [0.6, 1]}},
+    "shirt": {"rgb": [231, 214, 198], "roughness": 0.85, "part": "body", "hsv": {"saturation": [0, 0.3], "value": [0.6, 1]}},
+    "trousers": {"rgb": [87, 83, 79], "roughness": 0.85, "part": "body", "hsv": {"saturation": [0, 0.25], "value": [0, 0.6]}},
+    "shoe": {"rgb": [73, 59, 51], "roughness": 0.55, "part": "body", "hsv": {"saturation": [0.25, 1], "value": [0, 0.6]}}
+  },
+  "roles": {"skin": "skin", "hair": "hair", "neckline": "shirt", "footwear": "shoe"},
+  "hairMinHeightShare": 0.84,
+  "textureSizes": {"head": 1024, "hair": 1024, "body": 2048, "hands": 1024},
+  "maxInfluences": 4,
+  "repair": {"hairline": true, "skinDarkSpots": true},
+  "hands": {"fingers": 5, "cleanSide": "left", "fanDegrees": {"pinky": -10, "ring": -4, "middle": 3, "index": 9}}
+}

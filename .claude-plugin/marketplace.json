@@ -16,6 +16,25 @@
         "./skills/human-playtest",
         "./skills/winremote-host-runs"
       ]
+    },
+    {
+      "name": "jam",
+      "source": "./",
+      "description": "Optional game-asset pipeline: art style, concepts, turnarounds, generated 3D props and rigged characters, reviewed and recorded through a toolkit jam-setup installs into your project.",
+      "skills": [
+        "./skills/jam-setup",
+        "./skills/jam-3d",
+        "./skills/jam-style",
+        "./skills/jam-concept",
+        "./skills/jam-turnaround",
+        "./skills/jam-model",
+        "./skills/jam-retopo",
+        "./skills/jam-uv",
+        "./skills/jam-texture",
+        "./skills/jam-catalog",
+        "./skills/jam-3d-prop",
+        "./skills/jam-3d-character"
+      ]
     }
   ]
 }

@@ -26,7 +26,7 @@ npx skills add rafaelvidaurre/furanku-skills --skill testing-best-practices
 
 After install, talk to your agent as usual. When a skill fits, it should load and follow it.
 
-The picker shows skills in groups: most live in the main (**General**) group; skills still proving themselves appear under **Experimental** (currently `council`, `codemap`, `usage-drain`, `promo-music-video`, and `human-playtest`).
+The picker shows skills in groups: most live in the main (**General**) group; skills still proving themselves appear under **Experimental** (currently `council`, `codemap`, `usage-drain`, `promo-music-video`, `human-playtest`, and `winremote-host-runs`); the optional game-asset pipeline appears under **Jam** (the `jam-*` skills, [below](#jam-game-asset-pipeline-optional)).
 
 ## Command-line tool
 
@@ -252,6 +252,25 @@ First use walks you through approving which model tools may run on your machine.
 > Run the test suite on the Windows host and bring back the report.
 > Set up this Windows PC as a winremote host for my agents.
 > Benchmark this build on the host with nothing else running.
+```
+
+---
+
+### Jam: game asset pipeline (optional)
+
+**Useful if:** you are making a game and want agents to take art from style exploration through concepts, turnarounds and generated 3D models to reviewed, measured deliveries, with every paid job and approval on record.
+
+**What it does:** twelve `jam-*` skills share one toolkit that `jam-setup` installs into your project at `tools/jam/` with one command: a CLI for asset runs, reviews, spending caps and the paid-job ledger, a local content catalog for browsing and reviewing assets in the browser, and the reference docs the skills follow. `jam-3d` routes the work; `jam-style`, `jam-concept`, `jam-turnaround`, `jam-model`, `jam-retopo`, `jam-uv` and `jam-texture` are the stages; `jam-3d-prop` runs a set of props from one reference scene; `jam-3d-character` builds rigged bodies and outfits for Unreal Engine 5 projects on Epic's Mannequin skeleton; `jam-catalog` drives the catalog. Engine-agnostic apart from `jam-3d-character`. Image generation works through Codex or the agent's own image tool; 3D generation uses Meshy or Scenario (your accounts). Art lives under `Art/` in your project.
+
+```bash
+npx skills add rafaelvidaurre/furanku-skills --skill jam-setup jam-3d jam-style jam-concept jam-turnaround jam-model jam-retopo jam-uv jam-texture jam-catalog jam-3d-prop jam-3d-character
+```
+
+```text
+> Set up jam in this project.
+> Help me find an art style for my game.
+> Make a wooden barrel prop from this reference scene.
+> Make an outfit for the player character.
 ```
 
 ---

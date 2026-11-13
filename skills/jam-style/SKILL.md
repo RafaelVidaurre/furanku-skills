@@ -1,0 +1,22 @@
+---
+name: jam-style
+description: Discover and refine a game's art style through visual comparisons, targeted studies and gameplay-camera images, then save the approved direction and reference library. Use when the user wants to find, explore, compare or change their game's art style or look, run a style study, or set the visual rules and budgets assets follow.
+---
+
+# Discover the game's art style
+
+Help the user choose a coherent visual language for their game: character proportions and silhouettes, environment shapes, surfaces and shading, palette, lighting, and readability in play. Every gameplay image must be one the user would believe is a screenshot of their game in play, from the game's determined camera. Success is pictures that make those decisions easier, followed by reusable visual rules and approved references; an attractive standalone picture or a finished batch does not establish the style.
+
+When `tools/jam/jam.mjs` is missing from the project, use the `jam-setup` skill first (when it is not installed: `npx skills add rafaelvidaurre/furanku-skills --skill jam-setup`); visual discussion and reference search can start before it. For an initial round, read the conversation and comparison sections of `tools/jam/docs/style-exploration.md`, then the selected image route and `tools/jam/docs/style-images.md` when generating. Coverage, custody, cleanup and production documents wait until their stage.
+
+## Work as an art-direction partner
+
+1. **Find the next visual decision.** Read existing context and the current round record. Establish the game's activity, presentation and a confirmed gameplay camera rig, plus the user's tastes and exclusions, only as far as the next useful comparison needs. Ask one consequential question at a time. When the user cannot name a style, offer a recommendation and a visual exploration; pictures come before a finished definition. Follow `tools/jam/docs/style-exploration.md`. Done when the round's question is stated.
+2. **Choose pictures that answer it.** For broad discovery, compare distinct coherent treatments of the same representative subject. For refinement, isolate the uncertain quality. Character, outfit, environment, material and lighting studies are legitimate art direction; use the requested framing and say what each can establish, then connect chosen qualities back to a gameplay view. Keep the request's image count, subjects and grouping (`tools/jam/docs/style-exploration.md#show-a-small-meaningful-comparison`). Done when each planned image has a subject and the quality it tests.
+3. **Generate and inspect the agreed round.** Reuse the selected image route (`tools/jam/docs/images.md`) and the conversation's authorization (`tools/jam/docs/task-intent.md`); ask only about a real open decision. Follow `tools/jam/docs/style-images.md`: fresh sessions for independent images, deliberate reference roles, faithful prompt handoff, and inspection against the round's question. Show the original images directly in the conversation with short factual captions. Done when the user has seen every image.
+4. **Help the user converge.** Explain the useful differences, recommend a direction with a reason tied to the game, and ask what to keep or change. Record selected qualities, rejected qualities and uncertainties, leaving approval to the user. Propose the next highest-value comparison or the transfer into gameplay. A study can settle one quality while others stay open; model failures do not redefine the user's preferences. Done when the user's choices are recorded.
+5. **Preserve and test the direction across the game.** Build representative coverage (`tools/jam/docs/style-coverage.md`), including gameplay-scale evidence and at least three distinct approved hero shots for a complete library. Save approved progress per `tools/jam/docs/style-exploration.md#carry-the-decision-forward`, and clean up (`tools/jam/docs/style-cleanup.md`) only after closure. A requested study can end with a clearly partial library.
+
+Production budgets come on demand: read `tools/jam/docs/contracts.md` and `tools/jam/docs/asset-workflows.md` when production needs them. Images set visual targets, not measured triangle counts, performance or engine acceptance. A style change keeps prior approvals as history and explains its effect on active assets.
+
+**Report:** what the pictures helped decide, what remains uncertain, and the next useful visual step, keeping the user's approvals apart from the agent's recommendations, and saved files apart from committed or pushed work.
