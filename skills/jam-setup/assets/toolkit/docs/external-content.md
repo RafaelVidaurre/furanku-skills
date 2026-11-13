@@ -61,8 +61,7 @@ node tools/jam/pack-glb.mjs source.gltf Art/Imported/chair.glb
 This optional converter uses glTF Transform 4.5.1 and its extension handlers to embed the original buffer/image bytes. It is a file conversion command, not a Jam workflow; catalog browsing does not load these dependencies for external content. FBX conversion uses installed Blender in an isolated process:
 
 ```sh
-blender --background --factory-startup --python-exit-code 1 \
-  --python tools/jam/fbx-to-glb.py -- source.fbx Art/Imported/chair.glb
+node tools/jam/jam.mjs blender --factory-startup tools/jam/fbx-to-glb.py -- source.fbx Art/Imported/chair.glb
 ```
 
 Inspect a catalog capture after conversion. This establishes the inspected catalog appearance, separately from native engine import, scale, retargeting, performance and art acceptance.

@@ -23,6 +23,8 @@ const HELP = `Jam asset records and setup (Node.js 22.20+). All paths are projec
   node tools/jam/jam.mjs job-intent --run <run.json> --record <intent.json>
   node tools/jam/jam.mjs job-update --run <run.json> --job <id> --record <update.json>
   node tools/jam/jam.mjs check-delivery --run <run.json>
+  node tools/jam/jam.mjs python <script.py> [args]       run with jam.local.json's python (else python3/python)
+  node tools/jam/jam.mjs blender [--factory-startup] <script.py> [-- args]   headless Blender from jam.local.json or PATH
   node tools/jam/jam.mjs catalog <serve|actions|run|capture> ...   content catalog for this checkout (tools/jam/catalog)
 
 Setup writes jam.config.json only after preview/confirmation. It never authenticates or spends.
@@ -171,6 +173,25 @@ function doctor(root) {
   const pillow = spawnSync(python, ['-c', 'import PIL'], { timeout: 10000, shell: false, windowsHide: true });
   result.tools.pillow = { installed: !pillow.error && pillow.status === 0 };
   output(result);
+}
+// Run a Python or Blender script with the project's executables (jam.local.json, else PATH), passing arguments
+// straight through with no shell, so one command line works in PowerShell, cmd and POSIX shells alike.
+if (process.argv[2] === 'python' || process.argv[2] === 'blender') {
+  const root = process.cwd();
+  const local = existsSync(resolve(root, 'jam.local.json')) ? json(resolve(root, 'jam.local.json')) : {};
+  const pick = (name, fallback) => (local[name] ? (/[\\/]/.test(local[name]) ? resolve(root, local[name]) : local[name]) : fallback);
+  let command, args = process.argv.slice(3);
+  if (process.argv[2] === 'python') command = pick('python', process.platform === 'win32' ? 'python' : 'python3');
+  else {
+    command = pick('blender', 'blender');
+    const factory = args[0] === '--factory-startup' ? [args.shift()] : [];
+    if (!args.length) { console.error('jam: blender needs a script: node tools/jam/jam.mjs blender [--factory-startup] <script.py> [-- <args>]'); process.exit(1); }
+    const [script, ...rest] = args;
+    args = ['--background', ...factory, '--python-exit-code', '1', '--python', script, ...rest];
+  }
+  const r = spawnSync(command, args, { stdio: 'inherit', shell: false, windowsHide: true });
+  if (r.error) { console.error(`jam: cannot run ${command} (${r.error.code}); set "${process.argv[2]}" in jam.local.json or put it on PATH`); process.exit(1); }
+  process.exit(r.status ?? 1);
 }
 // The content catalog is a separate package; delegate its arguments unchanged.
 if (process.argv[2] === 'catalog') {

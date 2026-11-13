@@ -2,7 +2,7 @@
 
 You build ONE prop end to end. Follow the steps in order; each ends on its done condition. The coordinator owns user contact: report blockers to the coordinator instead of notifying or asking the user. Work from the repository root and commit nothing.
 
-Scripts are in the `scripts/` directory of the `jam-3d-prop` skill (the coordinator gives you its absolute path) and run with `<blender> --background --factory-startup --python-exit-code 1 --python <script> -- <args>`. Blender is `blender` in `jam.local.json`, else on PATH (on macOS `/Applications/Blender.app/Contents/MacOS/Blender`). Each script's first lines give its usage.
+Scripts are in the `scripts/` directory of the `jam-3d-prop` skill (the coordinator gives you its absolute path) and run from the project root with `node tools/jam/jam.mjs blender --factory-startup <scripts dir>/<script> -- <args>`, which takes Blender from `jam.local.json` or PATH and passes the arguments without a shell, so the same line works in PowerShell, cmd and POSIX shells (quote paths with spaces). Each script's first lines give its usage.
 
 Working files go in `Art/.scratch/<asset>/`; the delivery goes in `Art/Assets/<asset>/v<n>/` with the layout in [step 8](#8-deliver). When the coordinator names an accepted earlier prop of the set, it is your colour reference and an example of that layout; the first prop of a set has neither and establishes both.
 
@@ -37,7 +37,7 @@ Generate only the views that are not duplicates, by symmetry class:
 | Mirror left/right (chair, counter) | front, one side, back, three-quarter (2x2) | mirroring the side | front, side, three-quarter (+ back if it differs from front) |
 | None | front, left, back, right, three-quarter | — | front + three best |
 
-Ask for orthographic views at the prop's mid height, equal cells, flat background, same scale. Inspect: every view agrees with the others, nothing crosses a cell, and no detail appears in one view that another contradicts (board ends on a side view that the top lacks become a ring in 3D). Fix with an edit if needed. If views do not sit on equal cells, cut each out unscaled into its own cell. Assemble a five-cell sheet locally, write `layout.json`, crop with `<python> tools/jam/crop_turnaround.py <sheet> <layout.json> <new-dir>` (`python` from `jam.local.json`, else `python3`), and document reused or mirrored views in `origin.md`.
+Ask for orthographic views at the prop's mid height, equal cells, flat background, same scale. Inspect: every view agrees with the others, nothing crosses a cell, and no detail appears in one view that another contradicts (board ends on a side view that the top lacks become a ring in 3D). Fix with an edit if needed. If views do not sit on equal cells, cut each out unscaled into its own cell. Assemble a five-cell sheet locally, write `layout.json`, crop with `node tools/jam/jam.mjs python tools/jam/crop_turnaround.py <sheet> <layout.json> <new-dir>`, and document reused or mirrored views in `origin.md`.
 
 **Done:** five cropped views that agree, plus `origin.md`.
 
