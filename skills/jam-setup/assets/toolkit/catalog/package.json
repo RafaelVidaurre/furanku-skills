@@ -1,0 +1,25 @@
+{
+  "name": "content-catalog",
+  "private": true,
+  "type": "module",
+  "description": "Project-independent local content catalog and review tool.",
+  "engines": {
+    "node": ">=22.20.0"
+  },
+  "bin": {
+    "content-catalog": "bin/catalog.mjs"
+  },
+  "scripts": {
+    "start": "node bin/catalog.mjs serve",
+    "test": "node --test --test-concurrency=1 test/"
+  },
+  "dependencies": {
+    "@gltf-transform/core": "^4.5.1",
+    "dompurify": "3.4.17",
+    "htm": "3.1.1",
+    "marked": "18.2.0",
+    "playwright": "1.65.0",
+    "preact": "11.2.0",
+    "three": "0.187.0"
+  }
+}

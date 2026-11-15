@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "assetRoots": [
+    "Art"
+  ],
+  "types": {
+    "external-asset": {
+      "label": "External asset",
+      "thumb": "model",
+      "fields": [
+        {
+          "key": "objectType",
+          "label": "Object type"
+        },
+        {
+          "key": "pack",
+          "label": "Pack"
+        },
+        {
+          "key": "creator",
+          "label": "Creator"
+        },
+        {
+          "key": "source",
+          "label": "Source URL"
+        },
+        {
+          "key": "license",
+          "label": "License"
+        },
+        {
+          "key": "sourceFile",
+          "label": "Original export"
+        },
+        {
+          "key": "purpose",
+          "label": "Purpose"
+        },
+        {
+          "key": "provenance",
+          "label": "Provenance record"
+        },
+        {
+          "key": "animationClips",
+          "label": "Animation clips",
+          "kind": "number"
+        }
+      ],
+      "roles": [
+        {
+          "key": "model",
+          "label": "Model",
+          "kinds": [
+            "model"
+          ]
+        },
+        {
+          "key": "image",
+          "label": "Image",
+          "kinds": [
+            "image"
+          ],
+          "many": true
+        },
+        {
+          "key": "video",
+          "label": "Video",
+          "kinds": [
+            "video"
+          ],
+          "many": true
+        }
+      ]
+    }
+  },
+  "unitFiles": [
+    "Art/Catalog"
+  ],
+  "collections": []
+}

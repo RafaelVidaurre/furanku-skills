@@ -1,0 +1,9 @@
+# Meshy CLI billing
+
+Checked against first-party documentation on 2026-11-11. Recheck these sources before making a new pricing promise; this is documentation evidence, not a charge observed on the user's account.
+
+The [official CLI](https://github.com/meshy-dev/meshy-cli) calls Meshy's API. Meshy's [API cost FAQ](https://help.meshy.ai/en/articles/16815622-how-many-credits-does-each-meshy-api-task-cost) says integrations draw from the same credit balance at the same API rates. Its [integration FAQ](https://help.meshy.ai/en/articles/16102955-how-to-use-meshy-in-comfyui) confirms the account balance is shared with the web app. **These sources indicate no extra CLI surcharge or separate CLI credit balance.** Do not present this as identical total cost for every web workflow.
+
+The [official installation guide](https://raw.githubusercontent.com/meshy-dev/meshy-3d-agent/main/INSTALL.md) requires Pro or above to create tasks; a Free account can authenticate but cannot generate through this route. The API cost FAQ also states that buying extra credits on a Free plan does not unlock API access. Authentication/status/balance checks do not create paid tasks. Setup does not buy a plan or credits.
+
+The [plan comparison](https://www.meshy.ai/pricing) explicitly labels free retries as a web-app benefit. API operations, models and extra steps have their own costs: compare the exact workflow, including textures, remeshing and retries, before choosing a route. Use the [current API price table](https://docs.meshy.ai/en/api/pricing) and supported exact-operation quote/estimate; preserve the price source and date in the intent ledger. A CLI dry run is not proof of promotional pricing or web retry eligibility. Do not switch to a separate paid route, upgrade, buy credits or enable automatic refill as part of setup.
