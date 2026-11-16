@@ -17,6 +17,7 @@ import { makeHandler } from "./app.ts"
 import type { BrowserOptions } from "./browser.ts"
 import { isPortTaken, listen } from "./http.ts"
 import { PageAddress, Renderer } from "./Renderer.ts"
+import { allowedOrigins } from "./origins.ts"
 import { errorResponse, LOOPBACK } from "./security.ts"
 
 /** The first port tried when none is asked for, and how many after it. */
@@ -36,6 +37,8 @@ export interface ServeOptions {
   /** The toolkit's version, so a newer toolkit can tell an older server apart. */
   readonly toolkit: string
   readonly browser?: BrowserOptions | undefined
+  /** Exact origins admitted besides this machine's: a private HTTPS proxy in front of the server. */
+  readonly allowOrigins?: ReadonlyArray<string> | undefined
 }
 
 const toolkitRoot = fileURLToPath(new URL("../../../", import.meta.url))
@@ -68,7 +71,8 @@ export class CatalogServer extends Context.Service<CatalogServer, {
         const address = yield* PageAddress
         const state = yield* ServerState
         const root = (yield* ProjectFiles).root
-        const config = { web: nodePath.join(toolkitRoot, "catalog", "web"), modules: browserModules(), identity: { pid: options.pid, toolkit: options.toolkit, root } }
+        const allowOrigins = options.allowOrigins ?? []
+        const config = { web: nodePath.join(toolkitRoot, "catalog", "web"), modules: browserModules(), identity: { pid: options.pid, toolkit: options.toolkit, root }, allowed: yield* allowedOrigins(allowOrigins) }
         const bound = yield* Deferred.make<number>()
 
         const listenOn = (port: number) =>
@@ -94,7 +98,7 @@ export class CatalogServer extends Context.Service<CatalogServer, {
         const url = `http://${LOOPBACK}:${port}/`
         const record = options.record && (yield* state.known) === null
         if (record) {
-          yield* state.write({ pid: options.pid, port, url, toolkit: options.toolkit, startedAt: yield* nowIso })
+          yield* state.write({ pid: options.pid, port, url, toolkit: options.toolkit, startedAt: yield* nowIso, allowOrigins: [...config.allowed.origins] })
           yield* Effect.addFinalizer(() => state.clear(options.pid))
         }
         return { url, port, recorded: record }

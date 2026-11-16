@@ -77,8 +77,9 @@ test("the attention view lists waiting reviews, open notes, changed verdicts and
     for (const item of review.items) await run("review.decide", { submission: review.id, item: item.id, whole: "approved" })
     await run("note.resolve", { id: inbox.notes[0].id })
     await page.waitForFunction(() => document.querySelector(".attention-link .badge")?.textContent === "2", null, { timeout: 15_000 })
-    assert.equal(await section("Reviews waiting for a verdict").count(), 0)
-    assert.equal(await section("Open notes").count(), 0)
+    // The badge updates on the poll; the list refetches after it. Wait for the list itself.
+    await section("Reviews waiting for a verdict").waitFor({ state: "detached", timeout: 15_000 })
+    await section("Open notes").waitFor({ state: "detached", timeout: 15_000 })
     // Narrow screens keep the link reachable without widening the page.
     await page.setViewportSize({ width: 390, height: 844 })
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)

@@ -17,7 +17,12 @@ export interface Launch {
   readonly command: string
   readonly args: ReadonlyArray<string>
   readonly toolkit: string
+  /** The exact origins the server must admit besides this machine's; a server admitting others is replaced. */
+  readonly allowOrigins: ReadonlyArray<string>
 }
+
+const sameOrigins = (record: ServerRecord, wanted: ReadonlyArray<string>): boolean =>
+  [...(record.allowOrigins ?? [])].sort().join("\n") === [...wanted].sort().join("\n")
 
 export interface ServerStatus {
   readonly running: boolean
@@ -36,6 +41,8 @@ export interface Opened extends ServerStatus {
   /** True when this command started the server; false when one was already running. */
   readonly started: boolean
   readonly log: string
+  /** Origins it admits besides this machine's. */
+  readonly allowOrigins: ReadonlyArray<string>
 }
 
 type Services = ServerState | Detached | ProjectFiles | Git
@@ -43,7 +50,7 @@ const OPEN_LOCK = `${LOCAL_DIR}/server-open.lock`
 const START_TIMEOUT_MS = 60_000
 
 const describe = (record: ServerRecord): Omit<ServerStatus, "running" | "reason"> => ({ url: record.url, port: record.port, pid: record.pid, toolkit: record.toolkit, startedAt: record.startedAt })
-const opened = (record: ServerRecord, started: boolean): Opened => ({ running: true, ...describe(record), url: record.url, reason: null, started, log: SERVER_LOG_FILE })
+const opened = (record: ServerRecord, started: boolean): Opened => ({ running: true, ...describe(record), url: record.url, reason: null, started, log: SERVER_LOG_FILE, allowOrigins: record.allowOrigins ?? [] })
 const NONE: ServerStatus = { running: false, url: null, port: null, pid: null, toolkit: null, startedAt: null, reason: null }
 
 /**
@@ -103,7 +110,7 @@ export const openServer = (launch: Launch): Effect.Effect<Opened, ToolError, Ser
     yield* files.lock(OPEN_LOCK).pipe(Effect.retry({ schedule: Schedule.spaced("250 millis"), times: 280, while: (error) => error.code === "locked" }))
     const { confirmed, reason, record } = yield* inspect
     if (record !== null) {
-      if (confirmed && reason === null && record.toolkit === launch.toolkit) return opened(record, false)
+      if (confirmed && reason === null && record.toolkit === launch.toolkit && sameOrigins(record, launch.allowOrigins)) return opened(record, false)
       // Only a process that answered as this checkout's server is stopped; anything else is left alone.
       if (confirmed) yield* (yield* Detached).stop(record.pid)
       yield* state.clear()

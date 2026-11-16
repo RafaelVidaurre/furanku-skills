@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import assert from "node:assert/strict"
-import { existsSync, mkdirSync, readdirSync, symlinkSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { hostname } from "node:os"
 import { join } from "node:path"
 import { describe, it } from "node:test"
@@ -65,6 +65,15 @@ describe("project files", () => {
       assert.deepEqual(yield* files.walk("art"), ["art/.scratch/d.png", "art/a.png", "art/b.png", "art/sub/c.png"])
       assert.deepEqual(yield* files.walk("art", { skip: (path) => path.endsWith(".scratch") }), ["art/a.png", "art/b.png", "art/sub/c.png"])
       assert.deepEqual(yield* files.walk("missing"), [])
+      // With sizes and times: a linked file counts only when it stays inside the project.
+      const outside = `${root}-outside.png`
+      writeFileSync(outside, "far away")
+      symlinkSync(join(root, "elsewhere", "e.png"), join(root, "art", "inside-link.png"))
+      symlinkSync(outside, join(root, "art", "outside-link.png"))
+      const stats = yield* files.walkStats("art", { skip: (path) => path.endsWith(".scratch") })
+      assert.deepEqual(stats.map((file) => [file.path, file.size]), [["art/a.png", 1], ["art/b.png", 1], ["art/inside-link.png", 1], ["art/sub/c.png", 1]])
+      assert.ok(stats.every((file) => file.mtimeMs > 0))
+      rmSync(outside)
     }))
   })
 

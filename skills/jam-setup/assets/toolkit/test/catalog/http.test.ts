@@ -101,7 +101,9 @@ test("T22 security: loopback host/origin checks, write headers, body limits, tra
     assert.equal(range.status, 206)
     assert.equal(range.body.toString(), "glTF")
     const page = await raw(s.port, { path: "/" })
-    assert.match(String(page.headers["content-security-policy"]), /script-src 'self' 'sha256-/)
+    // Scripts from this server only; WebAssembly may be compiled (a view's mesh decoder), JavaScript never evaluated.
+    assert.match(String(page.headers["content-security-policy"]), /script-src 'self' 'sha256-[^']+' 'wasm-unsafe-eval';/)
+    assert.doesNotMatch(String(page.headers["content-security-policy"]), /'unsafe-eval'/)
     // Note text is stored as data, never markup.
     const n = json(await post(s.port, "note.create", { input: { target: unit("armor/helm"), body: "<img src=x onerror=alert(1)>" }, actor: { name: "a", kind: "agent" } }))
     assert.equal(n.note.body, "<img src=x onerror=alert(1)>")
@@ -153,6 +155,33 @@ test("who may talk to the server: the Host must name it, an Origin must be it, a
       assert.ok([404, 405].includes((await raw(s.port, { method: "POST", path, headers: { "content-type": "application/json" }, body: "{}" })).status), `POST ${path}`)
     }
     assert.equal((await raw(s.port, { method: "DELETE", path: "/app.js" })).status, 405)
+  } finally {
+    await s.close()
+    cleanup(dir)
+  }
+})
+
+// A person reviews from a phone through a private HTTPS proxy in front of the loopback server.
+// The proxy's origin is admitted only when named, exactly.
+test("an allowed origin admits exactly that origin and its host; every other host and origin stays refused", async () => {
+  const dir = await standardProject()
+  const s = await startServer(dir, { allowOrigins: ["https://box.tail.ts.net:8908"] })
+  try {
+    const call = (headers: Record<string, string>) => raw(s.port, { path: "/api/actions", headers }).then((r) => r.status)
+    const run = (headers: Record<string, string>) => post(s.port, "context", { input: {} }, headers).then((r) => r.status)
+    assert.equal(await call({ host: `127.0.0.1:${s.port}` }), 200)
+    assert.equal(await call({ host: "box.tail.ts.net:8908" }), 200)
+    assert.equal(await run({ host: "box.tail.ts.net:8908", origin: "https://box.tail.ts.net:8908" }), 200)
+    assert.equal(await run({ origin: `http://127.0.0.1:${s.port}` }), 200, "this machine's own origin still works")
+    assert.equal(await call({ host: "other.tail.ts.net:8908" }), 403)
+    assert.equal(await call({ host: "box.tail.ts.net" }), 403, "the port is part of the host")
+    assert.equal(await run({ host: "box.tail.ts.net:8908", origin: "https://evil.example" }), 403)
+    assert.equal(await run({ host: "box.tail.ts.net:8908", origin: "http://box.tail.ts.net:8908" }), 403, "the scheme is part of the origin")
+    assert.equal(await run({ host: "box.tail.ts.net:8908", origin: "https://box.tail.ts.net:8909" }), 403)
+    // Only an exact origin is accepted as one: no path, no credentials, no other scheme.
+    for (const origin of ["https://box.tail.ts.net:8908/catalog", "ftp://box.tail.ts.net", "box.tail.ts.net:8908", "https://user:pw@box.tail.ts.net", "*"]) {
+      await assert.rejects(startServer(dir, { allowOrigins: [origin] }), (error: Any) => error.code === "invalid", origin)
+    }
   } finally {
     await s.close()
     cleanup(dir)

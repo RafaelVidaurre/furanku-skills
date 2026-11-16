@@ -12,6 +12,7 @@ import { isViewerAction, viewerActionInfo } from "../viewerActions.ts"
 import { bytesResponse, confined, fileResponse } from "./files.ts"
 import type { Handler, Request, Response } from "./http.ts"
 import type { Renderer } from "./Renderer.ts"
+import { type AllowedOrigins, NO_ORIGINS } from "./origins.ts"
 import { json, MAX_BODY, MEDIA_CSP, pageCsp, refusal, refused, runRefusal, SCRIPT_CSP } from "./security.ts"
 
 /** Where the page's own files and its browser packages are, and who this server is. */
@@ -22,6 +23,8 @@ export interface AppConfig {
   readonly modules: string
   /** Reported by `/api/health`, so a command can tell this server from another process. */
   readonly identity: { readonly pid: number; readonly toolkit: string; readonly root: string }
+  /** Origins admitted besides this machine's (`--allow-origin`). */
+  readonly allowed?: AllowedOrigins
 }
 
 const TYPES: Readonly<Record<string, string>> = {
@@ -108,7 +111,7 @@ export const makeHandler = (catalog: Catalog["Service"], renderer: Renderer["Ser
 
   return (request) =>
     Effect.gen(function*() {
-      const no = refusal(request, port)
+      const no = refusal(request, port, config.allowed ?? NO_ORIGINS)
       if (no !== null) return refused(403, "forbidden", no)
       const path = yield* decoded(request.rawPath)
       const under = (prefix: string): string | null => (request.rawPath.startsWith(prefix) ? request.rawPath.slice(prefix.length) : null)
@@ -141,6 +144,8 @@ export const makeHandler = (catalog: Catalog["Service"], renderer: Renderer["Ser
       if (preview !== null) return script(request, yield* catalog.previewModule(yield* decoded(preview)))
       const kind = under("/project/kind/")
       if (kind !== null) return script(request, yield* catalog.kindModule(yield* decoded(kind)))
+      const view = under("/project/view/")
+      if (view !== null) return script(request, yield* catalog.viewModule(yield* decoded(view)))
 
       if (path.startsWith("/vendor/")) {
         const rest = path.slice("/vendor/".length)

@@ -36,6 +36,12 @@ const RECORDS = /(^|\/)(\.git|\.catalog)(\/|$)/
 
 const shownKind = (path: string): CatalogKind | null => (RECORDS.test(path) ? null : SHOWN[extensionOf(path)] ?? null)
 
+/**
+ * Whether a recorded file can be shown as a capture: media of a kind the catalog shows, anywhere in
+ * the checkout but Git's own folder (the catalog's own captures live under .catalog/.local).
+ */
+export const capturable = (path: string): boolean => !/(^|\/)\.git(\/|$)/.test(path) && SHOWN[extensionOf(path)] !== undefined
+
 /** One run of a subject with the recipe it follows. */
 export interface Attempt {
   readonly ref: RunRef

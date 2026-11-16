@@ -14,9 +14,9 @@ jam catalog todo                    # reviews waiting, open notes, changed verdi
 jam catalog doctor [--fix]          # checks; exits 1 while something is left to fix
 jam catalog unlock <lock>           # remove a lock whose owner has exited
 
-jam catalog open                    # print the address of this checkout's catalog; starts its server when none runs
+jam catalog open [--allow-origin <origin>]...   # print the address of this checkout's catalog; starts its server when none runs
 jam catalog status | stop           # whether that server is running, and where; stop it
-jam catalog serve [--port <n>]      # the same server in the foreground, until interrupted
+jam catalog serve [--port <n>] [--allow-origin <origin>]...   # the same server in the foreground, until interrupted
 jam catalog capture --target unit:<id>|collection:<id>|asset:<id>|submission:<id>/<item>
                 [--part <id>] [--view <id>] [--camera '<json>'] [--mode textured|clay|wireframe]
                 [--animation <clip>] [--size 1280x860] [--out file.png] [--url <server>]
@@ -41,7 +41,8 @@ jam catalog run review.decide --actor-kind human \
 { "version": 2,
   "plugins": ["manifest", "./catalog/storybook.ts"],
   "options": { "manifest": { "file": "catalog.manifest.json" }, "storybook": { "folder": "story" } },
-  "review": { "resolver": "latest", "referenceRoles": [], "verdicts": ["approved", "changes", "rejected"] } }
+  "review": { "resolver": "latest", "referenceRoles": [], "verdicts": ["approved", "changes", "rejected"] },
+  "display": { "pixelArt": false } }
 ```
 
 - `plugins`: in load order. An entry is a built-in name (`manifest`, or one the toolkit registers, such as `jam`) or a project-relative module (`./catalog/storybook.ts`, `.ts`, `.mjs` or `.js`). The built-in `media-core` plugin is always loaded first. Without a configuration file the catalog uses `["manifest"]`.
@@ -49,6 +50,7 @@ jam catalog run review.decide --actor-kind human \
 - `review.resolver`: `latest` (default), `strictest`, or a resolver a plugin registers. Resolvers change how verdict events are read, never the events.
 - `review.referenceRoles`: roles that are supporting material. They are left out of new submissions and decisions; older evidence stays viewable and does not count in review totals.
 - `review.verdicts`: the verdicts reviewers may give, from `approved`, `changes`, `rejected`.
+- `display.pixelArt`: images keep hard texels in thumbnails and image viewers, for every type that does not set its own `display`. Thumbnails always show whole images; captures always keep smooth scaling. Version 1 files take the same key.
 
 A running catalog follows the checkout. The file is read for every action and decoded when its bytes changed; plugins and project modules are imported again when theirs did (a branch switch, an edit). When the file or a plugin is broken, the last good settings stay in use and the failure is listed under problems; a catalog that has no good settings yet fails with the error.
 
@@ -62,7 +64,7 @@ Version 1 files keep working and are never rewritten:
   "review": { "resolver": "latest", "resolverModule": "./tools/resolver.mjs" } }
 ```
 
-`adapter` becomes the one plugin. A version 1 adapter module (`export default ({ root, options }) => ({ name?, sources(), load() })`) is wrapped as a plugin with one source: it is created once per load of the configuration, `sources()` gives its inputs, and it receives the whole `options` object. `previewModules` and `review.resolverModule` register previews and a resolver as a plugin would.
+`adapter` becomes the one plugin. A version 1 adapter module (`export default ({ root, options }) => ({ name?, sources(), load() })`) is wrapped as a plugin with one source: it is created once per load of the configuration, `sources()` gives its inputs, and it receives the whole `options` object. `previewModules` and `review.resolverModule` register previews and a resolver as a plugin would; `previewModules` also declares the modules of type views and panels.
 
 ## Plugins
 
@@ -80,6 +82,7 @@ A plugin is a module whose default export is a plain object. Its functions may r
 | `scopes` | The top-level split of units |
 | `resolvers` | Verdict resolvers selectable by `review.resolver` |
 | `previews` | Collection preview modules for the browser |
+| `views` | Modules of type views (inspectors in a unit's visual strip) and panels (sidebar sections) |
 
 A complete plugin with one source, a relation and a check:
 
@@ -131,20 +134,20 @@ Every plugin function receives a context: `root` (absolute project root), `optio
 
 ```ts
 { project, assetRoots: ["art"],
-  types: { <key>: { label, scope?, fields, roles, thumb?, help?, reviewAttributes? } },
+  types: { <key>: { label, scope?, fields, roles, thumb?, help?, reviewAttributes?, views?, panels?, display? } },
   collectionKinds: { <key>: { label, preview?, memberField?, memberExtra? } },
   assets: [{ id, path, kind?, label?, tags?, category? }],
-  units: [{ id, type, name?, attrs?, links: [{ role, asset, key?, meta? }], aliases?, search?, sources?, tags?, category?, explain? }],
+  units: [{ id, type, name?, attrs?, links: [{ role, asset, key?, meta? }], aliases?, search?, sources?, tags?, category?, explain?, views? }],
   collections: [{ id, name, kind?, members: [{ unit, ...extra }], tags?, category? }],
   problems: [{ source?, error, recovery? }] }
 ```
 
 Outputs of several sources are merged in plugin order. A type or collection kind defined twice with different content keeps its first definition and is reported; a second unit with a taken id is reported and dropped.
 
-- A **type** has `label`, `scope` (a registered scope id; the first registered one when absent), `fields` (`key`, `label`, `kind`: text, number, enum, refs or code, `unit?`, `help?`, `group?`, `derived?`, `summary?`, `filter?`), `roles` (`key`, `label`, `kinds`: media kind ids, `many?`, `expected?`) and `thumb` (the role used for thumbnails). Fields marked `derived` are live facts shown beside content and are left out of review evidence. Fields with `summary: false` and derived fields are left out of card summaries. A scalar field with `filter: true` gets an `attr.<key>` facet. A type with `reviewAttributes: false` has no Attributes review part: its fields are provenance and reviewers judge its media.
-- A **unit** is one catalog entry. Its identity is its `id`, never a file. A link attaches an asset in one of the type's roles. A link in a `many` role may give a stable `key` (unique within the role) so that moving the file keeps the review part's identity; without it the asset id is the key. `meta` carries per-link data such as a take number or word timings; it is returned with the link and is never review evidence.
+- A **type** has `label`, `scope` (a registered scope id; the first registered one when absent), `fields` (`key`, `label`, `kind`: text, number, enum, refs or code, `unit?`, `help?`, `group?`, `derived?`, `summary?`, `filter?`), `roles` (`key`, `label`, `kinds`: media kind ids, `many?`, `expected?`) and `thumb` (the role used for thumbnails). Fields marked `derived` are live facts shown beside content and are left out of review evidence. Fields with `summary: false` and derived fields are left out of card summaries. A scalar field with `filter: true` gets an `attr.<key>` facet. A type with `reviewAttributes: false` has no Attributes review part: its fields are provenance and reviewers judge its media. `views` and `panels` mount browser modules for each unit (see [Views and panels](#views-and-panels)); `display: { pixelArt }` overrides the project's `display`.
+- A **unit** is one catalog entry. Its identity is its `id`, never a file. `views` narrows its type's views to the keys it lists. A link attaches an asset in one of the type's roles. A link in a `many` role may give a stable `key` (unique within the role) so that moving the file keeps the review part's identity; without it the asset id is the key. `meta` carries per-link data such as a take number or word timings; it is returned with the link and is never review evidence.
 - An **asset** is a media file with its own identity (`id`, project `path`), shared by every unit that links it. A link that names a path with no asset entry creates one. Paths are confined to `assetRoots` after resolving symbolic links; `.git` and `.catalog` paths are never assets.
-- **Collection kinds** may declare `memberField`, `memberExtra` and a `preview`: `module`, `label`, `roles` (member roles shown, default `model`), `base` (an asset id), `config` (any object) and `represents` (`complete` or `representative`).
+- **Collection kinds** may declare `memberField`, `memberExtra` (`{ key, format? }`: a member's own value, shown as `×N`, or as written with `format: "text"`) and a `preview`: `module`, `label`, `roles` (member roles shown, default `model`), `base` (an asset id), `config` (any object) and `represents` (`complete` or `representative`).
 - Tags and categories a source supplies are project-owned and read-only in the catalog. Organization made in the catalog is stored separately and layered on top.
 
 The built-in **manifest** plugin reads `catalog.manifest.json` (option `file`): `{ version: 1, project, assetRoots, types, collectionKinds, assets, units, unitFiles, collections }`. `unitFiles` lists folders whose `*.json` files each hold one unit or `{ "units": [...] }`. A malformed file becomes a problem naming it; the rest of the catalog stays.
@@ -177,13 +180,15 @@ A probe is `{ name, version, kinds, fields?, measure(file, context) }` and retur
 
 `defineAction({ name, kind: "read" | "write", description, input, run(input, context) })`. `input` is a `Schema.Struct`; it is published as JSON Schema by `actions` and decodes the input before `run`. The context adds `actor` and `requestId` (writes only) and `run(action, input)` to call catalog actions: from a write, nested writes keep its actor and get request ids derived from its own. A plugin action is listed, validated, attributed and repeatable by request id exactly like a built-in one. An action cannot take a built-in action's name; prefix it with the plugin's (`storybook.outline`).
 
-### Scopes, resolvers and previews
+### Scopes, resolvers, previews and views
 
 - `scopes`: `[{ id, label, description }]`, the top-level split of units, in the order the page shows them. When no plugin registers any, the defaults are `content` and `assets`; with a single scope the page has no split. An id is a section of the page and a segment of its addresses (`#/<scope>/u/<unit>`): lower-case letters, digits and hyphens, and none of `collections`, `files`, `reviews`, `notes`, `organize`, `inbox`. `catalog.search` takes `scope` with `section: "units"` (and for collections, those with a member in the scope); `unit.get` reports `unit.scope`.
 - `resolvers`: `{ <name>: (events, part) => event }`. It receives the time-ordered events that address one part and returns the deciding one.
 - `previews`: `{ <name>: "<browser module>" }`. A collection kind names one as `preview.module`. The module default-exports `(ctx) => markup` for the page and receives `ctx.html`, `ctx.members` (`[{ unit, part, role, asset }]`), `ctx.base`, the kind's `ctx.config`, `ctx.label`, `ctx.MediaViewer` and `ctx.viewers` (the viewer components the registered kinds offer, such as `ModelViewer`), and `ctx.viewerId` and `ctx.source` to pass on to the viewer. [`examples/previews/lineup.mjs`](../../examples/previews/lineup.mjs) is one.
 
-A **browser module** (a media kind's `web`, a preview) is a `.js` or `.mjs` file declared in one of two ways: a project-relative path (`"catalog/previews/lineup.mjs"`), or a `file:` URL for a module that ships beside the plugin itself, wherever the plugin is installed: `new URL("./viewer.js", import.meta.url).href`. The server hands out exactly the declared files, by name (`/project/preview/<name>`, `/project/kind/<kind id>`), versioned by their bytes; a module is one file and cannot import its neighbours.
+- `views`: `{ <name>: "<browser module>" }`. A type's view or panel names one with `module` and the function to call with `export` (default: the default export). See [Views and panels](#views-and-panels).
+
+A **browser module** (a media kind's `web`, a preview, a view module) is a `.js` or `.mjs` file declared in one of two ways: a project-relative path (`"catalog/previews/lineup.mjs"`), or a `file:` URL for a module that ships beside the plugin itself, wherever the plugin is installed: `new URL("./viewer.js", import.meta.url).href`. The server hands out exactly the declared files, by name (`/project/preview/<name>`, `/project/kind/<kind id>`, `/project/view/<name>`), versioned by their bytes; a module is one file and cannot import its neighbours.
 
 ## Records (`.catalog/`)
 
@@ -211,6 +216,8 @@ Record scans are incremental: each action lists the record folders once and read
 ## Reviews
 
 - A **submission** freezes its items when created. A unit item has one part per linked visual (the role key for a single role, `role:key` for a `many` role, the key defaulting to the asset id) plus `attributes`. A collection item has `member:<unit>` per member, and `preview` when its kind declares one. A submission may select parts; only the selected parts' dependencies are frozen: a member part freezes that member; a preview part freezes its member inputs, base, module name, config and roles. Views are captioned and may carry a camera and viewer state (`mode`, `animation { clip, time, playing }`, `isolate`, `texture`); several views can show one part. The submission `note` is Markdown.
+- **Captures** are evidence rendered outside the catalog (a game engine's screenshot, a clip, a model as it was at a commit). An item's `captures` are each `{ label, caption?, renderer?, file }` or `{ label, caption?, renderer?, before, after, labels? }`, where a file is a checkout path (anything but `.git`, `.catalog/.local/captures` included) or `{ revision, path }` (frozen as that commit's Git blob). The bytes must be a registered media kind. Each capture is its own part `capture:<n>` with a default view; `renderer` is shown as a badge. Captures belong to their item, never to content: a unit's parts, "changed since its verdict" and "compare with current" ignore them. A unit or collection item may submit captures only (`parts: []`).
+- **Work** is an item without `target`: work that is not catalog content (lighting, tooling, a proposal). It needs a `title` and `captures`, `text`, or both; with text and no captures it has one part, `decision`. Any item's `text` (at most 4000 characters) is shown above its evidence.
 - **Before/after views.** A view may carry `before`: `{ "path": "<project file under the asset roots>" }` or earlier frozen evidence `{ "submission", "item", "part", "leaf"? }`, with an optional `label` (default "Before") and the view's `afterLabel` (default "After"). Both sides must be the same kind of media; a preview or attributes view has no single media to compare. The before side is frozen like part evidence and is not a reviewable part.
 - A preview needs every declared input: member visuals in its roles and its base. A frozen preview records the SHA-256 of the project module it was submitted with; its evidence digest includes the module's identity, so a module change marks the verdict changed, and the frozen preview is offered for rendering only at the submitted revision.
 - **Evidence** records the SHA-256 of every byte stream. A file committed and unchanged at HEAD is referenced as its Git blob (Git LFS objects are read from the local LFS store). Anything dirty or untracked is copied into `.catalog/evidence`. Every read verifies the digest; a missing Git object, missing LFS data or changed bytes are reported as `missing` or `corrupt`, and current content is never substituted.
@@ -265,7 +272,7 @@ const program = Effect.gen(function*() {
 
 The service also gives `discover` (actions with JSON Schema), `context`, `defaultActor` (the local Git user, as a human), `config`, media access for serving (`assetFile`, `evidenceMedia`, `beforeMedia`, `previewModule`, `kindModule`), `server` (the running server of this checkout, when there is one), `writeLocal` for machine-local files, and `stats` (counters of work done, used by the performance tests).
 
-An action reads the project through one projection: the snapshot of the sources, the records and the review policy at one moment, built once per action and passed to every query, so all rows and facets of an answer agree. A write takes its lock first and builds the projection under it.
+An action reads the project through one projection: the snapshot of the sources, the records and the review policy at one moment, built once per action and passed to every query, so all rows and facets of an answer agree. A write takes its lock first and builds the projection under it. Requests that arrive together (a page fetching its thumbnails) share one check of the sources that began after they arrived, so a burst costs at most two checks.
 
 ## Server
 
@@ -275,8 +282,9 @@ jam catalog open      # http://127.0.0.1:4600/
 
 `open` prints the address of this checkout's catalog and nothing else on standard output. When no server is running for the checkout it starts one as a process of its own, which keeps running after the command, the terminal or the agent session that started it has ended; when one is running it is reused. An agent hands a person the catalog this way, and gets the same address back every time it asks.
 
-- The server's record is `.catalog/.local/server.json`: `pid`, `host`, `port`, `url`, `checkout` (the worktree it serves; it follows branch switches), `toolkit` (the version that started it) and `startedAt`. Its output goes to `.catalog/.local/server.log`. Both are machine-local and ignored by Git.
-- A server is reused only after it has answered at the recorded address as that process, serving this folder. A record whose process has exited, or whose process id now belongs to something else, is discarded and a new server is started; the process it named is never touched. A server started by another toolkit version is stopped and replaced.
+- The server's record is `.catalog/.local/server.json`: `pid`, `host`, `port`, `url`, `checkout` (the worktree it serves; it follows branch switches), `toolkit` (the version that started it), `allowOrigins` and `startedAt`. Its output goes to `.catalog/.local/server.log`. Both are machine-local and ignored by Git.
+- A server is reused only after it has answered at the recorded address as that process, serving this folder. A record whose process has exited, or whose process id now belongs to something else, is discarded and a new server is started; the process it named is never touched. A server started by another toolkit version, or admitting other origins than `open` asked for, is stopped and replaced.
+- `--allow-origin <origin>` (repeatable) admits one more exact origin (`https://box.example.ts.net:8443`) and its host: a private HTTPS proxy in front of the loopback server, so a person can review from a phone. Scheme, host and port must match; nothing else is admitted.
 - Ports are taken from 4600 up: a second checkout's server gets the next free one.
 - `status` says whether it is running and where; `stop` ends it and removes the record. `serve` runs the same server in the foreground (`--port <n>` for a fixed port, `0` for any free one) and closes it in order on Ctrl+C or a stop signal: viewer sessions and the browser first, then the listener, then the record. On Windows a detached server is ended without that sequence, and the next `open` cleans up after it.
 
@@ -289,7 +297,7 @@ jam catalog open      # http://127.0.0.1:4600/
 | `GET /media/asset/<id>?v=<version>` | An asset's current bytes |
 | `GET /media/evidence/<submission>/<item>/<part>?leaf=` | Frozen evidence, verified against its digest |
 | `GET /media/before/<submission>/<item>/<view>` | A view's frozen before side |
-| `GET /project/preview/<name>`, `GET /project/kind/<kind>` | A declared browser module; `?v=` pins a revision (409 when it is not the current one) |
+| `GET /project/preview/<name>`, `GET /project/kind/<kind>`, `GET /project/view/<name>` | A declared browser module; `?v=` pins a revision (409 when it is not the current one) |
 | `GET /vendor/…` | The page's browser packages |
 
 A failed action answers with its error as JSON (`{ error: { code, message, fix?, details } }`) and the status of its code: 400 `invalid`, 403 `forbidden`, 404 `not_found`, 409 `conflict` and `context_changed`, 422 `malformed` and `unsupported`, 423 `locked`, 503 `unavailable`. Media answers honour `Range` requests. The page acts as the local Git user (a person); every other client declares its actor in the body.
@@ -353,6 +361,12 @@ A viewer reports itself with `useViewer(viewerId, getState, control)`. The state
 
 The API object also gives `registerPreview(name, render)`, `MediaViewer` (shows any registered kind), `UnavailableViewer`, `Msg` (the loading and error overlay) and `Icon`.
 
+### Views and panels
+
+A type's `views` are inspectors in each unit's visual strip, selected like a part as `view:<key>`; the one with `default: true` opens before the unit's media. Its `panels` are sections of the unit's sidebar. Each is `{ key, label, module, export?, help? }` and names a module its plugin declares under `views`; [`examples/plugins/storybook.views.js`](../../examples/plugins/storybook.views.js) has one of each. `unit.get` returns them with `url` (or `error`, when the module is not declared or its file is missing).
+
+An export is framework-free: `mount(host, ctx)` fills `host` and returns `{ dispose(), state?(), control?(command) }`. `ctx` has `unit` (`{ id, name, type, attrs }`), `key`, `call(action, input, requestId?)` (with a request id it is a write by the page's person), `assetUrl(id)`, and for a view `state` and `setState(object)` (kept in the page address as `vs`, so a link reopens the view as it was) and `markStage(element)` (what a capture photographs; default the whole view). A view's `state()` reports `status` (`loading`, `ready` or `error`), `error`, `renderer` and anything else an agent should see; `control(command)` answers `viewer.control { view: command }` with a result, or `false` when the view has no such control.
+
 ### Audio
 
 Audio roles declare `kinds: ["audio"]`; `many: true` gives each take its own stable review part. Supported bytes are WAV (`RIFF` and `WAVE`), OGG (`OggS`), FLAC (`fLaC`) and MP3 (ID3 or an MPEG frame header), served as `audio/wav`, `audio/ogg`, `audio/flac` and `audio/mpeg`.
@@ -377,8 +391,8 @@ jam catalog capture --target unit:gear/helm --part model --mode clay --out helm.
 ```
 
 - `viewer.open` takes a `target` (`{ kind: "unit" | "collection" | "asset" | "submission", id, item?, member?, part?, view?, compare? }`), an optional page `size` and a `session` name (several sessions can be open). It answers with the page's state: the selection, and the viewer's `kind`, `status`, `source` (the exact asset digest or submission view shown) and `controls`.
-- `viewer.control` applies controls to the showing viewer (`camera`, `mode`, `animation`, `isolate`, `texture`, `zoom`, `audio`, `video`, `compare`, or a plugin kind's own) or selects another part or view of the open page (`select`). A control the viewer does not have fails with `unsupported`.
-- `viewer.capture` saves the viewer as a PNG under `.catalog/.local/captures` and returns its path, digest, size, what it shows (`shows`) and `renderer`, which says it is a catalog render, not a screenshot of the running project. It refuses unless the viewer is ready and shows exactly the requested selection and bytes.
+- `viewer.control` applies controls to the showing viewer (`camera`, `mode`, `animation`, `isolate`, `texture`, `zoom`, `audio`, `video`, `compare`, `view` for a type's view, or a plugin kind's own) or selects another part or view of the open page (`select`). A control the viewer does not have fails with `unsupported`.
+- `viewer.capture` saves the viewer as a PNG under `.catalog/.local/captures` and returns its path, digest, size, what it shows (`shows`; for a capture pair, both digests) and `renderer`, which says it is a catalog render (or names a view's own renderer), not a screenshot of the running project. It refuses unless the viewer is ready and shows exactly the requested selection and bytes. `jam catalog capture --url <server> --out <file>` copies the file from that server's checkout.
 - A part, item, view, member or version named explicitly and not found is an error, never a substitute. Naming none opens the first.
 - The browser is Playwright's Chromium, or an installed Google Chrome (`CATALOG_BROWSER_CHANNEL` picks a channel). It starts with the first `viewer.open`; when none can start, the error says to run `npx playwright install chromium` in the toolkit folder. Nothing else needs a browser.
 
@@ -389,10 +403,10 @@ Plugins and version 1 adapters are trusted project code; what they load is data 
 The server adds:
 
 - **Loopback only.** It listens on 127.0.0.1.
-- **Host and Origin.** A request whose `Host` is not the server's own address (`127.0.0.1`, `localhost` or `[::1]` with its port) is refused, and so is one whose `Origin` is anything else: a hostile DNS name pointing at 127.0.0.1 and a page on another site get nothing.
+- **Host and Origin.** A request whose `Host` is not the server's own address (`127.0.0.1`, `localhost` or `[::1]` with its port) is refused, and so is one whose `Origin` is anything else: a hostile DNS name pointing at 127.0.0.1 and a page on another site get nothing. An origin given with `--allow-origin` is admitted exactly, with its host.
 - **Running an action** needs `X-Catalog-Request: 1` and `Content-Type: application/json`, which a cross-site form cannot send. The body is at most 1 MiB and is checked field by field.
 - **Files.** The page's own files come from one folder, its browser packages from seven named package folders (scripts only), media from the asset roots; each path is judged as written and again after symbolic links are resolved. Evidence is addressed by submission, item and part, never by path. Browser modules of the project are addressed by declared name only. The configuration, `.git`, `.catalog` and machine-local state are not served. Every file route is read-only.
-- **Responses.** Media carries its sniffed type, `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'; sandbox`, so a file opened on its own can run nothing. Scripts carry `default-src 'none'`. The page allows scripts and styles from the server only (its import map by hash), no framing and no form posts.
+- **Responses.** Media carries its sniffed type, `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'; sandbox`, so a file opened on its own can run nothing. Scripts carry `default-src 'none'`. The page allows scripts and styles from the server only (its import map by hash) and the compiling of WebAssembly (`'wasm-unsafe-eval'`, for a view's mesh decoder; JavaScript is never evaluated), no framing and no form posts.
 - **Text.** A submission's note is Markdown, rendered and then sanitised by DOMPurify to formatting tags and `href`/`title` (no raw HTML, images, styles, handlers or `javascript:` links); links leaving the catalog open in a new tab without a referrer. Every other note, comment and label is shown as text.
 
 ## Tests

@@ -64,11 +64,12 @@ describe("a prop, cold, through the command line", () => {
     assert.deepEqual(concept["records"].map((entry: { state: string }) => entry.state), ["review"])
     step = next()
     assert.deepEqual([step["action"], step["summary"]], ["review", "concept waits for a person's acceptance"])
-    // This project has no catalog.config.json, so its catalog does not list runs: the request fails,
-    // says what would list them, and how a person's answer is recorded honestly meanwhile.
-    const noDesk = cli(root, "run", "request-review", "oak-barrel", "concept")
-    assert.equal(noDesk.status, 1)
-    assert.match(noDesk.stderr, /error: oak-barrel is not listed in the catalog, so concept cannot be reviewed there\n {2}fix: list "jam" under "plugins" in catalog\.config\.json .* jam run review oak-barrel concept --accept --relay/)
+    // With no catalog.config.json, a jam project's catalog lists its runs: the request goes to the
+    // catalog and prints where the person opens it. Their answer may also arrive another way and is
+    // recorded as a relay.
+    const asked = cli(root, "run", "request-review", "oak-barrel", "concept")
+    assert.equal(asked.status, 0, asked.stderr)
+    assert.match(asked.stdout, /^oak-barrel: concept is waiting for a person's review at\n#\/reviews\/s\/sub_[a-z0-9]+\n/)
     using(root, ["run", "review"], ["oak-barrel", "concept", "--accept", "--relay", "chat: yes, that one"])
 
     const views = turnaround(root, `${dir}/views`)

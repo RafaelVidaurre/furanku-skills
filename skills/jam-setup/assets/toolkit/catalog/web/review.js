@@ -1,4 +1,4 @@
-import { html, useState, useRef, useEffect, useQuery, write, href, withQuery, entityHref, ago, Icon, Person, Verdict, VerdictBar, VERDICT, STATE_LABEL, useDraft, useDialog, useUnsaved, toast, newRequestId, ErrorLine, shortHash, CopyId, replace, isTyping, scopes, scopeOf, defaultScope } from './core.js';
+import { html, useState, useRef, useEffect, useQuery, write, href, withQuery, entityHref, ago, Icon, Person, Verdict, VerdictBar, VERDICT, STATE_LABEL, useDraft, useDialog, useUnsaved, toast, newRequestId, ErrorLine, shortHash, CopyId, replace, isTyping, scopes, scopeOf, defaultScope, pixelArt } from './core.js';
 import { MediaViewer, UnavailableViewer } from './viewers.js';
 import { mediaKind } from './media-kinds.js';
 import { PreviewHost } from './previews.js';
@@ -190,17 +190,23 @@ export function SubmissionView({ route }) {
         <div class="sub-counts">${sub.counts.waiting ? html`<span class="cnt wait">${sub.counts.waiting} waiting</span>` : ''}<span class="cnt">${sub.counts.approved}/${sub.counts.items} approved</span></div>
       </div>
       <div class="rows" role="list">${sub.items.map((it) => html`<a key=${it.id} role="listitem" class=${`row${it.id === itemId ? ' sel' : ''}`} aria-current=${it.id === itemId ? 'true' : undefined} href=${href({ section: 'reviews', kind: 's', id: subId, member: it.id })}>
-        <span class="row-main"><span class="row-name">${it.title}</span><span class="row-sub">${it.target.kind === 'collection' ? 'Collection' : scopeOf(it.targetScope)?.label ?? 'Entry'} · ${STATE_LABEL[it.state]}${!it.targetExists ? ' · removed from catalog' : ''}</span></span><${VerdictBar} parts=${it.parts.filter(p => p.reviewable !== false)} /></a>`)}</div>
+        <span class="row-main"><span class="row-name">${it.title}</span><span class="row-sub">${!it.target ? 'Work' : it.target.kind === 'collection' ? 'Collection' : scopeOf(it.targetScope)?.label ?? 'Entry'} · ${STATE_LABEL[it.state]}${it.target && !it.targetExists ? ' · removed from catalog' : ''}</span></span><${VerdictBar} parts=${it.parts.filter(p => p.reviewable !== false)} /></a>`)}</div>
     </aside>
     ${item && html`<${ItemView} key=${item.id} sub=${sub} item=${item} view=${view} viewError=${unavailable} setView=${setView} idx=${idx} goItem=${goItem} />`}
     ${!item && html`<div class="item-view"><div class="errline" role="alert"><${Icon} name="warn" size=${13} /><span>${unavailable}</span></div></div>`}
   </div>`;
 }
 
+// A capture: evidence rendered outside the catalog, its own part. A pair shows its two files compared.
+const isCapture = (part) => !!part && part.id.startsWith('capture:');
+const isPair = (item, view) => !!view && !view.leaf && !!item.parts.find((x) => x.id === view.part)?.pairLabels;
+
 function leafOf(item, view) {
   const p = item.parts.find((x) => x.id === view.part);
   if (!p) return null;
   if (view.part === 'preview') return { part: 'preview', module: item.preview?.module, leaves: p.leaves.map((l) => ({ key: l.key, sha256: l.sha256, status: l.status })) };
+  // Both files of a pair, by digest: what a capture of the comparison is checked against.
+  if (isPair(item, view)) return { part: p.id, renderer: p.renderer ?? null, pair: p.leaves.map((l) => ({ leaf: l.key, kind: l.kind, path: l.path, sha256: l.sha256, status: l.status, error: l.error ?? null })) };
   const l = view.leaf ? p.leaves.find((x) => x.key === view.leaf) : (p.leaves.find((x) => x.url) ?? p.leaves[0]);
   return l ? { part: p.id, leaf: l.key, kind: l.kind, path: l.path, sha256: l.sha256, status: l.status, error: l.error ?? null, storage: l.storage } : null;
 }
@@ -219,6 +225,11 @@ function EvidenceStage({ sub, item, view, viewError }) {
     const members = p.leaves.filter((l) => l.key !== 'base').map((l) => ({ unit: l.unit, part: l.part, role: l.part.split(':')[0], asset: asset(l) }));
     const baseLeaf = p.leaves.find((l) => l.key === 'base');
     return html`<${PreviewHost} key=${view.id} module=${pv.module} moduleUrl=${pv.moduleUrl} moduleError=${pv.moduleError} members=${members} base=${baseLeaf ? asset(baseLeaf) : null} config=${pv.config ?? {}} label=${view.caption} viewerId="stage" source=${src} initialCamera=${view.camera} initialState=${view.state} />`;
+  }
+  if (isPair(item, view)) {
+    const [before, after] = p.leaves;
+    const row = { key: view.id, label: view.caption, a: before, b: after, identical: false };
+    return html`<div class="stage-cmp capture-pair"><${CompareRows} key=${view.id} rows=${[row]} labels=${p.pairLabels} viewerId="stage" source=${src} /></div>`;
   }
   const l = view.leaf ? p.leaves.find((x) => x.key === view.leaf) : (p.leaves.find((x) => x.url) ?? p.leaves[0]);
   if (!l) return html`<${UnavailableViewer} viewerId="stage" source=${src} message=${`Preview ${view.leaf ?? ''} is not recorded for this view`} />`;
@@ -291,8 +302,10 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
     };
     addEventListener('keydown', key); return () => removeEventListener('keydown', key);
   });
-  const targetHref = item.target.kind === 'unit' ? entityHref('unit', item.target.id) : entityHref('collection', item.target.id);
+  const targetHref = !item.target ? null : item.target.kind === 'unit' ? entityHref('unit', item.target.id) : entityHref('collection', item.target.id);
   const primaryViews = item.views.filter(v => parts.some(p => p.id === v.part));
+  // Content follows its type's display policy; a capture is a renderer's own pixels and keeps smooth scaling.
+  const pixelView = !!view && !isCapture(item.parts.find((p) => p.id === view.part)) && pixelArt(item.targetType);
   const references = item.views.filter(v => !parts.some(p => p.id === v.part));
   const vIdx = primaryViews.indexOf(view);
   const stepView = (dir) => { const n = primaryViews[vIdx + dir]; if (n) setView(n.id); };
@@ -312,7 +325,7 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
   };
   return html`<div class="item-view">
     <header class="d-head">
-      <div class="d-title"><h1>${item.title}</h1>${item.targetExists ? html`<a class="small" href=${targetHref}>${item.target.id}</a>` : html`<span class="small c-bad">${item.target.id} is no longer in this checkout</span>`}
+      <div class="d-title"><h1>${item.title}</h1>${!item.target ? null : item.targetExists ? html`<a class="small" href=${targetHref}>${item.target.id}</a>` : html`<span class="small c-bad">${item.target.id} is no longer in this checkout</span>`}
         <span class="push muted small">${idx + 1} / ${sub.items.length}</span>
         <button class="icon-btn sm" disabled=${idx === 0} onClick=${() => goItem(sub.items[idx - 1].id)} aria-label="Previous item" title="Previous item ([)"><${Icon} name="back" size=${12} /></button>
         <button class="icon-btn sm" disabled=${idx === sub.items.length - 1} onClick=${() => goItem(sub.items[idx + 1].id)} aria-label="Next item" title="Next item (])"><${Icon} name="chev" size=${12} /></button>
@@ -320,12 +333,14 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
     </header>
     <div class="d-body">
       <div class="d-main">
+        ${item.text && html`<p class="item-text">${item.text}</p>`}
         ${item.views.length > 0 && html`<div class="stage">
-          <div ref=${stageRef} tabindex="-1" aria-label="Preview" class=${`stage-view${view?.before ? ' compare-view' : ''}`} data-viewer-root data-active="true"><${EvidenceStage} sub=${sub} item=${item} view=${view} viewError=${viewError} /></div>
+          <div ref=${stageRef} tabindex="-1" aria-label="Preview" class=${`stage-view${view?.before || isPair(item, view) ? ' compare-view' : ''}${pixelView ? ' pixel-art' : ''}`} data-viewer-root data-active="true"><${EvidenceStage} sub=${sub} item=${item} view=${view} viewError=${viewError} /></div>
           ${primaryViews.length > 0 && html`<div class="strip" role="tablist" aria-label="Views">${primaryViews.map((v) => html`<button role="tab" aria-selected=${v === view} tabindex=${v === view ? 0 : -1} class=${`tile view-tile${v === view ? ' on' : ''}`} onClick=${() => setView(v.id)}>${v.before && html`<span class="view-cmp" title=${`${v.before.label} / ${v.afterLabel} comparison`}><${Icon} name="split" size=${11} /></span>`}${viewLabel(v)}</button>`)}</div>`}
           ${view && html`<div class="asset-line caption-bar" ...${swipe}>
             ${vIdx >= 0 && primaryViews.length > 1 && html`<button class="icon-btn sm" disabled=${vIdx <= 0} onClick=${() => stepView(-1)} aria-label="Previous view"><${Icon} name="back" size=${12} /></button><span class="muted small">${vIdx + 1}/${primaryViews.length}</span><button class="icon-btn sm" disabled=${vIdx >= primaryViews.length - 1} onClick=${() => stepView(1)} aria-label="Next view"><${Icon} name="chev" size=${12} /></button>`}
             <span class="caption">${viewLabel(view)}</span>
+            ${(() => { const r = item.parts.find((x) => x.id === view.part)?.renderer; return r && html`<span class="renderer-badge" title="Rendered outside the catalog: these are the renderer's own pixels">${r}</span>`; })()}
             ${view.before?.from && html`<span class="push muted small">${view.before.label} from <a href=${href({ section: 'reviews', kind: 's', id: view.before.from.submission, member: view.before.from.item })}>${view.before.from.submission.slice(-6).toUpperCase()}</a></span>`}</div>`}
         </div>`}
         ${sub.note && html`<section class="block submission-note"><${Markdown} text=${sub.note} label="Submission note" /></section>`}

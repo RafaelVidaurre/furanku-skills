@@ -57,6 +57,8 @@ export interface Projection {
   readonly previewModules: ReadonlyMap<string, string | null>
   /** Declared media kind browser modules, by kind id: the SHA-256 of the file, or null when it is missing. */
   readonly kindModules: ReadonlyMap<string, string | null>
+  /** Declared modules of type views and panels, by name, likewise. */
+  readonly viewModules: ReadonlyMap<string, string | null>
   readonly labels: ReadonlyMap<string, LabelRecord>
   readonly collections: ReadonlyArray<Collection>
   readonly collectionsById: ReadonlyMap<string, Collection>
@@ -85,13 +87,19 @@ const MISSING: MediaFacts = { state: "missing", error: "not an asset in this che
 export const factsOf = (projection: Projection, assetId: string | null | undefined): MediaFacts =>
   (assetId == null ? undefined : projection.snapshot.facts.get(assetId)) ?? MISSING
 
+/** The digests of the declared browser modules, by kind of module. */
+export interface ModuleDigests {
+  readonly previews: ReadonlyMap<string, string | null>
+  readonly kinds: ReadonlyMap<string, string | null>
+  readonly views: ReadonlyMap<string, string | null>
+}
+
 export const buildProjection = (
   snapshot: SnapshotData,
   records: RecordsView,
   policy: Policy,
   plugins: PluginSet,
-  previewModules: ReadonlyMap<string, string | null>,
-  kindModules: ReadonlyMap<string, string | null> = new Map()
+  modules: ModuleDigests
 ): Projection => {
   const labels = new Map(records.label.map((label) => [targetKey(label.target), label]))
   const sourceIds = new Set(snapshot.collections.map((collection) => collection.id))
@@ -128,6 +136,8 @@ export const buildProjection = (
   for (const submission of records.submission) {
     for (const item of submission.items) {
       items.set(item.id, { submission, item })
+      // Work items target no content: they are found through their submission only.
+      if (item.target === null) continue
       const key = targetKey(item.target)
       itemsByTarget.set(key, [...(itemsByTarget.get(key) ?? []), { submission, item }])
     }
@@ -146,8 +156,9 @@ export const buildProjection = (
     records,
     policy,
     plugins,
-    previewModules,
-    kindModules,
+    previewModules: modules.previews,
+    kindModules: modules.kinds,
+    viewModules: modules.views,
     labels,
     collections,
     collectionsById: new Map(collections.map((collection) => [collection.id, collection])),
@@ -157,7 +168,7 @@ export const buildProjection = (
     items,
     itemsByTarget,
     events,
-    eventsByTarget: groupBy(events, (event) => targetKey(items.get(event.item)!.item.target)),
+    eventsByTarget: groupBy(events.filter((event) => items.get(event.item)!.item.target !== null), (event) => targetKey(items.get(event.item)!.item.target!)),
     eventsByItem: groupBy(events, (event) => event.item),
     categories,
     reviews: new Map()

@@ -10,6 +10,7 @@ import { definePlugin, Effect, type Plugin, Schema } from "../../src/catalog/plu
 import { publishedSchemas } from "../../src/catalog/published.ts"
 import { jsonSchemaOf } from "../../src/kernel/decode.ts"
 import storybook from "../../examples/plugins/storybook.ts"
+import { Catalog } from "../../src/catalog/Catalog.ts"
 import { agent, cleanup, git, human, open, png, read, rejects, tmp, W, write } from "./helpers.ts"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -199,6 +200,55 @@ test("resolvers and previews: a plugin's resolver is selected by name; its previ
   cleanup(dir)
 })
 
+test("views and panels: a type names modules its plugin declares; a unit lists them with where each loads from", async () => {
+  const dir = storyProject()
+  const app = await open(dir)
+  const scene = await app.run("unit.get", { id: "scene/opening" })
+  assert.deepEqual(scene.views.map((v: Any) => [v.key, v.label, v.module, v.export, v.default, v.error]), [["beats", "Beats", "storybook", "beats", false, null]])
+  assert.match(scene.views[0].url, /^\/project\/view\/storybook\?v=[0-9a-f]{16}$/)
+  assert.deepEqual(scene.panels.map((p: Any) => [p.key, p.export, p.url === scene.views[0].url]), [["placement", "placement", true]])
+  assert.deepEqual((await app.run("unit.get", { id: "character/ada" })).views, [])
+  const schema = await app.run("schema", {})
+  assert.deepEqual(Object.keys(schema.views), ["storybook"])
+  assert.equal(schema.views.storybook.url, scene.views[0].url)
+  assert.deepEqual(schema.schema.types.scene.views.map((v: Any) => v.key), ["beats"])
+  // Served by its declared name from beside the plugin, and nothing else is.
+  const viewModule = (name: string) => app.effect(Effect.flatMap(Catalog, (catalog) => catalog.viewModule(name)))
+  assert.deepEqual(Buffer.from((await viewModule("storybook")).bytes), readFileSync(join(EXAMPLES, "storybook.views.js")))
+  await rejects(viewModule("storyboard"), "not_found")
+
+  // A module nobody declared, a unit narrowing its views, a malformed view: each said, none guessed.
+  const narrowed = definePlugin({
+    name: "narrowed",
+    sources: [{
+      name: "props",
+      inputs: () => [],
+      load: () => ({
+        assetRoots: ["story"],
+        types: { prop: { label: "Prop", roles: [], views: [{ key: "inspect", label: "Inspector", module: "kit", default: true }, { key: "lost", label: "Lost", module: "undeclared" }, { key: "Bad Key", label: "x", module: "kit" }] } },
+        units: [{ id: "prop/lamp", type: "prop" }, { id: "prop/plain", type: "prop", views: ["inspect"] }]
+      })
+    }],
+    views: { kit: "catalog/kit.js" }
+  })
+  write(dir, "catalog/kit.js", "export default function (host) { host.textContent = 'kit' }\n")
+  write(dir, "catalog.config.json", { version: 2, plugins: ["narrowed"] })
+  const other = await open(dir, { plugins: { narrowed } })
+  const lamp = await other.run("unit.get", { id: "prop/lamp" })
+  assert.deepEqual(lamp.views.map((v: Any) => [v.key, v.default, v.export, !!v.url, v.error]), [
+    ["inspect", true, "default", true, null],
+    ["lost", false, "default", false, 'view module "undeclared" is not declared by any plugin (a plugin lists it under views)']
+  ])
+  assert.deepEqual((await other.run("unit.get", { id: "prop/plain" })).views.map((v: Any) => v.key), ["inspect"])
+  assert.match((await other.run("problems", {})).problems.map((p: Any) => p.error).join("\n"), /type prop: view Bad Key needs a unique key/)
+  // Version 1 named every project module under previewModules; views find theirs there too.
+  write(dir, "catalog.config.json", { version: 1, adapter: "./catalog/adapter.mjs", previewModules: { kit: "./catalog/kit.js" } })
+  write(dir, "catalog/adapter.mjs", "export default () => ({ sources: () => [], load: () => ({ assetRoots: ['story'], schema: { types: { prop: { label: 'Prop', roles: [], views: [{ key: 'inspect', label: 'Inspector', module: 'kit', default: true }] } } }, units: [{ id: 'prop/lamp', type: 'prop' }] }) })\n")
+  const v1 = await open(dir)
+  assert.match((await v1.run("unit.get", { id: "prop/lamp" })).views[0].url, /^\/project\/view\/kit\?v=/)
+  cleanup(dir)
+})
+
 test("plugin function results: a value, a promise or an Effect; a failure is a scoped problem, never a crash", async () => {
   const dir = tmp("cc-kinds-")
   git(dir, "init", "-q")
@@ -270,4 +320,30 @@ test("published schemas: the configuration and every record kind render as JSON 
   assert.deepEqual(body("catalog.config.schema.json", "CatalogConfig").properties.version, { type: "number", enum: [2] })
   assert.deepEqual(body("catalog-note.schema.json", "NoteRecord").required, ["id", "target", "body", "by", "at", "revision"])
   assert.equal(body("catalog-verdict.schema.json", "VerdictRecord").properties.id.pattern, "^vd_[a-z0-9]+$")
+})
+
+test("collection kinds: a member's own value reads as a count, or as written when the kind says text", async () => {
+  const dir = tmp("cc-members-")
+  git(dir, "init", "-q")
+  const pieces = definePlugin({
+    name: "pieces",
+    sources: [{
+      name: "families",
+      inputs: () => [],
+      load: () => ({
+        types: { piece: { label: "Piece", roles: [] } },
+        collectionKinds: { family: { label: "Brush family", memberExtra: { key: "role", format: "text" } }, crate: { label: "Crate", memberExtra: { key: "count" } } },
+        units: [{ id: "piece/corner", type: "piece" }, { id: "piece/edge", type: "piece" }],
+        collections: [
+          { id: "family/wall", name: "Wall", kind: "family", members: [{ unit: "piece/corner", role: "Corner Outer" }, { unit: "piece/edge" }] },
+          { id: "crate/supplies", name: "Supplies", kind: "crate", members: [{ unit: "piece/corner", count: 3 }] }
+        ]
+      })
+    }]
+  })
+  write(dir, "catalog.config.json", { version: 2, plugins: ["pieces"] })
+  const app = await open(dir, { plugins: { pieces } })
+  assert.deepEqual((await app.run("collection.get", { id: "family/wall" })).members.map((m: Any) => m.extra), ["Corner Outer", null])
+  assert.deepEqual((await app.run("collection.get", { id: "crate/supplies" })).members.map((m: Any) => m.extra), ["×3"])
+  cleanup(dir)
 })

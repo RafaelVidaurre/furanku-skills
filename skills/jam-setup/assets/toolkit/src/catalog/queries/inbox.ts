@@ -42,6 +42,7 @@ export const inbox = (p: Projection, limit: number) => {
   const decided = new Map<string, Target>()
   for (const event of p.events) {
     const target = p.items.get(event.item)!.item.target
+    if (target === null) continue
     decided.set(`${target.kind}:${target.id}`, target)
   }
   const changed = [...decided.values()].flatMap((target) => {

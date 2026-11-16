@@ -1,5 +1,7 @@
-// Submitting units and collections for review. A submission is validated completely (targets,
-// parts, views, media availability) before anything is frozen, and frozen before it is recorded.
+// Submitting units, collections and work for review. A submission is validated completely
+// (targets, parts, captures, views, media availability) before anything is frozen, and frozen
+// before it is recorded. Work is what is not catalog content (lighting, tooling, a proposal): an
+// item without a target that holds captures, text, or both.
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { type ActionServices, dirtyCount, optional, priorRequest, Text, UnitOrCollection, write, type WriteEnv } from "../action.ts"
@@ -9,13 +11,14 @@ import { digest, isNonEmpty } from "../../kernel/hash.ts"
 import { Ids, nowIso } from "../../kernel/Ids.ts"
 import { ProjectFiles } from "../../kernel/ProjectFiles.ts"
 import { Evidence } from "../Evidence.ts"
-import { collectionParts, unitParts } from "../model/parts.ts"
+import { collectionParts, DECISION_PART, unitParts } from "../model/parts.ts"
 import type { Collection, FrozenPart, FrozenView, LeafEvidence, Part, SubmissionItem, SubmissionRecord, Unit } from "../model/types.ts"
 import { factsOf, typeOf } from "../Projection.ts"
 import { type PreviewSpec, previewDigest, previewSpec } from "../queries/review.ts"
 import { submissionView } from "../queries/reviews.ts"
 import { Records } from "../Records.ts"
 import { type BeforePlan, freezeBefores, planBefore } from "./before.ts"
+import { CaptureInput, captureKind, captureLeaves, freezeCapture, type PlannedCapture, planCaptures } from "./captures.ts"
 import { freezeAsset, freezeDefinition, type FreezeEnv, freezeUnitParts } from "./freeze.ts"
 
 const Vec3 = Schema.Tuple([Schema.Finite, Schema.Finite, Schema.Finite])
@@ -41,9 +44,13 @@ const ViewInput = Schema.Struct({
   afterLabel: optional(Schema.String)
 })
 const ItemInput = Schema.Struct({
-  target: UnitOrCollection,
+  target: optional(UnitOrCollection).annotate({ description: "A unit or collection. Leave it out for work that is not catalog content; the item then needs a title and captures or text" }),
   title: optional(Schema.String),
-  parts: optional(Schema.Array(Schema.String)).annotate({ description: "Part ids to submit (default: every reviewable part)" }),
+  text: optional(Schema.String).annotate({ description: "Shown above the item's evidence (at most 4000 characters). Work with text and no captures is decided as one part, decision" }),
+  parts: optional(Schema.Array(Schema.String)).annotate({ description: "Content part ids to submit (default: every reviewable part; [] for captures only)" }),
+  captures: optional(Schema.Array(CaptureInput)).annotate({
+    description: "Evidence rendered outside the catalog: {label, file} or {label, before, after, labels?}, where a file is a checkout path or {revision, path}. Each is its own part capture:<n>; renderer names who rendered it"
+  }),
   views: optional(Schema.Array(ViewInput))
 })
 export const SubmitInput = Schema.Struct({
@@ -57,7 +64,9 @@ type ViewSpec = typeof ViewInput.Type
 
 interface Plan {
   readonly spec: ItemSpec
+  /** Content parts (none for work). */
   readonly chosen: ReadonlyArray<Part>
+  readonly captures: ReadonlyArray<PlannedCapture>
   readonly befores: ReadonlyArray<BeforePlan | null> | undefined
   readonly unit?: Unit
   readonly collection?: Collection
@@ -83,12 +92,16 @@ const planBefores = (env: FreezeEnv, views: ItemSpec["views"], shownKind: (view:
     ? Effect.succeed(undefined)
     : Effect.forEach(views, (view) => (view.before != null ? planBefore(env, { part: view.part, before: view.before, afterLabel: view.afterLabel }, shownKind(view)) : Effect.succeed(null)))
 
-const choose = (name: string, all: ReadonlyArray<Part>, wanted: ItemSpec["parts"]): Effect.Effect<ReadonlyArray<Part>, ToolError> =>
+/** The content parts to submit. An item with captures may submit none (`parts: []`). */
+const choose = (name: string, all: ReadonlyArray<Part>, wanted: ItemSpec["parts"], captures: number): Effect.Effect<ReadonlyArray<Part>, ToolError> =>
   Effect.gen(function*() {
     for (const id of wanted ?? []) if (!all.some((part) => part.id === id)) return yield* fail("invalid", `${name} has no part ${id}`)
     const chosen = wanted ? all.filter((part) => wanted.includes(part.id)) : all
-    return chosen.length > 0 ? chosen : yield* fail("invalid", `no reviewable parts selected for ${name}`)
+    return chosen.length > 0 || (captures > 0 && wanted?.length === 0) ? chosen : yield* fail("invalid", `no reviewable parts selected for ${name}`)
   })
+
+const decisionPart: Part = { id: DECISION_PART, label: "Decision" }
+const capturePart = (capture: PlannedCapture): Part => ({ id: capture.id, label: capture.label })
 
 /** Validate one item request completely, without any effect on the project. */
 const planItem = (env: FreezeEnv, spec: ItemSpec): Freezing<Plan> =>
@@ -96,6 +109,25 @@ const planItem = (env: FreezeEnv, spec: ItemSpec): Freezing<Plan> =>
     const p = env.projection
     const { assetsById, unitsById } = p.snapshot
     if (spec.title != null && spec.title.length > 300) return yield* fail("invalid", "item title must be text")
+    if (spec.text != null && spec.text.length > 4000) return yield* fail("invalid", "item text must be text of at most 4000 characters")
+    const captures = yield* planCaptures(env, spec.captures)
+    const captureOf = (partId: string): PlannedCapture | undefined => captures.find((capture) => capture.id === partId)
+    // Views of captures name `before` or `after` of a pair; a view of one capture file may add a before side.
+    const withCaptures = (leafKeys: (part: string) => ReadonlyArray<string>) => (part: string) => {
+      const capture = captureOf(part)
+      return capture ? captureLeaves(capture) : leafKeys(part)
+    }
+    const shownWithCaptures = (shown: (view: ViewSpec) => string | null) => (view: ViewSpec) => {
+      const capture = captureOf(view.part)
+      return capture ? captureKind(capture, view.leaf) : shown(view)
+    }
+    if (spec.target == null) {
+      if (!isNonEmpty(spec.title)) return yield* fail("invalid", "an item without a target needs a title")
+      if (captures.length === 0 && !isNonEmpty(spec.text)) return yield* fail("invalid", "an item without a target needs captures or text")
+      if (spec.parts != null) return yield* fail("invalid", "parts select content parts, and this item has no target")
+      yield* checkViews(spec.views, captures.length > 0 ? captures.map(capturePart) : [decisionPart], withCaptures(() => [""]))
+      return { spec, chosen: [], captures, befores: yield* planBefores(env, spec.views, shownWithCaptures(() => null)) }
+    }
     const kindOf = (asset: string | undefined): string | null => (asset === undefined ? null : factsOf(p, asset).kind ?? null)
     const available = (asset: string, what: string): Effect.Effect<void, ToolError> => {
       const facts = factsOf(p, asset)
@@ -104,15 +136,15 @@ const planItem = (env: FreezeEnv, spec: ItemSpec): Freezing<Plan> =>
     if (spec.target.kind === "unit") {
       const unit = unitsById.get(spec.target.id)
       if (!unit) return yield* fail("not_found", `content ${spec.target.id} is not in this checkout`)
-      const chosen = yield* choose(unit.name, unitParts(unit, typeOf(p, unit)).filter(p.policy.reviewable), spec.parts)
-      yield* checkViews(spec.views, chosen, () => [""])
+      const chosen = yield* choose(unit.name, unitParts(unit, typeOf(p, unit)).filter(p.policy.reviewable), spec.parts, captures.length)
+      yield* checkViews(spec.views, [...captures.map(capturePart), ...chosen], withCaptures(() => [""]))
       for (const part of chosen) if (part.asset !== undefined) yield* available(part.asset, `${unit.name} · ${part.label}`)
-      const befores = yield* planBefores(env, spec.views, (view) => kindOf(chosen.find((part) => part.id === view.part)?.asset))
-      return { spec, chosen, befores, unit }
+      const befores = yield* planBefores(env, spec.views, shownWithCaptures((view) => kindOf(chosen.find((part) => part.id === view.part)?.asset)))
+      return { spec, chosen, captures, befores, unit }
     }
     const collection = p.collectionsById.get(spec.target.id)
     if (!collection) return yield* fail("not_found", `collection ${spec.target.id} is not in this checkout`)
-    const chosen = yield* choose(collection.name, collectionParts(collection, unitsById, p.snapshot.schema), spec.parts)
+    const chosen = yield* choose(collection.name, collectionParts(collection, unitsById, p.snapshot.schema), spec.parts, captures.length)
     const preview = chosen.some((part) => part.id === "preview") ? previewSpec(p, collection) : null
     const partsOfUnit = (unitId: string): ReadonlyArray<Part> => {
       const unit = unitsById.get(unitId)
@@ -122,7 +154,7 @@ const planItem = (env: FreezeEnv, spec: ItemSpec): Freezing<Plan> =>
       partId === "preview"
         ? [...Object.entries(preview?.members ?? {}).flatMap(([unit, parts]) => parts.map((part) => `${unit}/${part.part}`)), ...(preview?.base ? ["base"] : [])]
         : partsOfUnit(partId.replace(/^member:/, "")).map((part) => `${partId.replace(/^member:/, "")}/${part.id}`)
-    yield* checkViews(spec.views, chosen, leafKeys)
+    yield* checkViews(spec.views, [...captures.map(capturePart), ...chosen], withCaptures(leafKeys))
     const needed = new Set<string>()
     for (const part of chosen) {
       if (part.id === "preview" && preview) {
@@ -145,7 +177,7 @@ const planItem = (env: FreezeEnv, spec: ItemSpec): Freezing<Plan> =>
       const cut = view.leaf.lastIndexOf("/")
       return kindOf(partsOfUnit(view.leaf.slice(0, cut)).find((part) => part.id === view.leaf!.slice(cut + 1))?.asset)
     }
-    return { spec, chosen, befores: yield* planBefores(env, spec.views, shownKind), collection, preview }
+    return { spec, chosen, captures, befores: yield* planBefores(env, spec.views, shownWithCaptures(shownKind)), collection, preview }
   })
 
 interface ViewSeed {
@@ -171,17 +203,38 @@ const freezeItem = (env: FreezeEnv, plan: Plan): Freezing<SubmissionItem> =>
     const id = yield* (yield* Ids).next("it")
     const evidence = yield* Evidence
     const titled = (fallback: string): string => (isNonEmpty(spec.title) ? spec.title.trim() : fallback)
+    const text = isNonEmpty(spec.text) ? { text: spec.text.trim() } : {}
+    // Captures come first: they are what the item was submitted to show.
+    const captured = yield* Effect.forEach(plan.captures, (capture) => freezeCapture(env, capture))
+    const captureOf = (part: FrozenPart): PlannedCapture | undefined => plan.captures.find((capture) => capture.id === part.id)
+    const captionOf = (fallback: (part: FrozenPart) => string) => (part: FrozenPart): string => {
+      const capture = captureOf(part)
+      return capture ? capture.caption ?? capture.label : fallback(part)
+    }
+    const viewsOf = (fallback: (part: FrozenPart) => ReadonlyArray<ViewSeed>) => (part: FrozenPart): ReadonlyArray<ViewSeed> => {
+      const capture = captureOf(part)
+      return capture ? [{ part: part.id, caption: capture.caption ?? capture.label }] : fallback(part)
+    }
+    if (spec.target == null) {
+      const title = titled("")
+      const parts: Array<FrozenPart> = captured.length > 0
+        ? captured
+        : [{ id: DECISION_PART, label: "Decision", evidence: { kind: "attributes", attrs: { text: spec.text!.trim() }, digest: digest({ text: spec.text!.trim() }) } }]
+      const definition = yield* evidence.freezeJson({ title, ...text, captures: plan.captures.map((capture) => ({ part: capture.id, label: capture.label, caption: capture.caption, renderer: capture.renderer })) })
+      const views = yield* buildViews(spec.views, parts, captionOf((part) => part.label), viewsOf(() => []))
+      return { id, target: null, title, ...text, kind: "work", definition, parts, views: yield* freezeBefores(env, views, plan.befores) }
+    }
     if (plan.unit) {
       const unit = plan.unit
       const frozen = yield* freezeUnitParts(env, unit, plan.chosen.map((part) => part.id))
-      const parts = plan.chosen.map((part): FrozenPart => ({ id: part.id, label: part.label, role: part.role ?? null, asset: part.asset ?? null, evidence: frozen[part.id]! }))
-      const views = yield* buildViews(spec.views, parts, (part) => `${unit.name} · ${part.label}`, (part) => (part.asset ? [{ part: part.id, caption: `${unit.name} · ${part.label}` }] : []))
-      return { id, target: { kind: "unit", id: unit.id }, title: titled(unit.name), kind: "unit", definition: yield* freezeDefinition(env, unit), parts, views: yield* freezeBefores(env, views, plan.befores) }
+      const parts = [...captured, ...plan.chosen.map((part): FrozenPart => ({ id: part.id, label: part.label, role: part.role ?? null, asset: part.asset ?? null, evidence: frozen[part.id]! }))]
+      const views = yield* buildViews(spec.views, parts, captionOf((part) => `${unit.name} · ${part.label}`), viewsOf((part) => (part.asset ? [{ part: part.id, caption: `${unit.name} · ${part.label}` }] : [])))
+      return { id, target: { kind: "unit", id: unit.id }, title: titled(unit.name), ...text, kind: "unit", definition: yield* freezeDefinition(env, unit), parts, views: yield* freezeBefores(env, views, plan.befores) }
     }
     const collection = plan.collection!
     const preview = plan.preview ?? null
     const { unitsById } = p.snapshot
-    const parts: Array<FrozenPart> = []
+    const parts: Array<FrozenPart> = [...captured]
     for (const part of plan.chosen) {
       if (part.id === "preview" && preview) {
         const members: Record<string, Record<string, LeafEvidence>> = {}
@@ -210,7 +263,7 @@ const freezeItem = (env: FreezeEnv, plan: Plan): Freezing<SubmissionItem> =>
       })
     }
     const definition = yield* evidence.freezeJson({ id: collection.id, name: collection.name, kind: collection.kind, members: collection.members })
-    const views = yield* buildViews(spec.views, parts, (part) => `${collection.name} · ${part.label}`, (part) => {
+    const views = yield* buildViews(spec.views, parts, captionOf((part) => `${collection.name} · ${part.label}`), viewsOf((part) => {
       if (part.id === "preview") return [{ part: "preview", caption: `${collection.name} · ${part.label}` }]
       // A member is shown by its thumbnail visual, addressed as a leaf of the member part.
       const unit = unitsById.get(part.member ?? "")
@@ -219,11 +272,12 @@ const freezeItem = (env: FreezeEnv, plan: Plan): Freezing<SubmissionItem> =>
       const link = unit.links.find((candidate) => candidate.role === type.thumb) ?? unit.links[0]
       const shown = link && unitParts(unit, type).find((own) => own.asset === link.asset && own.role === link.role)
       return shown ? [{ part: part.id, leaf: `${unit.id}/${shown.id}`, caption: `${unit.name} · ${type.roles.find((role) => role.key === link.role)?.label ?? link.role}` }] : []
-    })
+    }))
     return {
       id,
       target: { kind: "collection", id: collection.id },
       title: titled(collection.name),
+      ...text,
       kind: "collection",
       definition,
       parts,
@@ -262,7 +316,7 @@ export const submit = (input: typeof SubmitInput.Type, env: WriteEnv, requestId:
 
 export const submitAction = write(
   "review.submit",
-  "Explicitly submit units/collections for review; freezes definitions and asset bytes. note is Markdown shown to the reviewer beside the items. A view may add before ({path} of a project file under the asset roots, or {submission, item, part, leaf?} of earlier evidence; optional label) and afterLabel to show its evidence as a before/after comparison",
+  "Explicitly submit units, collections or work for review; freezes definitions and file bytes. note is Markdown shown to the reviewer beside the items. An item may carry captures (evidence rendered outside the catalog, each its own part capture:<n>) and text; an item without a target is work and holds captures, text or both. A view may add before ({path} of a project file under the asset roots, or {submission, item, part, leaf?} of earlier evidence; optional label) and afterLabel to show its evidence as a before/after comparison",
   SubmitInput,
   "reviews",
   (input, env) =>
