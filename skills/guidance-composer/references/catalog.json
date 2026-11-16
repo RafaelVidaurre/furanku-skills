@@ -84,6 +84,17 @@
       ]
     },
     {
+      "id": "goal-over-measure",
+      "category": "workflow",
+      "title": "Judge by the goal, not the measure",
+      "picker": "Metrics are evidence for the goal, not the goal; check that the measure and the goal are sound before a number decides.",
+      "tags": ["goodhart", "metrics", "evaluation", "verification"],
+      "conflicts": [],
+      "inject": [
+        "Treat every metric, test, score, or benchmark as evidence about the goal, never as the goal itself (Goodhart's law: when a measure becomes a target, it ceases to be a good measure). Before a measurement decides anything, state the goal as the outcome it serves, then check two things: that the measurement gives a truthful signal for that goal on this change, and that the goal itself is defined correctly. When either is off, fix it and decide by the goal. Do not discard an option on a number you have not checked."
+      ]
+    },
+    {
       "id": "long-term-architecture",
       "category": "architecture",
       "title": "Durable architectural decisions",
