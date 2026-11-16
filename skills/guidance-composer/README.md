@@ -202,7 +202,7 @@ Topics grow over time. Check live with `gc list`. Currently:
 | **Simplicity & scope** | Prefer the smallest solution that fully meets *current* needs; optional hard line against keeping old contracts. |
 | **Architecture** | Durable design choices when they matter; keep components modular and concerns separated. |
 | **Dependencies** | Prefer what the project already uses (check docs/types first), then solid maintained libraries, before writing your own. |
-| **Workflow** | Prefer programmatic tool surfaces over ad-hoc ones. |
+| **Workflow** | Prefer programmatic tool surfaces over ad-hoc ones; judge work by the goal, not by a metric that may not track it. |
 | **Writing & communication** | Controlled technical English (ASD-STE100), UI description style, and cold-reader clarity. |
 
 Each entry has a short id (for example `simplest-current`). That id is what you pass to `--ids`.
