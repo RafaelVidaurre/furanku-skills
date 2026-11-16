@@ -209,12 +209,26 @@ function catalog(root, roots) {
     // plugin, and a resolver that came from a module cannot be named without it.
     const shipped = ['latest', 'strictest'].includes(review.resolver ?? 'latest');
     const keptReview = Object.fromEntries(Object.entries(review).filter(([key]) => key === 'referenceRoles' || key === 'verdicts' || (key === 'resolver' && shipped)));
-    const dropped = [...(Object.keys(previewModules).length ? ['previewModules'] : []), ...(shipped ? [] : [`review.resolver ${review.resolver}`])];
+    // Anything version 2 cannot hold, including settings this installer does not know, would be lost.
+    const known = new Set(['version', 'adapter', 'options', 'review', 'previewModules']);
+    const knownReview = new Set(['resolver', 'resolverModule', 'referenceRoles', 'verdicts']);
+    const dropped = [
+      ...(Object.keys(previewModules).length ? ['previewModules'] : []),
+      ...(shipped ? [] : [`review.resolver ${review.resolver}`]),
+      ...(review.resolverModule ? ['review.resolverModule'] : []),
+      ...Object.keys(config).filter((key) => !known.has(key)),
+      ...Object.keys(review).filter((key) => !knownReview.has(key)).map((key) => `review.${key}`),
+    ];
+    // A version 1 file still loads as it is: when moving it would lose a setting, it is left alone.
+    if (dropped.length) {
+      result.catalogConfig = 'kept version 1 (it still loads; migrating it would lose settings)';
+      result.catalogNotCarried = dropped;
+      return result;
+    }
     config = { version: 2, plugins: builtin ? [...CATALOG_PLUGINS] : [adapter, 'jam'], options: kept, ...(Object.keys(keptReview).length ? { review: keptReview } : {}) };
     result.catalogConfig = builtin
       ? `migrated to version 2: plugins ${CATALOG_PLUGINS.join(', ')} (keeps manifest ${manifest}); review settings kept`
       : `migrated to version 2: the project's adapter ${adapter} is kept as a plugin beside jam; if it already shows jam runs itself, remove "jam" from plugins`;
-    if (dropped.length) result.catalogNotCarried = dropped;
   }
   if (result.catalogConfig !== 'present') writeJson(file, config);
   const manifest = config.options?.manifest?.file;
@@ -305,7 +319,7 @@ function main() {
   if (failed) next.push('Fix the failed npm install: rerun this installer after addressing the reported error');
   if (config === null) next.push(`Create ${CONFIG}: "node ${toolkit}/jam.mjs setup" prints the choices to decide with the user, then "node ${toolkit}/jam.mjs setup --from <choices.json>"; rerun this installer afterwards if the content folders differ from the defaults`);
   if (config?.version === 1) next.push(`Upgrade ${CONFIG}: "node ${toolkit}/jam.mjs config migrate" (add --dry-run to preview)`);
-  if (summary.catalogNotCarried) next.push(`catalog.config.json version 2 registers preview modules and verdict resolvers from a plugin: move ${summary.catalogNotCarried.join(' and ')} into one (${toolkit}/src/catalog/README.md, "Scopes, resolvers and previews"); Git has the version 1 file`);
+  if (summary.catalogNotCarried) next.push(`catalog.config.json was left at version 1 because version 2 cannot hold ${summary.catalogNotCarried.join(', ')}; it keeps working. To list jam runs in the catalog, move those settings into a catalog plugin and switch to version 2 by hand (${toolkit}/src/catalog/README.md)`);
   if (String(summary.catalogConfig).includes('remove "jam"')) next.push('Check the catalog shows each jam run once (catalog.config.json lists the project\'s adapter and the jam plugin)');
   next.push(`Commit ${toolkit}/, ${existsSync(join(root, 'jam')) ? 'jam/, ' : ''}catalog.config.json, .gitignore and .gitattributes changes when the user wants them versioned`);
   const fixes = [];

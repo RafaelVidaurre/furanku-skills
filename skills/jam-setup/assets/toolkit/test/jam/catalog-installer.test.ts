@@ -43,7 +43,7 @@ describe("catalog.config.json as the installer writes it", () => {
     assert.deepEqual(chair.links[0].facts["jam-pixels"].facts, { width: 8, height: 8 }, "the jam plugin measures hand-registered media too")
   })
 
-  it("a project's own version 1 adapter keeps its options as a plugin; settings a version 2 file cannot hold are named, not written", async () => {
+  it("a project's own version 1 adapter keeps its options as a plugin when nothing would be lost", async () => {
     const root = tempProject({
       git: true,
       files: {
@@ -52,8 +52,7 @@ describe("catalog.config.json as the installer writes it", () => {
           version: 1,
           adapter: "./tools/catalog/project.mjs",
           options: { folder: "lore", manifest: "lore/index.json" },
-          previewModules: { lineup: "./previews/lineup.mjs" },
-          review: { resolver: "house-rules", resolverModule: "./tools/catalog/resolver.mjs", referenceRoles: ["evidence"] }
+          review: { resolver: "strictest", referenceRoles: ["evidence"] }
         })
       }
     })
@@ -62,14 +61,30 @@ describe("catalog.config.json as the installer writes it", () => {
       version: 2,
       plugins: ["./tools/catalog/project.mjs", "jam"],
       options: { "./tools/catalog/project.mjs": { folder: "lore", manifest: "lore/index.json" } },
-      review: { referenceRoles: ["evidence"] }
+      review: { resolver: "strictest", referenceRoles: ["evidence"] }
     })
-    assert.deepEqual(summary["catalogNotCarried"], ["previewModules", "review.resolver house-rules"])
-    assert.match(summary["next"].join("\n"), /move previewModules and review\.resolver house-rules into one \(tools\/jam\/src\/catalog\/README\.md/)
+    assert.equal(summary["catalogNotCarried"], undefined)
     const app = openCatalog(root)
     const context = await app.run("context", {})
-    assert.deepEqual([context.plugins, context.resolver, context.problems], [["media-core", "project", "jam"], "latest", 0])
+    assert.deepEqual([context.plugins, context.resolver, context.problems], [["media-core", "project", "jam"], "strictest", 0])
     assert.equal((await app.run("unit.get", { id: "note/options" })).unit.name, JSON.stringify({ folder: "lore", manifest: "lore/index.json" }), "the adapter is given the options it had")
+  })
+
+  it("a version 1 file holding what version 2 cannot (preview modules, a resolver module, settings it does not know) is left as it is", async () => {
+    const original = {
+      version: 1,
+      adapter: "./tools/catalog/project.mjs",
+      options: { folder: "lore" },
+      previewModules: { lineup: "./previews/lineup.mjs" },
+      review: { resolver: "house-rules", resolverModule: "./tools/catalog/resolver.mjs" },
+      display: { pixelArt: true }
+    }
+    const root = tempProject({ git: true, files: { "tools/catalog/project.mjs": ADAPTER, "catalog.config.json": JSON.stringify(original) } })
+    const summary = install(root)
+    assert.deepEqual(readJson(root, "catalog.config.json"), original, "a working configuration is never rewritten at a loss")
+    assert.deepEqual(summary["catalogNotCarried"], ["previewModules", "review.resolver house-rules", "review.resolverModule", "display"])
+    assert.match(String(summary["catalogConfig"]), /kept version 1/)
+    assert.match(summary["next"].join("\n"), /left at version 1 because version 2 cannot hold previewModules/)
   })
 
   it("the version 1 default (jam's own adapter over a manifest) becomes manifest and jam with the same manifest and review settings", async () => {
