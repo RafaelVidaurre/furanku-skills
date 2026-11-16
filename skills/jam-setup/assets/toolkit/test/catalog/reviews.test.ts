@@ -435,3 +435,31 @@ test("review.remove retires submissions with their verdicts and notes, keeps wha
   await rejects(run("review.remove", { submissions: [first.id], reason: "again" }), "not_found")
   cleanup(dir)
 })
+
+test("review.remove with the dry run's plan refuses when an owner decision arrived after archiving, and returns what it removed", async () => {
+  const dir = await standardProject({ commit: false })
+  const app = await open(dir)
+  const run = W(app)
+  const submission = (await run("review.submit", { items: [{ target: unit("armor/helm"), parts: ["model"] }] })).submission
+  const item = (await app.run("review.get", { submission: submission.id })).items[0].id
+  await run("review.decide", { submission: submission.id, item, whole: "changes" })
+  const plan = await run("review.remove", { submissions: [submission.id], reason: "archived", dryRun: true })
+  // The owner decides again between the archive and the removal.
+  await run("review.decide", { submission: submission.id, item, whole: "approved", comment: "Good now" })
+  const stale = await rejects(run("review.remove", { submissions: [submission.id], reason: "archived", expectedPlan: plan.plan }), "conflict")
+  assert.notEqual(stale.details.plan, plan.plan)
+  assert.equal((await app.run("reviews.list", { state: "all" })).total, 1, "nothing was removed")
+  // A note edited after the plan is a change as well.
+  const note = (await run("note.create", { target: { kind: "submission", id: submission.id }, body: "Rim" })).note
+  const fresh = await run("review.remove", { submissions: [submission.id], reason: "archived", dryRun: true })
+  await run("note.edit", { id: note.id, body: "Rim reads thin", expectedRevision: note.revision })
+  await rejects(run("review.remove", { submissions: [submission.id], reason: "archived", expectedPlan: fresh.plan }), "conflict")
+  // With a current plan it goes, and hands back every record it removed.
+  const current = await run("review.remove", { submissions: [submission.id], reason: "archived", dryRun: true })
+  const gone = await run("review.remove", { submissions: [submission.id], reason: "archived", expectedPlan: current.plan })
+  assert.equal(gone.removed, true)
+  assert.deepEqual([gone.records.submissions.length, gone.records.verdicts.length, gone.records.notes.length], [1, 2, 1])
+  assert.equal(gone.records.notes[0].body, "Rim reads thin")
+  assert.ok(gone.records.verdicts.some((verdict: { comment?: string }) => verdict.comment === "Good now"))
+  cleanup(dir)
+})
