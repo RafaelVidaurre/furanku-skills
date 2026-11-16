@@ -203,7 +203,8 @@ export class Records extends Context.Service<Records, {
               planned.push({ path, data: serialize(op.record), record: op.record })
               continue
             }
-            if (!layout.mutable) return yield* fail("forbidden", `${op.kind} records are immutable`)
+            // Immutable records are never changed; retiring one (review.remove) is the only other operation.
+            if (!layout.mutable && op.type !== "remove") return yield* fail("forbidden", `${op.kind} records are immutable`)
             if (!fresh) return yield* fail("not_found", `${op.kind} ${key} no longer exists`)
             const revision = (fresh as { revision?: number }).revision
             if (op.expectedRevision !== undefined && op.expectedRevision !== null && revision !== op.expectedRevision) {

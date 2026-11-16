@@ -391,3 +391,47 @@ test("Before/after views: a view compares its evidence with a frozen project fil
   assert.equal((await again.run("context", {})).problems, 0, "the before record passes validation")
   cleanup(dir)
 })
+
+test("review.remove retires submissions with their verdicts and notes, keeps what others depend on, and frees only unshared evidence", async () => {
+  const dir = await standardProject({ commit: false })
+  const app = await open(dir)
+  const run = W(app)
+  const evidenceFiles = (): Array<string> => (existsSync(join(dir, ".catalog/evidence")) ? readdirSync(join(dir, ".catalog/evidence"), { recursive: true }).map(String).filter((name) => name.includes(".")) : [])
+  const first = (await run("review.submit", { items: [{ target: unit("armor/helm"), parts: ["model"] }] })).submission
+  const firstReview = await app.run("review.get", { submission: first.id })
+  await run("review.decide", { submission: first.id, item: firstReview.items[0].id, whole: "changes" })
+  await run("note.create", { target: { kind: "submission", id: first.id }, body: "Rim reads thin" })
+  // A later round shows the first one's frozen model as its before side, and supersedes it.
+  const second = (await run("review.submit", {
+    supersedes: first.id,
+    items: [{ target: unit("armor/helm"), parts: ["model"], views: [{ part: "model", caption: "Thicker rim", before: { submission: first.id, item: firstReview.items[0].id, part: "model" } }] }]
+  })).submission
+  const third = (await run("review.submit", { items: [{ target: unit("armor/boots"), parts: ["icon"] }] })).submission
+  const stored = evidenceFiles()
+  assert.ok(stored.length > 0, "uncommitted files were frozen into the evidence store")
+
+  // A dry run says exactly what would go, and changes nothing.
+  const plan = await run("review.remove", { submissions: [third.id], reason: "obsolete", dryRun: true })
+  assert.deepEqual([plan.removed, plan.submissions.map((s: { id: string }) => s.id), plan.verdicts, plan.notes], [false, [third.id], [], []])
+  assert.ok(plan.evidence.length > 0)
+  assert.deepEqual(evidenceFiles(), stored)
+  // What stays may not lose what it depends on.
+  const refused = await rejects(run("review.remove", { submissions: [first.id], reason: "archived" }), "conflict")
+  assert.match(refused.message, new RegExp(`${second.id} depends on ${first.id}`))
+  // Removing the later round alone keeps the first round's evidence, which the first still uses.
+  await run("review.remove", { submissions: [second.id], reason: "archived" })
+  assert.equal((await app.run("reviews.list", { state: "all" })).total, 2)
+  // Removing the first takes its verdict, its note and the evidence nothing else uses.
+  const gone = await run("review.remove", { submissions: [first.id, third.id], reason: "archived" }, "cleanup-1")
+  assert.equal(gone.removed, true)
+  assert.equal(gone.verdicts.length, 1)
+  assert.equal(gone.notes.length, 1)
+  assert.equal((await app.run("reviews.list", { state: "all" })).total, 0)
+  assert.equal((await app.run("notes.list", { state: "all" })).total, 0)
+  assert.deepEqual(evidenceFiles(), [], "no evidence is left that no record uses")
+  assert.equal((await app.run("problems", {})).problems.length, 0)
+  // The same request again replays; an unknown id is named.
+  assert.equal((await run("review.remove", { submissions: [first.id, third.id], reason: "archived" }, "cleanup-1")).replayed, true)
+  await rejects(run("review.remove", { submissions: [first.id], reason: "again" }), "not_found")
+  cleanup(dir)
+})

@@ -7,6 +7,7 @@ import { digest } from "../kernel/hash.ts"
 import { type ActionDef, dirtyCount, Empty, optional, Page, read, targetOf, Text, UnitOrCollection, write } from "./action.ts"
 import { collectionActions } from "./commands/collections.ts"
 import { decideActions } from "./commands/decide.ts"
+import { removeAction } from "./commands/remove.ts"
 import { noteActions } from "./commands/notes.ts"
 import { organizationActions } from "./commands/organization.ts"
 import { submitAction } from "./commands/submit.ts"
@@ -166,4 +167,4 @@ const unlock = write("unlock", "Remove a lock whose owning process has exited on
 // One repair run at a time: fixes act on project files, outside the record locks.
 const doctorFixAction = write("doctor.fix", "Apply the repairs that checks declare (for example fetching Git LFS files), then check again and report what is still wrong", Empty, "doctor", (_input, env) => doctorFix(env))
 
-export const builtinActions: ReadonlyArray<ActionDef> = [...reads, ...collectionActions, ...noteActions, ...organizationActions, submitAction, ...decideActions, unlock, doctorFixAction]
+export const builtinActions: ReadonlyArray<ActionDef> = [...reads, ...collectionActions, ...noteActions, ...organizationActions, submitAction, ...decideActions, removeAction, unlock, doctorFixAction]
