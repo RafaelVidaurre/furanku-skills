@@ -1,0 +1,23 @@
+{
+  "$schema": "../schemas/provider.schema.json",
+  "id": "scenario",
+  "label": "Scenario",
+  "unit": { "id": "CU", "label": "Scenario Compute Units (CU)", "paid": true },
+  "capabilities": {
+    "image": {},
+    "mesh": { "modes": ["single", "multiview"], "note": "Hosted 3D models differ in input count and UV limits; read the chosen model's schema." }
+  },
+  "transports": [
+    { "kind": "mcp", "server": "scenario", "note": "Native HTTP MCP endpoint with OAuth." }
+  ],
+  "pacing": {
+    "concurrent": 1,
+    "cooldown": "Per model, after each 3D job. Cooldowns are per model, so another suitable 3D model can run meanwhile.",
+    "retryAfter": "Stated in the HTTP 429 body (one answer was \"wait 2298 seconds\"). Do not retry the same model inside it.",
+    "typicalWait": "A mesh job takes about 3 to 5 minutes."
+  },
+  "quote": { "kind": "exact", "how": "`dry_run: true` at the top level of `model_run`, beside `model_id` and `parameters`, with the real inputs. A misplaced key can be ignored and the job billed." },
+  "recovery": "Wait with `jobs_wait` and continue with its pending job ids after a timeout; never submit a second `model_run` to poll. After a lost create response inspect `jobs_list` in the same scope and reconcile before any retry.",
+  "skills": ["scenario", "scenario-image", "scenario-meshy", "scenario-3d"],
+  "docs": "docs/providers/scenario.md"
+}

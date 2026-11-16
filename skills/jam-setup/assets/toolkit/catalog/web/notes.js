@@ -100,7 +100,7 @@ export function NotesView({ route }) {
     <div class="list-bar">
       <span class="seg" role="radiogroup" aria-label="Note state">${[['open', 'Open'], ['resolved', 'Dealt with'], ['all', 'All']].map(([v, l]) => html`<button role="radio" aria-checked=${st === v} class=${`seg-b${st === v ? ' on' : ''}`} onClick=${() => set({ state: v === 'open' ? null : v })}>${l}<span class="count">${data?.counts[v] ?? ''}</span></button>`)}</span>
       <input class="search sm" type="search" placeholder="Filter" aria-label="Filter notes" value=${q} onInput=${(e) => set({ q: e.target.value })} data-list-search />
-      <select aria-label="On" value=${k} onChange=${(e) => set({ k: e.target.value })}><option value="">On anything</option><option value="unit">Content</option><option value="collection">Collections</option><option value="asset">Assets</option><option value="submission">Reviews</option></select>
+      <select aria-label="On" value=${k} onChange=${(e) => set({ k: e.target.value })}><option value="">On anything</option><option value="unit">Entries</option><option value="collection">Collections</option><option value="asset">Files</option><option value="submission">Reviews</option></select>
       <select aria-label="Author" value=${by} onChange=${(e) => set({ by: e.target.value })}><option value="">Anyone</option>${(data?.authors ?? []).map((p) => html`<option value=${p}>${p}</option>`)}</select>
     </div>
     <${ErrorLine} error=${error} onRetry=${reload} />

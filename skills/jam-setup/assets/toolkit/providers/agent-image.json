@@ -1,0 +1,11 @@
+{
+  "$schema": "../schemas/provider.schema.json",
+  "id": "agent-image",
+  "label": "The agent's own image tool",
+  "unit": { "id": "session", "label": "agent session usage", "paid": false },
+  "capabilities": { "image": {} },
+  "transports": [
+    { "kind": "agent", "note": "A generation or editing tool the running agent already has. Confirm it is callable before offering it." }
+  ],
+  "docs": "docs/providers/agent-image.md"
+}

@@ -25,3 +25,6 @@ __pycache__/
 # Installed dependencies of vendored packages (jam-setup toolkit)
 node_modules/
 .venv/
+
+# Screenshots and other output of the jam toolkit tests
+skills/jam-setup/assets/toolkit/test-output/

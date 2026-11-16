@@ -26,7 +26,7 @@ npx skills add rafaelvidaurre/furanku-skills --skill testing-best-practices
 
 After install, talk to your agent as usual. When a skill fits, it should load and follow it.
 
-The picker shows skills in groups: most live in the main (**General**) group; skills still proving themselves appear under **Experimental** (currently `council`, `codemap`, `usage-drain`, `promo-music-video`, `token-speed`, `human-playtest`, and `winremote-host-runs`); the optional game-asset pipeline appears under **Jam** (the `jam-*` skills, [below](#jam-game-asset-pipeline-optional)).
+The picker shows skills in groups: most live in the main (**General**) group; skills still proving themselves appear under **Experimental** (currently `council`, `codemap`, `usage-drain`, `promo-music-video`, `token-speed`, `human-playtest`, and `winremote-host-runs`); the optional game-content toolkit appears under **Jam** (the `jam-*` skills, [below](#jam-game-content-toolkit-optional)).
 
 ## Command-line tool
 
@@ -268,22 +268,50 @@ First use walks you through approving which model tools may run on your machine.
 
 ---
 
-### Jam: game asset pipeline (optional)
+### Jam: game content toolkit (optional)
 
-**Useful if:** you are making a game and want agents to take art from style exploration through concepts, turnarounds and generated 3D models to reviewed, measured deliveries, with every paid job and approval on record.
+**Useful if:** you are making a game and want agents to take art, models, sound and voice from a brief to delivered files by a written workflow, with every paid job and every approval on record.
 
-**What it does:** twelve `jam-*` skills share one toolkit that `jam-setup` installs into your project at `tools/jam/` with one command: a CLI for asset runs, reviews, spending caps and the paid-job ledger, a local content catalog for browsing and reviewing assets in the browser, and the reference docs the skills follow. `jam-3d` routes the work; `jam-style`, `jam-concept`, `jam-turnaround`, `jam-model`, `jam-retopo`, `jam-uv` and `jam-texture` are the stages; `jam-3d-prop` runs a set of props from one reference scene; `jam-3d-character` builds rigged bodies and outfits for Unreal Engine 5 projects on Epic's Mannequin skeleton; `jam-catalog` drives the catalog. Engine-agnostic apart from `jam-3d-character`. Image generation works through Codex or the agent's own image tool; 3D generation uses Meshy or Scenario (your accounts). Art lives under `Art/` in your project.
+**What it does:** the `jam-*` skills share one toolkit that `jam-setup` installs into your project (by default `tools/jam/`). The toolkit holds recipes, which are the written workflows; a `jam` command that says what the next step is, checks what an agent records and keeps the ledger of paid jobs; a local catalog where you browse content and approve work in the browser; and the reference docs the skills point to. You own the workflow: a project extends or replaces any recipe in its own files, and an upgrade leaves those alone.
+
+| Role | Skills |
+| --- | --- |
+| Entry | `jam-setup` installs, upgrades and configures. `jam-recipe` follows a recipe from brief to delivery and writes or changes recipes |
+| Operations | `jam-style`, `jam-concept`, `jam-turnaround`, `jam-model`, `jam-retopo`, `jam-uv`, `jam-texture`, `jam-rig`: one operation each, usable inside a recipe or alone |
+| Engine | `jam-engine` chooses, uses and writes engine adapters. `jam-engine-unreal` is the Unreal Engine adapter |
+| Catalog | `jam-catalog` browses, organises and reviews content, and extends the catalog with plugins |
+| Audio | `jam-sfx` for sound effects, `jam-voice` for voiced dialogue |
 
 ```bash
-npx skills add rafaelvidaurre/furanku-skills --skill jam-setup jam-3d jam-style jam-concept jam-turnaround jam-model jam-retopo jam-uv jam-texture jam-catalog jam-3d-prop jam-3d-character
+npx skills add rafaelvidaurre/furanku-skills --skill jam-setup jam-recipe jam-style jam-concept jam-turnaround jam-model jam-retopo jam-uv jam-texture jam-rig jam-engine jam-engine-unreal jam-catalog jam-sfx jam-voice
 ```
 
 ```text
 > Set up jam in this project.
 > Help me find an art style for my game.
-> Make a wooden barrel prop from this reference scene.
-> Make an outfit for the player character.
+> Run the prop recipe for a wooden barrel.
+> Give me the review link.
+> Our props get a paint-over before the turnaround. Add that step to our recipe.
 ```
+
+**Engines and providers.** No skill or recipe names an engine or a vendor, and a test in this repository fails when one does. Work ends at neutral files (GLB, PNG, WAV). An engine adapter supplies the engine's conventions and, optionally, commands that import and inspect; with no adapter the engine steps are skipped and the run still delivers. Generation services are described by data files, and the agent drives each service's own tool. Descriptors ship for Meshy, Scenario, Tripo, ElevenLabs, the Codex CLI's image tool and the agent's own image tool; you use your own accounts, and paid work is off until you set a limit.
+
+What has been validated and what has not:
+
+- The toolkit has automated tests for recipes, runs, the ledger, delivery and the catalog, and a run completes with no engine adapter.
+- The Unreal adapter was extracted from a game made in Unreal Engine 5. It has not been rerun in an editor since it was generalized; `jam engine docs validation` lists each script's status.
+- The Godot, Unity and web entries are facts-only presets taken from each engine's documentation. Nothing was imported against them.
+- Each provider page under `tools/jam/docs/providers/` says which facts were observed and which were read from the vendor's documentation.
+
+**Changed from version 1:**
+
+- Recipes replace the fixed list of stages. The shipped ones are `asset`, `prop`, `character`, `image`, `sfx`, `voice-line` and `provider-test`.
+- `jam-3d`, `jam-3d-prop` and `jam-3d-character` are gone. `jam-recipe` is the entry point, and `jam recipe list` says which recipe a request is for. The prop and character procedures are the `prop` and `character` recipes with a guide per step; rigging is `jam-rig`; fitting a rig to the Unreal Mannequin and the import scripts moved into `jam-engine-unreal`. The swappable character parts and outfit workflows were one game's assembly and were dropped; `jam-recipe` shows how a project adds such steps to its own recipe.
+- Steps are recorded with flags, and the tool hashes, measures and validates. No command takes a hand-written JSON record.
+- One review system: a person approves in the catalog, or an agent records the person's answer as a relay with their words. One setting lowers the gates for a crunch.
+- Spending has a limit per asset and a total per provider, in that provider's own unit, plus an optional standing authorization in your words.
+- Engine conventions moved out of asset profiles into engine adapters; profiles became budgets.
+- To upgrade a version 1 project, ask the agent to set up jam again. The installer migrates the configuration and version 1 runs stay readable.
 
 ---
 

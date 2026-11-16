@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "engine-handoff.schema.json",
+  "$ref": "#/$defs/EngineHandoff",
+  "$defs": {
+    "EngineHandoff": {
+      "type": "object",
+      "properties": {
+        "handoff": {
+          "type": "object",
+          "properties": {
+            "reason": {
+              "type": "string"
+            },
+            "steps": {
+              "type": "array",
+              "description": "What to do by hand, in order: a sentence each, or an object the adapter describes"
+            },
+            "resume": {
+              "type": "string",
+              "description": "The command to run again once the steps are done"
+            }
+          },
+          "required": [
+            "steps"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "handoff"
+      ],
+      "additionalProperties": false,
+      "title": "Handoff printed by an adapter command that exits 3"
+    }
+  }
+}

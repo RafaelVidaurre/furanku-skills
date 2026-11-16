@@ -1,69 +1,72 @@
-# Add external content to the catalog
+# Bought, downloaded and placeholder content
 
-The catalog accepts sourced models, images and videos directly. Its dependencies come with the jam toolkit install (`jam-setup`). No Jam configuration, generation skill, run, profile or acceptance record is required. The project adapter combines the built-in manifest adapter with the optional Jam adapter so both kinds of content remain visible.
+Content made elsewhere enters the project in one of two ways. Both start from the same evidence of where it came from.
 
-1. Put rights-cleared content under `Art/` and preserve its source URL and license. Models must be self-contained GLBs. Images and videos use the formats listed in the [catalog README](../catalog/README.md).
-2. Add a JSON file under `Art/Catalog/`. Each file contains one unit or a `units` array. Use a stable ID for the game asset so replacing a file preserves its notes and review history. For example:
+| Want | Way in |
+| --- | --- |
+| Browse it, tag it, use it as it is (a placeholder kit, a bought pack) | Declare it in the catalog. No run, no style, no budget |
+| Work on it further or deliver it through gates (retexture a bought mesh, retopologize a scan) | Start a run part-way through a recipe |
+
+## Origin evidence
+
+Before either, keep beside the files a short document per item or pack:
+
+- where it came from (the page, not a download link that expires) and who made it;
+- the licence by name, and where its text is (a URL, or the licence file kept beside the content);
+- what the licence requires of the game (credit, share-alike, no redistribution of the source files);
+- the date fetched and the SHA-256 of each original file.
+
+Keep the original download unchanged next to any converted file. When the person's own note lacks something on this list, add it to that note rather than starting a second one. A licence you could not find is recorded as unknown, and that content stays in ignored scratch as reference only. Free to download is not free to ship.
+
+## Declare it in the catalog
+
+The catalog's `manifest` plugin reads hand-declared content. `catalog.config.json` names the manifest file (`options.manifest.file`, `Art/catalog.json` by default). The manifest's `unitFiles` names a folder (`Art/Catalog` in the starter); put one JSON file per unit there, named after the unit (`chair.json`), or one file per pack holding a `units` array. Create the folder if it is missing.
 
 ```json
 {
-  "id": "external/my-props/chair",
+  "id": "bought/kit-name/chair",
   "type": "external-asset",
   "name": "Wooden chair",
   "attrs": {
     "creator": "Asset creator",
     "source": "https://example.com/the-original-asset",
-    "license": "CC0-1.0"
+    "license": "CC0-1.0",
+    "provenance": "Art/Bought/kit-name/origin.md"
   },
-  "links": [{ "role": "model", "asset": "Art/Imported/chair.glb" }]
+  "links": [{ "role": "model", "asset": "Art/Bought/kit-name/chair.glb" }]
 }
 ```
 
-The existing `external-asset` type also has `image` and `video` roles, each accepting multiple files. More content types, fields, visual roles and collections can be declared in `Art/catalog.json` through the built-in manifest format.
+- Keep the id stable for the game object, so replacing the file later keeps its notes and review history.
+- Models are self-contained GLBs. `external-asset` also takes `image` and `video` links, several of each. Its other fields (`objectType`, `pack`, `sourceFile`, `purpose`, ...) are listed in the manifest; fill the ones you know. Other types, fields and roles are declared in the manifest file.
+- Confirm with `jam catalog run unit.get --input '{"id":"<id>"}'` and `jam catalog run problems`.
+- File it where a person will look for it: the `jam-catalog` skill covers categories, collections and tags.
 
-3. Read the result and reported problems:
+**Placeholders.** The `placeholder` tag is what marks stand-in content: `jam catalog run organize.set --actor-kind agent --actor-name <you> --request-id <id> --input '{"target":{"kind":"unit","id":"<id>"},"tags":["placeholder"]}'` (it sets the unit's whole tag list, so include tags it already has; `organize.bulk` adds and removes across many). Find it with `jam catalog run catalog.search --input '{"filters":{"tag":["placeholder"]}}'`. When the real asset arrives, keep the unit id, point its link at the new file, update the origin, and remove the tag.
 
-```sh
-node tools/jam/catalog/bin/catalog.mjs run unit.get --input '{"id":"external/my-props/chair"}'
-node tools/jam/catalog/bin/catalog.mjs run problems
+## Enter a recipe part-way
+
+```
+jam run start <recipe> <id> --brief-text "<what is wanted from this file>" --from <step>
+jam run next <id>
 ```
 
-4. For a placeholder, add the catalog-owned tag. Use your own stable request ID and actor name:
+The steps before `<step>` are marked not needed. Recording `<step>` requires the origin: `--source "<where it came from>" --source-evidence <the origin document>`. A file that already satisfies several steps (a bought mesh whose topology and UVs are kept) is recorded for all of them at once:
 
-```sh
-node tools/jam/jam.mjs catalog run organize.set --actor-kind agent --actor-name my-agent \
-  --request-id chair-placeholder-1 \
-  --input '{"target":{"kind":"unit","id":"external/my-props/chair"},"tags":["placeholder"]}'
+```
+jam run record <id> topology uv --file <model.glb> --note "Kept as bought: <why it suffices>" \
+  --source "<page>" --source-evidence <origin document> --accept "<what you checked>"
 ```
 
-File new units into their category and collection as the `jam-catalog` skill describes under *Filing added content*. Tags written through catalog actions live under `.catalog/labels/`; commit them with the content. The initial placeholder batch labels units, visual assets and pack collections. Filter by the `placeholder` tag in the UI, or run:
+Each step's checks and gate still apply: a bought mesh is measured against the budget and reviewed like a generated one. Choose the recipe with `jam recipe list`; `asset` is the one for a single operation on an existing model.
 
-```sh
-node tools/jam/jam.mjs catalog run catalog.search --input '{"filters":{"tag":["placeholder"]}}'
+## Converting files
+
+A GLB that is already self-contained needs nothing.
+
+```
+jam pack-glb <source.gltf> <destination.glb>
+jam blender --factory-startup toolkit:fbx-to-glb.py -- <source.fbx> <destination.glb>
 ```
 
-When replacing a placeholder, retain its unit ID, update its linked content and provenance, then remove the catalog-owned tag with `organize.bulk` and `removeTags: ["placeholder"]` for the replaced unit and visual. A catalog label is independent of any Jam acceptance or catalog review verdict.
-
-Serve the browser with `node tools/jam/jam.mjs catalog serve` (default `http://127.0.0.1:4600/`); add `--detach` to keep it running after the starting terminal or agent session closes. `node tools/jam/catalog/bin/catalog.mjs serve` is the same catalog without the Jam command shortcut. Both use `catalog.config.json`.
-
-## Catalog adapter
-
-`catalog.config.json` names the adapter that tells the catalog what the project contains. jam-setup sets `./tools/jam/catalog-adapter.mjs`, which shows jam runs (`Art/**/run.json`) together with the external-content manifest (`options.manifest`, default `Art/catalog.json`); a project that used the built-in `manifest` or `jam` adapter is moved to it with its manifest and other settings kept. A project with its own adapter module keeps it, and jam runs stay out of the catalog until that module also loads the jam adapter: import `tools/jam/catalog/adapters/jam.mjs`, call it with `{ root }` beside the project's own adapter, and merge their `load()` results as `tools/jam/catalog-adapter.mjs` does. Confirm with `node tools/jam/jam.mjs catalog run catalog.search --input '{}'` listing a jam asset.
-
-## Optional format conversion
-
-Already self-contained GLBs need no conversion. For glTF/GLB files with external buffers or textures, run (the decoder ships with the toolkit install):
-
-```sh
-node tools/jam/pack-glb.mjs source.gltf Art/Imported/chair.glb
-```
-
-This optional converter uses glTF Transform 4.5.1 and its extension handlers to embed the original buffer/image bytes. It is a file conversion command, not a Jam workflow; catalog browsing does not load these dependencies for external content. FBX conversion uses installed Blender in an isolated process:
-
-```sh
-node tools/jam/jam.mjs blender --factory-startup tools/jam/fbx-to-glb.py -- source.fbx Art/Imported/chair.glb
-```
-
-Inspect a catalog capture after conversion. This establishes the inspected catalog appearance, separately from native engine import, scale, retargeting, performance and art acceptance.
-
-For a legacy FBX whose known opaque wood/skin materials import with unlinked constant-zero alpha, `fbx-to-glb.py` accepts `--opaque-untextured-materials` after the destination. Use it only after inspecting the source and failed render; record the material names printed as `CATALOG_ALPHA_REPAIRS`. Texture-driven opacity is preserved.
+`pack-glb` embeds external buffers and images without changing geometry or materials. The FBX conversion needs Blender. For an old FBX whose opaque materials import as fully transparent, add `--opaque-untextured-materials` after the destination, only after seeing the failed render, and note the material names it prints. Look at the converted file in the catalog or a viewer before relying on it; that shows how it looks there, not how an engine imports it.

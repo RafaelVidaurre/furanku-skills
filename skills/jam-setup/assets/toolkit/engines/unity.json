@@ -1,0 +1,171 @@
+{
+  "$schema": "../schemas/engine-adapter.schema.json",
+  "id": "unity",
+  "label": "Unity (facts only)",
+  "versions": "6",
+  "facts": {
+    "unitsPerMeter": 1,
+    "up": "+Y",
+    "forward": "+Z",
+    "handedness": "left",
+    "contentRoot": "Assets",
+    "mesh": {
+      "static": "fbx",
+      "skinned": "fbx"
+    },
+    "textures": {
+      "normalGreen": "up"
+    },
+    "collision": {
+      "convention": "import-setting"
+    },
+    "audio": {
+      "container": "wav"
+    },
+    "extra": {
+      "assetIdentity": "each asset has a GUID in a .meta file beside it; references break when the .meta file is lost",
+      "maskMaps": {
+        "urpLit": {
+          "R": "metallic",
+          "G": "occlusion",
+          "B": "unused",
+          "A": "smoothness"
+        },
+        "hdrpMaskMap": {
+          "R": "metallic",
+          "G": "ambient occlusion",
+          "B": "detail mask",
+          "A": "smoothness"
+        }
+      },
+      "meshFormatsBuiltIn": [
+        "fbx",
+        "dae",
+        "dxf",
+        "obj"
+      ],
+      "gltf": "through the separate Unity glTFast package",
+      "audioFormatsImported": [
+        "mp3",
+        "aiff",
+        "aif",
+        "wav",
+        "ogg",
+        "flac"
+      ],
+      "collisionImportSetting": "Generate Colliders attaches mesh colliders on import; there is no naming convention",
+      "versionControl": {
+        "commit": [
+          "*.meta"
+        ],
+        "ignore": [
+          "Library/"
+        ]
+      }
+    }
+  },
+  "commands": {
+    "import": null,
+    "inspect": null,
+    "references": null,
+    "capture": null,
+    "check": null,
+    "conform-skeleton": null
+  },
+  "docs": {
+    "import": "unity.md",
+    "inspect": "unity.md"
+  },
+  "sources": [
+    {
+      "fact": "unitsPerMeter",
+      "url": "https://docs.unity3d.com/6000.0/Documentation/Manual/class-Transform.html",
+      "says": "\"By default, the physics engine assumes that one unit in world space corresponds to one meter.\""
+    },
+    {
+      "fact": "up",
+      "url": "https://docs.unity3d.com/6000.0/Documentation/Manual/QuaternionAndEulerRotationsInUnity.html",
+      "says": "\"Unity uses a left-handed coordinate system: the positive x-axis points to the right, the positive y-axis points up, and the positive z-axis points forward.\""
+    },
+    {
+      "fact": "forward",
+      "url": "https://docs.unity3d.com/6000.0/Documentation/Manual/QuaternionAndEulerRotationsInUnity.html",
+      "says": "\"Unity uses a left-handed coordinate system: the positive x-axis points to the right, the positive y-axis points up, and the positive z-axis points forward.\""
+    },
+    {
+      "fact": "handedness",
+      "url": "https://docs.unity3d.com/6000.0/Documentation/Manual/QuaternionAndEulerRotationsInUnity.html",
+      "says": "\"Unity uses a left-handed coordinate system: the positive x-axis points to the right, the positive y-axis points up, and the positive z-axis points forward.\""
+    },
+    {
+      "fact": "contentRoot",
+      "url": "https://docs.unity3d.com/6000.0/Documentation/Manual/SpecialFolders.html",
+      "says": "\"Every Unity project has an Assets folder in the project root which contains the project's assets.\""
+    },
+    {
+      "fact": "extra.assetIdentity",
+      "url": "https://docs.unity3d.com/6000.0/Documentation/Manual/AssetMetadata.html",
+      "says": ".meta files hold the asset's unique ID and import settings; \"If an asset loses its .meta file, any reference to that asset is broken\"."
+    },
+    {
+      "fact": "extra.versionControl",
+      "url": "https://docs.unity3d.com/6000.0/Documentation/Manual/AssetMetadata.html",
+      "says": ".meta files hold the asset's unique ID and import settings; \"If an asset loses its .meta file, any reference to that asset is broken\"."
+    },
+    {
+      "fact": "extra.versionControl",
+      "url": "https://docs.unity3d.com/6000.0/Documentation/Manual/ImportingAssets.html",
+      "says": "\"you don't need to include the Library folder under version control\"."
+    },
+    {
+      "fact": "mesh",
+      "url": "https://docs.unity3d.com/6000.0/Documentation/Manual/3D-formats.html",
+      "says": "\"It's best practice to use the .fbx file format whenever possible\"."
+    },
+    {
+      "fact": "extra.meshFormatsBuiltIn",
+      "url": "https://docs.unity3d.com/6000.0/Documentation/Manual/3D-formats.html",
+      "says": "\"It's best practice to use the .fbx file format whenever possible\"."
+    },
+    {
+      "fact": "extra.gltf",
+      "url": "https://docs.unity3d.com/Packages/com.unity.cloud.gltfast@6.0/manual/index.html",
+      "says": "\"Unity glTFast enables use of glTF asset files in Unity.\""
+    },
+    {
+      "fact": "textures.normalGreen",
+      "url": "https://docs.unity3d.com/6000.0/Documentation/Manual/StandardShaderMaterialParameterNormalMap.html",
+      "says": "\"Unity uses Y+ normal maps, sometimes known as OpenGL format.\""
+    },
+    {
+      "fact": "extra.maskMaps",
+      "url": "https://docs.unity.com/en-us/engine/6000.0/manual/materials-and-shaders/built-in/shaders-in-universalrp/channel-packed-texture",
+      "says": "URP Lit and Complex Lit read one RGBA texture: \"Red: Metallic, Green: Occlusion, Blue: Not used, Alpha: Smoothness\"."
+    },
+    {
+      "fact": "extra.maskMaps",
+      "url": "https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@17.0/manual/Mask-Map-and-Detail-Map.html",
+      "says": "HDRP mask map: red metallic, green ambient occlusion, blue detail mask, alpha smoothness."
+    },
+    {
+      "fact": "collision",
+      "url": "https://docs.unity3d.com/6000.0/Documentation/Manual/FBXImporter-Model.html",
+      "says": "\"Generate Colliders: Import the mesh with mesh colliders automatically attached.\" The same page: \"Unity's physics system expects 1 m in the game world to be 1 unit in the imported file.\""
+    },
+    {
+      "fact": "extra.collisionImportSetting",
+      "url": "https://docs.unity3d.com/6000.0/Documentation/Manual/FBXImporter-Model.html",
+      "says": "\"Generate Colliders: Import the mesh with mesh colliders automatically attached.\" The same page: \"Unity's physics system expects 1 m in the game world to be 1 unit in the imported file.\""
+    },
+    {
+      "fact": "audio",
+      "url": "https://docs.unity.com/en-us/engine/6000.0/manual/audio/files/compatibility",
+      "says": "Lists .wav among the imported audio formats; \"Unity supports mono, stereo, and multichannel audio assets up to eight channels.\""
+    },
+    {
+      "fact": "extra.audioFormatsImported",
+      "url": "https://docs.unity.com/en-us/engine/6000.0/manual/audio/files/compatibility",
+      "says": "Lists .wav among the imported audio formats; \"Unity supports mono, stereo, and multichannel audio assets up to eight channels.\""
+    }
+  ]
+}

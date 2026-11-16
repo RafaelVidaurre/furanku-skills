@@ -1,0 +1,154 @@
+{
+  "$schema": "../schemas/recipe.schema.json",
+  "version": 1,
+  "id": "asset",
+  "title": "3D asset",
+  "description": "From a brief to a finished model: concept, five-view turnaround, generated mesh, topology, UVs, textures, sign-off. Each step can also start a run from an existing file (jam run start asset <id> --from <step>).",
+  "when": "A 3D model request that is neither a prop for the engine nor a rigged character, or one operation on an existing model: retopologize a scan, unwrap a hand-made mesh, retexture a bought one.",
+  "style": true,
+  "steps": [
+    {
+      "id": "concept",
+      "title": "Concept image",
+      "skill": "jam-concept",
+      "guide": "toolkit:docs/recipes/asset.md#concept",
+      "paid": true,
+      "produces": [
+        {
+          "role": "concept",
+          "kind": "image",
+          "min": 1
+        }
+      ],
+      "review": "human"
+    },
+    {
+      "id": "turnaround",
+      "title": "Five-view turnaround",
+      "needs": [
+        "concept"
+      ],
+      "skill": "jam-turnaround",
+      "guide": "toolkit:docs/recipes/asset.md#turnaround",
+      "paid": true,
+      "produces": [
+        {
+          "role": "view",
+          "kind": "image",
+          "keys": [
+            "front",
+            "left",
+            "back",
+            "right",
+            "three-quarter"
+          ]
+        }
+      ],
+      "checks": [
+        "turnaround-views"
+      ],
+      "review": "human"
+    },
+    {
+      "id": "mesh",
+      "title": "Generated mesh",
+      "needs": [
+        "turnaround"
+      ],
+      "skill": "jam-model",
+      "guide": "toolkit:docs/recipes/asset.md#mesh",
+      "paid": true,
+      "produces": [
+        {
+          "role": "model",
+          "kind": "model",
+          "min": 1
+        }
+      ],
+      "review": "agent"
+    },
+    {
+      "id": "topology",
+      "title": "Topology to budget",
+      "needs": [
+        "mesh"
+      ],
+      "skill": "jam-retopo",
+      "guide": "toolkit:docs/recipes/asset.md#topology",
+      "paid": true,
+      "produces": [
+        {
+          "role": "model",
+          "kind": "model",
+          "max": 1
+        }
+      ],
+      "checks": [
+        "budget-geometry"
+      ],
+      "review": "agent"
+    },
+    {
+      "id": "uv",
+      "title": "UV layout",
+      "needs": [
+        "topology"
+      ],
+      "skill": "jam-uv",
+      "guide": "toolkit:docs/recipes/asset.md#uv",
+      "paid": true,
+      "produces": [
+        {
+          "role": "model",
+          "kind": "model",
+          "max": 1
+        }
+      ],
+      "review": "agent"
+    },
+    {
+      "id": "texture",
+      "title": "Textures and materials",
+      "needs": [
+        "uv"
+      ],
+      "skill": "jam-texture",
+      "guide": "toolkit:docs/recipes/asset.md#texture",
+      "paid": true,
+      "produces": [
+        {
+          "role": "model",
+          "kind": "model",
+          "max": 1
+        }
+      ],
+      "checks": [
+        "budget-texture"
+      ],
+      "review": "agent"
+    },
+    {
+      "id": "delivery",
+      "title": "Final model and sign-off",
+      "needs": [
+        "topology",
+        "uv",
+        "texture"
+      ],
+      "guide": "toolkit:docs/recipes/asset.md#delivery",
+      "produces": [
+        {
+          "role": "model",
+          "kind": "model",
+          "max": 1
+        }
+      ],
+      "checks": [
+        "budget-geometry",
+        "budget-texture",
+        "delivery-closure"
+      ],
+      "review": "human"
+    }
+  ]
+}

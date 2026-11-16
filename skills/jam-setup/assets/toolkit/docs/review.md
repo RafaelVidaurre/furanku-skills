@@ -1,25 +1,54 @@
-# Review an asset candidate
+# Gates and review
 
-Read [contracts](contracts.md). Run `node tools/jam/jam.mjs status --run <run.json>` and inspect the selected record’s files and evidence. Read the brief/style/profile and compare against the intended result; do not infer visual success from file existence or metrics.
+Who must accept a step, how an agent reviews, and how a person's decision reaches the run. Flags are in [cli.md](cli.md).
 
-Prepare a compact review packet: what changed, images or a usable viewer, source comparison where relevant, intended game camera, measured constraints, remaining defects and a concrete accept/revise/reject decision. Label DCC views, engine views and enlarged crops honestly. Show all relevant surfaces; do not use a flattering angle to conceal known defects.
+## Who must accept
 
-Honor the project’s stage policy and stricter run preferences. Agent-only review can proceed without a human unless the human requests involvement. Required human review pauses dependent work; ask through the active environment’s supported question surface (including enabled notifications). No particular harness or companion app is required. Approval, revision and rejection must name the exact candidate. Silence never approves.
+Each recipe step names its gate: `human`, `agent` or `none`. Two settings move it:
 
-For requests to enable or disable human checkpoints, follow [project settings](settings.md#human-checkpoints).
+- `review.mode` in `jam.config.json` can only lower gates: `agent` caps every gate at agent review, `none` records work with no gate. See [settings.md](settings.md#review-mode).
+- `--human <steps>` on `jam run start` or `jam run set` can only raise them, for that run.
 
-Record a decision JSON with the current record ID, actor, name, decision, reason and traceable conversation/review source. For human decisions, transcribe the actual answer; do not forge a human actor. Submit it with `node tools/jam/jam.mjs review`. These local records are an audit trail, not authentication.
+`jam run status <id>` shows the gate in force for each step and, when it differs from the recipe's, why.
 
-## Carry an image approval into the first profiled run
+## Agent review
 
-Adding the first geometry profile after a style-bound concept/turnaround run is a bookkeeping transition, not a reason to ask the human to approve identical images again. Carry the existing decision only when all of these hold:
+Review once, against the brief, with the evidence the step already produced: the recorded files, their measurements, the renders or captures beside them.
 
-- The source is a non-exploration run with no profile. Its latest relevant concept/turnaround records are currently accepted, with no replaced, rejected or stale dependency. Preserve the source run and its evidence.
-- The destination uses the same brief and style revision. Image outputs, original inputs and review evidence have matching hashes, and turnaround views/crop evidence are unchanged; any copied paths have an explicit source-to-destination mapping. Added custody notes document the transfer without changing the approved design.
-- The new profile does not alter the intended design or contradict the prior approval's scope. The original decision satisfies the destination's reviewer policy; an agent decision cannot become human approval. An explicit request for a new review still takes precedence.
+- Open the files and look. A file that exists, a passing measurement or a provider's "success" says nothing about whether the result is right.
+- Reuse evidence, whoever made it. Produce new evidence (another render, a rerun check) only when what is there is missing, stale or contradicted by something you see.
+- Accept with the reason at record time (`jam run record ... --accept "<what you checked and saw>"`) or afterwards (`jam run review <id> <step> --accept --reason "..."`). Send back with `--revise --reason "<what must change>"`, or `--reject`.
+- A revision is a new record of the step. Files under an accepted record are never replaced.
 
-Register the reused concept, then turnaround against the new concept record. Preserve true origin, including existing paid-job evidence when importing downloaded outputs. For each new record, submit a review using its new record ID and the original decision's actor/approver; `source` cites the original run path, record ID, review timestamp and actual conversation source. `reason` says this carries that unchanged decision into the first profiled run, not that a new human answer occurred. Verify status before mesh work. A matched carry-over requires no additional human prompt or generation.
+An accept whose reason could have been written without opening the files is a rubber stamp. Name what you looked at and what you saw.
 
-If any condition fails, use the ordinary review procedure for the affected work. This narrow transition does not carry exploratory preferences into production or reuse approvals after a style/brief/design change. Hash comparison and decision-scope inspection are the agent's responsibility; the CLI checks current record IDs/freshness and reviewer policy, not the truth of a historical source citation.
+## A person's decision
 
-**Done:** an attributable decision is bound to current artifacts, or a specific human response is pending. Revisions create a new stage record; never replace files under an old acceptance. Re-run status before downstream work because changed files, dependencies or style/profile make prior acceptance stale.
+A `human` gate is met in one of two ways. Either way the run records who decided and through which channel.
+
+**In the catalog.** `jam catalog open` starts the review site for this checkout if it is not running, and `jam run request-review <id> <step>` then submits the step's files and evidence and prints a link to that review. Give the person that link in the same message that says what they are deciding. The link opens on the computer where the project is, while the site runs; say so when the person may be elsewhere. Their decision is read by `jam run status <id>`: approving every part accepts the step; asking for changes or rejecting returns it with their comment.
+
+**By relay.** When the person answered you directly, record their words:
+
+```
+jam run review <id> <step> --accept --relay "<where they answered>: <their words, verbatim>"
+```
+
+A relay is honest only when the person was shown this exact candidate and answered about it. Quote them; do not paraphrase into an approval. Silence, a general "looks good" about something else, or an answer to a different question is not a decision. `--revise --relay` records a requested change the same way.
+
+An agent's own `--accept` is refused on a human gate. `request-review` is refused for work the catalog does not list (a recipe that delivers nothing, or a project without the `jam` catalog plugin); its `fix:` line says so, and the answer is then relayed.
+
+## Asking a person to review
+
+One request, one decision. The message carries:
+
+- what is being decided, in a sentence a non-programmer can act on ("Is this the barrel you want modelled?");
+- the original images or the link, never a resized collage or a description in their place;
+- what changed since they last looked, and any defect you already know of;
+- the choices: accept, change something (say what), or reject.
+
+Wording patterns are in [interaction.md](interaction.md#review-request). Work that needs the answer waits for it; independent work continues.
+
+## Guarding a decision
+
+`--record <record id>` on `jam run review` refuses the decision when the step has been recorded again since the candidate was reviewed. Use it when time passed between showing the work and recording the answer.

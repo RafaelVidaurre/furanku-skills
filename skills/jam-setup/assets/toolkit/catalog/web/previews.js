@@ -1,37 +1,40 @@
-// Collection preview modules. The project declares a module per collection kind; built-ins live
-// here and project modules are trusted files named in catalog.config.json `previewModules`.
-// A module is `export default function (ctx) { return ctx.html`...` }` and receives:
-//   ctx.html, ctx.viewers ({ ModelViewer, ImageViewer, VideoViewer }), ctx.members
-//   ([{ unit, part, role, asset: { url, kind, sha256, state, error } }]), ctx.base (asset or null),
-//   ctx.config (declared object), ctx.label, ctx.viewerId and ctx.source (pass both to the viewer
-//   so people and agents share its state and controls).
+// Collection previews: one picture of a whole collection, made from its members' media. A
+// collection kind names its preview; the page's kinds and the project's plugins supply them.
+// A preview is `(ctx) => markup` and receives:
+//   ctx.html, ctx.MediaViewer and ctx.viewers (the viewer components the registered kinds offer,
+//   by name), ctx.members ([{ unit, part, role, asset: { url, kind, sha256, state, error } }]),
+//   ctx.base (asset or null), ctx.config (the declared object), ctx.label, and ctx.viewerId and
+//   ctx.source (pass both to the viewer so people and agents share its state and controls).
+// A project module is a declared file that default-exports such a function.
 import { html, useEffect, useState } from './core.js';
-import { ModelViewer, ImageViewer, VideoViewer, UnavailableViewer } from './viewers.js';
+import { registeredKinds, mediaKind, useMediaKinds } from './media-kinds.js';
+import { MediaViewer, UnavailableViewer } from './viewers.js';
 
-const BUILTIN = {
-  // Member models in one shared space, with the optional base shown in grey.
-  'assembled-mesh': (ctx) => {
-    const models = ctx.members.filter((m) => m.asset.kind === 'model');
-    if (!models.length) return html`<${UnavailableViewer} viewerId=${ctx.viewerId} source=${ctx.source} asset=${{ kind: 'model' }} message="No member models" />`;
-    return html`<${ModelViewer} srcs=${models.map((m) => m.asset.url)} ghost=${ctx.base ? [ctx.base.url] : []} viewerId=${ctx.viewerId} source=${ctx.source} label=${ctx.label}
-      initialCamera=${ctx.initialCamera} initialState=${ctx.initialState} />`;
-  },
-};
+const builtin = new Map();
 const loaded = new Map();
+
+/** Add a preview the page itself provides, under the name a collection kind refers to. */
+export function registerPreview(name, render) {
+  if (typeof render !== 'function') throw new Error(`preview ${name} must be a function`);
+  builtin.set(name, render);
+}
+
+const viewerComponents = () => Object.assign({}, ...registeredKinds().map((id) => mediaKind(id).components ?? {}));
 
 // Every declared input (members and base) must be available, and a project module must be the
 // expected revision; otherwise the preview is an explicit error that cannot be captured.
 export function PreviewHost({ module, moduleUrl, moduleError, ...ctx }) {
   const missing = [...ctx.members.filter((m) => m.asset?.state !== 'ok').map((m) => `${m.unit} ${m.role ?? ''}`.trim() + ` (${m.asset?.error ?? m.asset?.state ?? 'missing'})`), ...(ctx.base && ctx.base.state !== 'ok' ? [`base (${ctx.base.error ?? ctx.base.state})`] : [])];
   const blocked = moduleError ?? (missing.length ? `Preview inputs unavailable: ${missing.join('; ')}` : null);
-  return blocked ? html`<${UnavailableViewer} viewerId=${ctx.viewerId} source=${ctx.source} asset=${{ kind: 'model' }} message=${blocked} />` : html`<${LoadedPreview} module=${module} moduleUrl=${moduleUrl} ...${ctx} />`;
+  return blocked ? html`<${UnavailableViewer} viewerId=${ctx.viewerId} source=${ctx.source} message=${blocked} />` : html`<${LoadedPreview} module=${module} moduleUrl=${moduleUrl} ...${ctx} />`;
 }
 
 function LoadedPreview({ module, moduleUrl, ...ctx }) {
-  const [fn, setFn] = useState(() => BUILTIN[module] ?? loaded.get(moduleUrl) ?? null);
+  useMediaKinds();
+  const [fn, setFn] = useState(() => builtin.get(module) ?? loaded.get(moduleUrl) ?? null);
   const [error, setError] = useState(null);
   useEffect(() => {
-    if (BUILTIN[module]) { setFn(() => BUILTIN[module]); return; }
+    if (builtin.has(module)) { setFn(() => builtin.get(module)); return; }
     if (!moduleUrl) { setError(`Preview module "${module}" is not available in this checkout`); return; }
     if (loaded.has(moduleUrl)) { setFn(() => loaded.get(moduleUrl)); return; }
     let live = true;
@@ -40,5 +43,5 @@ function LoadedPreview({ module, moduleUrl, ...ctx }) {
   }, [module, moduleUrl]);
   if (error) return html`<${UnavailableViewer} viewerId=${ctx.viewerId} source=${ctx.source} message=${error} />`;
   if (!fn) return html`<div class="viewer"><div class="viewer-msg"><span class="spin"></span></div></div>`;
-  return fn({ html, viewers: { ModelViewer, ImageViewer, VideoViewer }, ...ctx });
+  return fn({ html, MediaViewer, viewers: viewerComponents(), ...ctx });
 }

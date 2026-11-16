@@ -1,14 +1,20 @@
 import { h } from 'preact';
-import { useEffect, useRef, useState, useCallback } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'preact/hooks';
 import htm from 'htm';
+import { mediaKind, useMediaKinds } from './media-kinds.js';
 
 export const html = htm.bind(h);
-export { useEffect, useRef, useState, useCallback };
+export { useEffect, useLayoutEffect, useRef, useState, useCallback };
 export const enc = encodeURIComponent;
 
 // ---------- Server actions ----------
 // Every write carries the context it was prepared in and a request id that a retry reuses.
-export const session = { boot: null, ctx: null, rev: 0, changed: null };
+// `ctx` is the small `context` answer the page polls; `schema` (types, scopes, media kinds) is
+// fetched again only when the context's `version` says it changed.
+export const session = { boot: null, ctx: null, schema: null, rev: 0, changed: null };
+const schemaListeners = new Set();
+/** Called with each new schema, the first one included (app.js loads the kinds' modules from it). */
+export function onSchema(f) { schemaListeners.add(f); }
 const subs = new Set();
 const notify = () => subs.forEach((f) => f());
 export function useSession() {
@@ -44,8 +50,13 @@ export async function write(action, input, requestId = newRequestId()) {
   return res;
 }
 
+async function loadSchema() {
+  const schema = await call('schema');
+  session.schema = schema;
+  await Promise.all([...schemaListeners].map((f) => f(schema)));
+}
 export async function boot() {
-  session.boot = await call('context');
+  [session.boot] = await Promise.all([call('context'), loadSchema()]);
   session.ctx = session.boot;
   notify();
   const poll = async () => {
@@ -53,9 +64,11 @@ export async function boot() {
     try {
       const c = await call('context');
       const prev = session.ctx;
+      // The schema is large and changes rarely: it is fetched when the version moved, never per poll.
+      if (c.version !== session.schema?.version) await loadSchema();
       session.ctx = c;
       if (c.context.key !== session.boot.context.key) session.changed = c.context;
-      if (prev && (c.version !== prev.version || c.records !== prev.records || c.context.dirty !== prev.context.dirty || c.context.head !== prev.context.head)) session.rev++;
+      if (prev && (c.version !== prev.version || c.records !== prev.records || c.context.head !== prev.context.head)) session.rev++;
       session.offline = false;
       notify();
     } catch { session.offline = true; notify(); }
@@ -63,6 +76,15 @@ export async function boot() {
   setInterval(poll, 2500);
   document.addEventListener('visibilitychange', poll);
 }
+
+// ---------- Scopes: the top-level split of units, as the project's schema declares it ----------
+export const scopes = () => session.schema?.scopes ?? [];
+export const scopeOf = (section) => scopes().find((s) => s.id === section) ?? null;
+export const defaultScope = () => scopes()[0]?.id ?? 'content';
+/** The sections that list things: every scope, plus collections and files. */
+export const isListSection = (section) => !!scopeOf(section) || section === 'collections' || section === 'files';
+export const sectionLabel = (section) => scopeOf(section)?.label ?? { collections: 'Collections', files: 'Files', reviews: 'Reviews', notes: 'Notes', inbox: 'Needs attention' }[section] ?? section;
+export const kindLabel = (kind) => mediaKind(kind)?.label ?? session.schema?.mediaKinds?.[kind]?.label ?? 'Unknown';
 
 // Fetch an action result; keeps the previous data while refreshing and re-runs on catalog changes.
 export function useQuery(action, input, enabled = true) {
@@ -77,7 +99,10 @@ export function useQuery(action, input, enabled = true) {
     call(action, input).then((data) => mine === seq.current && set({ data, error: null, loading: false, key }), (error) => mine === seq.current && set((x) => ({ data: x.key === key ? x.data : null, error, loading: false, key })));
   }, [key, enabled]);
   useEffect(reload, [key, s.rev, enabled]);
-  return { ...state, data: state.key === key || state.data === null ? state.data : state.data, stale: state.key !== key, reload };
+  // A previous query's results cannot describe this tab, filter or entity.
+  // Preserve data only for a refresh of the same query.
+  const stale = state.key !== key;
+  return { ...state, data: stale ? null : state.data, error: stale ? null : state.error, loading: stale || state.loading, stale, reload };
 }
 
 // ---------- Drafts: keyed by checkout context + stable target identity ----------
@@ -109,12 +134,12 @@ addEventListener('beforeunload', (e) => { if (dirtyDrafts.size && storageError) 
 
 // ---------- Router: #/<section>[/<kind>/<id>[/<member>]][?query] ----------
 export function parseHash() {
-  const raw = location.hash.slice(1) || '/content';
+  const raw = location.hash.slice(1) || `/${defaultScope()}`;
   const i = raw.indexOf('?');
   const p = i < 0 ? raw : raw.slice(0, i); const q = i < 0 ? '' : raw.slice(i + 1);
   let seg;
-  try { seg = p.split('/').filter(Boolean).map(decodeURIComponent); } catch { seg = ['content']; }
-  return { section: seg[0] ?? 'content', kind: seg[1], id: seg[2], member: seg[3], query: new URLSearchParams(q) };
+  try { seg = p.split('/').filter(Boolean).map(decodeURIComponent); } catch { seg = []; }
+  return { section: seg[0] ?? defaultScope(), kind: seg[1], id: seg[2], member: seg[3], query: new URLSearchParams(q) };
 }
 export function href({ section, kind, id, member, query }) {
   let p = `#/${section}`;
@@ -136,11 +161,13 @@ export function withQuery(r, changes) {
   return { ...r, query: q };
 }
 export const listParams = (q) => new URLSearchParams([...q].filter(([k]) => k === 'q' || k === 'page' || k.startsWith('f.')));
-const SECTION = { unit: ['content', 'u'], collection: ['collections', 'c'], asset: ['assets', 'a'] };
+const SECTION = { unit: [null, 'u'], collection: ['collections', 'c'], asset: ['files', 'a'] };
 export function entityHref(kind, id, extra = {}) {
   if (kind === 'submission') return href({ section: 'reviews', kind: 's', id, member: extra.item, query: new URLSearchParams(Object.entries(extra).filter(([k]) => k !== 'item')) });
   const cur = parseHash();
-  const [section, k] = SECTION[kind];
+  const [fixed, k] = SECTION[kind];
+  // A unit lives under its scope.
+  const section = fixed ?? session.schema?.unitScopes?.[id] ?? defaultScope();
   const query = cur.section === section ? listParams(cur.query) : new URLSearchParams();
   for (const [a, b] of Object.entries(extra)) query.set(a, b);
   return href({ section, kind: k, id, query });
@@ -172,7 +199,7 @@ export function Toasts() {
 
 // ---------- Glyphs ----------
 const G = {
-  image: 'M3 4h14v12H3z M3 13l4-4 3 3 2-2 5 5', model: 'M10 2l7 4v8l-7 4-7-4V6z M3 6l7 4 7-4 M10 10v8', video: 'M3 4h14v12H3z M8 7.5v5l4.5-2.5z',
+  picture: 'M3 4h14v12H3z M3 13l4-4 3 3 2-2 5 5', file: 'M5 2h7l4 4v12H5z M12 2v4h4', inbox: 'M3 11l2-7h10l2 7v5H3z M3 11h4l1 2h4l1-2h4',
   note: 'M4 3h12v10l-4 4H4z M12 17v-4h4', check: 'M4 10.5l4 4 8-9', x: 'M5 5l10 10 M15 5L5 15', copy: 'M7 7h10v10H7z M3 13V3h10', plus: 'M10 4v12 M4 10h12',
   chev: 'M7 4l6 6-6 6', back: 'M13 4l-6 6 6 6', search: 'M8.5 3a5.5 5.5 0 1 1 0 11a5.5 5.5 0 0 1 0-11z M13 13l4 4',
   branch: 'M6 3v10 M6 13a2 2 0 1 0 0 4a2 2 0 0 0 0-4z M14 3a2 2 0 1 0 0 4a2 2 0 0 0 0-4z M14 7c0 4-8 3-8 6',
@@ -181,8 +208,9 @@ const G = {
   stop: 'M10 3a7 7 0 1 1 0 14a7 7 0 0 1 0-14z M5 5l10 10', warn: 'M10 3l8 14H2z M10 8v4 M10 14.5v.01', expand: 'M3 8V3h5 M17 8V3h-5 M3 12v5h5 M17 12v5h-5', send: 'M3 10l14-6-6 14-2-6z',
   split: 'M3 4h14v12H3z M10 2v16',
 };
-export function Icon({ name, size = 14, cls = '' }) {
-  return html`<svg class=${`ic ${cls}`} width=${size} height=${size} viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d=${G[name]} /></svg>`;
+// `path` (SVG path data for a 20×20 box) wins over a named glyph: media kinds bring their own.
+export function Icon({ name, path, size = 14, cls = '' }) {
+  return html`<svg class=${`ic ${cls}`} width=${size} height=${size} viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d=${path ?? G[name]} /></svg>`;
 }
 
 // ---------- Small components ----------
@@ -203,16 +231,21 @@ export function VerdictBar({ parts }) {
   const t = parts.map((p) => `${p.label}: ${p.verdict ? VERDICT[p.verdict] : 'undecided'}${p.changed ? ' (changed since)' : ''}`).join('\n');
   return html`<span class="vbar" title=${t} role="img" aria-label=${t}>${parts.map((p) => html`<i class=${(p.verdict ?? 'none') + (p.changed ? ' changed' : '')}></i>`)}</span>`;
 }
-export const kindIcon = (k) => ({ image: 'image', model: 'model', video: 'video' }[k] ?? 'image');
+// The small glyph of a media kind, as its kind registered it.
+export function KindIcon({ kind, size = 14 }) {
+  useMediaKinds();
+  return html`<${Icon} path=${mediaKind(kind)?.icon} name="file" size=${size} />`;
+}
 
-// Thumbnail of an asset reference ({kind,url,sha256,state}). Models render through thumbs.js.
+// Thumbnail of an asset reference ({ kind, url, version, sha256, state }), drawn by its kind.
 export function Thumb({ asset, size = 40, label, fill }) {
+  useMediaKinds();
   const style = fill ? '' : `width:${size}px;height:${size}px`;
   if (!asset) return html`<span class=${`thumb empty${fill ? ' fill' : ''}`} style=${style}>${label ?? ''}</span>`;
   if (asset.state && asset.state !== 'ok') return html`<span class=${`thumb err${fill ? ' fill' : ''}`} style=${style} title=${asset.error ?? asset.state}><${Icon} name="warn" size=${Math.min(18, size / 2 || 18)} /></span>`;
-  if (asset.kind === 'model') return html`<span class=${`thumb${fill ? ' fill' : ''}`} style=${style}><model-thumb src=${asset.url} sha=${asset.sha256}></model-thumb></span>`;
-  if (asset.kind === 'video') return html`<span class=${`thumb${fill ? ' fill' : ''}`} style=${style}><video src=${`${asset.url}#t=0.5`} muted playsinline preload="metadata" tabindex="-1" aria-hidden="true"></video></span>`;
-  return html`<span class=${`thumb${fill ? ' fill' : ''}`} style=${style}><img src=${asset.url} alt="" loading="lazy" decoding="async" /></span>`;
+  const kind = mediaKind(asset.kind);
+  if (!kind?.thumbnail) return html`<span class=${`thumb plain${fill ? ' fill' : ''}`} style=${style} title=${kindLabel(asset.kind)}><${Icon} path=${kind?.icon} name="file" size=${Math.min(22, size / 2 || 22)} /></span>`;
+  return html`<span class=${`thumb${fill ? ' fill' : ''}`} style=${style}><${kind.thumbnail} asset=${asset} size=${size} /></span>`;
 }
 export function CopyId({ id, label }) {
   return html`<button class="id" title="Copy reference" onClick=${() => { navigator.clipboard?.writeText(id).then(() => toast(`Copied ${id}`), () => toast(`Copy failed; select ${id}`, 'err')); }}>${label ?? id}<${Icon} name="copy" size=${11} /></button>`;

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "engine-conform-skeleton-receipt.schema.json",
+  "$ref": "#/$defs/EngineConformReceipt",
+  "$defs": {
+    "EngineConformReceipt": {
+      "type": "object",
+      "properties": {
+        "files": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "string",
+              "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+              "description": "Project-relative path with forward slashes"
+            }
+          ],
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+            "description": "Project-relative path with forward slashes"
+          }
+        },
+        "report": {
+          "type": "string",
+          "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+          "description": "Project-relative path with forward slashes"
+        }
+      },
+      "required": [
+        "files"
+      ],
+      "additionalProperties": false,
+      "title": "Receipt printed by an adapter's conform-skeleton command"
+    }
+  }
+}

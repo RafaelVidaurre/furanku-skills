@@ -1,0 +1,187 @@
+{
+  "$schema": "../schemas/engine-adapter.schema.json",
+  "id": "godot",
+  "label": "Godot (facts only)",
+  "versions": "4",
+  "facts": {
+    "unitsPerMeter": 1,
+    "up": "+Y",
+    "forward": "+Z",
+    "handedness": "right",
+    "assetId": {
+      "scheme": "res://{path}",
+      "from": "{path}"
+    },
+    "mesh": {
+      "static": "glb",
+      "skinned": "glb"
+    },
+    "textures": {
+      "normalGreen": "up",
+      "packed": "ORM"
+    },
+    "collision": {
+      "convention": "name-suffix"
+    },
+    "audio": {
+      "container": "wav"
+    },
+    "binaries": {
+      "lfs": [
+        "*.scn",
+        "*.res",
+        "*.material",
+        "*.anim",
+        "*.mesh",
+        "*.lmbake"
+      ]
+    },
+    "extra": {
+      "cameraForward": "-Z",
+      "collisionSuffixes": {
+        "-col": "keep the mesh and add a static collision child with a triangle-mesh shape of the same geometry",
+        "-convcol": "as -col, with a convex polygon shape",
+        "-colonly": "remove the mesh and create a static body collision in its place",
+        "-convcolonly": "as -colonly, with convex shapes made by convex decomposition"
+      },
+      "otherNameSuffixes": [
+        "-noimp",
+        "-occ",
+        "-occonly",
+        "-navmesh",
+        "-vehicle",
+        "-wheel",
+        "-rigid",
+        "-loop",
+        "-cycle",
+        "-alpha",
+        "-vcol"
+      ],
+      "fileNames": "snake_case",
+      "nodeNames": "PascalCase",
+      "audioFormatsImported": [
+        "wav",
+        "ogg",
+        "mp3"
+      ],
+      "versionControl": {
+        "ignore": [
+          ".godot/",
+          "*.translation"
+        ],
+        "commit": [
+          "*.import"
+        ]
+      }
+    }
+  },
+  "commands": {
+    "import": null,
+    "inspect": null,
+    "references": null,
+    "capture": null,
+    "check": null,
+    "conform-skeleton": null
+  },
+  "docs": {
+    "import": "godot.md",
+    "inspect": "godot.md"
+  },
+  "sources": [
+    {
+      "fact": "unitsPerMeter",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/3d/introduction_to_3d.html",
+      "says": "\"Godot uses the metric system for everything in 3D, with 1 unit being equal to 1 meter.\""
+    },
+    {
+      "fact": "up",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/assets_pipeline/importing_3d_scenes/model_export_considerations.html",
+      "says": "\"a right-handed, Y-is-up coordinate system, with the -Z axis as the camera's forward direction\"; for oriented assets \"the +Z axis is the direction of the front\"."
+    },
+    {
+      "fact": "forward",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/assets_pipeline/importing_3d_scenes/model_export_considerations.html",
+      "says": "\"a right-handed, Y-is-up coordinate system, with the -Z axis as the camera's forward direction\"; for oriented assets \"the +Z axis is the direction of the front\"."
+    },
+    {
+      "fact": "handedness",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/assets_pipeline/importing_3d_scenes/model_export_considerations.html",
+      "says": "\"a right-handed, Y-is-up coordinate system, with the -Z axis as the camera's forward direction\"; for oriented assets \"the +Z axis is the direction of the front\"."
+    },
+    {
+      "fact": "extra.cameraForward",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/assets_pipeline/importing_3d_scenes/model_export_considerations.html",
+      "says": "\"a right-handed, Y-is-up coordinate system, with the -Z axis as the camera's forward direction\"; for oriented assets \"the +Z axis is the direction of the front\"."
+    },
+    {
+      "fact": "assetId",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/scripting/filesystem.html",
+      "says": "\"The path res:// will always point at the project root (where project.godot is located)\"."
+    },
+    {
+      "fact": "mesh",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/assets_pipeline/importing_3d_scenes/available_formats.html",
+      "says": "\"glTF 2.0 (recommended)\", in text (.gltf) and binary (.glb) form; FBX imports through ufbx since 4.3."
+    },
+    {
+      "fact": "textures.normalGreen",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/3d/standard_material_3d.html",
+      "says": "\"Godot requires the normal map to use the X+, Y+ and Z+ coordinates, this is known as OpenGL style.\""
+    },
+    {
+      "fact": "textures.packed",
+      "url": "https://docs.godotengine.org/en/stable/classes/class_basematerial3d.html",
+      "says": "ORM texture: ambient occlusion in red, roughness in green, metallic in blue; alpha ignored."
+    },
+    {
+      "fact": "collision",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/assets_pipeline/importing_3d_scenes/node_type_customization.html",
+      "says": "Name suffixes change the imported node; they \"can be used with -, $, and _ and are case-insensitive\"."
+    },
+    {
+      "fact": "extra.collisionSuffixes",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/assets_pipeline/importing_3d_scenes/node_type_customization.html",
+      "says": "Name suffixes change the imported node; they \"can be used with -, $, and _ and are case-insensitive\"."
+    },
+    {
+      "fact": "extra.otherNameSuffixes",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/assets_pipeline/importing_3d_scenes/node_type_customization.html",
+      "says": "Name suffixes change the imported node; they \"can be used with -, $, and _ and are case-insensitive\"."
+    },
+    {
+      "fact": "audio",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/assets_pipeline/importing_audio_samples.html",
+      "says": "\"Consider using WAV for short and repetitive sound effects, and Ogg Vorbis for music, speech, and long sound effects.\""
+    },
+    {
+      "fact": "extra.audioFormatsImported",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/assets_pipeline/importing_audio_samples.html",
+      "says": "\"Consider using WAV for short and repetitive sound effects, and Ogg Vorbis for music, speech, and long sound effects.\""
+    },
+    {
+      "fact": "extra.fileNames",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/best_practices/project_organization.html",
+      "says": "\"Use snake_case for folder and file names\"; \"Use PascalCase for node names\"."
+    },
+    {
+      "fact": "extra.nodeNames",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/best_practices/project_organization.html",
+      "says": "\"Use snake_case for folder and file names\"; \"Use PascalCase for node names\"."
+    },
+    {
+      "fact": "binaries.lfs",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/best_practices/version_control_systems.html",
+      "says": "Sample .gitattributes tracks *.scn, *.res, *.material, *.anim, *.mesh and *.lmbake in Git LFS; ignore .godot/ and *.translation."
+    },
+    {
+      "fact": "extra.versionControl",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/best_practices/version_control_systems.html",
+      "says": "Sample .gitattributes tracks *.scn, *.res, *.material, *.anim, *.mesh and *.lmbake in Git LFS; ignore .godot/ and *.translation."
+    },
+    {
+      "fact": "extra.versionControl",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/assets_pipeline/import_process.html",
+      "says": "Each source gets a <asset>.import file beside it: \"Make sure to commit these files to your version control system\"."
+    }
+  ]
+}

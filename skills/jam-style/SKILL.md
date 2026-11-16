@@ -1,22 +1,34 @@
 ---
 name: jam-style
-description: Discover and refine a game's art style through visual comparisons, targeted studies and gameplay-camera images, then save the approved direction and reference library. Use when the user wants to find, explore, compare or change their game's art style or look, run a style study, or set the visual rules and budgets assets follow.
+description: Find and fix a game's art style through rounds of comparison images, then save the approved pictures and rules that production work follows. Use when the user wants to find, explore, compare or change the look of their game, asks for a style study, or when a run reports that no style document is set.
 ---
 
-# Discover the game's art style
+# Art style
 
-Help the user choose a coherent visual language for their game: character proportions and silhouettes, environment shapes, surfaces and shading, palette, lighting, and readability in play. Every gameplay image must be one the user would believe is a screenshot of their game in play, from the game's determined camera. Success is pictures that make those decisions easier, followed by reusable visual rules and approved references; an attractive standalone picture or a finished batch does not establish the style.
+One operation: from "what should this game look like" to an approved library of pictures and a style document. Every gameplay image must be one the person would believe is a screenshot of their game. `jam` below is `node tools/jam/jam.mjs`; runs, gates and a missing toolkit are the `jam-recipe` skill's. Talking about references and looking for them needs no toolkit at all.
 
-When `tools/jam/jam.mjs` is missing from the project, use the `jam-setup` skill first (when it is not installed: `npx skills add rafaelvidaurre/furanku-skills --skill jam-setup`); visual discussion and reference search can start before it. For an initial round, read the conversation and comparison sections of `tools/jam/docs/style-exploration.md`, then the selected image route and `tools/jam/docs/style-images.md` when generating. Coverage, custody, cleanup and production documents wait until their stage.
+1. **Brief, once.** Establish the game, its presentation (2D, 3D or a mix), a confirmed camera rig in physical terms, a representative subject and what the person means by their references: `tools/jam/docs/style-exploration.md#the-brief`. Read the project's notes and earlier rounds (`jam run status`) before asking anything. Done when you can say what the next pictures will help decide, what stays fixed and what varies.
+2. **Route.** Use the image route already chosen. Otherwise find the callable routes and offer them, including the ones that cost nothing extra, alongside image search and images the person supplies: `tools/jam/docs/providers.md#routes`. Done when the route is chosen and has answered in this session.
+3. **Run a round** as `tools/jam/docs/style-exploration.md#a-round` lays out: state its question, start a run for it (`jam run start image <round id> --brief <file>`), generate the agreed number of options, inspect them, show the originals. Gameplay images are built and measured as `tools/jam/docs/style-images.md` says. Record the round:
 
-## Work as an art-direction partner
+   ```
+   jam run record <round id> concept --file <a.png> --file <b.png> --file <c.png> --file <d.png> \
+     --evidence prompts=<prompts.md> --note "<the round's question and what varies>" --tool "<image tool and version>"
+   ```
 
-1. **Find the next visual decision.** Read existing context and the current round record. Establish the game's activity, presentation and a confirmed gameplay camera rig, plus the user's tastes and exclusions, only as far as the next useful comparison needs. Ask one consequential question at a time. When the user cannot name a style, offer a recommendation and a visual exploration; pictures come before a finished definition. Follow `tools/jam/docs/style-exploration.md`. Done when the round's question is stated.
-2. **Choose pictures that answer it.** For broad discovery, compare distinct coherent treatments of the same representative subject. For refinement, isolate the uncertain quality. Character, outfit, environment, material and lighting studies are legitimate art direction; use the requested framing and say what each can establish, then connect chosen qualities back to a gameplay view. Keep the request's image count, subjects and grouping (`tools/jam/docs/style-exploration.md#show-a-small-meaningful-comparison`). Done when each planned image has a subject and the quality it tests.
-3. **Generate and inspect the agreed round.** Reuse the selected image route (`tools/jam/docs/images.md`) and the conversation's authorization (`tools/jam/docs/task-intent.md`); ask only about a real open decision. Follow `tools/jam/docs/style-images.md`: fresh sessions for independent images, deliberate reference roles, faithful prompt handoff, and inspection against the round's question. Show the original images directly in the conversation with short factual captions. Done when the user has seen every image.
-4. **Help the user converge.** Explain the useful differences, recommend a direction with a reason tied to the game, and ask what to keep or change. Record selected qualities, rejected qualities and uncertainties, leaving approval to the user. Propose the next highest-value comparison or the transfer into gameplay. A study can settle one quality while others stay open; model failures do not redefine the user's preferences. Done when the user's choices are recorded.
-5. **Preserve and test the direction across the game.** Build representative coverage (`tools/jam/docs/style-coverage.md`), including gameplay-scale evidence and at least three distinct approved hero shots for a complete library. Save approved progress per `tools/jam/docs/style-exploration.md#carry-the-decision-forward`, and clean up (`tools/jam/docs/style-cleanup.md`) only after closure. A requested study can end with a clearly partial library.
+   Done when the person has seen every image and the run holds them.
+4. **Converge.** Say which differences matter, recommend one direction with a reason from the game, and ask what to keep or change (`tools/jam/docs/style-exploration.md#converge`). Record the answer in their words: `jam run review <round id> concept --accept --relay "<where they answered>: <their words>"`. Repeat steps 3 and 4 until they settle on a direction. Done when the chosen and rejected qualities are in the next round's brief or the library.
+5. **Build and save the library**: at least three approved shots that cover the game's situations, saved to a tracked folder with their provenance, one style document, and the registration below (`tools/jam/docs/style-library.md`).
 
-Production budgets come on demand: read `tools/jam/docs/contracts.md` and `tools/jam/docs/asset-workflows.md` when production needs them. Images set visual targets, not measured triangle counts, performance or engine acceptance. A style change keeps prior approvals as history and explains its effect on active assets.
+   ```
+   jam config set style.document <guide.md>
+   jam config set style.references '["<shot>", "<shot>", "<shot>"]'
+   jam config set style.revision <name>
+   ```
 
-**Report:** what the pictures helped decide, what remains uncertain, and the next useful visual step, keeping the user's approvals apart from the agent's recommendations, and saved files apart from committed or pushed work.
+   Done when `jam config show style` lists the document, the shots and the revision, and every listed file opens. A set with gaps is saved and reported as in progress.
+6. **Close** a completed exploration by cleaning its scratch as `tools/jam/docs/style-library.md#close-the-exploration` says.
+
+Pictures set visual targets. Triangle and texture budgets are decided later, from the game's camera and platform (`tools/jam/docs/settings.md#budgets`). Changing an approved direction is a new revision: say which runs it makes stale before setting it.
+
+**Report:** what the pictures decided, what is still open, and the next useful picture, keeping the person's approvals apart from your recommendations and saved files apart from committed ones.

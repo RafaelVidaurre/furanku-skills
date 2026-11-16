@@ -1,59 +1,81 @@
-# Asset tooling setup
+# Setup reference
 
-The `jam-setup` skill installs and upgrades this toolkit (`tools/jam/`) with one command and walks the decisions below; install the jam skills with `npx skills add rafaelvidaurre/furanku-skills --skill <name>`. `node <jam-setup skill dir>/scripts/install.mjs --check` reports whether the installed toolkit matches the skill's bundled copy.
+Depth for the `jam-setup` skill: reading the installer's summary, this machine's tools, handing a sign-in to the person, and what an upgrade from version 1 changes. `jam doctor` is the one command that says what is missing; each of its lines has a status and a fix.
 
-## Guided project decisions
+## Installer summary
 
-`setup` is a portable Node terminal wizard. It previews the exact config before writing it, preserves existing config, and never authenticates or spends. For an agent-led setup, walk through these decisions in order, reusing known answers:
+The installer prints one JSON object and exits 2 when the toolkit's npm packages failed to install.
 
-1. Style guide/reference ownership: use existing direction, including any approved hero-shot gallery already saved by `jam-style`, and register its durable paths in `style.document`/`style.references`. Preserve its partial/complete [coverage status](style-coverage.md); a single registered shot does not establish style completion. Otherwise leave it unresolved and use `jam-style` for [visual exploration](style-exploration.md). Setup does not require a camera/style/setting/palette questionnaire.
-2. Review preference: human at every stage, human concept/turnaround/delivery checkpoints, or agent review. A human can request more involvement per run.
-3. Mesh route and spending: paid generation starts disabled. When a paid job is first needed, ask the mesh route (direct Meshy or Scenario-hosted models; both remain available per operation) and each billing provider's limit independently, using the labels and three choices in [project settings](settings.md#spending). Explain Scenario's Compute Units before using “CU.”
-4. Asset profiles are optional setup work: resolve them when selecting mesh generation after the turnaround, or when the user requests profile setup. Reuse known platform/camera facts; defer triangle/texture decisions that do not affect the current image stage. Profiles cover platform/renderer, camera distance/screen coverage/instance estimate, static/deforming, triangles/materials/texture size and memory, units/axes/pivot. Deforming profiles need skeleton, influences and pose evidence.
+| Field | Read it as |
+| --- | --- |
+| `installed` | `installed`, `upgraded` or `reinstalled (unchanged)` |
+| `dependencies.jam` | `installed`, or `failed: <reason>`: fix the reason and run the installer again |
+| `dependencies.imaging` | `available`, `installed in private venv`, or `missing: <reason>`. Needed only for cropping turnarounds |
+| `configuration` | `missing` (run `jam setup`), `version 2`, or the result of migrating a version 1 file |
+| `roots` | The content folders `.gitignore` and Git LFS rules were written for. After choosing other folders in `jam setup`, run the installer again |
+| `catalogConfig`, `catalogManifest` | What was created or migrated for the catalog |
+| `lfs` | Whether content binaries are tracked in Git LFS, or why not |
+| `dcc.blender` | The Blender found, or `null`: needed only for local Blender steps |
+| `doctor` | `jam doctor`'s report |
+| `fixes` | Missing tools, each with what it is for and the install command for this operating system |
+| `next` | What remains, in order |
 
-Leave profiles for later rather than inventing values. When answers were collected in conversation, write only those decisions to a temporary choices JSON and use `setup --from <relative-path>`. Delete that temporary input afterward; `jam.config.json` is canonical. For an existing config, use [project settings](settings.md) for spending/checkpoints; edit only decided creative fields and run doctor. [Contracts](contracts.md) defines fields; [research](asset-workflows.md) supplies budget proposals, not approved settings.
+The installer stops with a message instead of a summary when:
 
-## Local dependencies
+- **the toolkit folder exists and was not installed by jam-setup:** it belongs to something else. Report it, or install elsewhere with `--dir <folder>`.
+- **locally edited toolkit files would be overwritten:** show the person the listed files. Project recipes, adapters and providers belong under `jam/`, where upgrades leave them alone. `--force` discards the edits, on their say only.
+- **files the toolkit now ships already exist with other content:** the same choice.
 
-The installer handles Node packages, Pillow and Blender discovery. When it reports a gap, fix that one: cropping needs Python 3.10+ with Pillow (`node tools/jam/jam.mjs python -m pip install -r tools/jam/requirements.txt` once `python` in `jam.local.json` points at a private environment), and `jam.local.json` may set `python`, `blender` or `meshy` when they are not on PATH. Use actual discovered paths; do not copy another machine's home directory. Doctor reports executable and Pillow availability without printing environment values. A missing dependency reports its error; no substitute image tool is generated.
+For each entry in `fixes`, say what the tool is for, recommend installing the ones the next task needs, run what the person approves, and run the installer again. An installer that needs administrator rights or a new terminal goes to the person as the exact command and what to do afterwards.
 
-Blender is optional until a local DCC operation is selected. Install an official build suitable for the chosen DCC skill and record its actual version. Use the installed executable (on macOS this may be inside the application bundle). Run headless Blender scripts with `node tools/jam/jam.mjs blender [--factory-startup] <script.py> -- <arguments>`: it takes the executable from `jam.local.json` or PATH and passes arguments without a shell, so the same command works in PowerShell, cmd and POSIX shells. MCP setup follows the installed Blender connector's own instructions. No universal host/port is assumed.
+## This machine
 
-## Direct Meshy: official CLI
+| Tool | Needed for | When missing |
+| --- | --- | --- |
+| Node.js 22.20+ | Everything | Install it first; the toolkit installs its own npm packages on first use |
+| Git, Git LFS | Versioning content binaries | Work continues; binaries are not tracked in LFS until it is installed and the installer is run again |
+| Python 3.10+ with Pillow and numpy | `jam crop` (turnaround views) | The installer makes a private environment when the system Python lacks the packages. By hand: `jam python -- -m pip install -r <toolkit>/requirements.txt` (arguments that start with a dash go after `--`) |
+| Blender | Local model steps and FBX conversion | Optional until such a step is chosen |
+| ffmpeg | Audio processing | Optional until sound or voice work |
 
-Before sign-in, explain [Meshy billing](meshy-billing.md): CLI calls use API credit rates, require Pro or above, and should not be assumed to receive web-only free retries. Installation and free access checks do not generate an asset.
+`jam.local.json` (ignored by Git) holds a path only when a tool is not on PATH: `python`, `blender`, `ffmpeg`, `providers.<id>`. Use paths found on this machine. `jam python` and `jam blender` run those tools without a shell, so one command line works in every terminal.
 
-Read the current [official installation guide](https://raw.githubusercontent.com/meshy-dev/meshy-3d-agent/main/INSTALL.md), then use its supported CLI version and `meshy-3d-generation` skill. The [official provider skills](https://github.com/meshy-dev/meshy-3d-agent) are external dependencies, not renamed `jam-` skills. Install at user scope for the active harness, for example `npx skills add meshy-dev/meshy-3d-agent --skill meshy-3d-generation -g -a codex` (use `-a claude-code` for Claude Code). Use the supported skills installer for the active harness; install only the generation skill needed here.
+## Handing a sign-in to the person
 
-Run the documented CLI version/help and `meshy auth status --format json --no-update-check`. Reuse access only when authenticated and verified; a verification/network failure is a diagnosis, not an automatic new login. If sign-in is missing, follow the [sign-in handoff](sign-in.md) and the official skill's login procedure. Meshy CLI 0.8.5 supports `auth login --device --no-wait --format json --no-update-check`, then `auth login --device-flow <flow_id> --format json --no-update-check` for hosts that must end a turn to deliver instructions. For visible progress, `auth login --device --format json --no-update-check` can stay in one managed tool session. Read its user-facing stderr instruction before waiting; reuse the same flow/process, and replace it only on confirmed expiry/failure. Verify `auth status` and `meshy balance --format json --no-update-check`. Balance is not a quote or proof of plan eligibility; login is not generation evidence.
+The agent prepares and verifies; the person signs in. Credentials never pass through the conversation, a command line or a project file. One provider at a time.
 
-Optional direct Meshy MCP: use only the [official server](https://github.com/meshy-dev/meshy-mcp-server). The human provides `MESHY_API_KEY` through secure environment/secret injection. Never put a value in an MCP command, JSON file or chat, even if an upstream example does. Check the active client's environment inheritance/expansion support first; if it cannot provide the secret safely, use the explicitly chosen OAuth CLI route instead. No secret-entry wrapper is included here.
+1. **Check what is there.** `jam provider probe <id>`, then the provider's own status call from its page, because the probe prints `unknown` for what it cannot see (it holds no credentials and makes no network calls). Installed, signed in (the probe says `authenticated`) and reachable are three separate facts. Access that verifies is reused, and the person is not asked to sign in again.
+2. **Start the provider's own sign-in** as its page in `docs/providers/` says, and read the instructions it prints, including on standard error. A running command does not mean a browser opened or the person saw anything.
+3. **Give the person the instruction packet before any "done?" question:** which provider, where to act (browser, terminal, a named client), the exact steps or link, what success looks like, and what you will check next.
 
-## Scenario: user-scope HTTP OAuth
+   > Open [the link the tool printed], sign in to [the provider], enter [the code] if asked, and approve. The page should confirm it. I will then check the connection and your balance without generating anything.
 
-Use the [official connection guide](https://mcp.scenario.com/docs), then install the required official skills (`scenario`, plus `scenario-image`, `scenario-meshy`, `scenario-3d` as used) at user scope with an explicit harness: `npx skills add scenario-labs/skills --skill scenario scenario-image scenario-meshy scenario-3d -g -a codex` (or `-a claude-code`). Do not use the installer's default project scope. Before modifying a connection, inspect the current client's MCP listing; keep a matching server and do not overwrite a conflicting one without a deliberate decision.
+   Asking "have you signed in?" without this is the failure this procedure exists to prevent. Asked ahead of time what signing in will involve, describe it from the provider's page without starting a flow.
+4. **Keep the flow you started.** When the host hides progress until the turn ends, use the provider's resumable sign-in, end the turn on the instructions, and resume the same flow on the answer. Start a new flow only after a confirmed expiry or failure.
+5. **Keep sign-in material local.** Show only what the provider intends the person to see, on a surface only they see. Codes, code-bearing links and tokens never go into notifications, synced questions, screenshots or files; a notification points to the instructions instead. When the host cannot show them privately, give the command the person runs in their own terminal.
+6. **Verify, then report** each provider as verified, waiting on a named action by the person, or failed with the real reason. "Done" from the person is a signal to verify, not proof.
 
-Claude Code:
+A sign-in proves access. It does not prove a plan allows generation, and it generates nothing.
 
-```sh
-claude mcp add --transport http --scope user scenario https://mcp.scenario.com/mcp
-```
+## Upgrading from version 1
 
-For Claude Code, give the human the concrete `/mcp` → `scenario` → authentication → browser approval steps in [sign-in handoff](sign-in.md), after registration succeeds. Use the current client labels. Codex:
+Running the installer in a version 1 project:
 
-```sh
-codex mcp add scenario --url https://mcp.scenario.com/mcp
-codex mcp login scenario
-```
+- replaces the toolkit folder with version 2 (files it installed before; anything edited there stops the upgrade as described above);
+- runs `jam config migrate` once the packages are installed. Preview it with `jam config migrate --dry-run`. It prints a note for everything it could not carry over exactly;
+- rewrites `catalog.config.json` from one adapter to a list of plugins. A project's own adapter module keeps working as a plugin beside `jam`.
 
-Run the Codex login command yourself and deliver its browser instructions before asking about completion. Installing Scenario skills alone does not create or authenticate the connection. Verify each registration command's result; an existing matching server needs reuse, while another failure needs diagnosis before asking the human to authenticate it.
+What migration does to `jam.config.json`:
 
-Keep provider connections at user scope; leave project MCP files (`.mcp.json`, `.codex/config.toml`) to whatever owns them. Other clients use their documented native HTTP/OAuth configuration at user scope. Headless API-key setup is a human operator step using the provider's official guide, not a reason for an agent to collect secrets. OAuth may require a fresh interactive client session.
+| Version 1 | Version 2 |
+| --- | --- |
+| `profiles` | `budgets`. An incomplete profile is kept as written under `engine.facts.extra.v1Profiles` |
+| Units, axes and pivot in a profile | Kept under `engine.facts.authoring` until an engine adapter is chosen; the adapter's facts then replace them |
+| A profile's skeleton description | `skeletons.<id>.notes`, to be completed with bone names or replaced by an adapter's skeleton |
+| `review` policy per stage and profile | Project recipes under `jam/recipes/` that carry those gates; change one with `jam recipe set` |
+| `spend.<provider>.limit` and `unit` | `spend.<provider>.perRun`, no total cap; the unit comes from the provider descriptor |
+| `providers` | `routes` |
 
-After reconnect/restart, discover Scenario tools, call free `teams_list`, resolve and confirm the intended team/project, and read a relevant model schema. Do not assume a sole team/project is the requested destination if the user has not established scope. Keep confirmed scope in each intent's `scope` and the run authorization; no personal scope is shipped as a project default.
+Version 1 runs stay readable as runs of the `asset` recipe. Version 1 commands map to: `init` → `jam run start`, `status` → `jam run status`, `register` → `jam run record`, `review` → `jam run review`, `job-intent` → `jam job open`, `job-update` → `jam job submitted|done|failed|cancelled|lost`, `settings` → `jam config set`, `check-delivery` → `jam run deliver`. No command takes a hand-written JSON record any more.
 
-## Browser route and readiness
-
-If browser use is the chosen route, use the active environment's supported browser skill/tool. The human signs in. Verify visible account/project, needed controls and download support. Do not assume browser credits share the API balance. A failure on another route does not silently authorize switching to browser use.
-
-Setup is complete for a selected route when the tool is discoverable in the active session, the human completed sign-in/trust, and a free authenticated capability/scope check succeeded. Paid generation, visual quality and native engine import remain separate evidence. Run the original asset task after readiness; do not end at a question whose answer was supplied.
+After an upgrade: `jam doctor`, `jam recipe check`, and `jam run status` to see how open runs read.

@@ -1,0 +1,31 @@
+{
+  "toolkit": "tools/jam",
+  "roots": {
+    "scratch": "Art/.scratch",
+    "delivered": "Art/Assets",
+    "scan": [
+      "Art"
+    ]
+  },
+  "recipes": {
+    "legacy": "asset",
+    "static": "prop",
+    "deforming": "character",
+    "exploration": "image",
+    "providerTest": "provider-test",
+    "providerTestStep": "test"
+  },
+  "stages": [
+    "concept",
+    "turnaround",
+    "mesh",
+    "topology",
+    "uv",
+    "texture",
+    "delivery"
+  ],
+  "catalog": {
+    "adapter": "./tools/jam/catalog-adapter.mjs",
+    "manifest": "Art/catalog.json"
+  }
+}

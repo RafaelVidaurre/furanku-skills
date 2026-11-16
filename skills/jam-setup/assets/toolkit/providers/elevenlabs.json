@@ -1,0 +1,35 @@
+{
+  "$schema": "../schemas/provider.schema.json",
+  "id": "elevenlabs",
+  "label": "ElevenLabs",
+  "unit": {
+    "id": "credits",
+    "label": "ElevenLabs credits",
+    "paid": true
+  },
+  "capabilities": {
+    "sound": {
+      "note": "Text to sound effect, up to 30 seconds per request; loops supported"
+    },
+    "voice": {
+      "note": "Text to speech in an account voice, with delivery markup in square brackets"
+    }
+  },
+  "transports": [
+    {
+      "kind": "cli",
+      "command": "elevenlabs",
+      "probe": [
+        "--version"
+      ],
+      "npmLauncher": true,
+      "note": "Driven by jam audio; sign in with `elevenlabs auth login`"
+    }
+  ],
+  "quote": {
+    "kind": "list",
+    "how": "jam audio sfx generate --dry-run and jam audio voice speak --dry-run print the list-price upper bound; the charge recorded afterwards is how far the account's usage figure moved"
+  },
+  "recovery": "open the account's history in the provider's app and look for a generation with the same text at the time of the call",
+  "docs": "docs/providers/elevenlabs.md"
+}

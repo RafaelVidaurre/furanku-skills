@@ -1,0 +1,272 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "provider.schema.json",
+  "$ref": "#/$defs/ProviderDescriptor",
+  "$defs": {
+    "Landmark": {
+      "type": "string",
+      "enum": [
+        "hips",
+        "spine",
+        "chest",
+        "neck",
+        "head",
+        "shoulder.l",
+        "shoulder.r",
+        "upper-arm.l",
+        "upper-arm.r",
+        "lower-arm.l",
+        "lower-arm.r",
+        "hand.l",
+        "hand.r",
+        "upper-leg.l",
+        "upper-leg.r",
+        "lower-leg.l",
+        "lower-leg.r",
+        "foot.l",
+        "foot.r",
+        "toes.l",
+        "toes.r",
+        "thumb-1.l",
+        "thumb-1.r",
+        "thumb-2.l",
+        "thumb-2.r",
+        "thumb-3.l",
+        "thumb-3.r",
+        "index-1.l",
+        "index-1.r",
+        "index-2.l",
+        "index-2.r",
+        "index-3.l",
+        "index-3.r",
+        "middle-1.l",
+        "middle-1.r",
+        "middle-2.l",
+        "middle-2.r",
+        "middle-3.l",
+        "middle-3.r",
+        "ring-1.l",
+        "ring-1.r",
+        "ring-2.l",
+        "ring-2.r",
+        "ring-3.l",
+        "ring-3.r",
+        "pinky-1.l",
+        "pinky-1.r",
+        "pinky-2.l",
+        "pinky-2.r",
+        "pinky-3.l",
+        "pinky-3.r"
+      ],
+      "description": "A joint of the canonical humanoid vocabulary"
+    },
+    "ProviderDescriptor": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 64
+        },
+        "label": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "unit": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "\\S",
+              "description": "The provider's own spending unit, e.g. credits"
+            },
+            "label": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "paid": {
+              "type": "boolean",
+              "description": "false when use is included in a plan or the agent session, so no spending cap applies"
+            }
+          },
+          "required": [
+            "id",
+            "label",
+            "paid"
+          ],
+          "additionalProperties": false
+        },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "What it can serve, by route name (image, mesh, sound, voice, ...)"
+        },
+        "transports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "cli",
+                  "mcp",
+                  "skill",
+                  "browser",
+                  "agent"
+                ],
+                "description": "cli: a program on this machine. mcp: a server in the agent harness. skill: an installed skill. browser: the provider's site. agent: a tool the agent already has."
+              },
+              "command": {
+                "type": "string",
+                "pattern": "\\S",
+                "description": "cli: the program's name on PATH"
+              },
+              "probe": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "cli: arguments that print a version and exit 0 (default --version)"
+              },
+              "auth": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "cli: arguments that exit 0 only when signed in"
+              },
+              "reach": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "cli: arguments of a free call that exits 0 only when the service answers"
+              },
+              "npmLauncher": {
+                "type": "boolean",
+                "description": "cli: installed through npm (a .cmd shim on Windows)"
+              },
+              "server": {
+                "type": "string",
+                "pattern": "\\S",
+                "description": "mcp: the server's name in the harness configuration"
+              },
+              "name": {
+                "type": "string",
+                "pattern": "\\S",
+                "description": "skill: the skill's name"
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "pacing": {
+          "type": "object",
+          "properties": {
+            "concurrent": {
+              "type": "integer",
+              "maximum": 9007199254740991,
+              "exclusiveMinimum": 0,
+              "description": "Jobs to run at once on one account"
+            },
+            "cooldown": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "retryAfter": {
+              "type": "string",
+              "pattern": "\\S",
+              "description": "Where the provider states how long to wait after a refusal"
+            },
+            "typicalWait": {
+              "type": "string",
+              "pattern": "\\S"
+            }
+          },
+          "additionalProperties": false
+        },
+        "quote": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "exact",
+                "estimate",
+                "list",
+                "none"
+              ]
+            },
+            "how": {
+              "type": "string",
+              "pattern": "\\S"
+            }
+          },
+          "required": [
+            "kind",
+            "how"
+          ],
+          "additionalProperties": false
+        },
+        "rig": {
+          "type": "object",
+          "properties": {
+            "landmarks": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/Landmark"
+              },
+              "description": "For a provider that auto-rigs: which landmark each bone of its skeleton stands at"
+            }
+          },
+          "required": [
+            "landmarks"
+          ],
+          "additionalProperties": false
+        },
+        "recovery": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "What to do when a submission's response is lost"
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "\\S"
+          }
+        },
+        "docs": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Document with the provider's specifics, relative to the toolkit (shipped) or the project"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "unit",
+        "capabilities",
+        "transports"
+      ],
+      "additionalProperties": false,
+      "title": "Provider descriptor (jam/providers/<id>.json)"
+    }
+  }
+}

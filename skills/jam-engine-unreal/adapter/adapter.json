@@ -1,0 +1,265 @@
+{
+  "$schema": "../../../tools/jam/schemas/engine-adapter.schema.json",
+  "id": "unreal",
+  "label": "Unreal Engine",
+  "versions": "5.9",
+  "facts": {
+    "unitsPerMeter": 100,
+    "up": "+Z",
+    "forward": "+X",
+    "handedness": "left",
+    "contentRoot": "Content",
+    "assetId": {
+      "scheme": "/Game/{path}",
+      "from": "Content/{path}.uasset"
+    },
+    "mesh": {
+      "static": "glb",
+      "skinned": "fbx"
+    },
+    "textures": {
+      "normalGreen": "down",
+      "packed": "ORM"
+    },
+    "collision": {
+      "convention": "named-hulls",
+      "prefix": "UCX_"
+    },
+    "skeletons": {
+      "mannequin": {
+        "label": "Epic UE5 Mannequin",
+        "bones": {
+          "hips": "pelvis",
+          "spine": "spine_02",
+          "chest": "spine_04",
+          "neck": "neck_01",
+          "head": "head",
+          "shoulder.l": "clavicle_l",
+          "upper-arm.l": "upperarm_l",
+          "lower-arm.l": "lowerarm_l",
+          "hand.l": "hand_l",
+          "upper-leg.l": "thigh_l",
+          "lower-leg.l": "calf_l",
+          "foot.l": "foot_l",
+          "toes.l": "ball_l",
+          "shoulder.r": "clavicle_r",
+          "upper-arm.r": "upperarm_r",
+          "lower-arm.r": "lowerarm_r",
+          "hand.r": "hand_r",
+          "upper-leg.r": "thigh_r",
+          "lower-leg.r": "calf_r",
+          "foot.r": "foot_r",
+          "toes.r": "ball_r",
+          "thumb-1.l": "thumb_01_l",
+          "thumb-2.l": "thumb_02_l",
+          "thumb-3.l": "thumb_03_l",
+          "index-1.l": "index_01_l",
+          "index-2.l": "index_02_l",
+          "index-3.l": "index_03_l",
+          "middle-1.l": "middle_01_l",
+          "middle-2.l": "middle_02_l",
+          "middle-3.l": "middle_03_l",
+          "ring-1.l": "ring_01_l",
+          "ring-2.l": "ring_02_l",
+          "ring-3.l": "ring_03_l",
+          "pinky-1.l": "pinky_01_l",
+          "pinky-2.l": "pinky_02_l",
+          "pinky-3.l": "pinky_03_l",
+          "thumb-1.r": "thumb_01_r",
+          "thumb-2.r": "thumb_02_r",
+          "thumb-3.r": "thumb_03_r",
+          "index-1.r": "index_01_r",
+          "index-2.r": "index_02_r",
+          "index-3.r": "index_03_r",
+          "middle-1.r": "middle_01_r",
+          "middle-2.r": "middle_02_r",
+          "middle-3.r": "middle_03_r",
+          "ring-1.r": "ring_01_r",
+          "ring-2.r": "ring_02_r",
+          "ring-3.r": "ring_03_r",
+          "pinky-1.r": "pinky_01_r",
+          "pinky-2.r": "pinky_02_r",
+          "pinky-3.r": "pinky_03_r"
+        },
+        "notes": "The skeleton of Epic's third-person template. Beyond the landmarks it has a five-bone spine (spine_01 to spine_05), neck_01 and neck_02, a metacarpal for each of four fingers, and IK bones (ik_foot_root, ik_foot_l, ik_foot_r, ik_hand_gun, ik_hand_l, ik_hand_r); its root bone `root` is the armature object in an exported file. conform-skeleton reads the hierarchy and those bones from the reference file. Set `reference` to the project-relative FBX that commands/skeleton_reference.py exports (the file is Epic's content and is not shipped)."
+      }
+    },
+    "audio": {
+      "container": "wav",
+      "sampleRate": 48000,
+      "bitDepth": 16,
+      "loudness": {
+        "truePeakDb": -1
+      }
+    },
+    "naming": {
+      "staticMesh": "SM_",
+      "skeletalMesh": "SK_",
+      "skeleton": "SKEL_",
+      "physicsAsset": "PHYS_",
+      "texture": "T_",
+      "material": "M_",
+      "materialInstance": "MI_"
+    },
+    "binaries": {
+      "lfs": [
+        "*.uasset",
+        "*.umap"
+      ],
+      "lockable": true
+    },
+    "extra": {
+      "destinations": {
+        "static": null,
+        "skinned": null,
+        "textures": null,
+        "audio": null
+      },
+      "locks": "off",
+      "skeletons": {
+        "mannequin": {
+          "skeleton": "/Game/Characters/Mannequins/Meshes/SK_Mannequin",
+          "root": "root",
+          "physicsAsset": "/Game/Characters/Mannequins/Rigs/PA_Mannequin",
+          "referenceMesh": "/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple",
+          "animations": [
+            {
+              "label": "MM_Idle",
+              "asset": "/Game/Characters/Mannequins/Anims/Unarmed/MM_Idle",
+              "frames": [
+                0,
+                39
+              ]
+            },
+            {
+              "label": "MF_Unarmed_Walk_Fwd",
+              "asset": "/Game/Characters/Mannequins/Anims/Unarmed/Walk/MF_Unarmed_Walk_Fwd",
+              "frames": [
+                0,
+                7,
+                15
+              ]
+            }
+          ],
+          "referenceAnimations": [
+            "/Game/Characters/Mannequins/Anims/Unarmed/Jog/MF_Unarmed_Jog_Fwd"
+          ],
+          "poseAnchor": "pelvis",
+          "poseBones": [
+            "pelvis",
+            "spine_03",
+            "head",
+            "upperarm_l",
+            "lowerarm_l",
+            "hand_l",
+            "hand_r",
+            "index_01_l",
+            "index_03_l",
+            "thumb_03_l",
+            "thigh_l",
+            "calf_l",
+            "foot_l",
+            "foot_r",
+            "ball_l"
+          ],
+          "localBones": [
+            "root",
+            "pelvis",
+            "spine_01",
+            "neck_01",
+            "head",
+            "clavicle_l",
+            "upperarm_l",
+            "lowerarm_l",
+            "hand_l",
+            "thigh_l",
+            "calf_l",
+            "foot_l",
+            "ik_foot_root",
+            "ik_foot_l"
+          ]
+        }
+      },
+      "collision": {
+        "rule": {}
+      },
+      "checks": {
+        "scratchContent": "/Game/JamCheck",
+        "poseToleranceCm": 5
+      },
+      "audio": {
+        "variantPatch": null,
+        "toolsets": null,
+        "author": null
+      },
+      "defaultSkeleton": null
+    }
+  },
+  "commands": {
+    "import": {
+      "run": [
+        "python",
+        "commands/engine_import.py"
+      ],
+      "kinds": [
+        "static",
+        "skinned",
+        "textures",
+        "audio",
+        "audio-variants"
+      ],
+      "timeoutSeconds": 1800,
+      "description": "Import delivered files; prints the engine asset ids"
+    },
+    "inspect": {
+      "run": [
+        "python",
+        "commands/engine_inspect.py"
+      ],
+      "description": "Bounds in metres, counts, material slots, skeleton and collision of one asset"
+    },
+    "references": {
+      "run": [
+        "python",
+        "commands/engine_references.py"
+      ],
+      "description": "What refers to an asset; --delete removes assets nothing else refers to"
+    },
+    "capture": null,
+    "check": {
+      "run": [
+        "python",
+        "commands/engine_check.py"
+      ],
+      "kinds": [
+        "sources",
+        "skinned",
+        "bones-in-game",
+        "collision"
+      ],
+      "timeoutSeconds": 1800,
+      "description": "Stored sources, skinned import and pose, bones in play, collision coverage"
+    },
+    "conform-skeleton": {
+      "run": [
+        "python",
+        "commands/conform_skeleton.py"
+      ],
+      "timeoutSeconds": 3600,
+      "description": "Rework a rigged or riggable character model into a skeleton profile's bone names and rest pose (Blender)"
+    }
+  },
+  "docs": {
+    "import": "docs/import.md",
+    "capture": "docs/cheap-looks.md",
+    "cheap-looks": "docs/cheap-looks.md",
+    "acceptance": "docs/acceptance.md",
+    "collision": "docs/collision.md",
+    "skinned-export": "docs/skinned-export.md",
+    "skeletons": "docs/skeletons.md",
+    "audio": "docs/audio.md",
+    "locking": "docs/locking.md",
+    "transport": "docs/transport.md",
+    "validation": "docs/validation.md"
+  }
+}

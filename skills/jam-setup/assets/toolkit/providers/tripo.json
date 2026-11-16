@@ -1,0 +1,18 @@
+{
+  "$schema": "../schemas/provider.schema.json",
+  "id": "tripo",
+  "label": "Tripo",
+  "unit": { "id": "credits", "label": "Tripo credits (API and Studio balances are separate)", "paid": true },
+  "capabilities": {
+    "mesh": { "modes": ["text", "multiview"], "inputs": { "min": 2, "max": 4 }, "note": "`make` accepts 2 to 4 images for multiview. Text-to-model suits a connectivity test, not production design." }
+  },
+  "transports": [
+    { "kind": "cli", "command": "tripo", "probe": ["--version"], "npmLauncher": true },
+    { "kind": "browser", "note": "Studio. API-key sign-in does not identify the Studio account; its balance and prices are separate." }
+  ],
+  "pacing": { "concurrent": 1 },
+  "quote": { "kind": "estimate", "how": "`make --dry-run --json` reports `generation_credits_estimate`: an offline list-price estimate that leaves out unestimated chain steps and does not verify plan access." },
+  "recovery": "After a timeout resume with `task watch <id> --download`; after a failed download use `task get <id> --download`. A lost create response stays lost until provider history and balance are reconciled. Do not use `redo` to recover.",
+  "docs": "docs/providers/tripo.md",
+  "notes": ["Exit code 4 means insufficient credits: stop paid commands and ask the person."]
+}

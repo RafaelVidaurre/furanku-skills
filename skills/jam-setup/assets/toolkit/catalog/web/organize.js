@@ -1,4 +1,4 @@
-import { html, useState, useQuery, write, href, enc, Icon, toast, ErrorLine } from './core.js';
+import { html, useState, useQuery, write, href, enc, Icon, toast, ErrorLine, defaultScope } from './core.js';
 
 const listLink = (section, key, v) => href({ section, query: new URLSearchParams({ [`f.${key}`]: enc(v) }) });
 
@@ -38,9 +38,9 @@ function OrgRow({ name, depth, counts, link, onRename, onDelete, project }) {
       : html`<span class="org-name">${name}</span>`}
     ${project && html`<span class="chip" title="Also defined by the project; only catalog-owned uses change">Project</span>`}
     <span class="org-counts">
-      ${counts.units > 0 && html`<a href=${link('content')}>${counts.units} content</a>`}
+      ${counts.units > 0 && html`<a href=${link(defaultScope())}>${counts.units} ${counts.units === 1 ? 'entry' : 'entries'}</a>`}
       ${counts.collections > 0 && html`<a href=${link('collections')}>${counts.collections} coll.</a>`}
-      ${counts.assets > 0 && html`<a href=${link('assets')}>${counts.assets} assets</a>`}
+      ${counts.assets > 0 && html`<a href=${link('files')}>${counts.assets} ${counts.assets === 1 ? 'file' : 'files'}</a>`}
     </span>
     <button class="icon-btn sm" title="Rename" aria-label=${`Rename ${name}`} onClick=${() => setEditing(true)}><${Icon} name="edit" size=${12} /></button>
     ${del ? html`<button class="btn xs danger" autofocus onBlur=${() => setDel(false)} onClick=${onDelete}>Remove</button>`

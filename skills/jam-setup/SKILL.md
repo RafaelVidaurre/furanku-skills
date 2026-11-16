@@ -1,78 +1,80 @@
 ---
 name: jam-setup
-description: Install, upgrade and configure the jam game-asset toolkit in a project, connect image and mesh providers, and diagnose setup. Use when starting jam asset work in a project without tools/jam/, when another jam skill reports a missing toolkit, dependency or provider access, when changing spending limits or human review checkpoints, or when upgrading the toolkit.
+description: Install, upgrade and configure the jam game-content toolkit in a project, and diagnose it. Use when starting jam work in a project that has no toolkit, when a jam command or skill reports a missing toolkit, tool or provider access, when choosing an engine adapter, when connecting a generation provider for the first time, when setting spending limits or lowering review gates, or when upgrading a version 1 project.
 ---
 
 # Jam setup
 
-The jam skills share one toolkit that lives inside the user's project at `tools/jam/`: the `jam.mjs` CLI (asset runs, reviews, paid-job ledger, measurement), the content catalog, and the reference docs under `tools/jam/docs/`. This skill installs it with one command and settles only the decisions the next task needs. Run everything from the project root.
+The jam skills share one toolkit that lives inside the project (by default `tools/jam/`): the `jam` command, the recipes, the content catalog and the reference docs the skills point to. This skill installs it and settles only what the next task needs. `jam` below is `node tools/jam/jam.mjs`.
 
-The jam skills work as one set; when a jam skill names a sibling that is not installed, install it with `npx skills add rafaelvidaurre/furanku-skills --skill <name>` (the whole set: `--skill jam-setup jam-3d jam-style jam-concept jam-turnaround jam-model jam-retopo jam-uv jam-texture jam-catalog jam-3d-prop jam-3d-character`), then reload skills.
+The skills work as a set: `jam-recipe` is where work starts, and it names the others as steps need them. When a skill a step names is not installed, `npx skills add rafaelvidaurre/furanku-skills --skill <name>` and reload skills.
 
-Spending and checkpoint changes on an installed project skip to [Change settings](#change-settings).
+Already installed and only changing a setting? Go to [Spending and review](#5-spending-and-review).
 
-## 1. Check what the machine has
+## 1. Check the machine
 
-Run `node --version` and `git --version` (same commands in PowerShell, cmd, macOS and Linux shells). The installer needs Node.js 22.20 or newer; Git is needed for versioning and LFS but not for the toolkit itself.
+`node --version` must report 22.20 or newer. When it is missing or older, tell the person what it is for and offer the install for their system (`winget install OpenJS.NodeJS.LTS`, `brew install node`, or nodejs.org); an install that needs administrator rights or a new terminal goes to them as the exact command and what to do after.
 
-When Node is missing or older, tell the user what it is for and offer the install for their OS: `winget install OpenJS.NodeJS.LTS` (Windows), `brew install node` (macOS), nodejs.org or their package manager (Linux). Run it yourself when the user agrees and the environment allows it; installers that need administrator rights or a new terminal go to the user as the exact command plus what to do after (open a new terminal so PATH updates, then tell you).
+Done when `node --version` reports 22.20 or newer.
 
-**Done:** `node --version` reports 22.20 or newer.
+## 2. Install or upgrade
 
-## 2. Install or upgrade the toolkit
-
-```sh
-node <this skill's directory>/scripts/install.mjs
+```
+node <this skill's folder>/scripts/install.mjs
 ```
 
-It finds the Git root, copies the toolkit into `tools/jam/`, adds `.gitignore` and Git LFS entries for `Art/`, points `catalog.config.json` at the jam adapter (creating it, or moving a built-in adapter over with its settings kept) with a starter manifest, installs the npm packages, makes Pillow and numpy available (private venv when needed), records a found Blender in `jam.local.json`, and ends with `doctor`. It prints one JSON summary and exits 2 when a required npm install failed. Flags: `--project <dir>`, `--check` (report only), `--no-deps`, `--no-lfs`, `--force`.
+It copies the toolkit into the project, writes `.gitignore` and Git LFS rules for the content folders, creates or migrates `catalog.config.json`, installs the toolkit's packages, finds Python and Blender, upgrades a version 1 configuration, and ends with `jam doctor`. It never signs in, spends or commits. The same command upgrades an installed toolkit.
 
-Act on each gap in the summary:
+| Flag | Use |
+| --- | --- |
+| `--project <dir>` | The project, when not the current Git checkout |
+| `--dir <folder>` | Install somewhere other than `tools/jam` (project-relative). The project remembers it |
+| `--check` | Report what is installed and change nothing |
+| `--no-deps`, `--no-lfs` | Skip package installation; skip Git LFS rules |
+| `--force` | Replace toolkit files that were edited locally. Only on the person's say |
 
-- Files that `would be overwritten` or `already exist with other content`: show the user the listed files. Rerun with `--force` only when they choose to replace them.
-- `tools/jam/ exists and was not installed by jam-setup`: stop and report; the folder belongs to something else.
-- A `failed:` npm install or `missing:` imaging dependency: fix that item from the reported reason (`tools/jam/docs/setup.md#local-dependencies`), then rerun. Python matters only for turnaround cropping and character texture tools; Blender only for local DCC steps.
-- `catalogConfig` starting `incomplete`: the project has its own catalog adapter; compose the jam part into it (`tools/jam/docs/external-content.md#catalog-adapter`) or tell the user jam assets stay out of the catalog until then.
-- `fixes`: each entry names a missing tool, what it is needed for, and the install command for this OS. Explain them in one short list, recommend installing the ones the user's next task needs (Blender only matters for local Blender steps), run the commands the user approves, then rerun the installer.
+It prints one JSON summary. Read `complete`, `fixes` and `next`; how to act on every field, and on the cases where it stops instead, is in `tools/jam/docs/setup.md#installer-summary`.
 
-**Done:** `complete` is true, `installed` is `installed`, `upgraded` or `reinstalled (unchanged)`, and every remaining gap is fixed or named to the user with its effect.
+Done when `complete` is true and each entry in `fixes` is either fixed or told to the person with what it blocks.
 
-Browsing or adding external content in the catalog needs nothing more: go to step 5.
+## 3. First configuration
 
-## 3. Project settings
+When `jam.config.json` is missing:
 
-When the next task records jam work (style rounds, concepts, any asset run) and `jam.config.json` is missing, ask two things in one message, each with its recommended default, and accept "defaults":
+1. `jam setup` prints the defaults. Ask one thing now: **where content lives** (work folder `Art/.scratch`, delivered folder `Art/Assets`, unless the project already keeps art elsewhere). Style, budgets, routes and spending are decided when the work first needs them.
+2. Defaults accepted: `jam setup --defaults`. Otherwise write the fields that differ to a JSON file, `jam setup --from <file>`, delete the file, and run the installer again so ignore and LFS rules follow the chosen folders.
+3. `jam doctor`.
 
-1. **Style**: an existing style guide and approved images to register, or *later* (default; `jam-style` explores it).
-2. **Reviews**: human at concept, turnaround and delivery (default), human at every stage, or agent only.
+Done when `jam doctor` has no failing line, or each failing line is named to the person with its printed fix.
 
-Paid generation starts disabled for every provider. Ask about the mesh route and each provider's spending limit (`tools/jam/docs/settings.md#spending`) when a paid job is first needed, not before. Asset profiles (triangle and texture budgets) come later too: `jam-model` resolves them once a turnaround exists. Write the answers into a temporary choices file and apply it (this example is the defaults):
+## 4. Engine and providers, when first needed
 
-```json
-{"version": 1, "style": {"document": null, "references": []}, "profiles": {},
- "providers": {"image": "scenario", "mesh": "meshy"},
- "review": {"default": "agent", "stages": {"concept": "human", "turnaround": "human", "delivery": "human"}},
- "spend": {"meshy": {"unit": "credits", "limit": 0}, "scenario": {"unit": "CU", "limit": 0}}}
-```
+**Engine.** With no engine chosen, work ends at neutral files (GLB, PNG, WAV) and engine steps are skipped. To choose an adapter or a facts-only preset, or to write one, use the `jam-engine` skill.
 
-```sh
-node tools/jam/jam.mjs setup --from <choices.json>
-```
+**Providers.** Connect a provider when a task is about to use it, not before.
 
-Delete the choices file afterwards; `jam.config.json` is canonical. A terminal user can run `node tools/jam/jam.mjs setup` for the guided wizard instead.
+1. `jam provider list` shows what serves each kind of work and whether paid work is on. `jam provider probe <id>` reports **installed**, **signed in** (it prints `authenticated`) and **reachable** as three separate facts, and prints `unknown` for what it cannot see.
+2. Read that provider's page, `tools/jam/docs/providers/<id>.md`: how it is installed and signed in, what it bills, and the free status call that settles each `unknown`. Run that call.
+3. Tell the person all three facts; one does not imply the next. Only when sign-in is missing do they sign in, and they get the instruction packet before any question about whether it is done: `tools/jam/docs/setup.md#handing-a-sign-in-to-the-person`. Then run the status call again.
 
-**Done:** `node tools/jam/jam.mjs settings` shows the user's choices.
+Routes that cost nothing extra (an image tool in a plan the person already has, the agent's own image tool) need no account here; offer them first.
 
-## 4. Connect only the route the next task uses
+Done when the route the next task uses answered a free call in this session, or the person has one named action left to take.
 
-Image work through a plan-included route (Codex image generation, the agent's own image tool, supplied references) needs no provider account. Connect Meshy or Scenario when the current task is about to use it, following `tools/jam/docs/setup.md` for that provider and `tools/jam/docs/sign-in.md` for the human's sign-in. The human signs in; the agent never asks for a credential.
+## 5. Spending and review
 
-**Done:** the route the next task uses is ready: a plan-included image route is callable in this session (or the user supplies images), or a free authenticated check on a paid route succeeds (Meshy `auth status` and `balance`; Scenario `teams_list` and a model schema), or the user has a named pending sign-in step.
+Paid work is off for every provider until the person sets a limit. Ask when a paid job is first needed, one provider at a time, with the unit in words: `tools/jam/docs/settings.md#spending`. The same page covers **standing authorization** (the person's own words that allow work inside the limits without asking each time) and how to record it.
 
-## 5. Return to the original task
+Lowering review gates for a crunch, or changing who reviews a step: `tools/jam/docs/settings.md#review-mode`.
 
-Resume the jam skill or request that led here, carrying its authorization (`tools/jam/docs/task-intent.md`).
+Done when `jam config show spend` (or `review`) shows the person's choice and your reply names the provider or steps affected.
 
-## Change settings
+## 6. Upgrading a version 1 project
 
-For "no cap for Scenario", "disable turnaround approval", "human review for textures" and similar, follow `tools/jam/docs/settings.md`. **Done:** the setting is persisted and the reply names the provider or stages, the project, pipeline or run scope, and any surviving run override.
+Step 2 does the upgrade, configuration included, and lists what it could not carry over exactly under `configuration.notes`: pass those notes on to the person. To see the configuration change before it is written, run the installer with `--no-deps` (it replaces the toolkit and leaves `jam.config.json` alone), then `jam config migrate --dry-run`, then `jam config migrate`. What moves where, and how version 1 commands map to version 2: `tools/jam/docs/setup.md#upgrading-from-version-1`.
+
+Done when `jam doctor` and `jam recipe check` pass and `jam run status` lists the project's open runs.
+
+## 7. Return to the task
+
+Tell the person which files setup added or changed, and commit them only when they ask. Then resume the request that led here with its authorization intact; a request made before setup does not need asking again.

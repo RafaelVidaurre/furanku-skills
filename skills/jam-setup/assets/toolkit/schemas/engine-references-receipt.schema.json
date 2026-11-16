@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "engine-references-receipt.schema.json",
+  "$ref": "#/$defs/EngineReferencesReceipt",
+  "$defs": {
+    "EngineReferencesReceipt": {
+      "type": "object",
+      "properties": {
+        "references": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "\\S"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "references"
+      ],
+      "additionalProperties": false,
+      "title": "Receipt printed by an adapter's references command"
+    }
+  }
+}

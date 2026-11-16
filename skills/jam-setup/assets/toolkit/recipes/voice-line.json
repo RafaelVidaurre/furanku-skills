@@ -1,0 +1,78 @@
+{
+  "$schema": "../schemas/recipe.schema.json",
+  "version": 1,
+  "id": "voice-line",
+  "title": "Voiced dialogue lines",
+  "description": "Voice dialogue lines with each speaker's voice, process the take that stands for each line, check it against the text, have a person listen, and import the result where an engine adapter can.",
+  "when": "Spoken dialogue or narration for named speakers: one line, or a batch of lines reviewed together.",
+  "steps": [
+    {
+      "id": "voice",
+      "title": "Takes received",
+      "skill": "jam-voice",
+      "guide": "toolkit:docs/recipes/voice-line.md#voice",
+      "paid": true,
+      "produces": [
+        {
+          "role": "take",
+          "kind": "audio",
+          "min": 1
+        }
+      ],
+      "review": "none",
+      "run": [
+        "audio",
+        "voice",
+        "speak",
+        "--run",
+        "{id}",
+        "--script",
+        "<lines file id>",
+        "--reviewed"
+      ]
+    },
+    {
+      "id": "process",
+      "title": "Processed lines, heard by a person",
+      "needs": [
+        "voice"
+      ],
+      "skill": "jam-voice",
+      "guide": "toolkit:docs/recipes/voice-line.md#process",
+      "produces": [
+        {
+          "role": "line",
+          "kind": "audio",
+          "min": 1
+        }
+      ],
+      "checks": [
+        "loudness",
+        "transcript-match"
+      ],
+      "review": "human"
+    },
+    {
+      "id": "import",
+      "title": "Engine import",
+      "needs": [
+        "process"
+      ],
+      "skill": "jam-engine",
+      "guide": "toolkit:docs/recipes/voice-line.md#import",
+      "optional": true,
+      "run": [
+        "engine",
+        "import",
+        "--kind",
+        "audio",
+        "--run",
+        "{id}"
+      ],
+      "review": "none",
+      "when": {
+        "engine": "import"
+      }
+    }
+  ]
+}

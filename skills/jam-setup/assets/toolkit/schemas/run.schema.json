@@ -1,0 +1,722 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "run.schema.json",
+  "$ref": "#/$defs/Run",
+  "$defs": {
+    "Run": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "version": {
+          "type": "number",
+          "enum": [
+            2
+          ]
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "maxLength": 80
+        },
+        "n": {
+          "type": "integer",
+          "maximum": 9007199254740991,
+          "exclusiveMinimum": 0,
+          "description": "Which attempt for this subject this is"
+        },
+        "recipe": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 64
+        },
+        "budget": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 64
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "created": {
+          "type": "string"
+        },
+        "brief": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+              "description": "Project-relative path with forward slashes"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "sha256"
+          ],
+          "additionalProperties": false
+        },
+        "style": {
+          "type": "object",
+          "properties": {
+            "revision": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "revision"
+          ],
+          "additionalProperties": false
+        },
+        "human": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "maxLength": 64
+          },
+          "description": "Steps this run requires a person to accept, whatever the recipe or review mode says"
+        },
+        "entry": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 64,
+          "description": "The step this run starts at, from existing work; the steps before it are not needed"
+        },
+        "steps": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "records": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "role": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                            "maxLength": 64
+                          },
+                          "key": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                            "maxLength": 64
+                          },
+                          "path": {
+                            "type": "string",
+                            "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+                            "description": "Project-relative path with forward slashes"
+                          },
+                          "sha256": {
+                            "type": "string"
+                          },
+                          "size": {
+                            "type": "array",
+                            "prefixItems": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              }
+                            ],
+                            "maxItems": 2,
+                            "minItems": 2,
+                            "description": "Pixel width and height, measured, for images"
+                          }
+                        },
+                        "required": [
+                          "role",
+                          "path",
+                          "sha256"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "inputs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string",
+                            "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+                            "description": "Project-relative path with forward slashes"
+                          },
+                          "sha256": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "sha256"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "evidence": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                            "maxLength": 64
+                          },
+                          "path": {
+                            "type": "string",
+                            "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+                            "description": "Project-relative path with forward slashes"
+                          },
+                          "sha256": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "sha256"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "dependencies": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "description": "The exact record of each needed step this one was built on, or \"skipped\""
+                    },
+                    "entry": {
+                      "type": "string",
+                      "enum": [
+                        "imported"
+                      ],
+                      "description": "The work entered the run here from outside, with origin evidence, so earlier steps were not needed"
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "provenance": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "tool",
+                            "job",
+                            "imported"
+                          ]
+                        },
+                        "tool": {
+                          "type": "string"
+                        },
+                        "job": {
+                          "type": "string"
+                        },
+                        "run": {
+                          "type": "string",
+                          "description": "For a job of another run: that run as <id>:<n>"
+                        },
+                        "provider": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string"
+                        },
+                        "sourceEvidence": {
+                          "type": "string",
+                          "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+                          "description": "Project-relative path with forward slashes"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "metrics": {
+                      "type": "object",
+                      "properties": {
+                        "model": {
+                          "type": "string",
+                          "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+                          "description": "Project-relative path with forward slashes"
+                        },
+                        "basis": {
+                          "type": "string",
+                          "enum": [
+                            "measured",
+                            "report"
+                          ],
+                          "description": "measured: decoded by the tool. report: taken from a measurement report bound to the model's hash."
+                        },
+                        "triangles": {
+                          "type": "number"
+                        },
+                        "materials": {
+                          "type": "number"
+                        },
+                        "exportedVertices": {
+                          "type": "number"
+                        },
+                        "drawPrimitives": {
+                          "type": "number"
+                        },
+                        "textureDimensions": {
+                          "type": "array",
+                          "items": {
+                            "type": "array",
+                            "prefixItems": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              }
+                            ],
+                            "maxItems": 2,
+                            "minItems": 2
+                          }
+                        },
+                        "textureMiB": {
+                          "type": "number"
+                        },
+                        "memoryBasis": {
+                          "type": "string"
+                        },
+                        "ignoredExtensions": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "symmetric": {
+                      "type": "boolean"
+                    },
+                    "checks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "engineAssets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "\\S",
+                            "description": "The engine's own id for the asset"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "pattern": "\\S"
+                          },
+                          "source": {
+                            "type": "string",
+                            "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+                            "description": "Project-relative path with forward slashes"
+                          },
+                          "sha256": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "kind"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "arguments": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Arguments given to the engine adapter's command that performed the step, files left out"
+                    },
+                    "submission": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "route": {
+                          "type": "string",
+                          "description": "Where the review is in the catalog: the page's address after the server, the same on every machine"
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "route",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "reviews": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "decision": {
+                            "type": "string",
+                            "enum": [
+                              "accept",
+                              "revise",
+                              "reject"
+                            ]
+                          },
+                          "actor": {
+                            "type": "string",
+                            "enum": [
+                              "human",
+                              "agent"
+                            ]
+                          },
+                          "via": {
+                            "type": "string",
+                            "enum": [
+                              "direct",
+                              "relay",
+                              "catalog",
+                              "v1"
+                            ],
+                            "description": "direct: decided by whoever ran the command. relay: an agent recording a person's words. catalog: the person's own decision in the catalog. v1: carried over from a version 1 record."
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "by": {
+                            "type": "string"
+                          },
+                          "channel": {
+                            "type": "string",
+                            "description": "For a relay: where the person answered"
+                          },
+                          "words": {
+                            "type": "string",
+                            "description": "For a relay: what the person said, verbatim"
+                          },
+                          "submission": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "decision",
+                          "actor",
+                          "via",
+                          "reason",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "at",
+                    "files",
+                    "inputs",
+                    "evidence",
+                    "dependencies",
+                    "note",
+                    "checks",
+                    "reviews"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "skip": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  },
+                  "at": {
+                    "type": "string"
+                  },
+                  "auto": {
+                    "type": "boolean",
+                    "description": "Skipped because the step's condition did not hold, not by a person's or agent's choice"
+                  }
+                },
+                "required": [
+                  "reason",
+                  "at"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "records"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "jobs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "step": {
+                "type": "string"
+              },
+              "provider": {
+                "type": "string"
+              },
+              "operation": {
+                "type": "string"
+              },
+              "request": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+                    "description": "Project-relative path with forward slashes"
+                  },
+                  "sha256": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "additionalProperties": false
+              },
+              "estimate": {
+                "type": "number",
+                "minimum": 0
+              },
+              "unit": {
+                "type": "string"
+              },
+              "price": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "quote",
+                      "list",
+                      "estimate"
+                    ]
+                  },
+                  "source": {
+                    "type": "string"
+                  },
+                  "date": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "source",
+                  "date"
+                ],
+                "additionalProperties": false
+              },
+              "authorization": {
+                "type": "string"
+              },
+              "transport": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "lost",
+                  "submitted",
+                  "succeeded",
+                  "failed",
+                  "cancelled",
+                  "not-submitted"
+                ]
+              },
+              "providerJob": {
+                "type": "string"
+              },
+              "actual": {
+                "type": "number",
+                "minimum": 0
+              },
+              "created": {
+                "type": "string"
+              },
+              "history": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "lost",
+                        "submitted",
+                        "succeeded",
+                        "failed",
+                        "cancelled",
+                        "not-submitted"
+                      ]
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "evidence": {
+                      "type": "string"
+                    },
+                    "providerJob": {
+                      "type": "string"
+                    },
+                    "actual": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "id",
+              "step",
+              "provider",
+              "operation",
+              "request",
+              "estimate",
+              "unit",
+              "price",
+              "authorization",
+              "state",
+              "created",
+              "history"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "delivered": {
+          "type": "object",
+          "properties": {
+            "at": {
+              "type": "string"
+            },
+            "from": {
+              "type": "string",
+              "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+              "description": "Project-relative path with forward slashes"
+            },
+            "files": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "at",
+            "from",
+            "files"
+          ],
+          "additionalProperties": false
+        },
+        "deliveredTo": {
+          "type": "string",
+          "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+          "description": "Project-relative path with forward slashes"
+        },
+        "migratedFrom": {
+          "type": "number",
+          "enum": [
+            1
+          ]
+        }
+      },
+      "required": [
+        "version",
+        "id",
+        "n",
+        "recipe",
+        "budget",
+        "created",
+        "brief",
+        "style",
+        "human",
+        "steps",
+        "jobs"
+      ],
+      "additionalProperties": false,
+      "title": "Run record (run.json). Written by the tool; do not edit by hand."
+    }
+  }
+}

@@ -1,0 +1,175 @@
+{
+  "version": 1,
+  "style": {
+    "document": "Art/style.md",
+    "references": [
+      "Art/Style/v001/hero-shots/gangster-1930s-speakeasy-three-quarter.png",
+      "Art/Style/v001/hero-shots/medieval-market-walking-away.png",
+      "Art/Style/v001/hero-shots/npc-heavyset-older-boss-speakeasy.png",
+      "Art/Style/v001/hero-shots/npc-passing-heavyset-baker-medieval-market.png",
+      "Art/Style/v001/hero-shots/npc-talking-older-woman-spy-casino.png",
+      "Art/Style/v001/hero-shots/npc-waitress-serving-mead-medieval-tavern.png",
+      "Art/Style/v001/hero-shots/scifi-hangar-walking-away.png",
+      "Art/Style/v001/hero-shots/spy-1960s-casino-three-quarter.png",
+      "Art/Style/v001/hero-shots/western-main-street-walking-away.png"
+    ]
+  },
+  "profiles": {
+    "character": {
+      "platforms": [
+        "Windows",
+        "macOS"
+      ],
+      "renderer": "desktop deferred",
+      "camera": "third-person gameplay camera about 3.5-4 m behind and 2 m above the player; player full body at roughly 25-55 percent of frame height",
+      "cameraDistanceMeters": 3.75,
+      "screenCoveragePercent": 40,
+      "expectedInstances": 1,
+      "assetKind": "deforming",
+      "targetTriangles": 20000,
+      "maxTriangles": 30000,
+      "textureSize": 2048,
+      "maxMaterials": 3,
+      "maxTextureMiB": 192,
+      "units": "meters",
+      "up": "+Z",
+      "forward": "-Y",
+      "pivot": "bottom-center",
+      "materialWorkflow": "pbr",
+      "skeleton": "Epic UE5 Mannequin skeleton (SK_Mannequin, as used by SKM_Manny_Simple), same bone names and hierarchy, shared by every player part (head, hair, outfits)",
+      "maxInfluences": 4,
+      "poseRequirements": "A-pose bind pose; plays the prototype's ABP_Player locomotion (idle, walk, jog) with foot IK; head look on neck_01, neck_02 and head up to 80 degrees; two-bone arm IK reaching in front, across and overhead; finger curl from open flat to fist on index, middle, ring, pinky and thumb joints; deep crouch and seated"
+    },
+    "player-base": {
+      "platforms": [
+        "Windows",
+        "macOS"
+      ],
+      "renderer": "desktop deferred",
+      "camera": "third-person gameplay camera about 3.5-4 m behind and 2 m above the player; player full body at roughly 25-55 percent of frame height",
+      "cameraDistanceMeters": 3.75,
+      "screenCoveragePercent": 40,
+      "expectedInstances": 1,
+      "assetKind": "deforming",
+      "targetTriangles": 20000,
+      "maxTriangles": 30000,
+      "textureSize": 2048,
+      "maxMaterials": 4,
+      "maxTextureMiB": 192,
+      "units": "meters",
+      "up": "+Z",
+      "forward": "-Y",
+      "pivot": "bottom-center",
+      "materialWorkflow": "pbr",
+      "skeleton": "Epic UE5 Mannequin skeleton (SK_Mannequin, as used by SKM_Manny_Simple), same bone names and hierarchy, shared by every player part (head, hair, outfits)",
+      "maxInfluences": 4,
+      "poseRequirements": "A-pose bind pose; plays the prototype's ABP_Player locomotion (idle, walk, jog) with foot IK; head look on neck_01, neck_02 and head up to 80 degrees; two-bone arm IK reaching in front, across and overhead; finger curl from open flat to fist on index, middle, ring, pinky and thumb joints; deep crouch and seated"
+    },
+    "prop": {
+      "platforms": [
+        "Windows",
+        "macOS"
+      ],
+      "renderer": "Unreal Engine desktop deferred (non-Nanite)",
+      "camera": "third-person, about 3.5-4 m behind and 2 m above the player, 75 degree FOV",
+      "cameraDistanceMeters": 4,
+      "screenCoveragePercent": 10,
+      "expectedInstances": 20,
+      "assetKind": "static",
+      "targetTriangles": 3000,
+      "maxTriangles": 8000,
+      "textureSize": 1024,
+      "maxMaterials": 1,
+      "maxTextureMiB": 24,
+      "units": "meters",
+      "up": "+Z",
+      "forward": "+X",
+      "pivot": "bottom-center",
+      "materialWorkflow": "pbr"
+    },
+    "npc": {
+      "platforms": [
+        "Windows",
+        "macOS"
+      ],
+      "renderer": "desktop deferred",
+      "camera": "third-person gameplay camera about 3.5-4 m behind and 2 m above the player; player full body at roughly 25-55 percent of frame height",
+      "cameraDistanceMeters": 3.75,
+      "screenCoveragePercent": 40,
+      "expectedInstances": 1,
+      "assetKind": "deforming",
+      "targetTriangles": 20000,
+      "maxTriangles": 30000,
+      "textureSize": 2048,
+      "maxMaterials": 4,
+      "maxTextureMiB": 192,
+      "units": "meters",
+      "up": "+Z",
+      "forward": "-Y",
+      "pivot": "bottom-center",
+      "materialWorkflow": "pbr",
+      "skeleton": "Epic UE5 Mannequin skeleton (SK_Mannequin): Manny's bone names, hierarchy, orientations and A-pose with the character's own bone lengths, shared by every piece of that character",
+      "maxInfluences": 4,
+      "poseRequirements": "A-pose bind pose; plays the prototype's ABP_Player locomotion (idle, walk) with foot IK; head look on neck_01, neck_02 and head; the NPC perform gestures (offer hand, raise a glass to the face, point, cover head, flinch, hold a tray on the right palm); finger curl from open flat to fist on index, middle, ring, pinky and thumb joints; grabbed by hand, forearm and head, knocked over and ragdolled"
+    },
+    "set-piece": {
+      "platforms": [
+        "Windows",
+        "macOS"
+      ],
+      "renderer": "Unreal Engine desktop deferred (non-Nanite)",
+      "camera": "third-person, about 3.5-4 m behind and 2 m above the player, 75 degree FOV; set pieces stand 15 to 25 m away at the set's edges",
+      "cameraDistanceMeters": 18,
+      "screenCoveragePercent": 40,
+      "expectedInstances": 2,
+      "assetKind": "static",
+      "targetTriangles": 6000,
+      "maxTriangles": 12000,
+      "textureSize": 4096,
+      "maxMaterials": 2,
+      "maxTextureMiB": 64,
+      "units": "meters",
+      "up": "+Z",
+      "forward": "+X",
+      "pivot": "bottom-center",
+      "materialWorkflow": "pbr"
+    }
+  },
+  "providers": {
+    "image": "scenario",
+    "mesh": "meshy"
+  },
+  "review": {
+    "default": "human",
+    "stages": {},
+    "profiles": {
+      "prop": {
+        "default": "agent"
+      },
+      "npc": {
+        "default": "agent"
+      },
+      "set-piece": {
+        "default": "agent"
+      }
+    }
+  },
+  "spend": {
+    "meshy": {
+      "unit": "credits",
+      "limit": null
+    },
+    "scenario": {
+      "unit": "CU",
+      "limit": 300
+    },
+    "tripo": {
+      "unit": "credits",
+      "limit": 20
+    },
+    "elevenlabs": {
+      "unit": "credits",
+      "limit": null
+    }
+  }
+}

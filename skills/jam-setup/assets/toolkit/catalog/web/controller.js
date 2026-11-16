@@ -1,6 +1,7 @@
 // Viewer controller: the same viewer instances the person sees expose state and controls to
 // agent sessions (window.catalogViewer). No separate or simulated viewer exists.
 import { useEffect, useRef } from 'preact/hooks';
+import { captureOf, kindsLoading } from './media-kinds.js';
 
 const viewers = new Map();
 const activeStack = [];
@@ -63,12 +64,14 @@ window.catalogViewer = {
     if (r === false || r == null) return { error: `the current ${ref.current.getState().kind ?? ''} viewer does not support this control`, code: 'unsupported' };
     return r === true ? { ok: true } : r;
   },
+  // What a capture of the showing viewer is, said by the kind of media it shows.
+  capture() { return captureOf(activeState()); },
   async settled(timeout = 15000) {
     const start = Date.now();
     let stable = 0;
     while (Date.now() - start < timeout) {
       const s = window.catalogViewer.state();
-      const busy = renderedHash !== location.hash || s.selection?.loading || s.viewer?.status === 'loading';
+      const busy = renderedHash !== location.hash || s.selection?.loading || s.viewer?.status === 'loading' || kindsLoading();
       stable = busy ? 0 : stable + 1;
       if (stable >= 3) return true;
       await new Promise((r) => setTimeout(r, 100));
