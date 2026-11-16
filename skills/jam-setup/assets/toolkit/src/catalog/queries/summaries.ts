@@ -124,3 +124,15 @@ export const assetSummary = (p: Projection, asset: Asset) => {
     tags: allTags(p, "asset", asset.id)
   }
 }
+
+/**
+ * Where the page loads a declared module of type views and panels: by name, pinned to its bytes.
+ * A module no plugin declares, or whose file is missing, is an error to show, never a substitute.
+ */
+export const viewModuleOf = (p: Projection, name: string): { readonly url: string | null; readonly error: string | null } => {
+  if (!p.viewModules.has(name)) return { url: null, error: `view module "${name}" is not declared by any plugin (a plugin lists it under views)` }
+  const digest = p.viewModules.get(name) ?? null
+  return digest === null
+    ? { url: null, error: `view module "${name}" is declared but its file is missing` }
+    : { url: `/project/view/${encodeURIComponent(name)}?v=${digest.slice(0, 16)}`, error: null }
+}

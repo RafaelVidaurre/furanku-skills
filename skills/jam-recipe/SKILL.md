@@ -35,7 +35,7 @@ Done when `jam run next <id>` says the run is delivered, or the report names the
 `jam run next` prints the commands for the gate in force.
 
 - **Agent gate:** review the step against its evidence and accept with what you checked and saw, or send it back with what must change.
-- **Human gate:** `jam catalog open` (it starts the review site for this checkout and keeps it running), then `jam run request-review <id> <step>`, which prints a link to that review. Give the person the link with one sentence saying what they are deciding, and say that it opens on the computer where the project is. Continue with work that does not depend on the answer; `jam run status <id>` reads their decision. When they answered you directly instead, record their words with the `--relay` command that `jam run next` printed. Runs of recipes that deliver nothing (exploration, tests) are not in the catalog and are always relayed.
+- **Human gate:** `jam catalog open` (it starts the review site for this checkout and keeps it running), then `jam run request-review <id> <step>`, which prints a link to that review. Give the person the link with one sentence saying what they are deciding, and say that it opens on the computer where the project is. Continue with work that does not depend on the answer; `jam run status <id>` reads their decision. When they answered you directly instead, record their words with the `--relay` command that `jam run next` printed. Runs of recipes that deliver nothing (exploration, tests) are not catalog content; `request-review` puts their images, clips and models in front of the person as work.
 
 How to review, what counts as a person's answer, and how to word the request: `tools/jam/docs/review.md`.
 

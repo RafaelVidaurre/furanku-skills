@@ -16,6 +16,7 @@ The catalog shows what this checkout contains (uncommitted files included): cont
 | The catalog in a browser | `jam catalog open` prints the address and starts the server when none is running. One server per checkout; it keeps running after your session ends |
 | Is it running, and where | `jam catalog status` |
 | Stop it | `jam catalog stop` |
+| The person reviews from another device through a private HTTPS proxy they run | `jam catalog open --allow-origin https://<proxy host>:<port>`: admits exactly that origin; give them the proxy's address |
 | Everything nobody has dealt with | `jam catalog todo`: reviews waiting, open notes, verdicts whose content changed since, problems |
 | Broken or missing media, unlinked files, plugin checks | `jam catalog doctor`, and `--fix` to apply the repairs it offers |
 
@@ -65,6 +66,8 @@ Write the submission `note` in Markdown for the person deciding:
 
 Leave out what the page already shows (author, branch, commit) and what they will not open (hashes, request ids, tool logs). When a change is easiest to judge against what came before, give a view a `before` (an earlier file, or earlier frozen evidence) so the page offers a side-by-side.
 
+What the catalog cannot render itself (an engine screenshot or clip, a file as it was at a commit) goes in an item's `captures`, each `{ "label", "file" }` or a pair `{ "label", "before", "after", "labels": [..] }`, with `"renderer"` naming what drew it; a file is a checkout path or `{ "revision", "path" }`. Work that is not catalog content (lighting, tooling, a proposal) is an item without `target`: a `title` with captures, `text`, or both. Captures are decided like parts but never count as the content's own.
+
 A verdict is the person's. They give it in the browser. When they told you their decision instead, relay it with `review.decide` as yourself (`--actor-kind agent`) and add `"relay": {"by": "<the name they go by in the project>", "channel": "<where they said it>", "words": "<what they said, verbatim>"}`, with `whole` (or `verdicts` per part) set to one of `review.verdicts` in `catalog.config.json` (by default `approved`, `changes`, `rejected`). The record then shows it came through you, and a run's human gate accepts it as a relay. Their words set the scope: "the crate is fine" decides the model, not attributes they did not look at; ask when it is unclear. Never record your own judgement as a person's.
 
 Notes have no replies. Mark one dealt with (`note.resolve`) only when what it says was actually handled.
@@ -73,6 +76,6 @@ Done when `review.get` shows the submission or verdict, and the person has its `
 
 ## Extending the catalog
 
-A project adds its own content sources, relations, media kinds, checks, actions and scopes with a plugin: a module listed under `plugins` in `catalog.config.json`, kept under `jam/catalog/`. The contract, with a complete small plugin, is `tools/jam/src/catalog/README.md` (section "Plugins"); `tools/jam/examples/plugins/storybook.ts` uses every extension point. `jam catalog example <new folder>` creates a sample project to try things in.
+A project adds its own content sources, relations, media kinds, checks, actions, scopes, and type views and panels (its own inspector on a unit's page) with a plugin: a module listed under `plugins` in `catalog.config.json`, kept under `jam/catalog/`. The contract, with a complete small plugin, is `tools/jam/src/catalog/README.md` (section "Plugins"); `tools/jam/examples/plugins/storybook.ts` uses every extension point. `jam catalog example <new folder>` creates a sample project to try things in.
 
 Done when `jam catalog run problems` is empty and `jam catalog doctor` reports the plugin's checks.

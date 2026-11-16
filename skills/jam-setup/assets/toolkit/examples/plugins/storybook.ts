@@ -1,7 +1,7 @@
 // An example catalog plugin that uses every extension point. It catalogs a small story: scenes and
 // the characters in them, read from two JSON files, with caption files as a media kind of its own.
 //
-// To use it in a project, copy this file (and storyboard.mjs) into the project, for example to
+// To use it in a project, copy this file (with storyboard.mjs and storybook.views.js) into the project, for example to
 // catalog/storybook.ts, point the import below at the toolkit's src/catalog/plugin.ts, and list it
 // in catalog.config.json:
 //
@@ -73,7 +73,10 @@ export default definePlugin({
             label: "Scene",
             scope: "story",
             fields: [{ key: "summary", label: "Summary" }, { key: "characters", label: "Characters", kind: "refs" }, { key: "position", label: "Position", derived: true }],
-            roles: [{ key: "image", label: "Image", kinds: ["image"], expected: true }, { key: "captions", label: "Captions", kinds: ["captions"] }]
+            roles: [{ key: "image", label: "Image", kinds: ["image"], expected: true }, { key: "captions", label: "Captions", kinds: ["captions"] }],
+            // Browser modules mounted per scene: an inspector in its visual strip and a sidebar section.
+            views: [{ key: "beats", label: "Beats", module: "storybook", export: "beats", help: "The scene's cast; highlight one" }],
+            panels: [{ key: "placement", label: "Running order", module: "storybook", export: "placement" }]
           }
         },
         units: (await readList<Scene>(context, "scenes.json")).map((scene) => sceneUnit(scene, `${folder(context)}/scenes.json`))
@@ -193,5 +196,9 @@ export default definePlugin({
   },
 
   // A browser module a collection kind can name as its preview (`preview.module`).
-  previews: { storyboard: "catalog/storyboard.mjs" }
+  previews: { storyboard: "catalog/storyboard.mjs" },
+
+  // The module of the scene type's views and panels. It ships beside this plugin, wherever the
+  // plugin is installed, so it is declared as a file: URL.
+  views: { storybook: new URL("./storybook.views.js", import.meta.url).href }
 })

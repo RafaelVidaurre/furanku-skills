@@ -64,8 +64,12 @@ window.catalogViewer = {
     if (r === false || r == null) return { error: `the current ${ref.current.getState().kind ?? ''} viewer does not support this control`, code: 'unsupported' };
     return r === true ? { ok: true } : r;
   },
-  // What a capture of the showing viewer is, said by the kind of media it shows.
-  capture() { return captureOf(activeState()); },
+  // What a capture of the showing viewer is: said by the kind of media it shows, or by a type's view
+  // (which names the renderer that draws it).
+  capture() {
+    const state = activeState();
+    return state?.kind === 'view' ? { renderer: state.renderer ?? `catalog view ${state.view}`, blocked: null } : captureOf(state);
+  },
   async settled(timeout = 15000) {
     const start = Date.now();
     let stable = 0;

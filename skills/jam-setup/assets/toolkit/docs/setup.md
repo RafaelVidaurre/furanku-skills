@@ -63,7 +63,7 @@ Running the installer in a version 1 project:
 
 - replaces the toolkit folder with version 2 (files it installed before; anything edited there stops the upgrade as described above);
 - runs `jam config migrate` once the packages are installed. Preview it with `jam config migrate --dry-run`. It prints a note for everything it could not carry over exactly;
-- rewrites `catalog.config.json` from one adapter to a list of plugins. A project's own adapter module keeps working as a plugin beside `jam`.
+- rewrites `catalog.config.json` from one adapter to a list of plugins when nothing would be lost; a project's own adapter module keeps working as a plugin beside `jam`. A file holding what version 2 cannot (preview modules, a resolver module, settings the installer does not know) stays at version 1, which still loads; the summary names what kept it there.
 
 What migration does to `jam.config.json`:
 

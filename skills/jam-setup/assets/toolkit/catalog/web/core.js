@@ -85,6 +85,8 @@ export const defaultScope = () => scopes()[0]?.id ?? 'content';
 export const isListSection = (section) => !!scopeOf(section) || section === 'collections' || section === 'files';
 export const sectionLabel = (section) => scopeOf(section)?.label ?? { collections: 'Collections', files: 'Files', reviews: 'Reviews', notes: 'Notes', inbox: 'Needs attention' }[section] ?? section;
 export const kindLabel = (kind) => mediaKind(kind)?.label ?? session.schema?.mediaKinds?.[kind]?.label ?? 'Unknown';
+/** Whether images of a type keep hard texels (pixel art): its own display, else the project's. No type: the project's. */
+export const pixelArt = (type) => !!((type && session.schema?.schema?.types?.[type]?.display) ?? session.schema?.display)?.pixelArt;
 
 // Fetch an action result; keeps the previous data while refreshing and re-runs on catalog changes.
 export function useQuery(action, input, enabled = true) {
@@ -238,14 +240,15 @@ export function KindIcon({ kind, size = 14 }) {
 }
 
 // Thumbnail of an asset reference ({ kind, url, version, sha256, state }), drawn by its kind.
-export function Thumb({ asset, size = 40, label, fill }) {
+// `pixel`: keep hard texels (default: the project's display policy).
+export function Thumb({ asset, size = 40, label, fill, pixel }) {
   useMediaKinds();
   const style = fill ? '' : `width:${size}px;height:${size}px`;
   if (!asset) return html`<span class=${`thumb empty${fill ? ' fill' : ''}`} style=${style}>${label ?? ''}</span>`;
   if (asset.state && asset.state !== 'ok') return html`<span class=${`thumb err${fill ? ' fill' : ''}`} style=${style} title=${asset.error ?? asset.state}><${Icon} name="warn" size=${Math.min(18, size / 2 || 18)} /></span>`;
   const kind = mediaKind(asset.kind);
   if (!kind?.thumbnail) return html`<span class=${`thumb plain${fill ? ' fill' : ''}`} style=${style} title=${kindLabel(asset.kind)}><${Icon} path=${kind?.icon} name="file" size=${Math.min(22, size / 2 || 22)} /></span>`;
-  return html`<span class=${`thumb${fill ? ' fill' : ''}`} style=${style}><${kind.thumbnail} asset=${asset} size=${size} /></span>`;
+  return html`<span class=${`thumb${fill ? ' fill' : ''}${(pixel ?? pixelArt(null)) ? ' pixel' : ''}`} style=${style}><${kind.thumbnail} asset=${asset} size=${size} /></span>`;
 }
 export function CopyId({ id, label }) {
   return html`<button class="id" title="Copy reference" onClick=${() => { navigator.clipboard?.writeText(id).then(() => toast(`Copied ${id}`), () => toast(`Copy failed; select ${id}`, 'err')); }}>${label ?? id}<${Icon} name="copy" size=${11} /></button>`;

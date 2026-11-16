@@ -204,7 +204,7 @@ describe("what is never submitted", () => {
     }
   })
 
-  it("an agent's gate unless the run requires a person for it; work the catalog does not list; a step with nothing to show", async () => {
+  it("an agent's gate unless the run requires a person for it; a step with nothing to show", async () => {
     const root = catalogProject({ files: { "jam/recipes/memo.json": JSON.stringify({ version: 1, id: "memo", title: "Memo", steps: [{ id: "write", produces: [{ role: "text", kind: "text" }], review: "human" }] }) } })
     await start(root, "asset", "barrel", { budget: "prop" })
     const made = await makeFiles(root, "barrel")
@@ -221,14 +221,6 @@ describe("what is never submitted", () => {
     const app = openCatalog(root)
     assert.deepEqual((await app.run("review.get", { submission: asked.submission })).items[0].parts.map((part: Any) => part.id), ["model:1"])
 
-    await start(root, "image", "moodboard")
-    write(root, "work/.scratch/moodboard/1/a.png", png(8, 8))
-    await record(root, "moodboard", "concept", { files: ["work/.scratch/moodboard/1/a.png"] })
-    const exploration = await bridgeFailure(root, requestReview({ run: "moodboard", step: "concept" }))
-    assert.equal(exploration.code, "unavailable")
-    assert.match(exploration.message, /^moodboard is not listed in the catalog, so concept cannot be reviewed there$/)
-    assert.match(exploration.fix!, /recipe image is not deliverable.*jam run review moodboard concept --accept --relay/)
-
     await start(root, "memo", "readme")
     write(root, "work/.scratch/readme/1/memo.md", "words")
     await record(root, "readme", "write", { files: ["work/.scratch/readme/1/memo.md"] })
@@ -237,6 +229,47 @@ describe("what is never submitted", () => {
     assert.match(nothing.message, /^nothing of step write can be shown in the catalog/)
     assert.match(nothing.fix!, /--evidence <path>.*--relay/)
     assert.equal((await app.run("reviews.list", {})).total, 1, "only the mesh was submitted")
+  })
+})
+
+describe("what the subject's unit cannot show", () => {
+  it("work the catalog does not list (an exploration) is reviewed as work, its files and evidence as captures", async () => {
+    const root = catalogProject()
+    await start(root, "image", "moodboard")
+    write(root, "work/.scratch/moodboard/1/a.png", png(8, 8, [10, 20, 30]))
+    write(root, "work/.scratch/moodboard/1/board.png", png(16, 8))
+    write(root, "work/.scratch/moodboard/1/notes.md", "why")
+    await record(root, "moodboard", "concept", { files: ["work/.scratch/moodboard/1/a.png"], evidence: [`board=work/.scratch/moodboard/1/board.png`, "work/.scratch/moodboard/1/notes.md"] })
+    const asked = await bridge(root, requestReview({ run: "moodboard", step: "concept" }))
+    const app = openCatalog(root)
+    const submission = await app.run("review.get", { submission: asked.submission })
+    const item = submission.items[0]
+    assert.deepEqual([item.target, item.title], [null, "moodboard · Concept image"])
+    assert.deepEqual(item.parts.map((part: Any) => [part.id, part.label]), [["capture:1", "Concept · a"], ["capture:2", "Board"]])
+    assert.deepEqual(item.views.map((view: Any) => view.caption), ["Concept image: Concept · a", "Evidence: Board"])
+    assert.match(submission.note, /\*\*To decide:\*\* Concept · a\. Supporting evidence: Board\.$/)
+    // A person decides there, and the run reads it like any other review.
+    await app.run("review.decide", { submission: asked.submission, item: item.id, whole: "approved" }, { actor: human })
+    assert.equal((await bridgedStep(root, "moodboard", "concept")).state, "accepted")
+  })
+
+  it("evidence the catalog's own viewer captured (under .catalog/.local) is a capture beside the unit's parts", async () => {
+    const { dir, root } = await waitingConcept()
+    write(root, ".catalog/.local/captures/turntable.png", png(32, 32, [90, 90, 200]))
+    await record(root, "barrel", "concept", { files: [`${dir}/a.png`, `${dir}/b.png`], evidence: [`side-by-side=${dir}/lineup.png`, "turntable=.catalog/.local/captures/turntable.png"], note: "Again, with a turntable.", tool: "image model 2" })
+    const { app, review, submission } = await ask(root)
+    assert.deepEqual(submission.items[0].target, { kind: "unit", id: "barrel" })
+    assert.deepEqual(submission.items[0].parts.map((part: Any) => part.id), ["capture:1", "concept:1", "concept:2", "evidence:concept-side-by-side"])
+    assert.deepEqual(submission.items[0].views.map((view: Any) => [view.part, view.caption]), [
+      ["concept:1", "Concept image: Concept · a"],
+      ["concept:2", "Concept image: Concept · b"],
+      ["evidence:concept-side-by-side", "Evidence: Side by side"],
+      ["capture:1", "Evidence: Turntable"]
+    ])
+    assert.equal(submission.items[0].parts[0].leaves[0].storage, "catalog", "machine-local bytes are frozen into the catalog's store")
+    assert.deepEqual((await app.run("problems", {})).problems, [], "the capture is never a catalog asset, so nothing is reported")
+    await decide(app, review, { whole: "approved" })
+    assert.equal((await bridgedStep(root, "barrel", "concept")).state, "accepted")
   })
 })
 

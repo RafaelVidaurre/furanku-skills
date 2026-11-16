@@ -4,7 +4,7 @@
 import * as Effect from "effect/Effect"
 import { isNonEmpty, isRecord } from "../../kernel/hash.ts"
 import type { MergedSources, ProblemInput, RoleInput } from "../plugin.ts"
-import type { Asset, CatalogSchema, CollectionKind, FieldDef, Link, Member, Problem, RoleDef, TypeDef, Unit } from "./types.ts"
+import type { Asset, CatalogSchema, CollectionKind, DisplayDef, FieldDef, Link, Member, MountDef, Problem, RoleDef, TypeDef, Unit, ViewDef } from "./types.ts"
 
 export interface SourceCollection {
   readonly id: string
@@ -36,6 +36,24 @@ export interface NormalizeRules {
 }
 
 const strings = (values: unknown): Array<string> => (Array.isArray(values) ? values.filter(isNonEmpty) : [])
+const optionalText = (value: unknown): value is string | null | undefined => value == null || isNonEmpty(value)
+
+/** A type's views or panels: each names a browser module a plugin declared, mounted per unit. */
+const mounts = (list: unknown, what: "view" | "panel", type: string, report: (error: string) => void): Array<ViewDef> => {
+  const out: Array<ViewDef> = []
+  for (const entry of Array.isArray(list) ? list as ReadonlyArray<Record<string, unknown> | null> : []) {
+    const key = entry?.["key"]
+    const valid = isRecord(entry) && isNonEmpty(key) && /^[a-z0-9][a-z0-9_-]{0,63}$/.test(key) && isNonEmpty(entry["label"]) && isNonEmpty(entry["module"]) &&
+      optionalText(entry["export"]) && optionalText(entry["help"]) && (entry["default"] == null || typeof entry["default"] === "boolean")
+    if (!valid || out.some((other) => other.key === key)) {
+      report(`type ${type}: ${what} ${typeof key === "string" ? key : "?"} needs a unique key (lower-case letters, digits, - and _), a label and a module`)
+      continue
+    }
+    out.push({ key, label: entry["label"] as string, module: entry["module"] as string, export: (entry["export"] as string | undefined) ?? "default", help: (entry["help"] as string | undefined) ?? null, default: entry["default"] === true })
+  }
+  return out
+}
+const display = (value: unknown): DisplayDef | null => (isRecord(value) && typeof value["pixelArt"] === "boolean" ? { pixelArt: value["pixelArt"] } : null)
 const METADATA = /(^|\/)(\.git|\.catalog)(\/|$)/
 
 const normalizeSchema = (sources: MergedSources, rules: NormalizeRules, problems: Array<Problem>): CatalogSchema => {
@@ -79,13 +97,22 @@ const normalizeSchema = (sources: MergedSources, rules: NormalizeRules, problems
       thumb: type.thumb ?? roles[0]?.key ?? null,
       help: type.help ?? null,
       audioTranscript: type.audioTranscript ?? null,
-      reviewAttributes: type.reviewAttributes !== false
+      reviewAttributes: type.reviewAttributes !== false,
+      views: mounts(type.views, "view", key, report),
+      panels: mounts(type.panels, "panel", key, report).map(({ default: _first, ...panel }): MountDef => panel),
+      display: display(type.display)
     }
   }
   const collectionKinds: Record<string, CollectionKind> = {}
   for (const [key, kind] of Object.entries(sources.collectionKinds)) {
     if (typeof kind !== "object" || kind === null) continue
-    collectionKinds[key] = { label: kind.label ?? key, preview: kind.preview ?? null, memberField: kind.memberField ?? null, memberExtra: kind.memberExtra ?? null }
+    const extra = kind.memberExtra ?? null
+    collectionKinds[key] = {
+      label: kind.label ?? key,
+      preview: kind.preview ?? null,
+      memberField: kind.memberField ?? null,
+      memberExtra: extra && { ...(extra.key === undefined ? {} : { key: extra.key }), format: extra.format === "text" ? "text" : "count" }
+    }
   }
   return { types, collectionKinds }
 }
@@ -179,7 +206,9 @@ export const normalize = (sources: MergedSources, reported: ReadonlyArray<Proble
         sources: strings(unit.sources),
         adapterTags: strings(unit.tags),
         adapterCategory: unit.category ?? null,
-        explain: isRecord(unit.explain) ? unit.explain : {}
+        explain: isRecord(unit.explain) ? unit.explain : {},
+        // A unit may narrow its type's views (an entry the inspector cannot show lists none).
+        views: Array.isArray(unit.views) ? type.views.filter((view) => (unit.views as ReadonlyArray<unknown>).includes(view.key)).map((view) => view.key) : null
       })
     }
 

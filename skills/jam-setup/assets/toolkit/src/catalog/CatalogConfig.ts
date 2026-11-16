@@ -22,6 +22,10 @@ const Review = Schema.Struct({
   verdicts: Schema.optionalKey(Schema.Array(Schema.Literals(["approved", "changes", "rejected"]))).annotate({ description: "Verdicts reviewers may give" })
 })
 
+const Display = Schema.Struct({
+  pixelArt: Schema.optionalKey(Schema.Boolean).annotate({ description: "Keep hard texels and show whole images in thumbnails and image viewers (pixel art). A type's own display wins" })
+}).annotate({ description: "How images are shown, for types that do not say" })
+
 /** The current form of the file. */
 export const ConfigV2 = Schema.Struct({
   $schema: Schema.optionalKey(Schema.String),
@@ -32,8 +36,9 @@ export const ConfigV2 = Schema.Struct({
   options: Schema.optionalKey(Schema.Record(Schema.String, Schema.Record(Schema.String, Schema.Unknown))).annotate({
     description: "Options per plugin name"
   }),
-  review: Schema.optionalKey(Review)
-}).annotate({ identifier: "CatalogConfig", title: "catalog.config.json", description: "Catalog plugins and review policy" })
+  review: Schema.optionalKey(Review),
+  display: Schema.optionalKey(Display)
+}).annotate({ identifier: "CatalogConfig", title: "catalog.config.json", description: "Catalog plugins, review policy and display" })
 
 /** Version 1: one adapter. Still read, never written. Unknown fields were always ignored. */
 export const ConfigV1 = Schema.Struct({
@@ -46,7 +51,8 @@ export const ConfigV1 = Schema.Struct({
     resolverModule: Schema.optionalKey(NonEmpty),
     referenceRoles: Schema.optionalKey(Schema.Array(NonEmpty)),
     verdicts: Schema.optionalKey(Schema.Array(Schema.String))
-  }))
+  })),
+  display: Schema.optionalKey(Display)
 })
 
 export interface PluginRef {
@@ -69,6 +75,8 @@ export interface ResolvedConfig {
   }
   /** Version 1 `previewModules`; version 2 registers previews through plugins. */
   readonly previewModules: Readonly<Record<string, string>>
+  /** How images are shown for types that do not say. */
+  readonly display: { readonly pixelArt: boolean }
 }
 
 /** What the composition root adds to a catalog: plugins by name, and command-line overrides. */
@@ -106,7 +114,8 @@ const fromV1 = (file: typeof ConfigV1.Type): ResolvedConfig => {
       referenceRoles: file.review?.referenceRoles ?? [],
       verdicts: file.review?.verdicts ?? ["approved", "changes", "rejected"]
     },
-    previewModules: Object.fromEntries(Object.entries(file.previewModules ?? {}).map(([name, path]) => [name, strip(path)]))
+    previewModules: Object.fromEntries(Object.entries(file.previewModules ?? {}).map(([name, path]) => [name, strip(path)])),
+    display: { pixelArt: file.display?.pixelArt === true }
   }
 }
 
@@ -120,7 +129,8 @@ const fromV2 = (file: typeof ConfigV2.Type): ResolvedConfig => ({
     referenceRoles: file.review?.referenceRoles ?? [],
     verdicts: file.review?.verdicts ?? ["approved", "changes", "rejected"]
   },
-  previewModules: {}
+  previewModules: {},
+  display: { pixelArt: file.display?.pixelArt === true }
 })
 
 const withOverrides = (config: ResolvedConfig, overrides: Setup["overrides"]): ResolvedConfig => ({

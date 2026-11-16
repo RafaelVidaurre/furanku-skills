@@ -40,6 +40,11 @@ export const leaves = (p: Projection, evidence: PartEvidence | undefined, label:
   if (evidence.members) {
     return [...Object.entries(evidence.members).flatMap(([unit, parts]) => ofUnit(unit, parts)), ...(evidence.base ? [{ key: "base", label: "Base", evidence: evidence.base }] : [])]
   }
+  // A before/after capture: its two files, labelled as the submitter named them.
+  if (evidence.pair) {
+    const [before = "Before", after = "After"] = evidence.labels ?? []
+    return [{ key: "before", label: `${label} · ${before}`, evidence: evidence.pair.before }, { key: "after", label: `${label} · ${after}`, evidence: evidence.pair.after }]
+  }
   return [{ key: "", label, evidence }]
 }
 
@@ -84,6 +89,7 @@ export const leafView = (evidence: EvidenceService, submission: string, item: st
       sha256: frozen.sha256,
       unit: leaf.unit ?? null,
       part: leaf.part ?? null,
+      renderer: frozen.renderer ?? null,
       storage: storageOf(frozen) ?? "catalog",
       ...status,
       url: status.status === "ok" ? evidenceUrl(submission, item, part, leaf.key) : null

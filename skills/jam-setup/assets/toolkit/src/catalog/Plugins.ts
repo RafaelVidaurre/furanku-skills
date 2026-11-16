@@ -48,6 +48,8 @@ export interface PluginSet {
   readonly previews: Readonly<Record<string, string>>
   /** Media kind id to the declared browser module that registers its viewer. */
   readonly kindModules: Readonly<Record<string, string>>
+  /** Module name to the declared browser module of type views and panels. */
+  readonly viewModules: Readonly<Record<string, string>>
   /** Project files that are code: configuration and modules. A change reloads everything. */
   readonly moduleFiles: ReadonlyArray<string>
   readonly problems: ReadonlyArray<Problem>
@@ -103,6 +105,8 @@ const collect = (config: ResolvedConfig, loaded: ReadonlyArray<{ plugin: Plugin;
     resolvers: { ...RESOLVERS, ...Object.assign({}, ...loaded.map((entry) => entry.plugin.resolvers ?? {})), ...extra.resolvers },
     previews: { ...Object.assign({}, ...loaded.map((entry) => entry.plugin.previews ?? {})), ...config.previewModules },
     kindModules: Object.fromEntries(mediaKinds.flatMap((kind) => (typeof kind.web === "string" ? [[kind.id, kind.web]] : []))),
+    // Version 1 declared every project module under `previewModules`; views name them the same way.
+    viewModules: { ...Object.assign({}, ...loaded.map((entry) => entry.plugin.views ?? {})), ...config.previewModules },
     moduleFiles: extra.moduleFiles,
     problems
   }

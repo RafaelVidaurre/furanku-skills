@@ -21,6 +21,7 @@ import { notesList } from "./queries/notes.ts"
 import { organizationList } from "./queries/organization.ts"
 import { reviewGet, reviewsList, submissionView } from "./queries/reviews.ts"
 import { search } from "./queries/search.ts"
+import { viewModuleOf } from "./queries/summaries.ts"
 import { Records } from "./Records.ts"
 
 const FrozenRef = Schema.Struct({ submission: Text, item: Text, part: Text })
@@ -51,7 +52,9 @@ const kindModuleOf = (p: Projection, kind: string): { web: string | null; webErr
  * modules plugins declare (their addresses are part of the schema).
  */
 const versionOf = (p: Projection): string =>
-  p.kindModules.size + p.previewModules.size === 0 ? p.snapshot.version : `${p.snapshot.version}${digest([[...p.kindModules], [...p.previewModules]]).slice(0, 4)}`
+  p.kindModules.size + p.previewModules.size + p.viewModules.size === 0 && !p.plugins.config.display.pixelArt
+    ? p.snapshot.version
+    : `${p.snapshot.version}${digest([[...p.kindModules], [...p.previewModules], [...p.viewModules], p.plugins.config.display]).slice(0, 4)}`
 
 /** What rarely changes and is large: clients fetch it once per `version`, not with every poll. */
 const describeProject = (p: Projection) => ({
@@ -63,6 +66,10 @@ const describeProject = (p: Projection) => ({
   relations: p.plugins.relations.map((relation) => ({ name: relation.name, label: relation.label, inverseLabel: relation.inverseLabel })),
   probes: p.plugins.probes.map(({ plugin, value }) => ({ name: value.name, plugin, version: value.version, kinds: value.kinds, fields: value.fields ?? [] })),
   previews: Object.keys(p.plugins.previews),
+  // Where each declared module of type views and panels loads from (see a type's `views` and `panels`).
+  views: Object.fromEntries([...p.viewModules.keys()].map((name) => [name, viewModuleOf(p, name)])),
+  // For types without a display of their own.
+  display: p.plugins.config.display,
   unitScopes: Object.fromEntries(p.snapshot.units.map((unit) => [unit.id, unit.scope]))
 })
 
@@ -83,7 +90,7 @@ const reads: ReadonlyArray<ActionDef> = [
         verdicts: p.policy.verdicts
       }
     })),
-  read("schema", "Types, collection kinds, scopes, media kinds, relations and probes of this project; changes only when `version` does", Empty, (_input, env) =>
+  read("schema", "Types, collection kinds, scopes, media kinds, relations, probes, view modules and display policy of this project; changes only when `version` does", Empty, (_input, env) =>
     Effect.succeed(describeProject(env.projection))),
   read("checkout", "The checkout with its count of uncommitted changes outside .catalog (runs git status)", Empty, (_input, env) =>
     Effect.gen(function*() {

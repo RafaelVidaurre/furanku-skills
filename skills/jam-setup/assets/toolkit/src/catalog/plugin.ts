@@ -75,6 +75,29 @@ export interface TypeInput {
   readonly help?: string | null
   readonly audioTranscript?: unknown
   readonly reviewAttributes?: boolean
+  /**
+   * Inspectors in the unit's visual strip, selected as part `view:<key>`; `default: true` opens
+   * first. `module` names a browser module the plugin declares under `views`.
+   */
+  readonly views?: ReadonlyArray<MountInput & { readonly default?: boolean }>
+  /** Sidebar sections of the unit's page, from modules declared under `views`. */
+  readonly panels?: ReadonlyArray<MountInput>
+  /** How this type's images are shown; without it, the project's `display` in catalog.config.json. */
+  readonly display?: { readonly pixelArt?: boolean }
+}
+
+/**
+ * A browser module mounted for one unit. Its export is `mount(host, ctx)`: framework-free, it
+ * fills `host` and returns `{ dispose(), state?(), control?(command) }` (see the catalog README).
+ */
+export interface MountInput {
+  readonly key: string
+  readonly label: string
+  /** A name under the plugin's `views`. */
+  readonly module: string
+  /** The export to call (default: the default export). */
+  readonly export?: string
+  readonly help?: string | null
 }
 
 export interface CollectionKindInput {
@@ -88,7 +111,8 @@ export interface CollectionKindInput {
     readonly represents?: string
   } | null
   readonly memberField?: string | null
-  readonly memberExtra?: { readonly key?: string } | null
+  /** A member's own value shown beside it: `×N` (`count`, the default) or as written (`text`). */
+  readonly memberExtra?: { readonly key?: string; readonly format?: "count" | "text" } | null
 }
 
 export interface AssetInput {
@@ -123,6 +147,8 @@ export interface UnitInput {
   readonly tags?: ReadonlyArray<string>
   readonly category?: string | null
   readonly explain?: Record<string, unknown>
+  /** Keys of its type's views this unit shows (default: all of them). */
+  readonly views?: ReadonlyArray<string>
 }
 
 export interface CollectionInput {
@@ -329,6 +355,11 @@ export interface Plugin {
    * path or a `file:` URL beside the plugin, as for a media kind's `web`.
    */
   readonly previews?: Readonly<Record<string, string>>
+  /**
+   * Modules of type views and panels by name, declared like `previews`. A module exports
+   * `mount(host, ctx)` functions; a type's view or panel names one with `module` and `export`.
+   */
+  readonly views?: Readonly<Record<string, string>>
 }
 
 /** Declares a plugin. It returns its argument; it exists so editors check the shape. */

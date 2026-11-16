@@ -126,3 +126,25 @@ test("version 1 manifest option and built-in adapter names map onto plugins", as
   assert.match((await rejects(open(dir).then((fresh) => fresh.run("context", {})), "invalid")).message, /unknown plugin jam/)
   cleanup(dir)
 })
+
+// Catalogs before version 2 read `display.pixelArt` from a version 1 file; both versions accept it.
+test("display: the project's pixel-art policy in both versions, and a type's own display wins", async () => {
+  assert.deepEqual((await resolve({ version: 2 })).display, { pixelArt: false })
+  assert.deepEqual((await resolve({ version: 2, display: { pixelArt: true } })).display, { pixelArt: true })
+  assert.deepEqual((await resolve({ version: 1, adapter: "manifest", display: { pixelArt: true } })).display, { pixelArt: true })
+  assert.match((await refused({ version: 2, display: { pixelArt: "yes" } })).message, /display\.pixelArt/)
+  assert.match((await refused({ version: 2, display: { pixelart: true } })).message, /display/)
+
+  const dir = await standardProject({ extra: { types: { icon: { label: "Icon", roles: [{ key: "image", label: "Image", kinds: ["image"] }], display: { pixelArt: false } }, armor: { label: "Armor", roles: [] } } } })
+  write(dir, "catalog.config.json", { ...read(dir, "catalog.config.json"), display: { pixelArt: true } })
+  write(dir, "content/icon_sword.json", { id: "icon/sword", type: "icon", links: [{ role: "image", asset: "art/helm.png" }] })
+  const app = await open(dir)
+  const schema = await app.run("schema", {})
+  assert.deepEqual([schema.display, schema.schema.types.icon.display, schema.schema.types.armor.display], [{ pixelArt: true }, { pixelArt: false }, null])
+  assert.deepEqual((await app.run("unit.get", { id: "icon/sword" })).display, { pixelArt: false }, "the type's own display wins")
+  assert.deepEqual((await app.run("unit.get", { id: "armor/helm" })).display, { pixelArt: true }, "a type without one follows the project")
+  const before = schema.version
+  write(dir, "catalog.config.json", { ...read(dir, "catalog.config.json"), display: { pixelArt: false } })
+  assert.notEqual((await app.run("context", {})).version, before, "the page fetches the schema again when the policy changes")
+  cleanup(dir)
+})

@@ -26,7 +26,9 @@ export const ServerRecord = Schema.Struct({
   checkout: Schema.String,
   /** Version of the toolkit that started it; a newer toolkit replaces an older server. */
   toolkit: Schema.String,
-  startedAt: Schema.String
+  startedAt: Schema.String,
+  /** Origins it admits besides this machine's (`--allow-origin`); `open` reuses it only for the same ones. */
+  allowOrigins: Schema.optionalKey(Schema.Array(Schema.String))
 })
 export type ServerRecord = typeof ServerRecord.Type
 

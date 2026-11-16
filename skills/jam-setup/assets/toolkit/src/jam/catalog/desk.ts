@@ -2,18 +2,24 @@
 // catalog submission of the subject's unit, and the person's verdict there decides the gate:
 // there is one place a person approves anything. An agent's verdict in the catalog decides
 // nothing here.
+//
+// What the unit cannot show as its own parts still reaches the reviewer as captures of the item:
+// evidence outside the asset roots (a render the catalog's own viewer saved under
+// .catalog/.local/captures, a file beside the run). Work the catalog does not list as a unit (a
+// recipe that is not deliverable: tests, explorations) is submitted as work, with its files as
+// captures. Only a step with nothing showable at all is refused.
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { Catalog } from "../../catalog/Catalog.ts"
 import type { Actor } from "../../catalog/plugin.ts"
-import { fail, toolError } from "../../kernel/errors.ts"
+import { fail } from "../../kernel/errors.ts"
 import { Git } from "../../kernel/Git.ts"
 import { extensionOf } from "../../kernel/hash.ts"
 import { ProjectFiles } from "../../kernel/ProjectFiles.ts"
 import { budgetOf } from "../checks/Checks.ts"
 import { type Relayed, requestIdOf, ReviewDesk, type ReviewRequest, type Verdict } from "../runs/ReviewDesk.ts"
 import { reviewNote, words } from "./note.ts"
-import { EVIDENCE_ROLE } from "./units.ts"
+import { capturable, EVIDENCE_ROLE } from "./units.ts"
 
 // The parts of catalog results this module reads.
 interface UnitDetail {
@@ -53,9 +59,13 @@ interface Decided {
 
 const VIEW_MAX = 50
 const CAPTION_MAX = 300
+const LABEL_MAX = 300
 const TEXT = new Set(["md", "txt"])
 
 const unique = <A>(values: Iterable<A>): Array<A> => [...new Set(values)]
+const stem = (path: string): string => (path.split("/").at(-1) ?? path).replace(/\.[^.]+$/, "")
+const evidenceLabel = (entry: { readonly label?: string | undefined; readonly path: string }): string => words(entry.label ?? stem(entry.path))
+const caption = (text: string): string => text.slice(0, CAPTION_MAX)
 const names = (people: ReadonlyArray<string>): string => (people.length <= 1 ? people[0] ?? "" : `${people.slice(0, -1).join(", ")} and ${people.at(-1)}`)
 
 const request = (submission: Linked, hint: string | undefined, reviewer: string | null): ReviewRequest => ({
@@ -78,33 +88,39 @@ export const catalogDesk = (agent: string): Layer.Layer<ReviewDesk, never, Catal
         Effect.gen(function*() {
           const { run } = context.ref
           const relay = `record the person's answer instead: jam run review ${run.id} ${step.id} --accept --relay "<where they answered>: <their words>"`
+          // A subject the catalog does not list (work that is not content) is reviewed as work.
           const detail = (yield* catalog.run("unit.get", { id: run.id }).pipe(
-            Effect.mapError((error) =>
-              error.code !== "not_found" ? error : toolError("unavailable", `${run.id} is not listed in the catalog, so ${step.id} cannot be reviewed there`, {
-                fix: context.recipe.deliverable
-                  ? `list "jam" under "plugins" in catalog.config.json (the jam-setup installer does), or ${relay}`
-                  : `recipe ${context.recipe.id} is not deliverable, and only deliverable work is catalog content; ${relay}`
-              }))
-          )) as UnitDetail
-          const pathOf = (asset: string | undefined): string | undefined => detail.links.find((link) => link.asset.id === asset)?.asset.path
-          const shown = detail.review.parts.filter((part) => part.reviewable && part.asset !== undefined)
+            Effect.catch((error) => (error.code === "not_found" ? Effect.succeed(null) : Effect.fail(error)))
+          )) as UnitDetail | null
+          const pathOf = (asset: string | undefined): string | undefined => detail?.links.find((link) => link.asset.id === asset)?.asset.path
+          const shown = (detail?.review.parts ?? []).filter((part) => part.reviewable && part.asset !== undefined)
           const produced = shown.filter((part) => part.role !== EVIDENCE_ROLE && record.files.some((file) => file.role === part.role && file.path === pathOf(part.asset)))
           const evidence = shown.flatMap((part) => {
             const entry = part.role === EVIDENCE_ROLE ? record.evidence.find((file) => file.path === pathOf(part.asset)) : undefined
-            return entry === undefined ? [] : [{ part, label: words(entry.label ?? (entry.path.split("/").at(-1) ?? entry.path).replace(/\.[^.]+$/, "")) }]
+            return entry === undefined ? [] : [{ part, label: evidenceLabel(entry) }]
           })
-          if (produced.length + evidence.length === 0) {
-            return yield* fail("unsupported", `nothing of step ${step.id} can be shown in the catalog: ${run.id} links none of the files this record names`, {
-              fix: `the catalog shows images, video, audio and GLB models of a subject's newest run; attach such evidence when recording (--evidence <path>), or ${relay}`
+          // Whatever the unit does not show is shown as a capture of the item, never left out.
+          // Evidence the unit links is its part (or reference material the project leaves out of reviews).
+          const linked = new Set((detail?.links ?? []).map((link) => link.asset.path))
+          const capture = (label: string, shownAs: string, file: string) => ({ label: label.slice(0, LABEL_MAX), caption: caption(shownAs), file })
+          // Work's own files are what is decided; evidence beside them supports the decision.
+          const made = detail === null ? record.files.filter((file) => capturable(file.path)).map((file) => capture(`${words(file.role)} · ${stem(file.path)}`, `${step.title}: ${words(file.role)} · ${stem(file.path)}`, file.path)) : []
+          const supporting = record.evidence.filter((entry) => capturable(entry.path) && !linked.has(entry.path)).map((entry) => capture(evidenceLabel(entry), `Evidence: ${evidenceLabel(entry)}`, entry.path))
+          const captures = [...made, ...supporting].slice(0, VIEW_MAX)
+          if (produced.length + evidence.length + captures.length === 0) {
+            return yield* fail("unsupported", `nothing of step ${step.id} can be shown in the catalog: ${detail === null ? "it records" : `${run.id} links`} no images, video, audio or GLB models`, {
+              fix: `attach such evidence when recording (--evidence <path>), or ${relay}`
             })
           }
           const views = [
-            ...produced.map((part) => ({ part: part.id, caption: `${step.title}: ${part.label}` })),
-            ...evidence.map(({ label, part }) => ({ part: part.id, caption: `Evidence: ${label}` }))
-          ].slice(0, VIEW_MAX).map((view) => ({ ...view, caption: view.caption.slice(0, CAPTION_MAX) }))
+            ...produced.map((part) => ({ part: part.id, caption: caption(`${step.title}: ${part.label}`) })),
+            ...evidence.map(({ label, part }) => ({ part: part.id, caption: caption(`Evidence: ${label}`) })),
+            ...captures.map((capture, index) => ({ part: `capture:${index + 1}`, caption: capture.caption }))
+          ].slice(0, VIEW_MAX)
           const brief = TEXT.has(extensionOf(run.brief.path)) ? yield* files.readText(run.brief.path).pipe(Effect.catch(() => Effect.succeed(null))) : null
           const budget = budgetOf(context)
-          const labels = evidence.map((entry) => entry.label)
+          const decided = [...produced.map((part) => part.label), ...made.map((file) => file.label)]
+          const labels = [...evidence.map((entry) => entry.label), ...supporting.map((entry) => entry.label)]
           const note = reviewNote({
             run,
             recipeTitle: context.recipe.title,
@@ -112,12 +128,16 @@ export const catalogDesk = (agent: string): Layer.Layer<ReviewDesk, never, Catal
             record,
             budget: budget.name === null || budget.budget === null ? null : { name: budget.name, budget: budget.budget },
             brief,
-            parts: produced.length > 0 ? produced.map((part) => part.label) : labels,
-            evidence: produced.length > 0 ? labels : []
+            parts: decided.length > 0 ? decided : labels,
+            evidence: decided.length > 0 ? labels : []
           })
+          const title = `${run.id} · ${step.title}`
+          const item = detail === null
+            ? { title, captures, views }
+            : { target: { kind: "unit", id: run.id }, parts: [...produced, ...evidence.map((entry) => entry.part)].map((part) => part.id), ...(captures.length > 0 ? { captures } : {}), views }
           const result = (yield* catalog.run(
             "review.submit",
-            { title: `${run.id} · ${step.title}`, note, items: [{ target: { kind: "unit", id: run.id }, parts: [...produced, ...evidence.map((entry) => entry.part)].map((part) => part.id), views }] },
+            { title, note, items: [item] },
             // The record's id is the request: submitting it again returns the first submission.
             { actor, requestId: requestIdOf(record) }
           )) as Submitted

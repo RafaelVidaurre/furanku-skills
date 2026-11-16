@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect"
 import { fail, type ToolError } from "../../kernel/errors.ts"
 import { shortRef } from "../../kernel/Ids.ts"
 import type { Evidence } from "../Evidence.ts"
-import type { SubmissionItem, SubmissionRecord, Target } from "../model/types.ts"
+import type { FrozenPart, SubmissionItem, SubmissionRecord, Target } from "../model/types.ts"
 import { eventOrder } from "../model/verdicts.ts"
 import type { Projection } from "../Projection.ts"
 import { reviewRoute } from "../routes.ts"
@@ -44,14 +44,18 @@ const framePreview = (p: Projection, item: SubmissionItem) => {
 const itemHeader = (p: Projection, submission: SubmissionRecord, item: SubmissionItem) => {
   const state = itemState(p, submission, item)
   const { unitsById } = p.snapshot
+  const target = item.target
   return {
     state,
     view: {
       id: item.id,
-      target: item.target,
-      targetScope: item.target.kind === "unit" ? unitsById.get(item.target.id)?.scope ?? null : null,
+      target,
+      targetScope: target?.kind === "unit" ? unitsById.get(target.id)?.scope ?? null : null,
+      targetType: target?.kind === "unit" ? unitsById.get(target.id)?.type ?? null : null,
       title: item.title,
-      targetExists: item.target.kind === "unit" ? unitsById.has(item.target.id) : p.collectionsById.has(item.target.id),
+      text: item.text ?? null,
+      // Null for work, which targets no content.
+      targetExists: target === null ? null : target.kind === "unit" ? unitsById.has(target.id) : p.collectionsById.has(target.id),
       state: state.summary.state,
       summary: state.summary
     }
@@ -85,10 +89,13 @@ export const submissionView = (p: Projection, submission: SubmissionRecord) =>
   frame(submission, submission.items.map((item) => itemHeader(p, submission, item).view))
 export type SubmissionView = ReturnType<typeof submissionView>
 
-const pick = (part: { readonly role?: string | null; readonly member?: string; readonly asset?: string | null }) => ({
+const pick = (part: FrozenPart) => ({
   ...(part.role != null ? { role: part.role } : {}),
   ...(part.member != null ? { member: part.member } : {}),
-  ...(part.asset != null ? { asset: part.asset } : {})
+  ...(part.asset != null ? { asset: part.asset } : {}),
+  // A capture: who rendered it, and the two labels of a before/after pair.
+  ...(part.renderer != null ? { renderer: part.renderer } : {}),
+  ...(part.evidence.pair ? { pairLabels: part.evidence.labels ?? ["Before", "After"] } : {})
 })
 
 const submissionDetail = (p: Projection, evidence: Evidence["Service"], submission: SubmissionRecord) =>
@@ -120,7 +127,7 @@ export const reviewsList = (p: Projection, input: ReviewsListInput) => {
   const { target } = input
   const q = (input.q ?? "").toLowerCase()
   let list = p.records.submission
-    .filter((submission) => !target || submission.items.some((item) => item.target.kind === target.kind && item.target.id === target.id))
+    .filter((submission) => !target || submission.items.some((item) => item.target?.kind === target.kind && item.target.id === target.id))
     .map((submission) => submissionView(p, submission))
     .sort((a, b) => b.at.localeCompare(a.at))
   if (q) list = list.filter((submission) => `${submission.title} ${submission.ref} ${submission.items.map((item) => item.title).join(" ")}`.toLowerCase().includes(q))

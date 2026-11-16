@@ -4,6 +4,7 @@
 import * as Schema from "effect/Schema"
 import { isRecord } from "../../kernel/hash.ts"
 import type { RecordKind } from "../model/types.ts"
+import { CAPTURE_PART, DECISION_PART } from "../model/parts.ts"
 import { VERDICTS } from "../model/verdicts.ts"
 import { EVIDENCE_PATH } from "./layout.ts"
 
@@ -53,12 +54,23 @@ export const validRef = (ref: unknown, sha: unknown): boolean => {
   return false
 }
 
-/** Frozen attributes, or frozen media of any kind with its reference. */
+/** Frozen attributes, or frozen media of any kind with its reference (and, for a capture, who rendered it). */
 export const validLeaf = (leaf: unknown): boolean => {
   if (!isRecord(leaf)) return false
   if (leaf["kind"] === "attributes") return isRecord(leaf["attrs"]) && isHex(leaf["digest"])
   return isText(leaf["kind"], 100) && isHex(leaf["sha256"]) && leaf["digest"] === leaf["sha256"] && isText(leaf["asset"], 500) &&
-    isText(leaf["path"], 1000) && isCount(leaf["size"]) && optionalText(leaf["mime"], 100) && validRef(leaf["ref"], leaf["sha256"])
+    isText(leaf["path"], 1000) && isCount(leaf["size"]) && optionalText(leaf["mime"], 100) && validRef(leaf["ref"], leaf["sha256"]) &&
+    optionalText(leaf["renderer"], 100)
+}
+
+/** A capture: one frozen file, or a before/after pair with its two labels. */
+const validCapture = (part: Record<string, unknown>, evidence: Record<string, unknown>): boolean => {
+  if (!optionalText(part["renderer"], 100) || !optionalText(evidence["renderer"], 100)) return false
+  if (evidence["pair"] === undefined) return validLeaf(evidence) && evidence["kind"] !== "attributes"
+  const pair = evidence["pair"]
+  const labels = evidence["labels"]
+  return isRecord(pair) && validLeaf(pair["before"]) && validLeaf(pair["after"]) &&
+    Array.isArray(labels) && labels.length === 2 && labels.every((label) => isText(label, 100))
 }
 
 const validDefinition = (definition: unknown): boolean =>
@@ -68,6 +80,7 @@ const leafMap = (map: unknown): boolean => isRecord(map) && Object.entries(map).
 const validPartEvidence = (part: { readonly id: string; readonly evidence: unknown }): boolean => {
   const evidence = part.evidence
   if (!isRecord(evidence) || !isHex(evidence["digest"])) return false
+  if (CAPTURE_PART.test(part.id)) return validCapture(part as unknown as Record<string, unknown>, evidence)
   if (part.id === "preview") {
     const roles = evidence["roles"]
     return isRecord(evidence["members"]) && Object.entries(evidence["members"]).every(([unit, leaves]) => isText(unit, 500) && leafMap(leaves)) &&
@@ -165,8 +178,11 @@ export const CategoriesRecord = Schema.Struct({ categories: Schema.Array(Categor
 const FrozenPart = Schema.Struct({ id: text(600), label: text(600), evidence: Schema.Unknown })
 const SubmissionItem = Schema.Struct({
   id: Schema.String.check(Schema.isPattern(/^it_[a-z0-9]+$/u)),
-  target: Schema.Struct({ kind: Schema.Literals(["unit", "collection"]), id: text(500) }),
+  // Null for work that is not catalog content (lighting, tooling, a proposal).
+  target: Schema.NullOr(Schema.Struct({ kind: Schema.Literals(["unit", "collection"]), id: text(500) })),
   title: text(300),
+  text: nullable(text(4000)),
+  kind: Schema.optionalKey(Schema.Literals(["unit", "collection", "work"])),
   definition: Schema.Unknown,
   parts: Schema.NonEmptyArray(FrozenPart),
   views: Schema.Array(Schema.Record(Schema.String, Schema.Unknown)),
@@ -174,6 +190,8 @@ const SubmissionItem = Schema.Struct({
 }).check(Schema.makeFilter((item) => {
   if (!validDefinition(item.definition)) return "item definition evidence is invalid"
   if (!item.parts.every(validPartEvidence)) return `item ${item.id} parts or evidence are invalid`
+  // Work holds only its own evidence: captures, or the one decision part of a text-only item.
+  if (item.target === null && !item.parts.every((part) => CAPTURE_PART.test(part.id) || part.id === DECISION_PART)) return `item ${item.id} has no target, so it holds only captures or a decision`
   if (new Set(item.parts.map((part) => part.id)).size !== item.parts.length) return "duplicate part ids"
   const viewsValid = item.views.every((view) =>
     /^vw_[a-z0-9]+$/.test(String(view["id"] ?? "")) && isText(view["caption"], 300) && item.parts.some((part) => part.id === view["part"]) &&

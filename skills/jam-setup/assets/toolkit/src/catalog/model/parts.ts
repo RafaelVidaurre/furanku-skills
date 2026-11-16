@@ -51,6 +51,17 @@ export const collectionParts = (
   return parts
 }
 
+/** A capture part: externally rendered evidence frozen with one submission item. */
+export const CAPTURE_PART = /^capture:[1-9][0-9]*$/
+/** The one part of a work item that has text and no captures. */
+export const DECISION_PART = "decision"
+
+/**
+ * Parts that belong to one submission item and to no content: captures and a work item's
+ * decision. They have no current version, so they never count as content that changed.
+ */
+export const isItemEvidence = (partId: string): boolean => CAPTURE_PART.test(partId) || partId === DECISION_PART
+
 /** The role a part belongs to, for deciding whether it is reference material. */
 export const partRole = (part: { readonly id: string; readonly role?: string | null | undefined }): string =>
   part.role ?? part.id.split(":")[0] ?? part.id
