@@ -7,6 +7,7 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { optional, Text, write } from "../action.ts"
 import { fail } from "../../kernel/errors.ts"
+import { digest } from "../../kernel/hash.ts"
 import { ProjectFiles } from "../../kernel/ProjectFiles.ts"
 import type { AnyRecord, NoteRecord, SubmissionRecord, VerdictRecord } from "../model/types.ts"
 import { EVIDENCE_PATH } from "../records/layout.ts"
@@ -15,7 +16,10 @@ import { Records } from "../Records.ts"
 const RemoveInput = Schema.Struct({
   submissions: Schema.NonEmptyArray(Schema.String.check(Schema.isPattern(/^sub_[a-z0-9]+$/u))).annotate({ description: "Submission ids to remove" }),
   reason: Text.annotate({ description: "Why these reviews are removed; returned with the result for the project's own records" }),
-  dryRun: optional(Schema.Boolean).annotate({ description: "List exactly what would be removed and change nothing" })
+  dryRun: optional(Schema.Boolean).annotate({ description: "List exactly what would be removed, with its plan fingerprint, and change nothing" }),
+  expectedPlan: optional(Text).annotate({
+    description: "The plan fingerprint a dry run returned. Removal is refused when anything it covers changed since (a new verdict, a note, an edit), so what was archived is what goes."
+  })
 })
 
 /** Every evidence-store path a record points at, wherever in the record it sits. */
@@ -71,7 +75,16 @@ export const removeAction = write(
         for (const record of p.records[kind] as ReadonlyArray<AnyRecord>) if (!removedRecords.includes(record)) storedEvidence(record, keptEvidence)
       }
       const evidence = [...storedEvidence(submissions, new Set())].filter((path) => !keptEvidence.has(path)).sort()
+      // The fingerprint covers every record that would go, as it is now (notes carry their revision).
+      const fingerprint = digest({ submissions, verdicts, notes, evidence })
+      if (input.expectedPlan != null && input.dryRun !== true && input.expectedPlan !== fingerprint) {
+        return yield* fail("conflict", "what these submissions hold changed since the plan was made (a verdict, note or edit was added)", {
+          fix: "run the dry run again, archive what it lists, and remove with its new plan",
+          details: { plan: fingerprint }
+        })
+      }
       const plan = {
+        plan: fingerprint,
         reason: input.reason,
         submissions: submissions.map((submission) => ({ id: submission.id, title: submission.title, items: submission.items.length })),
         verdicts: verdicts.map((verdict) => verdict.id),
@@ -88,6 +101,7 @@ export const removeAction = write(
       // Records first: a failure part-way leaves unreferenced evidence behind, never a record without its evidence.
       const files = yield* ProjectFiles
       for (const path of evidence) yield* files.remove(path, { noFollow: true })
-      return { removed: true, ...plan }
+      // The removed records themselves, so nothing is lost even when a caller archived too little.
+      return { removed: true, ...plan, records: { submissions, verdicts, notes } }
     })
 )
