@@ -328,3 +328,35 @@ test("GLB models with external resources are rejected explicitly", async () => {
   assert.match(a.error, /external resources \(mesh\.bin, albedo\.png\)/)
   cleanup(dir)
 })
+
+test("records written before request bindings existed still read, and their request ids are never replayed", async () => {
+  const dir = await standardProject()
+  const run = W(await open(dir))
+  const note = (await run("note.create", { target: unit("armor/helm"), body: "Visor reads thin" }, "old-note")).note
+  const submission = (await run("review.submit", { items: [{ target: unit("armor/helm") }] })).submission
+  const review = await (await open(dir)).run("review.get", { submission: submission.id })
+  const verdict = (await run("review.decide", { submission: submission.id, item: review.items[0].id, whole: "approved" }, "old-verdict")).event
+  // An earlier catalog wrote the request id without its binding; the machine-local journal is gone.
+  const strip = (path: string): void => {
+    const record = JSON.parse(readFileSync(join(dir, path), "utf8")) as Record<string, unknown>
+    assert.ok(record["requestBinding"], `${path} was written with a binding`)
+    delete record["requestBinding"]
+    writeFileSync(join(dir, path), `${JSON.stringify(record, null, 2)}\n`)
+  }
+  strip(`.catalog/notes/${note.id}.json`)
+  strip(`.catalog/reviews/${submission.id}/verdicts/${verdict.id}.json`)
+  rmSync(join(dir, ".catalog/.local"), { recursive: true, force: true })
+
+  const app = await open(dir)
+  assert.equal((await app.run("problems", {})).problems.length, 0)
+  assert.deepEqual((await app.run("notes.list", {})).notes.map((n: { id: string }) => n.id), [note.id])
+  const decided = await app.run("review.get", { submission: submission.id })
+  assert.equal(decided.items[0].parts[0].verdict, "approved")
+  // Nothing proves what those ids were bound to: reusing one is refused, never replayed.
+  await rejects(W(app)("note.create", { target: unit("armor/helm"), body: "Visor reads thin" }, "old-note"), "conflict")
+  await rejects(W(app)("review.decide", { submission: submission.id, item: review.items[0].id, whole: "approved" }, "old-verdict"), "conflict")
+  // New writes still record the binding.
+  const fresh = (await W(app)("note.create", { target: unit("armor/helm"), body: "Strap is fine" }, "new-note")).note
+  assert.ok(JSON.parse(readFileSync(join(dir, `.catalog/notes/${fresh.id}.json`), "utf8")).requestBinding)
+  cleanup(dir)
+})

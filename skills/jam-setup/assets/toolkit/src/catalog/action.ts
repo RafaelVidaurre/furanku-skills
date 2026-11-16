@@ -100,7 +100,8 @@ export const priorRequest = <K extends "note" | "collection" | "submission" | "v
     const bindingField = field === "lastRequestId" ? "lastRequestBinding" : "requestBinding"
     const matches = (p.records[kind as RecordKind] as unknown as ReadonlyArray<Record<string, unknown>>).filter((record) => record[field] === requestId)
     for (const prior of matches) {
-      if (digest(prior[bindingField]) !== digest(binding)) {
+      // A record from before bindings were recorded matches no binding, so its id is never replayed.
+      if (prior[bindingField] == null || digest(prior[bindingField]) !== digest(binding)) {
         return yield* fail("conflict", "request id was already used for a different action, input, actor or checkout context", { fix: "use a new request id for a new request" })
       }
     }
