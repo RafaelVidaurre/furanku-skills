@@ -35,7 +35,10 @@ const Binding = Schema.Struct({ action: text(100), digest: Hex64, context: text(
 const VerdictValue = Schema.Literals(VERDICTS)
 
 /** A request id and its binding come together or not at all. */
-const requestPair = (id: unknown, binding: unknown): boolean => (id == null ? binding == null : binding != null)
+// A binding always belongs to a request id. An id without a binding was written before bindings
+// were recorded: it still reads, and the id can never be reused, because nothing proves what it was
+// bound to (see priorRequest). New writes always record both.
+const requestPair = (id: unknown, binding: unknown): boolean => binding == null || id != null
 
 // ---- Evidence: references must be complete, so a read can always verify what it returns.
 
