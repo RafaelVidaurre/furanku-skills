@@ -1,0 +1,26 @@
+{
+  "$schema": "../schemas/recipe.schema.json",
+  "version": 1,
+  "id": "image",
+  "title": "Exploration image",
+  "description": "Concept images only, for exploring a direction before a style or budget exists. Nothing is delivered.",
+  "when": "Exploring looks or ideas with images when no model is wanted yet.",
+  "deliverable": false,
+  "steps": [
+    {
+      "id": "concept",
+      "title": "Concept image",
+      "skill": "jam-concept",
+      "guide": "toolkit:docs/recipes/image.md#concept",
+      "paid": true,
+      "produces": [
+        {
+          "role": "concept",
+          "kind": "image",
+          "min": 1
+        }
+      ],
+      "review": "human"
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audio-lines.schema.json",
+  "$ref": "#/$defs/DialogueLines",
+  "$defs": {
+    "DialogueLine": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "maxLength": 80
+        },
+        "speaker": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "maxLength": 80
+        },
+        "text": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "The words spoken, as authored. Editing them marks a voiced take stale."
+        },
+        "direction": {
+          "type": "string",
+          "description": "Acting note for people: gesture, pacing, intent. Never sent to a provider."
+        },
+        "performance": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "By provider id: the line's exact words with that provider's delivery markup. Sent instead of text."
+        },
+        "review": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "description": "A person's mark that the words are final: true or \"reviewed\" (any case). Anything else is unreviewed."
+        },
+        "language": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "extra": {
+          "type": "object",
+          "description": "Anything else the project keeps with the line"
+        }
+      },
+      "required": [
+        "id",
+        "speaker",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "DialogueLines": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Language of this file's lines (default: audio.language)"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DialogueLine"
+          }
+        },
+        "extra": {
+          "type": "object",
+          "description": "Anything else the project keeps with the file"
+        }
+      },
+      "required": [
+        "lines"
+      ],
+      "additionalProperties": false,
+      "title": "Dialogue lines (a file matched by audio.lines)"
+    }
+  }
+}

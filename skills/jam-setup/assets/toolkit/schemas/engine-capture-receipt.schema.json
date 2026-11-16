@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "engine-capture-receipt.schema.json",
+  "$ref": "#/$defs/EngineCaptureReceipt",
+  "$defs": {
+    "EngineCaptureReceipt": {
+      "type": "object",
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+            "description": "Project-relative path with forward slashes"
+          }
+        }
+      },
+      "required": [
+        "files"
+      ],
+      "additionalProperties": false,
+      "title": "Receipt printed by an adapter's capture command"
+    }
+  }
+}

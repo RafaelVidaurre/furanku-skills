@@ -1,10 +1,9 @@
-import { html, useState, useEffect, useRef, useQuery, write, href, withQuery, replace, entityHref, listParams, Icon, Popover, Thumb, VerdictBar, Verdict, NoteCount, Tags, CategoryPicker, CopyId, kindIcon, fmtSize, ago, Person, toast, ErrorLine, shortHash, baseName, isTyping } from './core.js';
-import { AssetViewer, ModelViewer, UnavailableViewer } from './viewers.js';
+import { html, useState, useEffect, useRef, useQuery, write, href, withQuery, replace, entityHref, listParams, Icon, Popover, Thumb, NoteCount, Tags, CategoryPicker, CopyId, KindIcon, kindLabel, scopeOf, fmtSize, ago, toast, ErrorLine, shortHash, baseName, isTyping } from './core.js';
+import { MediaViewer, UnavailableViewer } from './viewers.js';
 import { PreviewHost } from './previews.js';
 import { useActiveViewer, setSelectionProvider, setSelectHandler } from './controller.js';
-import { ReviewBlock } from './review.js';
 import { NotesBlock } from './notes.js';
-import { CollectionToggle, RoleGlyphs } from './lists.js';
+import { CollectionToggle } from './lists.js';
 
 const organize = (target, body) => write('organize.set', { target, ...body }).catch((e) => toast(e.message, 'err'));
 
@@ -22,6 +21,10 @@ export function UnitDetail({ route, ctx }) {
   const id = ctx ? route.member : route.id;
   const q = useQuery('unit.get', { id });
   const d = q.data;
+  useEffect(() => {
+    // A unit is shown under its own scope, whichever section the address named.
+    if (!ctx && d?.unit.id === id && d.unit.scope && scopeOf(d.unit.scope) && route.section !== d.unit.scope) replace({ ...route, section: d.unit.scope });
+  }, [d?.unit.id, d?.unit.scope, route.section, ctx]);
   const partId = route.query.get('part');
   const visual = d ? d.review.parts.filter((p) => p.asset) : [];
   // No part named: show the first visual. A named part that does not exist is an error, never a substitute.
@@ -38,25 +41,29 @@ export function UnitDetail({ route, ctx }) {
   if (notMember) return html`<div class="detail"><${MemberNav} route=${route} col=${ctx} unitId=${id} /><div class="errline" role="alert"><${Icon} name="warn" size=${13} /><span>${unavailable}</span></div></div>`;
   if (!d || d.unit.id !== id) return html`<${Loading} q=${q} />`;
   const target = { kind: 'unit', id };
+  const contentFields = Object.keys(d.unit.attrs).filter(k => !d.type.fields.find(f => f.key === k)?.derived);
+  const technicalFields = d.type.fields.filter(f => f.derived && d.unit.attrs[f.key] != null);
   return html`<div class="detail">
     <header class="d-head">
       ${ctx && html`<${MemberNav} route=${route} col=${ctx} unitId=${id} />`}
-      <div class="d-title"><h1>${d.unit.name}</h1><${CopyId} id=${d.unit.id} /></div>
+      <div class="d-title"><h1>${d.unit.name}</h1></div>
       <div class="d-meta"><span class="type" title=${d.type.help ?? ''}>${d.type.label}</span><${OrgLine} target=${target} o=${d.organization} tags=${d.tags} /></div>
     </header>
     <div class=${`d-body${visual.length || d.missing.length || badPart ? '' : ' single'}`}>
       ${(visual.length > 0 || d.missing.length > 0 || badPart) && html`<div class="d-main"><${Stage} d=${d} visual=${visual} sel=${sel} link=${link} setPart=${setPart} badPart=${badPart ? partId : null} /></div>`}
+      ${!visual.length && contentFields.length > 0 && html`<section class="block content-properties" aria-label="Content details"><${Attributes} d=${d} technical=${false} /></section>`}
       <div class="d-side">
-        <${Attributes} d=${d} />
-        <${ReviewBlock} target=${target} detail=${d} onPart=${setPart} name=${d.unit.name} parts=${d.review.parts} />
+        ${visual.length > 0 && contentFields.length > 0 && html`<section class="block content-properties" aria-label="Content details"><${Attributes} d=${d} technical=${false} /></section>`}
+        ${d.links.length > 0 && html`<section class="block" aria-label="Files"><header class="block-h"><h3>Files</h3><span class="badge">${d.links.length}</span></header><div class="usage">${d.links.map(l => html`<a class="mship" href=${entityHref('asset', l.asset.id)}><${KindIcon} kind=${l.asset.kind} size=${16} /><span><strong>${l.roleLabel}</strong><span class="asset-filename">${baseName(l.asset.path)}</span></span><${Icon} name="chev" size=${12} /></a>`)}</div></section>`}
+        ${(technicalFields.length > 0 || d.unit.sources.length > 0) && html`<details class="disclosure"><summary>Technical details</summary><${Attributes} d=${d} technical /></details>`}
         <section class="block" aria-label="Collections">
           <header class="block-h"><h3>Collections</h3><span class="badge">${d.memberships.length}</span><span class="push"></span>
             <${Popover} align="right" label="Edit collections" trigger=${() => html`<button class="btn sm"><${Icon} name="plus" size=${12} />Add</button>`}><${CollectionToggle} unitIds=${[id]} /><//>
           </header>
           <div class="memberships">${d.memberships.map((c) => html`<a class="mship" href=${href({ section: 'collections', kind: 'c', id: c.id, member: id })}>
-            <span>${c.name}</span><span class="muted small">${c.category ?? ''}</span><span class="push"></span>${c.verdict && html`<${Verdict} v=${c.verdict} short />`}</a>`)}</div>
+            <span>${c.name}</span><span class="muted small">${c.category ?? ''}</span><span class="push"></span></a>`)}</div>
         </section>
-        <${NotesBlock} target=${target} notes=${d.notes} parts=${d.review.parts} />
+        <details class="disclosure"><summary>Notes${d.notes.length ? ` (${d.notes.length})` : ''}</summary><${NotesBlock} target=${target} notes=${d.notes} parts=${d.review.parts} /></details>
       </div>
     </div>
   </div>`;
@@ -69,9 +76,7 @@ function Stage({ d, visual, sel, link, setPart, badPart }) {
   return html`<div class="stage">
     ${badPart && html`<div class="stage-view" data-viewer-root data-active="true"><${UnavailableViewer} viewerId="stage" source=${{ unit: d.unit.id, part: badPart }} message=${`No visual part "${badPart}"`} /></div>`}
     ${a && html`<div class="stage-view" data-viewer-root data-active="true">
-      ${a.kind === 'model' && a.state === 'ok'
-        ? html`<${ModelViewer} key="model" srcs=${[a.url]} viewerId="stage" source=${source} label=${a.id} keepCamera />`
-        : html`<${AssetViewer} key=${a.id} asset=${a} viewerId="stage" source=${source} />`}
+      <${MediaViewer} media=${a} viewerId="stage" source=${source} label=${a.id} keepCamera context=${{ unit: d.unit, type: d.type, link }} />
     </div>`}
     <div class="strip" role="tablist" aria-label="Visuals"
       onKeyDown=${(e) => { if (isTyping(e) && !e.target.closest('.strip')) return; const i = visual.indexOf(sel); const n = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : null; if (n != null && visual[n]) { setPart(visual[n].id); e.preventDefault(); requestAnimationFrame(() => document.querySelector('.strip [aria-selected="true"]')?.focus()); } }}>
@@ -80,16 +85,16 @@ function Stage({ d, visual, sel, link, setPart, badPart }) {
         const shared = l.alsoUsedBy.length;
         return html`<button role="tab" aria-selected=${p === sel} tabindex=${p === sel ? 0 : -1} class=${`tile${p === sel ? ' on' : ''}`} onClick=${() => setPart(p.id)} title=${l.asset.id}>
           <${Thumb} asset=${l.asset} size=${52} />
-          <span class="tile-l">${l.roleLabel}</span>
-          ${shared > 0 && html`<span class="tile-shared" title=${`Shared by ${shared + 1} content units`}><${Icon} name="link" size=${10} />${shared + 1}</span>`}
-          <i class=${`tile-v ${p.verdict ?? 'none'}${p.changed ? ' changed' : ''}`}></i>
+          <span class="tile-l">${p.label}</span>
+          ${shared > 0 && html`<span class="tile-shared" title=${`Shared by ${shared + 1} catalog entries`}><${Icon} name="link" size=${10} />${shared + 1}</span>`}
+
         </button>`;
       })}
-      ${d.missing.map((r) => html`<span class="tile missing" title=${`No ${r.label.toLowerCase()}`}><span class="thumb empty" style="width:52px;height:52px"><${Icon} name=${kindIcon(r.kinds[0])} size=${18} /></span><span class="tile-l">${r.label}</span></span>`)}
+      ${d.missing.map((r) => html`<span class="tile missing" title=${`No ${r.label.toLowerCase()}`}><span class="thumb empty" style="width:52px;height:52px"><${KindIcon} kind=${r.kinds[0]} size=${18} /></span><span class="tile-l">${r.label}</span></span>`)}
     </div>
     ${a && html`<div class="asset-line">
-      <a class="mono" href=${entityHref('asset', a.id)}>${a.id}</a>
-      <span class="muted">${a.state === 'ok' ? html`${fmtSize(a.size)} · <span class="mono">${shortHash(a.sha256)}</span>` : html`<span class="c-bad">${a.error}</span>`}</span>
+      <a class="link" href=${entityHref('asset', a.id)}>Open file <${Icon} name="chev" size=${12} /></a>
+      <span class="muted">${a.state === 'ok' ? html`${fmtSize(a.size)}` : html`<span class="c-bad">${a.error}</span>`}</span>
       ${link.alsoUsedBy.length > 0 && html`<span class="also"><${Icon} name="link" size=${11} />Also used by ${link.alsoUsedBy.slice(0, 3).map((x, i) => html`${i ? ', ' : ' '}<a href=${entityHref('unit', x.unit, { part: x.role })}>${x.name}</a>`)}${link.alsoUsedBy.length > 3 && html`, <a href=${entityHref('asset', a.id)}>+${link.alsoUsedBy.length - 3}</a>`}</span>`}
     </div>`}
   </div>`;
@@ -97,19 +102,20 @@ function Stage({ d, visual, sel, link, setPart, badPart }) {
 
 function Value({ v, f, refs }) {
   if (f?.kind === 'refs' && refs) return html`<span class="refs">${refs.map((r) => (r.exists ? html`<a class="ref" href=${entityHref('unit', r.id)}><${Thumb} asset=${r.thumb} size=${18} />${r.name}</a>` : html`<span class="ref missing" title="Not in this checkout">${r.id}</span>`))}</span>`;
+  if (f?.kind === 'code') return html`<pre class="code-value">${String(v)}</pre>`;
   if (v && typeof v === 'object') return html`<details class="nested"><summary>${Array.isArray(v) ? `${v.length} items` : `${Object.keys(v).length} fields`}</summary><pre>${JSON.stringify(v, null, 2)}</pre></details>`;
   return html`${String(v)}${f?.unit ? html`<span class="muted"> ${f.unit}</span>` : ''}`;
 }
-function Attributes({ d }) {
-  const fields = d.type.fields.filter((f) => d.unit.attrs[f.key] != null);
-  const extra = Object.keys(d.unit.attrs).filter((k) => !d.type.fields.some((f) => f.key === k));
-  if (!fields.length && !extra.length) return null;
+function Attributes({ d, technical = false }) {
+  const fields = d.type.fields.filter((f) => !!f.derived === technical && d.unit.attrs[f.key] != null);
+  const extra = technical ? [] : Object.keys(d.unit.attrs).filter((k) => !d.type.fields.some((f) => f.key === k));
+  if (!fields.length && !extra.length && !(technical && d.unit.sources.length)) return null;
   const groups = [...new Set(fields.map((f) => f.group ?? ''))];
   return html`<div class="attr-wrap">${groups.map((g) => html`
     ${g && html`<div class="attr-group">${g}</div>`}
     <dl class="attrs">${fields.filter((f) => (f.group ?? '') === g).map((f) => html`<div><dt>${f.label}${(f.help || d.unit.explain[f.key]) && html`<${Help} text=${d.unit.explain[f.key] ?? f.help} label=${f.label} />`}</dt><dd><${Value} v=${d.unit.attrs[f.key]} f=${f} refs=${d.refs[f.key]} /></dd></div>`)}</dl>`)}
     ${extra.length > 0 && html`<dl class="attrs">${extra.map((k) => html`<div><dt>${k}</dt><dd><${Value} v=${d.unit.attrs[k]} /></dd></div>`)}</dl>`}
-    ${d.unit.sources.length > 0 && html`<details class="source"><summary>Source</summary>${d.unit.sources.map((s) => html`<div class="mono small">${s}</div>`)}</details>`}
+    ${technical && d.unit.sources.length > 0 && html`<details class="source"><summary>Source</summary>${d.unit.sources.map((s) => html`<div class="mono small">${s}</div>`)}</details>`}
   </div>`;
 }
 function Help({ text, label }) {
@@ -130,7 +136,6 @@ function MemberNav({ route, col, unitId }) {
     };
     addEventListener('keydown', key); return () => removeEventListener('keydown', key);
   });
-  const p = members[i]?.inCollection;
   return html`<nav class="ctx" aria-label="Collection">
     <a class="ctx-back" href=${href({ section: 'collections', kind: 'c', id: col, query: listParams(route.query) })}><${Icon} name="back" size=${12} />${c?.collection.name ?? col}</a>
     ${i >= 0 && html`<span class="ctx-pos">
@@ -138,7 +143,7 @@ function MemberNav({ route, col, unitId }) {
       ${i + 1} / ${members.length}
       <a class=${`icon-btn sm${i < members.length - 1 ? '' : ' disabled'}`} href=${i < members.length - 1 ? to(i + 1) : undefined} aria-label="Next member" title="Next (])"><${Icon} name="chev" size=${12} /></a>
     </span>`}
-    ${p?.verdict && html`<span class="ctx-v">In ${c.collection.name}: <${Verdict} v=${p.verdict} /></span>`}
+
   </nav>`;
 }
 
@@ -185,10 +190,10 @@ export function CollectionDetail({ route }) {
             : html`<div class="member" key=${m.id}>
               <a class="member-a" href=${href({ section: 'collections', kind: 'c', id: c.id, member: m.id, query: listParams(route.query) })}>
                 <${Thumb} asset=${m.thumb} size=${56} label=${m.typeLabel[0]} />
-                <span class="member-main"><span class="row-name">${m.name}</span><span class="row-sub">${m.extra && html`<b>${m.extra}</b>`}${m.typeLabel}<${RoleGlyphs} e=${m} /></span></span>
+                <span class="member-main"><span class="row-name">${m.name}</span><span class="row-sub">${m.extra && html`<b>${m.extra}</b>`}${m.typeLabel}</span></span>
               </a>
-              <span class="member-v" title="Verdict in this collection"><${Verdict} v=${m.inCollection?.verdict} short /></span>
-              <span class="member-own" title="The content unit's own review"><${VerdictBar} parts=${m.status.parts} /></span>
+
+
               <${NoteCount} n=${m.notes} />
               ${own && html`<span class="member-ops">
                 <button class="icon-btn sm" disabled=${i === 0} onClick=${() => move(i, -1)} aria-label=${`Move ${m.name} up`} title="Move up"><${Icon} name="back" size=${11} cls="up" /></button>
@@ -198,19 +203,17 @@ export function CollectionDetail({ route }) {
         </section>
       </div>
       <div class="d-side">
-        <${ReviewBlock} target=${target} detail=${d} name=${c.name} parts=${d.review.parts} />
-        <${NotesBlock} target=${target} notes=${d.notes} parts=${d.review.parts} />
+        <details class="disclosure"><summary>Notes${d.notes.length ? ` (${d.notes.length})` : ''}</summary><${NotesBlock} target=${target} notes=${d.notes} parts=${d.review.parts} /></details>
       </div>
     </div>
   </div>`;
 }
 function PreviewStage({ d }) {
   useActiveViewer('stage', true);
-  const p = d.review.parts.find((x) => x.id === 'preview');
   const pv = d.preview;
   const source = { collection: d.collection.id, part: 'preview', module: pv.module, members: pv.members.map((m) => ({ unit: m.unit, part: m.part, sha256: m.asset.sha256 })), base: pv.base?.sha256 ?? null };
   return html`<div class="stage"><div class="stage-view" data-viewer-root data-active="true"><${PreviewHost} module=${pv.module} moduleUrl=${pv.moduleUrl} moduleError=${pv.moduleError} members=${pv.members} base=${pv.base} config=${pv.config} label=${pv.label} viewerId="stage" source=${source} /></div>
-    <div class="asset-line"><span>${pv.label}</span><span class="muted small">${pv.represents === 'representative' ? 'Representative member' : `${new Set(pv.members.map((m) => m.unit)).size} of ${d.members.length} members`}</span><span class="push"></span><${Verdict} v=${p?.verdict} /></div></div>`;
+    <div class="asset-line"><span>${pv.label}</span><span class="muted small">${pv.represents === 'representative' ? 'Representative member' : `${new Set(pv.members.map((m) => m.unit)).size} of ${d.members.length} members`}</span></div></div>`;
 }
 function MemberPicker({ members, update }) {
   const [q, setQ] = useState('');
@@ -241,19 +244,19 @@ export function AssetDetail({ route }) {
   const shown = badVersion ? { ...a, state: 'missing', error: `Version ${shortHash(ver)} is not recorded for this asset` } : old ? { ...a, url: old.submissions[0].url, sha256: old.sha256, size: old.size, state: 'ok' } : a;
   return html`<div class="detail">
     <header class="d-head">
-      <div class="d-title"><h1 class="mono">${baseName(a.path)}</h1><${CopyId} id=${a.id} /></div>
-      <div class="d-meta"><span class="type"><${Icon} name=${kindIcon(a.kind)} size=${12} />${{ image: 'Image', video: 'Video', model: '3D model' }[a.kind] ?? 'Unknown'}</span>
+      <div class="d-title"><h1 class="mono">${baseName(a.path)}</h1></div>
+      <div class="d-meta"><span class="type"><${KindIcon} kind=${a.kind} size=${12} />${kindLabel(a.kind)}</span>
         <span class="muted small">${a.state === 'ok' ? fmtSize(a.size) : html`<span class="c-bad">${a.error}</span>`}</span>
         <${OrgLine} target=${target} o=${d.organization} tags=${d.tags} /></div>
     </header>
     <div class="d-body">
       <div class="d-main">
         <div class="stage"><${AssetStage} a=${shown} key=${shown.sha256 ?? a.id} source=${{ asset: a.id, sha256: shown.sha256, version: old ? 'evidence' : 'current' }} />
-          <div class="versions" role="list">${d.versions.map((v) => html`<div class=${`version${(old ? v.sha256 === old.sha256 : v.current) ? ' on' : ''}`} role="listitem">
+          <details class="disclosure"><summary>Version history</summary><div class="versions" role="list">${d.versions.map((v) => html`<div class=${`version${(old ? v.sha256 === old.sha256 : v.current) ? ' on' : ''}`} role="listitem">
             <button class="link mono" onClick=${() => setQ({ rev: v.current ? null : v.sha256 })}>${shortHash(v.sha256)}</button>
             <span class="muted small">${v.current ? 'Current' : `Reviewed ${ago(v.firstSeen)} ago · ${v.submissions.map((s) => s.ref).join(', ')}`} · ${fmtSize(v.size)}</span>
             ${!v.current && a.state === 'ok' && html`<a class="btn xs push" href=${href(withQuery(route, { cmp: `${v.submissions[0].submission}~${v.submissions[0].item}~${v.submissions[0].part}` }))}>Compare with current</a>`}
-          </div>`)}</div>
+          </div>`)}</div></details>
         </div>
       </div>
       <div class="d-side">
@@ -261,16 +264,12 @@ export function AssetDetail({ route }) {
           <header class="block-h"><h3>Used by</h3><span class="badge">${new Set(d.usage.map((x) => x.unit)).size}</span></header>
           <div class="usage">${d.usage.map((x) => html`<a class="mship" href=${entityHref('unit', x.unit, { part: x.part })}><${Thumb} asset=${x.thumb} size=${28} /><span>${x.name}</span><span class="chip">${x.roleLabel}</span><span class="push"></span><span class="muted small">${x.typeLabel}</span></a>`)}</div>
         </section>
-        ${d.verdicts.length > 0 && html`<section class="block" aria-label="Verdicts">
-          <header class="block-h"><h3>Verdicts</h3><span class="badge">${d.verdicts.length}</span></header>
-          <div class="usage">${d.verdicts.map((v) => html`<a class="mship" href=${href({ section: 'reviews', kind: 's', id: v.submission, member: v.item })}><${Verdict} v=${v.verdict} short /><span>${v.targetName}</span><span class="chip">${v.partLabel}</span>${v.note && html`<span class="muted" title=${v.note} aria-label=${`Note on ${v.partLabel}: ${v.note}`}><${Icon} name="note" size=${11} /></span>`}<span class="muted small mono">${shortHash(v.sha256)}</span><span class="push"></span><${Person} by=${v.by} /><span class="muted small">${ago(v.at)}</span></a>`)}</div>
-        </section>`}
-        <${NotesBlock} target=${target} notes=${d.notes} />
+        <details class="disclosure"><summary>Notes${d.notes.length ? ` (${d.notes.length})` : ''}</summary><${NotesBlock} target=${target} notes=${d.notes} /></details>
       </div>
     </div>
   </div>`;
 }
 function AssetStage({ a, source }) {
   useActiveViewer('stage', true);
-  return html`<div class="stage-view" data-viewer-root data-active="true"><${AssetViewer} asset=${a} viewerId="stage" source=${source} /></div>`;
+  return html`<div class="stage-view" data-viewer-root data-active="true"><${MediaViewer} media=${a} viewerId="stage" source=${source} /></div>`;
 }

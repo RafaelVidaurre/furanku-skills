@@ -1,16 +1,26 @@
 ---
 name: jam-concept
-description: Create reviewable concept images for a named game asset in the project's art style. Use when the user asks for a concept, design options or alternatives for an asset, or when the jam 3D workflow needs an accepted design before its turnaround.
+description: Create concept images of one named game asset for a person to choose from, in the project's art style, and record the chosen design. Use when the user asks for a concept, a design or design options for an asset, or when a run's next step names this skill.
 ---
 
 # Concept design
 
-When `tools/jam/jam.mjs` is missing from the project, use the `jam-setup` skill first (when it is not installed: `npx skills add rafaelvidaurre/furanku-skills --skill jam-setup`). Follow `tools/jam/docs/task-intent.md` across the conversation. Concept work needs no triangle or texture profile: use a style-bound `node tools/jam/jam.mjs init` without `--profile` while those geometry decisions are open.
+One operation: from a brief to a chosen design image. `jam` below is `node tools/jam/jam.mjs`.
 
-1. **Brief.** For production concepts, read `tools/jam/docs/contracts.md` and the selected style guide. Derive purpose, silhouette, key materials, distinguishing features and intended camera from the user's words and images; ask only for missing details that change the design. For style exploration, use `jam-style`'s visual loop instead: it needs no approved style or profile, and its outputs stay outside production runs. Done when the brief names each of those properties or the user's reason for leaving one open.
-2. **Route.** Complete image-route discovery (`tools/jam/docs/images.md#discover-and-offer-usable-routes`) and use the user's chosen route. Done when a route is chosen.
-3. **Generate.** Keep the brief's identity and established visual choices while exploring meaningful alternatives. Keep reference roles explicit; production concepts inherit the approved game style. Done when the requested candidates exist as files.
-4. **Inspect.** Look at each image, including at game-camera scale: silhouette, construction, material separation, and hidden-side decisions that still need resolving. A concept serves 2D or 3D; leave the turnaround layout to `jam-turnaround`. Done when every candidate has been judged against the brief.
-5. **Record and review.** Register production or paid candidates as `concept` with original images, prompt and settings provenance and visual evidence; native previews may stay outside a run until admitted under the image-route custody rules. Choose or revise through `tools/jam/docs/review.md` under the configured policy.
+Inside a run, start from `jam run next <id>`: it names this step's guide (the recipe's own notes for it), its outputs and its gate. With no run, start one so the result is on record: `jam run start image <id> --brief-text "..."` for exploration, or the recipe `jam recipe list` gives for the thing being made. Runs, gates and a missing toolkit are the `jam-recipe` skill's.
 
-**Done:** the selected design is accepted for its recorded brief and style, or a specific visual decision is pending. Exploratory preference stays separate from production acceptance, and rejected candidates stay distinguishable from the selection.
+1. **Brief.** Read the run's brief, the guide section, the style document and its references (`jam config show style`), and the conversation. You need the asset's purpose in the game, silhouette, materials, distinguishing features and size, and you need to know the game itself (`tools/jam/docs/interaction.md#how-much-to-ask`). Ask only for a missing detail that changes the design. Done when you can say what the subject is, what stays fixed across the options and what varies.
+2. **Route.** Use the image route already chosen for this project or conversation. Otherwise find the callable routes and offer them, including the ones that cost nothing extra: `tools/jam/docs/providers.md#routes`. Done when the route is chosen and has answered in this session.
+3. **Generate the round** as `tools/jam/docs/images.md#a-round` says: the agreed number of options, one subject per image, camera stated. For a concept that is the whole asset alone, in a neutral three-quarter view, on a plain background, with no text. Attach the style references with their role stated. A paid route follows `tools/jam/docs/providers.md#one-paid-job-start-to-finish`; whether to start without asking is `tools/jam/docs/task-intent.md`. Done when every option exists as a file in the run folder.
+4. **Inspect** each image before anyone sees it (`tools/jam/docs/images.md#inspect-before-showing`), and for a design also check: the whole asset is in frame; the silhouette reads at the size it has in play; materials are told apart; it is one buildable object whose hidden sides a turnaround can continue. Done when each option has passed or been replaced, or the round is declared short.
+5. **Show the originals and get the choice** (`tools/jam/docs/images.md#show-the-originals`). Ask it as the decision it is: which of these is to be built. Done when the person has named one design, or named what to change.
+6. **Record** the chosen design, with the other options and the prompts as evidence:
+
+   ```
+   jam run record <id> concept --file <chosen.png> --evidence prompt=<prompts.md> --evidence option-b=<b.png> \
+     --note "<what was asked, how many options, which was chosen>" --tool "<image tool and version>"
+   ```
+
+   `--job <job>` replaces `--tool` for a paid result. Then the gate, with the command `jam run next <id>` prints: their choice relayed in their words, or a review link for them.
+
+Done when `jam run status <id>` shows `concept` accepted, or the person holds one specific question or link. A requested change is a new round and a new record.

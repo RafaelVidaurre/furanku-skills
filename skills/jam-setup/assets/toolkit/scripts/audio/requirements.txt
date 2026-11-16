@@ -1,0 +1,10 @@
+# Optional: the transcript and word-timing check for voiced lines (scripts/audio/align.py).
+# Versions as they ran during the game jam these tools come from, on Python 3.11.
+# Install into the Python that jam.local.json names:  jam python -m pip install -r <this file>
+# The first run downloads the alignment and transcription models (about 1.5 GB).
+torch==2.5.1
+torchaudio==2.5.1
+numpy==1.26.4
+soundfile==0.13.1
+num2words==0.5.14
+faster-whisper==1.2.1

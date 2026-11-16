@@ -1,0 +1,270 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "recipe.schema.json",
+  "$ref": "#/$defs/Recipe",
+  "$defs": {
+    "Recipe": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "version": {
+          "type": "number",
+          "enum": [
+            1
+          ]
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 64
+        },
+        "title": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "description": {
+          "type": "string"
+        },
+        "when": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "One or two sentences: which requests this recipe is for. Shown by `jam recipe list`."
+        },
+        "extends": {
+          "type": "string",
+          "pattern": "^(?:builtin:)?[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "description": "Base recipe whose steps this one inherits: builtin:<id> or a project recipe id"
+        },
+        "budget": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 64,
+          "description": "Budget in jam.config.json that runs of this recipe use unless they name another"
+        },
+        "roots": {
+          "type": "object",
+          "properties": {
+            "scratch": {
+              "type": "string",
+              "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+              "description": "Project-relative path with forward slashes"
+            },
+            "delivered": {
+              "type": "string",
+              "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+              "description": "Project-relative path with forward slashes"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Where runs of this recipe work and deliver, when not the project's roots"
+        },
+        "style": {
+          "type": "boolean",
+          "description": "Runs need the project's style document to be set"
+        },
+        "deliverable": {
+          "type": "boolean",
+          "description": "false for exploration and tests: results are never delivered or reused as paid results"
+        },
+        "catalog": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 64,
+              "description": "Catalog scope the subjects are listed under (default: assets)"
+            }
+          },
+          "additionalProperties": false,
+          "description": "How subjects made with this recipe appear in the content catalog"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                "maxLength": 64
+              },
+              "title": {
+                "type": "string",
+                "pattern": "\\S"
+              },
+              "skill": {
+                "type": "string",
+                "pattern": "\\S",
+                "description": "The skill that knows how to do the step"
+              },
+              "guide": {
+                "type": "string",
+                "pattern": "\\S",
+                "description": "Document with the step's instructions and an optional #anchor: a project-relative path, or toolkit:<path> for one the toolkit ships"
+              },
+              "run": {
+                "type": "array",
+                "prefixItems": [
+                  {
+                    "type": "string"
+                  }
+                ],
+                "minItems": 1,
+                "items": {
+                  "type": "string"
+                },
+                "description": "The jam command that does the step. {id}, {run} and {dir} are substituted; parts in <angle brackets> are for the caller to fill in. Paid calls it makes go through the ledger by themselves."
+              },
+              "needs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                  "maxLength": 64
+                },
+                "description": "Steps that must be accepted (or skipped, when optional) first"
+              },
+              "produces": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                      "maxLength": 64,
+                      "description": "What the file is for, e.g. concept, view, model"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "image",
+                        "model",
+                        "audio",
+                        "video",
+                        "text",
+                        "data",
+                        "any"
+                      ]
+                    },
+                    "min": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "description": "Fewest files with this role (default 1)"
+                    },
+                    "max": {
+                      "type": "integer",
+                      "maximum": 9007199254740991,
+                      "exclusiveMinimum": 0
+                    },
+                    "keys": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "string",
+                          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                          "maxLength": 64
+                        }
+                      ],
+                      "minItems": 1,
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                        "maxLength": 64
+                      },
+                      "description": "Exactly one file per key, e.g. the named views of a turnaround"
+                    }
+                  },
+                  "required": [
+                    "role",
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "checks": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                  "maxLength": 64
+                },
+                "description": "Named checks that must pass when the step is recorded"
+              },
+              "review": {
+                "type": "string",
+                "enum": [
+                  "human",
+                  "agent",
+                  "none"
+                ],
+                "description": "Who must accept the step (default agent)"
+              },
+              "reviewer": {
+                "type": "string",
+                "pattern": "\\S",
+                "description": "Who decides a human gate, as a person or a role (\"art lead\", \"audio director\"). Shown wherever the step waits for review; the catalog records who actually decided."
+              },
+              "paid": {
+                "type": "boolean",
+                "description": "The step may open provider jobs"
+              },
+              "maxJobs": {
+                "type": "integer",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0,
+                "description": "Most provider jobs the step may open in one run"
+              },
+              "optional": {
+                "type": "boolean",
+                "description": "The step may be skipped with a recorded reason"
+              },
+              "when": {
+                "type": "object",
+                "properties": {
+                  "engine": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                    "maxLength": 64,
+                    "description": "The project's engine adapter provides this command: import, inspect, conform-skeleton, or one of the adapter's own"
+                  },
+                  "budget": {
+                    "type": "object",
+                    "description": "The run's budget has these field values, e.g. {\"kind\": \"deforming\"}"
+                  }
+                },
+                "additionalProperties": false,
+                "description": "The step applies only when this holds; otherwise it is skipped automatically and later steps treat it as satisfied"
+              },
+              "remove": {
+                "type": "boolean",
+                "description": "In an extending recipe: drop the inherited step with this id"
+              },
+              "after": {
+                "type": "string",
+                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                "maxLength": 64,
+                "description": "In an extending recipe: place the step after this one (default: at the end)"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "version",
+        "id",
+        "steps"
+      ],
+      "additionalProperties": false,
+      "title": "Recipe (jam/recipes/<id>.json)"
+    }
+  }
+}

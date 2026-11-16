@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audio-speakers.schema.json",
+  "$ref": "#/$defs/Speakers",
+  "$defs": {
+    "Speakers": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "speakers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                "maxLength": 80
+              },
+              "name": {
+                "type": "string"
+              },
+              "voice": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                    "maxLength": 64
+                  },
+                  "id": {
+                    "type": "string",
+                    "pattern": "\\S",
+                    "description": "The provider's id of the voice"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "settings": {
+                    "type": "object",
+                    "description": "Provider settings used for every line in this voice"
+                  }
+                },
+                "required": [
+                  "provider",
+                  "id"
+                ],
+                "additionalProperties": false
+              },
+              "extra": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "speakers"
+      ],
+      "additionalProperties": false,
+      "title": "Speakers and their voices (audio.speakers)"
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "mcpConfigFiles": [
+    ".mcp.json"
+  ],
+  "skillFolders": [
+    ".agents/skills",
+    ".claude/skills"
+  ]
+}

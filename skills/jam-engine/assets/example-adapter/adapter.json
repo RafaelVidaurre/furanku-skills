@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../tools/jam/schemas/engine-adapter.schema.json",
+  "id": "example",
+  "label": "Example runtime (loads glTF files from a folder)",
+  "versions": "1",
+  "facts": {
+    "unitsPerMeter": 1,
+    "up": "+Y",
+    "forward": "+Z",
+    "handedness": "right",
+    "contentRoot": "game/assets",
+    "assetId": { "scheme": "assets/{path}", "from": "game/assets/{path}" },
+    "mesh": { "static": "glb", "skinned": "glb" },
+    "textures": { "normalGreen": "up", "packed": "ORM" },
+    "audio": { "container": "wav" }
+  },
+  "commands": {
+    "import": { "run": ["node", "commands/import.mjs"], "kinds": ["static", "skinned", "audio"], "description": "Copy files into game/assets/<kind>/ and remember their sources" },
+    "inspect": { "run": ["node", "commands/inspect.mjs"], "description": "Bounds, counts and materials read from the imported .glb" },
+    "references": { "run": ["node", "commands/references.mjs"], "description": "Game data files that name the asset" },
+    "capture": null,
+    "check": { "run": ["node", "commands/check.mjs"], "description": "Every imported asset still matches its recorded source" },
+    "conform-skeleton": null
+  },
+  "docs": {
+    "import": "docs/import.md",
+    "capture": "docs/capture.md",
+    "acceptance": "docs/acceptance.md"
+  }
+}

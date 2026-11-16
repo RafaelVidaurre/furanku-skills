@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "toolkit": "tools/jam",
+  "roots": { "scratch": "Art/.scratch", "delivered": "Art/Assets", "scan": ["Art"] },
+  "style": { "document": null, "references": [] },
+  "budgets": {},
+  "engine": { "adapter": null, "facts": {} },
+  "routes": {},
+  "spend": {},
+  "review": { "mode": "recipe" },
+  "checks": {}
+}

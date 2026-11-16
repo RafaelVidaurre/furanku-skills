@@ -15,20 +15,24 @@
     "skills/*/references/**",
     "skills/*/scripts/**",
     "skills/*/assets/**",
+    "skills/*/adapter/**",
     "skills/human-playtest/agents/**",
     "skills/winremote-host-runs/agents/**",
     "skills/decision-trail/LICENSE.txt",
     "!skills/**/__pycache__/**",
     "!skills/**/node_modules/**",
     "!skills/jam-setup/assets/toolkit/test/**",
-    "!skills/jam-setup/assets/toolkit/catalog/test/**",
-    "!skills/jam-3d-character/scripts/test_charspec.py"
+    "!skills/jam-setup/assets/toolkit/test-output/**",
+    "!skills/jam-*/scripts/test_*.py",
+    "!skills/jam-*/adapter/commands/test/**"
   ],
   "scripts": {
     "test:human-playtest": "python3 -m unittest discover -s test/human-playtest -p 'test_*.py' -v",
     "check:routing": "python3 -m pytest skills/model-routing/scripts/test_support_contract.py skills/model-routing/scripts/test_native_default_contract.py skills/model-routing/scripts/test_codexbar.py skills/crew/scripts/test_account_launch.py -q",
-    "test": "node --test test/*.test.js skills/guidance-composer/test/*.test.js skills/token-speed/scripts/*.test.js && python3 -m pytest skills/crew/scripts skills/model-routing/scripts skills/agent-readable-logs/scripts skills/codemap/scripts skills/usage-drain/scripts skills/token-speed/scripts skills/jam-3d-character/scripts/test_charspec.py -q",
-    "test:jam-toolkit": "npm ci --prefix skills/jam-setup/assets/toolkit --ignore-scripts && npm ci --prefix skills/jam-setup/assets/toolkit/catalog --ignore-scripts && node --test skills/jam-setup/assets/toolkit/test/ && python3 -m pytest skills/jam-setup/assets/toolkit/test -q && npm test --prefix skills/jam-setup/assets/toolkit/catalog"
+    "test": "node --test test/*.test.js skills/guidance-composer/test/*.test.js skills/token-speed/scripts/*.test.js && python3 -m pytest skills/crew/scripts skills/model-routing/scripts skills/agent-readable-logs/scripts skills/codemap/scripts skills/usage-drain/scripts skills/token-speed/scripts skills/jam-engine-unreal/adapter/commands/test skills/jam-rig/scripts/test_jamrig.py skills/jam-retopo/scripts/test_topology_report.py skills/jam-uv/scripts/test_uv_scripts.py skills/jam-texture/scripts/test_texture_scripts.py -q",
+    "test:jam-mesh-blender": "python3 -m pytest skills/jam-retopo/scripts/test_retopo_blender.py skills/jam-uv/scripts/test_uv_blender.py skills/jam-texture/scripts/test_texture_blender.py -q -rs",
+    "test:jam-rig-blender": "python3 -m pytest skills/jam-rig/scripts/test_bind_blender.py -q -rs",
+    "test:jam-toolkit": "npm ci --prefix skills/jam-setup/assets/toolkit --ignore-scripts && npm run typecheck --prefix skills/jam-setup/assets/toolkit && node --test --test-concurrency=1 \"skills/jam-setup/assets/toolkit/test/kernel/*.test.ts\" \"skills/jam-setup/assets/toolkit/test/jam/*.test.ts\" \"skills/jam-setup/assets/toolkit/test/catalog/*.test.ts\" && python3 -m pytest skills/jam-setup/assets/toolkit/test -q"
   },
   "repository": {
     "type": "git",

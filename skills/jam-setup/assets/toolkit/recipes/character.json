@@ -1,0 +1,136 @@
+{
+  "$schema": "../schemas/recipe.schema.json",
+  "version": 1,
+  "id": "character",
+  "title": "Rigged character",
+  "description": "From a brief to a skinned character with deformation evidence, delivered as glTF. Conforming to an engine's own skeleton and importing happen only when the engine adapter provides them.",
+  "when": "Anything that deforms on a skeleton: a player character, an NPC, a creature.",
+  "extends": "builtin:asset",
+  "budget": "character",
+  "steps": [
+    {
+      "id": "concept",
+      "guide": "toolkit:docs/recipes/character.md#concept"
+    },
+    {
+      "id": "turnaround",
+      "guide": "toolkit:docs/recipes/character.md#turnaround"
+    },
+    {
+      "id": "mesh",
+      "guide": "toolkit:docs/recipes/character.md#mesh"
+    },
+    {
+      "id": "topology",
+      "guide": "toolkit:docs/recipes/character.md#topology"
+    },
+    {
+      "id": "uv",
+      "guide": "toolkit:docs/recipes/character.md#uv"
+    },
+    {
+      "id": "texture",
+      "guide": "toolkit:docs/recipes/character.md#texture"
+    },
+    {
+      "id": "rig",
+      "title": "Skinned model on a skeleton, with pose evidence",
+      "after": "texture",
+      "needs": [
+        "texture"
+      ],
+      "skill": "jam-rig",
+      "guide": "toolkit:docs/recipes/character.md#rig",
+      "paid": true,
+      "produces": [
+        {
+          "role": "model",
+          "kind": "model",
+          "max": 1
+        },
+        {
+          "role": "landmarks",
+          "kind": "data",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "role": "deformation",
+          "kind": "any",
+          "min": 1
+        }
+      ],
+      "checks": [
+        "deformation-evidence"
+      ],
+      "review": "agent"
+    },
+    {
+      "id": "conform",
+      "title": "Conform the rig to the engine's skeleton",
+      "after": "rig",
+      "needs": [
+        "rig"
+      ],
+      "skill": "jam-engine",
+      "guide": "toolkit:docs/recipes/character.md#conform",
+      "optional": true,
+      "when": {
+        "engine": "conform-skeleton"
+      },
+      "run": [
+        "engine",
+        "conform-skeleton",
+        "--run",
+        "{id}"
+      ],
+      "produces": [
+        {
+          "role": "model",
+          "kind": "model",
+          "max": 1
+        }
+      ],
+      "review": "agent"
+    },
+    {
+      "id": "import",
+      "title": "Engine import",
+      "after": "conform",
+      "needs": [
+        "rig",
+        "conform"
+      ],
+      "skill": "jam-engine",
+      "guide": "toolkit:docs/recipes/character.md#import",
+      "optional": true,
+      "when": {
+        "engine": "import"
+      },
+      "run": [
+        "engine",
+        "import",
+        "--kind",
+        "skinned",
+        "--run",
+        "{id}"
+      ],
+      "checks": [
+        "engine-inspect"
+      ],
+      "review": "none"
+    },
+    {
+      "id": "delivery",
+      "needs": [
+        "topology",
+        "uv",
+        "texture",
+        "rig",
+        "conform",
+        "import"
+      ],
+      "guide": "toolkit:docs/recipes/character.md#delivery"
+    }
+  ]
+}

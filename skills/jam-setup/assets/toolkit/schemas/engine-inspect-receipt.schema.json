@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "engine-inspect-receipt.schema.json",
+  "$ref": "#/$defs/EngineInspectReceipt",
+  "$defs": {
+    "EngineInspectReceipt": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "kind": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "source": {
+          "type": "string",
+          "description": "The file the asset was imported from"
+        },
+        "bounds": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "maxItems": 3,
+              "minItems": 3
+            },
+            "max": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "maxItems": 3,
+              "minItems": 3
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ],
+          "additionalProperties": false
+        },
+        "pivot": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "maxItems": 3,
+          "minItems": 3
+        },
+        "triangles": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "vertices": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "materials": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Material slot names, in slot order"
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "description": "Mesh sections, one object each (material, triangles, ...)"
+        },
+        "lods": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "description": "Levels of detail, one object each"
+        },
+        "skeleton": {
+          "type": "object",
+          "properties": {
+            "root": {
+              "type": "string"
+            },
+            "bones": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "skeletonAsset": {
+          "type": "string",
+          "description": "The engine's id of the skeleton asset a skinned asset uses"
+        },
+        "collision": {
+          "type": "object",
+          "properties": {
+            "shapes": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "kinds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "shapes"
+          ],
+          "additionalProperties": false
+        },
+        "details": {
+          "type": "object",
+          "description": "Anything else the adapter reports, so it needs no side file"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "title": "Receipt printed by an adapter's inspect command"
+    }
+  }
+}

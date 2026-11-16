@@ -1,0 +1,813 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jam.config.schema.json",
+  "$ref": "#/$defs/JamConfig",
+  "$defs": {
+    "SkeletonProfile": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "reference": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "File that holds the skeleton, inside the adapter folder or the project"
+        },
+        "engineAsset": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "The engine's id of the skeleton asset"
+        },
+        "bones": {
+          "type": "object",
+          "properties": {
+            "hips": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "spine": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "chest": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "neck": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "head": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "shoulder.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "shoulder.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "upper-arm.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "upper-arm.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "lower-arm.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "lower-arm.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "hand.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "hand.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "upper-leg.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "upper-leg.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "lower-leg.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "lower-leg.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "foot.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "foot.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "toes.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "toes.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "thumb-1.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "thumb-1.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "thumb-2.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "thumb-2.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "thumb-3.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "thumb-3.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "index-1.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "index-1.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "index-2.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "index-2.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "index-3.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "index-3.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "middle-1.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "middle-1.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "middle-2.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "middle-2.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "middle-3.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "middle-3.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "ring-1.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "ring-1.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "ring-2.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "ring-2.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "ring-3.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "ring-3.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "pinky-1.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "pinky-1.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "pinky-2.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "pinky-2.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "pinky-3.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "pinky-3.r": {
+              "type": "string",
+              "pattern": "\\S"
+            }
+          },
+          "additionalProperties": false,
+          "description": "The skeleton's bone name at each landmark it has. A landmark it lacks is left out."
+        },
+        "hierarchy": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": "Parent bone of each bone, by the skeleton's own names; null for the root. Absent: the landmark hierarchy."
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bones"
+      ],
+      "additionalProperties": false
+    },
+    "EngineFacts": {
+      "type": "object",
+      "properties": {
+        "unitsPerMeter": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Engine units in one meter (1 for glTF)"
+        },
+        "up": {
+          "type": "string",
+          "enum": [
+            "+X",
+            "-X",
+            "+Y",
+            "-Y",
+            "+Z",
+            "-Z"
+          ]
+        },
+        "forward": {
+          "type": "string",
+          "enum": [
+            "+X",
+            "-X",
+            "+Y",
+            "-Y",
+            "+Z",
+            "-Z"
+          ]
+        },
+        "handedness": {
+          "type": "string",
+          "enum": [
+            "left",
+            "right"
+          ]
+        },
+        "contentRoot": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "."
+              ]
+            },
+            {
+              "type": "string",
+              "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+              "description": "Project-relative path with forward slashes"
+            }
+          ],
+          "description": "Project folder the engine imports into; \".\" when that is the project root"
+        },
+        "assetId": {
+          "type": "object",
+          "properties": {
+            "scheme": {
+              "type": "string",
+              "pattern": "\\S",
+              "description": "Engine asset id with {path}, e.g. an engine package path"
+            },
+            "from": {
+              "type": "string",
+              "pattern": "\\S",
+              "description": "Project file pattern with {path} that the id is derived from"
+            }
+          },
+          "required": [
+            "scheme",
+            "from"
+          ],
+          "additionalProperties": false
+        },
+        "mesh": {
+          "type": "object",
+          "properties": {
+            "static": {
+              "type": "string",
+              "pattern": "\\S",
+              "description": "Interchange format for static meshes (file extension)"
+            },
+            "skinned": {
+              "type": "string",
+              "pattern": "\\S"
+            }
+          },
+          "additionalProperties": false
+        },
+        "textures": {
+          "type": "object",
+          "properties": {
+            "normalGreen": {
+              "type": "string",
+              "enum": [
+                "up",
+                "down"
+              ]
+            },
+            "packed": {
+              "type": "string",
+              "pattern": "\\S",
+              "description": "Channel packing of the combined mask map, e.g. ORM"
+            }
+          },
+          "additionalProperties": false
+        },
+        "collision": {
+          "type": "object",
+          "properties": {
+            "convention": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "prefix": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "convention"
+          ],
+          "additionalProperties": false
+        },
+        "skeletons": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Target skeletons this engine uses, by name. A budget names one."
+        },
+        "audio": {
+          "type": "object",
+          "properties": {
+            "container": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "sampleRate": {
+              "type": "integer",
+              "maximum": 9007199254740991,
+              "exclusiveMinimum": 0
+            },
+            "channels": {
+              "type": "integer",
+              "maximum": 9007199254740991,
+              "exclusiveMinimum": 0
+            },
+            "bitDepth": {
+              "type": "integer",
+              "maximum": 9007199254740991,
+              "exclusiveMinimum": 0
+            },
+            "loudness": {
+              "type": "object",
+              "properties": {
+                "integratedLufs": {
+                  "type": "number"
+                },
+                "truePeakDb": {
+                  "type": "number"
+                },
+                "targets": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "description": "Targets by kind of sound (effect, loop, voice) where the engine or its mix sets them"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "naming": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Name prefix per asset type"
+        },
+        "binaries": {
+          "type": "object",
+          "properties": {
+            "lfs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "\\S"
+              },
+              "description": "Glob patterns of engine binaries to keep in Git LFS"
+            },
+            "lockable": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "authoring": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "units": {
+                "type": "string",
+                "pattern": "\\S"
+              },
+              "up": {
+                "type": "string",
+                "enum": [
+                  "+X",
+                  "-X",
+                  "+Y",
+                  "-Y",
+                  "+Z",
+                  "-Z"
+                ]
+              },
+              "forward": {
+                "type": "string",
+                "enum": [
+                  "+X",
+                  "-X",
+                  "+Y",
+                  "-Y",
+                  "+Z",
+                  "-Z"
+                ]
+              },
+              "pivot": {
+                "type": "string",
+                "pattern": "\\S"
+              }
+            },
+            "additionalProperties": false
+          },
+          "description": "Export conventions per budget, where they differ from the engine's own axes"
+        },
+        "extra": {
+          "type": "object",
+          "description": "Adapter-specific facts the toolkit passes through"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Project overrides merged over the adapter's facts"
+    },
+    "AudioConfig": {
+      "type": "object",
+      "properties": {
+        "roots": {
+          "type": "object",
+          "properties": {
+            "sources": {
+              "type": "string",
+              "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+              "description": "Where originals are kept exactly as received or supplied"
+            },
+            "sfx": {
+              "type": "string",
+              "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+              "description": "Sound units: one folder per sound with its record and processed takes"
+            },
+            "voice": {
+              "type": "string",
+              "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+              "description": "Voiced lines: one folder per line with its record and processed takes"
+            }
+          },
+          "additionalProperties": false
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "description": "Glob patterns of the dialogue line files (* within a folder, ** across folders)"
+        },
+        "speakers": {
+          "type": "string",
+          "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+          "description": "The file that lists speakers and the voice assigned to each"
+        },
+        "language": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Language of lines that name none, as a BCP 47 code"
+        },
+        "format": {
+          "type": "object",
+          "properties": {
+            "sampleRate": {
+              "type": "integer",
+              "maximum": 9007199254740991,
+              "exclusiveMinimum": 0
+            },
+            "bitDepth": {
+              "type": "number",
+              "enum": [
+                16,
+                24
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "description": "Processed WAV format when the engine adapter's audio facts state none (default 48000 Hz, 24-bit)"
+        },
+        "loudness": {
+          "type": "object",
+          "properties": {
+            "effect": {
+              "type": "object",
+              "properties": {
+                "measure": {
+                  "type": "string",
+                  "enum": [
+                    "integrated",
+                    "momentary-max"
+                  ],
+                  "description": "integrated: programme loudness of the whole file. momentary-max: its loudest 400 ms, so a short knock and a long hum set to the same value sound equally loud."
+                },
+                "lufs": {
+                  "type": "number"
+                },
+                "truePeakDb": {
+                  "type": "number",
+                  "description": "True-peak ceiling in dBTP (default: the engine's or -1)"
+                }
+              },
+              "required": [
+                "measure",
+                "lufs"
+              ],
+              "additionalProperties": false
+            },
+            "loop": {
+              "type": "object",
+              "properties": {
+                "measure": {
+                  "type": "string",
+                  "enum": [
+                    "integrated",
+                    "momentary-max"
+                  ],
+                  "description": "integrated: programme loudness of the whole file. momentary-max: its loudest 400 ms, so a short knock and a long hum set to the same value sound equally loud."
+                },
+                "lufs": {
+                  "type": "number"
+                },
+                "truePeakDb": {
+                  "type": "number",
+                  "description": "True-peak ceiling in dBTP (default: the engine's or -1)"
+                }
+              },
+              "required": [
+                "measure",
+                "lufs"
+              ],
+              "additionalProperties": false
+            },
+            "voice": {
+              "type": "object",
+              "properties": {
+                "measure": {
+                  "type": "string",
+                  "enum": [
+                    "integrated",
+                    "momentary-max"
+                  ],
+                  "description": "integrated: programme loudness of the whole file. momentary-max: its loudest 400 ms, so a short knock and a long hum set to the same value sound equally loud."
+                },
+                "lufs": {
+                  "type": "number"
+                },
+                "truePeakDb": {
+                  "type": "number",
+                  "description": "True-peak ceiling in dBTP (default: the engine's or -1)"
+                }
+              },
+              "required": [
+                "measure",
+                "lufs"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false,
+          "description": "Loudness targets by kind of sound, used when the engine adapter's audio facts state none"
+        },
+        "homophones": {
+          "type": "string",
+          "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+          "description": "Project file of same-sound spellings merged over the toolkit's list: {\"<language>\": {\"<as transcribed>\": \"<as written>\"}}"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Sound effects and voiced dialogue: where files live, the processed format and the loudness targets"
+    },
+    "JamConfig": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "version": {
+          "type": "number",
+          "enum": [
+            2
+          ]
+        },
+        "toolkit": {
+          "type": "string",
+          "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+          "description": "Where the toolkit is installed in this project"
+        },
+        "roots": {
+          "type": "object",
+          "properties": {
+            "scratch": {
+              "type": "string",
+              "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+              "description": "Git-ignored folder where runs work"
+            },
+            "delivered": {
+              "type": "string",
+              "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+              "description": "Tracked folder accepted work is delivered into"
+            },
+            "scan": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+                "description": "Project-relative path with forward slashes"
+              },
+              "description": "Further folders searched for run files"
+            }
+          },
+          "required": [
+            "scratch",
+            "delivered",
+            "scan"
+          ],
+          "additionalProperties": false
+        },
+        "style": {
+          "type": "object",
+          "properties": {
+            "document": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+                  "description": "Project-relative path with forward slashes"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "revision": {
+              "type": "string",
+              "pattern": "\\S",
+              "description": "Name of the approved art direction. Changing it makes earlier work stale; editing the document does not."
+            },
+            "references": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+                "description": "Project-relative path with forward slashes"
+              }
+            }
+          },
+          "required": [
+            "document",
+            "references"
+          ],
+          "additionalProperties": false
+        },
+        "budgets": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "skeletons": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Skeleton profiles the project declares itself, for targets no engine adapter describes"
+        },
+        "engine": {
+          "type": "object",
+          "properties": {
+            "adapter": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Engine adapter id: a folder under jam/engines/ or a preset the toolkit ships. null: glTF conventions."
+            },
+            "facts": {
+              "$ref": "#/$defs/EngineFacts"
+            }
+          },
+          "required": [
+            "adapter",
+            "facts"
+          ],
+          "additionalProperties": false
+        },
+        "routes": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Which provider serves each capability (image, mesh, sound, voice, ...)"
+        },
+        "spend": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Spending caps per provider. A provider that is absent cannot be paid."
+        },
+        "review": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "recipe",
+                "agent",
+                "none"
+              ],
+              "description": "recipe: each step's own gate. agent: no gate is stricter than agent review. none: work is recorded with no gate."
+            }
+          },
+          "required": [
+            "mode"
+          ],
+          "additionalProperties": false
+        },
+        "checks": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Project checks, each a command"
+        },
+        "audio": {
+          "$ref": "#/$defs/AudioConfig"
+        }
+      },
+      "required": [
+        "version",
+        "toolkit",
+        "roots"
+      ],
+      "additionalProperties": false,
+      "title": "jam.config.json"
+    }
+  }
+}

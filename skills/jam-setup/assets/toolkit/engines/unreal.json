@@ -1,0 +1,160 @@
+{
+  "$schema": "../schemas/engine-adapter.schema.json",
+  "id": "unreal",
+  "label": "Unreal Engine (facts only)",
+  "versions": "5",
+  "facts": {
+    "unitsPerMeter": 100,
+    "up": "+Z",
+    "forward": "+X",
+    "handedness": "left",
+    "contentRoot": "Content",
+    "assetId": {
+      "scheme": "/Game/{path}",
+      "from": "Content/{path}.uasset"
+    },
+    "mesh": {
+      "static": "fbx",
+      "skinned": "fbx"
+    },
+    "collision": {
+      "convention": "named-hulls",
+      "prefix": "UCX_"
+    },
+    "audio": {
+      "container": "wav",
+      "bitDepth": 16
+    },
+    "naming": {
+      "staticMesh": "SM_",
+      "skeletalMesh": "SK_",
+      "skeleton": "SKEL_",
+      "physicsAsset": "PHYS_",
+      "texture": "T_",
+      "material": "M_",
+      "materialInstance": "MI_"
+    },
+    "binaries": {
+      "lfs": [
+        "*.uasset",
+        "*.umap"
+      ],
+      "lockable": true
+    },
+    "extra": {
+      "collisionPrefixes": {
+        "box": "UBX_",
+        "capsule": "UCP_",
+        "sphere": "USP_",
+        "convex": "UCX_"
+      },
+      "meshFormatsAlsoImported": [
+        "gltf",
+        "glb",
+        "obj"
+      ],
+      "audioFormatsImported": [
+        "wav",
+        "ogg",
+        "flac",
+        "aif",
+        "opus",
+        "mp3"
+      ]
+    }
+  },
+  "commands": {
+    "import": null,
+    "inspect": null,
+    "references": null,
+    "capture": null,
+    "check": null,
+    "conform-skeleton": null
+  },
+  "docs": {
+    "import": "unreal.md",
+    "inspect": "unreal.md"
+  },
+  "sources": [
+    {
+      "fact": "unitsPerMeter",
+      "url": "https://dev.epicgames.com/documentation/en-us/unreal-engine/units-of-measurement-in-unreal-engine",
+      "says": "Default distance unit is centimeters; \"One Unreal Unit is equivalent to 1 cm\" (migration guide)."
+    },
+    {
+      "fact": "up",
+      "url": "https://dev.epicgames.com/documentation/en-us/unreal-engine/coordinate-system-and-spaces-in-unreal-engine",
+      "says": "\"the coordinate system is left-handed and uses a Z-up axis\"; on the X axis \"positive values are forward\"."
+    },
+    {
+      "fact": "forward",
+      "url": "https://dev.epicgames.com/documentation/en-us/unreal-engine/coordinate-system-and-spaces-in-unreal-engine",
+      "says": "\"the coordinate system is left-handed and uses a Z-up axis\"; on the X axis \"positive values are forward\"."
+    },
+    {
+      "fact": "handedness",
+      "url": "https://dev.epicgames.com/documentation/en-us/unreal-engine/coordinate-system-and-spaces-in-unreal-engine",
+      "says": "\"the coordinate system is left-handed and uses a Z-up axis\"; on the X axis \"positive values are forward\"."
+    },
+    {
+      "fact": "contentRoot",
+      "url": "https://dev.epicgames.com/documentation/en-us/unreal-engine/unreal-engine-directory-structure",
+      "says": "\"Content - Holds content for the engine or game, including asset packages and maps.\""
+    },
+    {
+      "fact": "assetId",
+      "url": "https://dev.epicgames.com/documentation/en-us/unreal-engine/working-with-assets-in-unreal-engine",
+      "says": "Assets are stored as .uasset files; a package path reads /Game/StarterContent/Shapes/Shape_Cone. Levels are .umap files."
+    },
+    {
+      "fact": "mesh.static",
+      "url": "https://dev.epicgames.com/documentation/en-us/unreal-engine/migrating-assets-from-unity-to-unreal-engine",
+      "says": "Static meshes import as .fbx or .obj, \"with .fbx as the preferred format\"."
+    },
+    {
+      "fact": "mesh.skinned",
+      "url": "https://dev.epicgames.com/documentation/en-us/unreal-engine/skeletal-mesh-assets-in-unreal-engine",
+      "says": "A skeletal mesh is \"exported as an .fbx file\" from the DCC tool."
+    },
+    {
+      "fact": "extra.meshFormatsAlsoImported",
+      "url": "https://dev.epicgames.com/documentation/en-us/unreal-engine/importing-gltf-files-into-unreal-engine",
+      "says": ".gltf and .glb import through the Interchange import dialog."
+    },
+    {
+      "fact": "collision",
+      "url": "https://dev.epicgames.com/documentation/en-us/unreal-engine/fbx-static-mesh-pipeline-in-unreal-engine",
+      "says": "Collision meshes are named UBX_, UCP_, USP_ or UCX_ plus the render mesh's name, optionally _##; a UCX shape is \"any completely closed convex 3D shape\"."
+    },
+    {
+      "fact": "extra.collisionPrefixes",
+      "url": "https://dev.epicgames.com/documentation/en-us/unreal-engine/fbx-static-mesh-pipeline-in-unreal-engine",
+      "says": "Collision meshes are named UBX_, UCP_, USP_ or UCX_ plus the render mesh's name, optionally _##; a UCX shape is \"any completely closed convex 3D shape\"."
+    },
+    {
+      "fact": "audio",
+      "url": "https://dev.epicgames.com/documentation/en-us/unreal-engine/importing-audio-files",
+      "says": "\"All imported audio files are converted to 16-bit .wav files internally\"; \"importing 16-bit files is recommended\"."
+    },
+    {
+      "fact": "extra.audioFormatsImported",
+      "url": "https://dev.epicgames.com/documentation/en-us/unreal-engine/importing-audio-files",
+      "says": "\"All imported audio files are converted to 16-bit .wav files internally\"; \"importing 16-bit files is recommended\"."
+    },
+    {
+      "fact": "naming",
+      "url": "https://dev.epicgames.com/documentation/en-us/unreal-engine/recommended-asset-naming-conventions-in-unreal-engine-projects",
+      "says": "Prefix table: Static Mesh SM_, Skeletal Mesh SK_, Skeleton SKEL_, Physics Asset PHYS_, Texture T_, Material M_, Material Instance MI_."
+    },
+    {
+      "fact": "binaries",
+      "url": "https://dev.epicgames.com/documentation/en-us/unreal-engine/using-perforce-as-source-control-for-unreal-engine",
+      "says": "Asset and map files \"are binary, so cannot be opened as text or merged\"; the editor locks a file while it is edited. Keeping them in Git LFS is this toolkit's reading of that."
+    },
+    {
+      "fact": "binaries.lockable",
+      "url": "https://github.com/git-lfs/git-lfs/blob/main/docs/man/git-lfs-track.adoc",
+      "says": "A lockable path \"will be made read-only in the working copy when not locked\"."
+    }
+  ]
+}

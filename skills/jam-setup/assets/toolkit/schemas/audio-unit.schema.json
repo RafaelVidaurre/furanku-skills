@@ -1,0 +1,676 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audio-unit.schema.json",
+  "$ref": "#/$defs/AudioUnit",
+  "$defs": {
+    "AudioUnit": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "version": {
+          "type": "number",
+          "enum": [
+            1
+          ]
+        },
+        "id": {
+          "type": "string",
+          "description": "sfx/<name> or voice/<script>/<line id>"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "sfx",
+            "voice"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name: the sound's title, or the line's text"
+        },
+        "target": {
+          "type": "string",
+          "enum": [
+            "effect",
+            "loop",
+            "voice"
+          ],
+          "description": "Which loudness target its files are processed to"
+        },
+        "line": {
+          "type": "object",
+          "properties": {
+            "script": {
+              "type": "string"
+            },
+            "file": {
+              "type": "string",
+              "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+              "description": "Project-relative path with forward slashes"
+            },
+            "id": {
+              "type": "string"
+            },
+            "speaker": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "textHash": {
+              "type": "string"
+            },
+            "language": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "script",
+            "file",
+            "id",
+            "speaker",
+            "text",
+            "textHash",
+            "language"
+          ],
+          "additionalProperties": false,
+          "description": "Voice: the authored line as it was when last voiced or processed"
+        },
+        "selected": {
+          "type": "integer",
+          "maximum": 9007199254740991,
+          "exclusiveMinimum": 0,
+          "description": "Voice: the take that stands for the line (default: the lowest-numbered current take)"
+        },
+        "takes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "n": {
+                "type": "integer",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+              },
+              "file": {
+                "type": "string",
+                "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+                "description": "The processed WAV"
+              },
+              "sha256": {
+                "type": "string"
+              },
+              "original": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+                    "description": "Project-relative path with forward slashes"
+                  },
+                  "sha256": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "additionalProperties": false,
+                "description": "The file as received or supplied, never rewritten"
+              },
+              "generation": {
+                "type": "object",
+                "properties": {
+                  "origin": {
+                    "type": "string",
+                    "enum": [
+                      "generated",
+                      "supplied"
+                    ]
+                  },
+                  "provider": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "description": "Sound: the prompt sent"
+                  },
+                  "text": {
+                    "type": "string",
+                    "description": "Voice: the text sent, with any delivery markup"
+                  },
+                  "voice": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "settings": {
+                    "type": "object"
+                  },
+                  "run": {
+                    "type": "string",
+                    "description": "The run whose ledger paid, as <id>:<n>"
+                  },
+                  "job": {
+                    "type": "string"
+                  },
+                  "providerJob": {
+                    "type": "string"
+                  },
+                  "request": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+                        "description": "Project-relative path with forward slashes"
+                      },
+                      "sha256": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "sha256"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "charge": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "unit": {
+                    "type": "string"
+                  },
+                  "creator": {
+                    "type": "string"
+                  },
+                  "license": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "string",
+                    "description": "Supplied: where the file came from, in the supplier's words"
+                  },
+                  "at": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "origin",
+                  "at"
+                ],
+                "additionalProperties": false
+              },
+              "processing": {
+                "type": "object",
+                "properties": {
+                  "loop": {
+                    "type": "boolean",
+                    "description": "A loop or bed: never trimmed"
+                  },
+                  "stereo": {
+                    "type": "boolean"
+                  },
+                  "window": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "start": {
+                            "type": "number"
+                          },
+                          "end": {
+                            "type": "number"
+                          },
+                          "by": {
+                            "type": "string",
+                            "enum": [
+                              "auto",
+                              "trim"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "start",
+                          "end",
+                          "by"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The part of the original kept, in seconds of the original; null keeps all of it"
+                  },
+                  "fadeOutMs": {
+                    "type": "number"
+                  },
+                  "tighten": {
+                    "type": "object",
+                    "properties": {
+                      "atDb": {
+                        "type": "number"
+                      },
+                      "fadeMs": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "atDb",
+                      "fadeMs"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Room tail faded out once the sound has decayed atDb below its loudest moment"
+                  }
+                },
+                "required": [
+                  "loop",
+                  "stereo",
+                  "window"
+                ],
+                "additionalProperties": false
+              },
+              "facts": {
+                "type": "object",
+                "properties": {
+                  "duration": {
+                    "type": "number",
+                    "description": "Seconds"
+                  },
+                  "channels": {
+                    "type": "integer",
+                    "maximum": 9007199254740991,
+                    "exclusiveMinimum": 0
+                  },
+                  "sampleRate": {
+                    "type": "integer",
+                    "maximum": 9007199254740991,
+                    "exclusiveMinimum": 0
+                  },
+                  "bitDepth": {
+                    "type": "integer",
+                    "maximum": 9007199254740991,
+                    "exclusiveMinimum": 0
+                  },
+                  "integratedLufs": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Programme loudness; null when the file is too short to measure"
+                  },
+                  "momentaryMaxLufs": {
+                    "type": "number",
+                    "description": "Loudest 400 ms window"
+                  },
+                  "truePeakDb": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "duration",
+                  "channels",
+                  "sampleRate",
+                  "bitDepth",
+                  "integratedLufs",
+                  "momentaryMaxLufs",
+                  "truePeakDb"
+                ],
+                "additionalProperties": false
+              },
+              "level": {
+                "type": "object",
+                "properties": {
+                  "target": {
+                    "type": "string",
+                    "enum": [
+                      "effect",
+                      "loop",
+                      "voice"
+                    ]
+                  },
+                  "measure": {
+                    "type": "string",
+                    "enum": [
+                      "integrated",
+                      "momentary-max"
+                    ]
+                  },
+                  "reference": {
+                    "type": "number",
+                    "description": "The target loudness in LUFS when this was processed"
+                  },
+                  "ceiling": {
+                    "type": "number",
+                    "description": "The true-peak ceiling in dBTP when this was processed"
+                  },
+                  "level": {
+                    "type": "number",
+                    "description": "The loudness reached"
+                  },
+                  "belowReference": {
+                    "type": "number"
+                  },
+                  "limitedBy": {
+                    "type": "string",
+                    "enum": [
+                      "true-peak",
+                      "matched"
+                    ],
+                    "description": "Why the level is under the reference: its own peak, or a sibling variant's peak (variants share one level)"
+                  }
+                },
+                "required": [
+                  "target",
+                  "measure",
+                  "reference",
+                  "ceiling",
+                  "level",
+                  "belowReference"
+                ],
+                "additionalProperties": false
+              },
+              "textHash": {
+                "type": "string",
+                "description": "Voice: SHA-256 of the line's text when this take was made"
+              },
+              "words": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "word": {
+                      "type": "string"
+                    },
+                    "start": {
+                      "type": "number"
+                    },
+                    "end": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "word",
+                    "start",
+                    "end"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "Voice: when each authored word is spoken, in seconds of the processed file"
+              },
+              "transcript": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "match",
+                      "mismatch",
+                      "by-ear"
+                    ],
+                    "description": "match / mismatch: an independent transcription compared with the text. by-ear: no transcription ran; a person listened and accepted it."
+                  },
+                  "language": {
+                    "type": "string"
+                  },
+                  "heard": {
+                    "type": "string",
+                    "description": "What the transcriber wrote"
+                  },
+                  "wordErrorRate": {
+                    "type": "number"
+                  },
+                  "alignment": {
+                    "type": "string",
+                    "enum": [
+                      "forced",
+                      "proportional"
+                    ],
+                    "description": "forced: word timings aligned to the audio. proportional: the aligner failed and timings are spread by word length."
+                  },
+                  "alignmentError": {
+                    "type": "string"
+                  },
+                  "tool": {
+                    "type": "string"
+                  },
+                  "accepted": {
+                    "type": "object",
+                    "properties": {
+                      "channel": {
+                        "type": "string"
+                      },
+                      "words": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "channel",
+                      "words"
+                    ],
+                    "additionalProperties": false,
+                    "description": "by-ear: where the person answered and what they said, verbatim"
+                  },
+                  "at": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "language",
+                  "at"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "n",
+              "file",
+              "sha256",
+              "original",
+              "generation",
+              "processing",
+              "facts",
+              "level"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "variants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "n": {
+                "type": "integer",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+              },
+              "file": {
+                "type": "string",
+                "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+                "description": "Project-relative path with forward slashes"
+              },
+              "sha256": {
+                "type": "string"
+              },
+              "from": {
+                "type": "integer",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0,
+                "description": "The take it was cut from"
+              },
+              "start": {
+                "type": "number",
+                "description": "Seconds into that take; absent when the variant is the whole take"
+              },
+              "end": {
+                "type": "number"
+              },
+              "facts": {
+                "type": "object",
+                "properties": {
+                  "duration": {
+                    "type": "number",
+                    "description": "Seconds"
+                  },
+                  "channels": {
+                    "type": "integer",
+                    "maximum": 9007199254740991,
+                    "exclusiveMinimum": 0
+                  },
+                  "sampleRate": {
+                    "type": "integer",
+                    "maximum": 9007199254740991,
+                    "exclusiveMinimum": 0
+                  },
+                  "bitDepth": {
+                    "type": "integer",
+                    "maximum": 9007199254740991,
+                    "exclusiveMinimum": 0
+                  },
+                  "integratedLufs": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Programme loudness; null when the file is too short to measure"
+                  },
+                  "momentaryMaxLufs": {
+                    "type": "number",
+                    "description": "Loudest 400 ms window"
+                  },
+                  "truePeakDb": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "duration",
+                  "channels",
+                  "sampleRate",
+                  "bitDepth",
+                  "integratedLufs",
+                  "momentaryMaxLufs",
+                  "truePeakDb"
+                ],
+                "additionalProperties": false
+              },
+              "level": {
+                "type": "object",
+                "properties": {
+                  "target": {
+                    "type": "string",
+                    "enum": [
+                      "effect",
+                      "loop",
+                      "voice"
+                    ]
+                  },
+                  "measure": {
+                    "type": "string",
+                    "enum": [
+                      "integrated",
+                      "momentary-max"
+                    ]
+                  },
+                  "reference": {
+                    "type": "number",
+                    "description": "The target loudness in LUFS when this was processed"
+                  },
+                  "ceiling": {
+                    "type": "number",
+                    "description": "The true-peak ceiling in dBTP when this was processed"
+                  },
+                  "level": {
+                    "type": "number",
+                    "description": "The loudness reached"
+                  },
+                  "belowReference": {
+                    "type": "number"
+                  },
+                  "limitedBy": {
+                    "type": "string",
+                    "enum": [
+                      "true-peak",
+                      "matched"
+                    ],
+                    "description": "Why the level is under the reference: its own peak, or a sibling variant's peak (variants share one level)"
+                  }
+                },
+                "required": [
+                  "target",
+                  "measure",
+                  "reference",
+                  "ceiling",
+                  "level",
+                  "belowReference"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "n",
+              "file",
+              "sha256",
+              "from",
+              "facts",
+              "level"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "version",
+        "id",
+        "kind",
+        "name",
+        "target",
+        "takes",
+        "variants"
+      ],
+      "additionalProperties": false,
+      "title": "Sound or voiced-line record (unit.json). Written by the tool; do not edit by hand."
+    }
+  }
+}

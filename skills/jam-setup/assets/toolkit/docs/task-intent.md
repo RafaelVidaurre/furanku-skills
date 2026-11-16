@@ -1,17 +1,42 @@
-# Use the conversation's authorization
+# What the person has already authorized
 
-Read the requested outcome, current skill, established scope and the user's answers together. Authorization need not be a separate “generate now” sentence or a button click. Invoking a generation workflow and then resolving its prerequisites can already authorize its next operation. Carry that intent forward; ask only about an actual remaining decision.
+Authorization is read across the whole conversation: the request, the skill it invoked, and the answers given since. It is not a separate "go" sentence.
 
-- A user invokes mesh generation for a known asset, the agent asks for the quote/budget approval needed to run it, and the user approves: submit the understood job once its inputs and checks are ready. Do not add “shall I generate?” afterward.
-- A user requests alternatives or a concrete edit within established scope: make that bounded batch/edit. If a prerequisite answer completes an already requested operation, proceed without resetting authorization. A route or budget choice alone during standalone setup is configuration, not a request to generate.
-- A user merely describes preferences, supplies a reference, or says an image looks good while discussing options: use the context to distinguish feedback from an instruction. Do not turn informational answers into an unrequested batch. If the intended next action is genuinely unclear, ask one targeted question.
+## A request plus its answers is the authorization
 
-Before execution, know the asset/images, purpose, bounded operation/count, route and cost boundary, using established facts and delegated discretion. Resolve only consequential gaps; routine choices within the requested scope do not need approval. Briefly state what you are doing, rather than repeating a readiness questionnaire. A clear request with missing information retains its intent while those questions are answered; it does not become permission for unlimited retries or new scope.
+- The person asks for a model of a named asset; you ask the budget or route question the job needs; they answer. Submit the job when its inputs are ready. Asking "shall I generate?" now asks for something they already gave.
+- The person asks for alternatives or a specific edit within what is already agreed. Make that bounded batch.
+- An answer that completes a prerequisite of a requested operation lets the operation proceed. The request keeps its intent while questions are answered.
 
-For a turnaround-backed mesh, an unresolved [single-view/multiview mode](providers.md#choose-the-mesh-input-mode) is a real result-changing choice. Recommend multiview and ask once unless the mode was already specified or explicitly delegated; approval of a provider or budget alone does not select single-view. The mode answer can complete the existing generation request without another start confirmation.
+State what you are about to do in one line and do it.
 
-For a style round with no existing authorization, use the [summary and question-tool choice](interaction.md#confirm-a-style-round). If authorization already exists, use a short action summary and execute. An explicit “wait,” “ask before generating,” changed spending boundary or other user constraint controls the current step. Configured human artifact checkpoints still apply; permission to generate is not acceptance of the result. Reconcile an uncertain prior submission before any retry.
+## What is not a request
 
-Record the actual request and relevant prerequisite answers as the authorization source, together with the resulting scope; do not invent a separate approval event. A delegated worker receives that scoped instruction and attributable conversation references. It should execute valid inherited authorization, not ask the user to authorize the same operation again. Ask anew only for material changes outside that scope, unresolved decisions or a specific user-imposed gate.
+- Describing a preference, sharing a reference, or saying an image looks good while options are discussed is feedback. "I like B" asks for nothing; "make B softer" asks for that edit.
+- Choosing a route or setting a spending cap during setup is configuration.
+- A cap, a budget or a standing authorization never starts work on its own.
 
-Distinguish **spending** (provider credits/cost for this work) from **asset budgets** (triangles, texture sizes and runtime limits). Approval of a geometry target does not widen spending, and a standing spending cap alone does not initiate work. Ask about triangle/texture budgets when selecting the mesh operation after the design/turnaround is ready; reuse existing profiles. Ask earlier only if a real upstream decision depends on them, and explain that dependency. Image-generation cost and canvas resolution may matter before a turnaround; a mesh triangle count normally does not.
+When the next action is unclear after reading the conversation, ask one question about that action.
+
+## Standing authorization
+
+When `spend.<provider>.standing` is set ([settings.md](settings.md#spending)), spending inside the caps for requested work needs no question: decide, proceed, and report afterwards what was spent and why. The same holds for art decisions the person has delegated in their own words. An instruction such as "do not stop to ask me" is recorded there, in their words, and followed until they change it.
+
+## Stop and ask only for
+
+- spending that would pass a cap, or a provider with paid work off;
+- something that cannot be undone, or that is outside what was asked;
+- a choice that changes the result or the cost and that nobody has made, such as single-view instead of multiview for a mesh;
+- a step the person told you to hold ("ask before generating").
+
+A human gate on a result is separate from permission to produce it: permission to generate is not acceptance of what comes back.
+
+## Two kinds of budget
+
+**Spending** is provider credits for this work. An **asset budget** is triangles, texture size and materials. Approving one says nothing about the other. When an asset budget is decided is in [settings.md](settings.md#budgets); ask earlier only when an earlier step really depends on one, and say why.
+
+## Recording it
+
+`jam job open` takes the authorization from the standing entry, or from `--authorized "<who, when: their words>"`. Record the actual request and answers; never write an approval that did not happen.
+
+A worker agent receives the scope and the person's words in its brief and acts on them. It asks again only for something outside that scope.

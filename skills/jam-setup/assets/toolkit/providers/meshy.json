@@ -1,0 +1,25 @@
+{
+  "$schema": "../schemas/provider.schema.json",
+  "id": "meshy",
+  "label": "Meshy",
+  "unit": { "id": "credits", "label": "Meshy credits", "paid": true },
+  "capabilities": {
+    "mesh": {
+      "modes": ["single", "multiview"],
+      "note": "Multiview is the default when a turnaround exists; its first input is the front view. Direct multiview does not expose Smart Topology; single-image Smart Topology generates triangles at a chosen target."
+    }
+  },
+  "transports": [
+    { "kind": "cli", "command": "meshy", "probe": ["--version"], "npmLauncher": true, "note": "Device or browser sign-in." },
+    { "kind": "skill", "name": "meshy-3d-generation" }
+  ],
+  "pacing": { "concurrent": 1, "typicalWait": "A mesh job takes about 3 to 5 minutes; start the next when the previous finishes." },
+  "quote": { "kind": "estimate", "how": "`make --dry-run` on the CLI is an estimate; the actual charge comes from the finished task." },
+  "recovery": "After a lost create response keep the job as lost, wait about a minute, then list the newest tasks by creation time and match operation, input and time. Absence from one partial page is not enough. If the match stays ambiguous, stop and reconcile rather than resubmit.",
+  "skills": ["meshy-3d-generation"],
+  "docs": "docs/providers/meshy.md",
+  "notes": [
+    "Download finished outputs promptly: retention is short outside the Enterprise plan.",
+    "Jobs in progress generally cannot be cancelled."
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "$schema": "../schemas/recipe.schema.json",
+  "version": 1,
+  "id": "prop",
+  "title": "Static prop",
+  "description": "From a brief to an engine-ready static prop, with optional collision shapes and engine import.",
+  "when": "An object that does not deform: furniture, tools, set dressing, pickups, set pieces.",
+  "extends": "builtin:asset",
+  "budget": "prop",
+  "steps": [
+    {
+      "id": "concept",
+      "guide": "toolkit:docs/recipes/prop.md#concept"
+    },
+    {
+      "id": "turnaround",
+      "guide": "toolkit:docs/recipes/prop.md#turnaround"
+    },
+    {
+      "id": "mesh",
+      "guide": "toolkit:docs/recipes/prop.md#mesh"
+    },
+    {
+      "id": "topology",
+      "guide": "toolkit:docs/recipes/prop.md#topology"
+    },
+    {
+      "id": "uv",
+      "guide": "toolkit:docs/recipes/prop.md#uv"
+    },
+    {
+      "id": "texture",
+      "guide": "toolkit:docs/recipes/prop.md#texture"
+    },
+    {
+      "id": "collision",
+      "title": "Collision shapes",
+      "after": "texture",
+      "needs": [
+        "texture"
+      ],
+      "skill": "jam-engine",
+      "guide": "toolkit:docs/recipes/prop.md#collision",
+      "optional": true,
+      "produces": [
+        {
+          "role": "model",
+          "kind": "model",
+          "max": 1
+        }
+      ],
+      "checks": [
+        "budget-geometry"
+      ],
+      "review": "agent",
+      "when": {
+        "engine": "import"
+      }
+    },
+    {
+      "id": "import",
+      "title": "Engine import",
+      "after": "collision",
+      "needs": [
+        "texture",
+        "collision"
+      ],
+      "skill": "jam-engine",
+      "guide": "toolkit:docs/recipes/prop.md#import",
+      "optional": true,
+      "run": [
+        "engine",
+        "import",
+        "--kind",
+        "static",
+        "--run",
+        "{id}"
+      ],
+      "checks": [
+        "engine-inspect"
+      ],
+      "review": "none",
+      "when": {
+        "engine": "import"
+      }
+    },
+    {
+      "id": "delivery",
+      "needs": [
+        "topology",
+        "uv",
+        "texture",
+        "collision",
+        "import"
+      ],
+      "guide": "toolkit:docs/recipes/prop.md#delivery"
+    }
+  ]
+}

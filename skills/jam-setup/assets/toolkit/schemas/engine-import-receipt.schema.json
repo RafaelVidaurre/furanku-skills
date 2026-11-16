@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "engine-import-receipt.schema.json",
+  "$ref": "#/$defs/EngineImportReceipt",
+  "$defs": {
+    "EngineImportReceipt": {
+      "type": "object",
+      "properties": {
+        "assets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "\\S",
+                "description": "The engine's own id for the asset"
+              },
+              "kind": {
+                "type": "string",
+                "pattern": "\\S"
+              },
+              "source": {
+                "type": "string",
+                "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+                "description": "Project-relative path with forward slashes"
+              },
+              "sha256": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "kind"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "assets"
+      ],
+      "additionalProperties": false,
+      "title": "Receipt printed by an adapter's import command"
+    }
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "$schema": "../schemas/engine-adapter.schema.json",
+  "id": "web",
+  "label": "Web runtime that loads glTF (three.js conventions)",
+  "facts": {
+    "unitsPerMeter": 1,
+    "up": "+Y",
+    "forward": "+Z",
+    "handedness": "right",
+    "mesh": {
+      "static": "glb",
+      "skinned": "glb"
+    },
+    "textures": {
+      "normalGreen": "up",
+      "packed": "ORM"
+    },
+    "extra": {
+      "cameraForward": "-Z",
+      "threeMaterialChannels": {
+        "aoMap": "R",
+        "roughnessMap": "G",
+        "metalnessMap": "B"
+      }
+    }
+  },
+  "commands": {
+    "import": null,
+    "inspect": null,
+    "references": null,
+    "capture": null,
+    "check": null,
+    "conform-skeleton": null
+  },
+  "docs": {
+    "import": "web.md",
+    "inspect": "web.md"
+  },
+  "sources": [
+    {
+      "fact": "unitsPerMeter",
+      "url": "https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html",
+      "says": "\"The units for all linear distances are meters.\""
+    },
+    {
+      "fact": "up",
+      "url": "https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html",
+      "says": "\"glTF uses a right-handed coordinate system. glTF defines +Y as up, +Z as forward, and -X as right; the front of a glTF asset faces +Z.\""
+    },
+    {
+      "fact": "forward",
+      "url": "https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html",
+      "says": "\"glTF uses a right-handed coordinate system. glTF defines +Y as up, +Z as forward, and -X as right; the front of a glTF asset faces +Z.\""
+    },
+    {
+      "fact": "handedness",
+      "url": "https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html",
+      "says": "\"glTF uses a right-handed coordinate system. glTF defines +Y as up, +Z as forward, and -X as right; the front of a glTF asset faces +Z.\""
+    },
+    {
+      "fact": "textures.normalGreen",
+      "url": "https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html",
+      "says": "Normal texture: \"+X is right and +Y is up. +Z points toward the viewer.\""
+    },
+    {
+      "fact": "textures.packed",
+      "url": "https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html",
+      "says": "Occlusion is read from the red channel, roughness from green, metalness from blue."
+    },
+    {
+      "fact": "mesh",
+      "url": "https://threejs.org/manual/pages/loading-3d-models.html",
+      "says": "\"Where possible, we recommend using glTF\"; both .GLB and .GLTF are well supported."
+    },
+    {
+      "fact": "up",
+      "url": "https://threejs.org/docs/pages/Object3D.html",
+      "says": "The default up direction for objects is (0, 1, 0); three.js \"uses a right-handed coordinate system\" (CubeTextureLoader page)."
+    },
+    {
+      "fact": "handedness",
+      "url": "https://threejs.org/docs/pages/Object3D.html",
+      "says": "The default up direction for objects is (0, 1, 0); three.js \"uses a right-handed coordinate system\" (CubeTextureLoader page)."
+    },
+    {
+      "fact": "extra.cameraForward",
+      "url": "https://threejs.org/docs/pages/Camera.html",
+      "says": "\"A camera looks down its local, negative z-axis by default.\""
+    },
+    {
+      "fact": "extra.threeMaterialChannels",
+      "url": "https://threejs.org/docs/pages/MeshStandardMaterial.html",
+      "says": "aoMap uses the red channel, roughnessMap the green, metalnessMap the blue; negate normalScale.y for a normal map authored left-handed."
+    }
+  ]
+}

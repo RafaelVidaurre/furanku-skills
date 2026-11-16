@@ -1,0 +1,12 @@
+{
+  "$schema": "../schemas/engine-adapter.schema.json",
+  "id": "gltf",
+  "label": "glTF conventions (no engine chosen)",
+  "facts": {
+    "unitsPerMeter": 1,
+    "up": "+Y",
+    "forward": "+Z",
+    "handedness": "right",
+    "mesh": { "static": "glb", "skinned": "glb" }
+  }
+}

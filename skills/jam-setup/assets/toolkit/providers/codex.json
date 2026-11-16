@@ -1,0 +1,13 @@
+{
+  "$schema": "../schemas/provider.schema.json",
+  "id": "codex",
+  "label": "Codex CLI image tool",
+  "unit": { "id": "plan", "label": "ChatGPT plan allowance", "paid": false },
+  "capabilities": { "image": {} },
+  "transports": [
+    { "kind": "cli", "command": "codex", "probe": ["--version"], "auth": ["login", "status"], "note": "`codex exec` runs an image-capable agent; pass reference images with -i." }
+  ],
+  "quote": { "kind": "none", "how": "With ChatGPT sign-in images use the plan's allowance. With API-key sign-in they are billed through the API, outside this ledger." },
+  "recovery": "If the process loses its response, inspect that invocation's events and output files before considering another generation.",
+  "docs": "docs/providers/codex.md"
+}

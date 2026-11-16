@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jam.local.schema.json",
+  "$ref": "#/$defs/JamLocalConfig",
+  "$defs": {
+    "JamLocalConfig": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "python": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Python executable: a name on PATH, an absolute path, or a project-relative path"
+        },
+        "blender": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "ffmpeg": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "providers": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Executable of a provider's CLI, by provider id"
+        },
+        "aligner": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "string"
+            }
+          ],
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          },
+          "description": "Program and arguments of the transcript aligner, when it is not the toolkit's own script run by this machine's Python. `python` and `node` resolve to the machine's own."
+        },
+        "engine": {
+          "type": "object",
+          "description": "How this machine reaches the engine (editor path, host, port). Passed to adapter commands; never credentials."
+        }
+      },
+      "additionalProperties": false,
+      "title": "jam.local.json"
+    }
+  }
+}

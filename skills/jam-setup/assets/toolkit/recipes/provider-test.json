@@ -1,0 +1,19 @@
+{
+  "$schema": "../schemas/recipe.schema.json",
+  "version": 1,
+  "id": "provider-test",
+  "title": "Provider connectivity test",
+  "description": "One paid job to prove a provider works on this machine, inside the normal spending caps. Its output is test evidence: it is never delivered and cannot be cited by another run.",
+  "when": "The person asks to try a provider, or setup needs proof that one works.",
+  "deliverable": false,
+  "steps": [
+    {
+      "id": "test",
+      "title": "One provider job",
+      "guide": "toolkit:docs/recipes/provider-test.md#test",
+      "paid": true,
+      "maxJobs": 1,
+      "review": "none"
+    }
+  ]
+}

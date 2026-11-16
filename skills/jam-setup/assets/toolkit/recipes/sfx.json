@@ -1,0 +1,79 @@
+{
+  "$schema": "../schemas/recipe.schema.json",
+  "version": 1,
+  "id": "sfx",
+  "title": "Sound effect",
+  "description": "Get takes of a sound (generated, or supplied), process them to the loudness target, have a person choose by ear, and import the result where an engine adapter can.",
+  "when": "A sound effect: an impact, an ambience or loop, a UI sound, or a set of variants of one. One run can cover one sound or a batch reviewed together.",
+  "steps": [
+    {
+      "id": "generate",
+      "title": "Takes received",
+      "skill": "jam-sfx",
+      "guide": "toolkit:docs/recipes/sfx.md#generate",
+      "paid": true,
+      "produces": [
+        {
+          "role": "original",
+          "kind": "audio",
+          "min": 1
+        }
+      ],
+      "review": "none",
+      "run": [
+        "audio",
+        "sfx",
+        "generate",
+        "<sound-name>",
+        "--run",
+        "{id}",
+        "--prompt",
+        "<one physical event, dry, naming the materials>",
+        "--takes",
+        "<1 to 5>"
+      ]
+    },
+    {
+      "id": "process",
+      "title": "Processed sound, chosen by ear",
+      "needs": [
+        "generate"
+      ],
+      "skill": "jam-sfx",
+      "guide": "toolkit:docs/recipes/sfx.md#process",
+      "produces": [
+        {
+          "role": "sound",
+          "kind": "audio",
+          "min": 1
+        }
+      ],
+      "checks": [
+        "loudness"
+      ],
+      "review": "human"
+    },
+    {
+      "id": "import",
+      "title": "Engine import",
+      "needs": [
+        "process"
+      ],
+      "skill": "jam-engine",
+      "guide": "toolkit:docs/recipes/sfx.md#import",
+      "optional": true,
+      "run": [
+        "engine",
+        "import",
+        "--kind",
+        "audio",
+        "--run",
+        "{id}"
+      ],
+      "review": "none",
+      "when": {
+        "engine": "import"
+      }
+    }
+  ]
+}

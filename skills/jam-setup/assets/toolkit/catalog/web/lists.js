@@ -1,46 +1,55 @@
-import { SubmitDialog } from './review.js';
-import { html, useState, useEffect, useRef, useQuery, write, href, withQuery, replace, entityHref, Icon, Popover, Thumb, VerdictBar, NoteCount, TagPicker, kindIcon, toast, enc, ErrorLine, newRequestId, fmtSize } from './core.js';
+import { html, useState, useEffect, useLayoutEffect, useRef, useQuery, write, href, withQuery, replace, entityHref, Icon, Popover, Thumb, NoteCount, TagPicker, KindIcon, kindLabel, scopeOf, sectionLabel, session, toast, enc, ErrorLine, newRequestId, fmtSize } from './core.js';
 
-export const SECTION_OF = { content: 'units', collections: 'collections', assets: 'assets' };
-const KIND_OF = { content: 'unit', collections: 'collection', assets: 'asset' };
+// A list shows units of one scope, collections, or media files.
+const searchSection = (section) => (section === 'collections' ? 'collections' : section === 'files' ? 'assets' : 'units');
+const kindOf = (section) => (section === 'collections' ? 'collection' : section === 'files' ? 'asset' : 'unit');
+const describe = (section) => scopeOf(section)?.description ?? (section === 'collections' ? 'Related entries, gathered into sets' : 'Every media file the catalog knows');
 export function selectedFacets(route) {
   const out = {};
   for (const [k, v] of route.query) if (k.startsWith('f.') && v) out[k.slice(2)] = v.split(',').map(decodeURIComponent);
   return out;
 }
-export let currentList = { hrefs: [], ids: [] };
+export let currentList = { hrefs: [], ids: [], section: null };
 const scrollMemory = new Map();
 
 export function ListPane({ route, compact }) {
-  const section = SECTION_OF[route.section];
+  const section = searchSection(route.section);
+  const scope = scopeOf(route.section)?.id;
   const sel = selectedFacets(route);
   const q = route.query.get('q') ?? '';
   const page = +(route.query.get('page') ?? 1);
   const [mode, setMode] = useState(() => localStorage.getItem(`listMode:${route.section}`) ?? 'grid');
   const [picked, setPicked] = useState(new Set());
   const scroller = useRef();
-  const query = useQuery('catalog.search', { section, q, filters: sel, page, pageSize: compact ? 100 : 60 });
+  const query = useQuery('catalog.search', { section, scope, q, filters: sel, page, pageSize: compact ? 100 : 60 });
   const { error, loading, reload } = query;
-  // Keep showing the previous page while refining, but never another section's items.
-  const data = query.data?.section === section ? query.data : null;
+  // Query identity includes the library, filters, search and page.
+  const data = query.data?.section === section && (!scope || query.data.scope === scope) ? query.data : null;
   useEffect(() => setPicked(new Set()), [route.section]);
   // Filter and search changes reset pagination; typing replaces history instead of adding entries.
   const setQ = (changes) => replace(withQuery(route, { ...changes, page: null }));
   const toggle = (k, v) => { const cur = sel[k] ?? []; const next = cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v]; setQ({ [`f.${k}`]: next.map(enc).join(',') }); };
   const listKey = `${route.section}?${[...route.query].filter(([k]) => k === 'q' || k === 'page' || k.startsWith('f.')).join('&')}`;
-  useEffect(() => { const el = scroller.current; const y = scrollMemory.get(listKey); if (el && y != null && data) requestAnimationFrame(() => { el.scrollTop = y; }); }, [listKey, !!data, route.id]);
-  const onScroll = (e) => scrollMemory.set(listKey, e.target.scrollTop);
-  const kind = KIND_OF[route.section];
+  // Restore once matching rows are mounted, before paint or scroll events can
+  // overwrite the saved position with an empty/loading list's zero offset.
+  useLayoutEffect(() => {
+    if (data && scroller.current) scroller.current.scrollTop = scrollMemory.get(listKey) ?? 0;
+  }, [listKey, !!data]);
+  const rememberScroll = () => {
+    if (data && scroller.current?.isConnected) scrollMemory.set(listKey, scroller.current.scrollTop);
+  };
+  const kind = kindOf(route.section);
   const linkOf = (id) => entityHref(kind, id);
-  if (data) currentList = { hrefs: data.ids.map(linkOf), ids: data.ids };
+  if (data) currentList = { hrefs: data.ids.map(linkOf), ids: data.ids, section: route.section };
   const rows = compact || mode === 'rows';
   const pick = (id, e) => { e.preventDefault(); e.stopPropagation(); const n = new Set(picked); n.has(id) ? n.delete(id) : n.add(id); setPicked(n); };
   const go = (p) => location.hash = href(withQuery(route, { page: p > 1 ? p : null })).slice(1);
-  return html`<div class=${`list-pane${compact ? ' compact' : ''}`} ref=${scroller} onScroll=${onScroll}>
+  return html`<div class=${`list-pane${compact ? ' compact' : ''}`} ref=${scroller} onScroll=${rememberScroll} onClickCapture=${rememberScroll}>
+    <header class="browse-head"><div><span class="eyebrow">${session.ctx?.project ?? 'Catalog'}</span><h1>${sectionLabel(route.section)}</h1></div><span class="muted">${describe(route.section)}</span></header>
     <div class="list-bar">
       <input class="search" type="search" placeholder="Filter" aria-label="Filter list" value=${q} onInput=${(e) => setQ({ q: e.target.value })} data-list-search
         onKeyDown=${(e) => { if (e.key === 'Escape' && e.target.value) { e.stopPropagation(); e.preventDefault(); setQ({ q: null }); } }} />
-      ${data && Object.entries(data.facets).map(([k, f]) => html`<${FacetMenu} key=${k} name=${k} f=${f} onToggle=${(v) => toggle(k, v)} onClear=${() => setQ({ [`f.${k}`]: null })} />`)}
+      ${data && Object.entries(data.facets).filter(([k]) => !['review', 'visual'].includes(k)).map(([k, f]) => html`<${FacetMenu} key=${k} name=${k} f=${f} onToggle=${(v) => toggle(k, v)} onClear=${() => setQ({ [`f.${k}`]: null })} />`)}
       <span class="push"></span>
       ${route.section === 'collections' && html`<${NewCollection} />`}
       ${!compact && html`<span class="seg" aria-label="Layout">
@@ -52,12 +61,13 @@ export function ListPane({ route, compact }) {
       ${Object.entries(sel).flatMap(([k, vals]) => vals.map((v) => html`<button class="fchip" onClick=${() => toggle(k, v)} title="Remove filter">${data.facets[k]?.label}: ${data.facets[k]?.values.find((x) => x.value === v)?.label ?? v}<${Icon} name="x" size=${10} /></button>`))}
       ${(Object.keys(sel).length > 0 || q) && html`<button class="link small" onClick=${() => setQ(Object.fromEntries([...route.query.keys()].filter((k) => k === 'q' || k.startsWith('f.')).map((k) => [k, null])))}>Clear</button>`}
     </div>`}
+    ${!data && loading && html`<div class="browse-loading muted small" role="status">Loading ${sectionLabel(route.section).toLowerCase()}…</div>`}
     <${ErrorLine} error=${error} onRetry=${reload} />
     ${picked.size > 0 && html`<${BulkBar} ids=${[...picked]} kind=${kind} onClear=${() => setPicked(new Set())} />`}
     <div class=${rows ? 'rows' : `grid ${route.section}`} role="list" aria-busy=${loading}>
       ${data?.items.map((e) => {
-        const props = { e, h: linkOf(e.id), selected: e.id === route.id, picked: picked.has(e.id), onPick: route.section !== 'assets' ? (ev) => pick(e.id, ev) : null, rows };
-        return route.section === 'content' ? html`<${UnitItem} key=${e.id} ...${props} />` : route.section === 'collections' ? html`<${CollectionItem} key=${e.id} ...${props} />` : html`<${AssetItem} key=${e.id} ...${props} />`;
+        const props = { e, h: linkOf(e.id), selected: e.id === route.id, picked: picked.has(e.id), onPick: route.section !== 'files' ? (ev) => pick(e.id, ev) : null, rows };
+        return kind === 'unit' ? html`<${UnitItem} key=${e.id} ...${props} />` : kind === 'collection' ? html`<${CollectionItem} key=${e.id} ...${props} />` : html`<${AssetItem} key=${e.id} ...${props} />`;
       })}
     </div>
     ${data?.pages > 1 && html`<nav class="pager" aria-label="Pages">
@@ -86,25 +96,19 @@ function Pick({ picked, onPick }) {
   if (!onPick) return null;
   return html`<button class=${`pick${picked ? ' on' : ''}`} role="checkbox" aria-checked=${picked} aria-label="Select" onClick=${onPick}>${picked && html`<${Icon} name="check" size=${11} />`}</button>`;
 }
-export function RoleGlyphs({ e }) {
-  return html`<span class="glyphs">
-    ${e.roles.map((r) => html`<span class=${`glyph${r.shared ? ' shared' : ''}`} title=${r.label + (r.shared ? ' (shared)' : '')}><${Icon} name=${kindIcon(r.kind)} size=${12} /></span>`)}
-    ${e.missing.map((r) => html`<span class="glyph missing" title=${`Missing ${r.label.toLowerCase()}`}><${Icon} name=${kindIcon(r.kind)} size=${12} /></span>`)}
-  </span>`;
-}
 const Match = ({ m }) => (m?.member ? html`<span class="match" title="Matching member">Includes ${m.member.name}</span>` : null);
 
 function UnitItem({ e, h, selected, rows, picked, onPick }) {
   if (rows) return html`<a class=${`row${selected ? ' sel' : ''}`} href=${h} role="listitem" aria-current=${selected ? 'true' : undefined}>
     <${Pick} picked=${picked} onPick=${onPick} /><${Thumb} asset=${e.thumb} size=${34} label=${e.typeLabel[0]} />
-    <span class="row-main"><span class="row-name">${e.name}</span><span class="row-sub">${e.typeLabel}<${RoleGlyphs} e=${e} /></span></span>
-    <${NoteCount} n=${e.notes} /><${VerdictBar} parts=${e.status.parts} />
+    <span class="row-main"><span class="row-name">${e.name}</span><span class="row-sub">${e.category?.split('/').slice(1).join(' / ') || e.typeLabel}</span></span>
+    <${NoteCount} n=${e.notes} />
   </a>`;
   return html`<a class=${`card${selected ? ' sel' : ''}${picked ? ' picked' : ''}`} href=${h} role="listitem">
     <${Pick} picked=${picked} onPick=${onPick} />
-    <span class="card-media">${e.thumb ? html`<${Thumb} asset=${e.thumb} fill />` : html`<span class="card-attrs">${(e.attrsPreview ?? []).map((a) => html`<span><b>${a.label}</b> ${String(a.value)}</span>`)}</span>`}</span>
+    <span class="card-media">${e.thumb ? html`<${Thumb} asset=${e.thumb} fill />` : html`<span class="card-placeholder" aria-label="No preview available"><${Icon} name="picture" size=${28} /><span>No preview</span></span>`}</span>
     <span class="card-name">${e.name}</span>
-    <span class="card-sub"><span>${e.typeLabel}</span><${RoleGlyphs} e=${e} /><span class="push"></span><${NoteCount} n=${e.notes} /><${VerdictBar} parts=${e.status.parts} /></span>
+    <span class="card-sub"><span>${e.category?.split('/').slice(1).join(' / ') || e.typeLabel}</span><span class="push"></span><${NoteCount} n=${e.notes} /></span>
   </a>`;
 }
 function Mosaic({ c }) {
@@ -115,42 +119,40 @@ function CollectionItem({ e: c, h, selected, rows, picked, onPick }) {
   if (rows) return html`<a class=${`row${selected ? ' sel' : ''}`} href=${h} role="listitem" aria-current=${selected ? 'true' : undefined}>
     <${Pick} picked=${picked} onPick=${onPick} /><span class="thumb" style="width:34px;height:34px"><${Mosaic} c=${c} /></span>
     <span class="row-main"><span class="row-name">${c.name}</span><span class="row-sub">${sub}<${Match} m=${c.match} /></span></span>
-    <${NoteCount} n=${c.notes} /><${VerdictBar} parts=${c.status.parts} />
+    <${NoteCount} n=${c.notes} />
   </a>`;
   return html`<a class=${`card${selected ? ' sel' : ''}${picked ? ' picked' : ''}`} href=${h} role="listitem">
     <${Pick} picked=${picked} onPick=${onPick} />
     <span class="card-media"><${Mosaic} c=${c} /><span class="card-count">${c.memberCount}</span></span>
     <span class="card-name">${c.name}</span>
-    <span class="card-sub"><span>${[c.kindLabel, c.category?.split('/').join(' / ')].filter(Boolean).join(' · ')}</span><span class="push"></span><${NoteCount} n=${c.notes} /><${VerdictBar} parts=${c.status.parts} /></span>
+    <span class="card-sub"><span>${[c.kindLabel, c.category?.split('/').join(' / ')].filter(Boolean).join(' · ')}</span><span class="push"></span><${NoteCount} n=${c.notes} /></span>
     ${c.match && html`<span class="card-match"><${Match} m=${c.match} /></span>`}
   </a>`;
 }
 function AssetItem({ e: a, h, selected, rows }) {
-  const use = html`<span class=${`uses${a.usedBy > 1 ? ' shared' : a.usedBy === 0 ? ' unused' : ''}`} title=${`Used by ${a.usedBy} content unit${a.usedBy === 1 ? '' : 's'}`}><${Icon} name="link" size=${11} />${a.usedBy}</span>`;
+  const use = html`<span class=${`uses${a.usedBy > 1 ? ' shared' : a.usedBy === 0 ? ' unused' : ''}`} title=${`Used by ${a.usedBy} catalog entr${a.usedBy === 1 ? 'y' : 'ies'}`}><${Icon} name="link" size=${11} />${a.usedBy}</span>`;
   const name = a.path.split('/').pop();
   if (rows) return html`<a class=${`row${selected ? ' sel' : ''}`} href=${h} role="listitem" aria-current=${selected ? 'true' : undefined}>
     <${Thumb} asset=${a} size=${34} />
-    <span class="row-main"><span class="row-name mono">${name}</span><span class="row-sub"><${Icon} name=${kindIcon(a.kind)} size=${11} />${a.state === 'ok' ? fmtSize(a.size) : a.error}</span></span>
+    <span class="row-main"><span class="row-name mono">${name}</span><span class="row-sub"><${KindIcon} kind=${a.kind} size=${11} />${a.state === 'ok' ? fmtSize(a.size) : a.error}</span></span>
     <${NoteCount} n=${a.notes} />${use}
   </a>`;
   return html`<a class=${`card${selected ? ' sel' : ''}`} href=${h} role="listitem">
-    <span class="card-media"><${Thumb} asset=${a} fill /><span class="card-kind"><${Icon} name=${kindIcon(a.kind)} size=${12} /></span></span>
+    <span class="card-media"><${Thumb} asset=${a} fill /><span class="card-kind"><${KindIcon} kind=${a.kind} size=${12} /></span></span>
     <span class="card-name mono">${name}</span>
-    <span class="card-sub"><span class="mono">${a.path.split('/').slice(0, -1).join('/')}</span><span class="push"></span><${NoteCount} n=${a.notes} />${use}</span>
+    <span class="card-sub"><span>${kindLabel(a.kind)} · ${fmtSize(a.size)}</span><span class="push"></span><${NoteCount} n=${a.notes} />${use}</span>
   </a>`;
 }
 
 function BulkBar({ ids, kind, onClear }) {
   const targets = ids.map((id) => ({ kind, id }));
-  const [submitting, setSubmitting] = useState(false);
   return html`<div class="bulk" role="toolbar" aria-label="Selection">
     <b>${ids.length} selected</b>
     ${kind === 'unit' && html`<${Popover} label="Add to collection" trigger=${() => html`<button class="btn sm">Collections</button>`}><${CollectionToggle} unitIds=${ids} /><//>`}
     <${Popover} label="Add tag" trigger=${() => html`<button class="btn sm">Add tag</button>`}>
       ${(close) => html`<${TagPicker} onPick=${async (t) => { try { await write('organize.bulk', { targets, addTags: [t] }); toast(`Tagged ${ids.length} with ${t}`); close(); } catch (e) { toast(e.message, 'err'); } }} />`}
     <//>
-    <button class="btn sm" onClick=${() => setSubmitting(true)}><${Icon} name="send" size=${12} />Submit for review</button>
-    ${submitting && html`<${SubmitDialog} targets=${targets} onClose=${() => setSubmitting(false)} />`}
+
     <button class="btn sm ghost push" onClick=${onClear}>Clear</button>
   </div>`;
 }

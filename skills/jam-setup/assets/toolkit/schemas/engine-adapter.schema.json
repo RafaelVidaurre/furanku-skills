@@ -1,0 +1,569 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "engine-adapter.schema.json",
+  "$ref": "#/$defs/EngineAdapter",
+  "$defs": {
+    "SkeletonProfile": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "reference": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "File that holds the skeleton, inside the adapter folder or the project"
+        },
+        "engineAsset": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "The engine's id of the skeleton asset"
+        },
+        "bones": {
+          "type": "object",
+          "properties": {
+            "hips": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "spine": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "chest": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "neck": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "head": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "shoulder.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "shoulder.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "upper-arm.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "upper-arm.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "lower-arm.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "lower-arm.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "hand.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "hand.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "upper-leg.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "upper-leg.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "lower-leg.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "lower-leg.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "foot.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "foot.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "toes.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "toes.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "thumb-1.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "thumb-1.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "thumb-2.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "thumb-2.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "thumb-3.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "thumb-3.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "index-1.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "index-1.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "index-2.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "index-2.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "index-3.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "index-3.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "middle-1.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "middle-1.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "middle-2.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "middle-2.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "middle-3.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "middle-3.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "ring-1.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "ring-1.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "ring-2.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "ring-2.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "ring-3.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "ring-3.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "pinky-1.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "pinky-1.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "pinky-2.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "pinky-2.r": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "pinky-3.l": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "pinky-3.r": {
+              "type": "string",
+              "pattern": "\\S"
+            }
+          },
+          "additionalProperties": false,
+          "description": "The skeleton's bone name at each landmark it has. A landmark it lacks is left out."
+        },
+        "hierarchy": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": "Parent bone of each bone, by the skeleton's own names; null for the root. Absent: the landmark hierarchy."
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bones"
+      ],
+      "additionalProperties": false
+    },
+    "EngineFacts": {
+      "type": "object",
+      "properties": {
+        "unitsPerMeter": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Engine units in one meter (1 for glTF)"
+        },
+        "up": {
+          "type": "string",
+          "enum": [
+            "+X",
+            "-X",
+            "+Y",
+            "-Y",
+            "+Z",
+            "-Z"
+          ]
+        },
+        "forward": {
+          "type": "string",
+          "enum": [
+            "+X",
+            "-X",
+            "+Y",
+            "-Y",
+            "+Z",
+            "-Z"
+          ]
+        },
+        "handedness": {
+          "type": "string",
+          "enum": [
+            "left",
+            "right"
+          ]
+        },
+        "contentRoot": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "."
+              ]
+            },
+            {
+              "type": "string",
+              "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+              "description": "Project-relative path with forward slashes"
+            }
+          ],
+          "description": "Project folder the engine imports into; \".\" when that is the project root"
+        },
+        "assetId": {
+          "type": "object",
+          "properties": {
+            "scheme": {
+              "type": "string",
+              "pattern": "\\S",
+              "description": "Engine asset id with {path}, e.g. an engine package path"
+            },
+            "from": {
+              "type": "string",
+              "pattern": "\\S",
+              "description": "Project file pattern with {path} that the id is derived from"
+            }
+          },
+          "required": [
+            "scheme",
+            "from"
+          ],
+          "additionalProperties": false
+        },
+        "mesh": {
+          "type": "object",
+          "properties": {
+            "static": {
+              "type": "string",
+              "pattern": "\\S",
+              "description": "Interchange format for static meshes (file extension)"
+            },
+            "skinned": {
+              "type": "string",
+              "pattern": "\\S"
+            }
+          },
+          "additionalProperties": false
+        },
+        "textures": {
+          "type": "object",
+          "properties": {
+            "normalGreen": {
+              "type": "string",
+              "enum": [
+                "up",
+                "down"
+              ]
+            },
+            "packed": {
+              "type": "string",
+              "pattern": "\\S",
+              "description": "Channel packing of the combined mask map, e.g. ORM"
+            }
+          },
+          "additionalProperties": false
+        },
+        "collision": {
+          "type": "object",
+          "properties": {
+            "convention": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "prefix": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "convention"
+          ],
+          "additionalProperties": false
+        },
+        "skeletons": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Target skeletons this engine uses, by name. A budget names one."
+        },
+        "audio": {
+          "type": "object",
+          "properties": {
+            "container": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "sampleRate": {
+              "type": "integer",
+              "maximum": 9007199254740991,
+              "exclusiveMinimum": 0
+            },
+            "channels": {
+              "type": "integer",
+              "maximum": 9007199254740991,
+              "exclusiveMinimum": 0
+            },
+            "bitDepth": {
+              "type": "integer",
+              "maximum": 9007199254740991,
+              "exclusiveMinimum": 0
+            },
+            "loudness": {
+              "type": "object",
+              "properties": {
+                "integratedLufs": {
+                  "type": "number"
+                },
+                "truePeakDb": {
+                  "type": "number"
+                },
+                "targets": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "description": "Targets by kind of sound (effect, loop, voice) where the engine or its mix sets them"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "naming": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Name prefix per asset type"
+        },
+        "binaries": {
+          "type": "object",
+          "properties": {
+            "lfs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "\\S"
+              },
+              "description": "Glob patterns of engine binaries to keep in Git LFS"
+            },
+            "lockable": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "authoring": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "units": {
+                "type": "string",
+                "pattern": "\\S"
+              },
+              "up": {
+                "type": "string",
+                "enum": [
+                  "+X",
+                  "-X",
+                  "+Y",
+                  "-Y",
+                  "+Z",
+                  "-Z"
+                ]
+              },
+              "forward": {
+                "type": "string",
+                "enum": [
+                  "+X",
+                  "-X",
+                  "+Y",
+                  "-Y",
+                  "+Z",
+                  "-Z"
+                ]
+              },
+              "pivot": {
+                "type": "string",
+                "pattern": "\\S"
+              }
+            },
+            "additionalProperties": false
+          },
+          "description": "Export conventions per budget, where they differ from the engine's own axes"
+        },
+        "extra": {
+          "type": "object",
+          "description": "Adapter-specific facts the toolkit passes through"
+        }
+      },
+      "additionalProperties": false
+    },
+    "EngineAdapter": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 64
+        },
+        "label": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "versions": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Engine versions the adapter was written for, e.g. >=5.4"
+        },
+        "facts": {
+          "$ref": "#/$defs/EngineFacts"
+        },
+        "commands": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "By name. The standard commands are import, inspect, references, capture, check and conform-skeleton; any other name is the adapter's own, run with `jam engine run <name>`. A command prints one JSON receipt and exits 0, or exits 3 with a handoff. null (or absent) means: done by hand, following the matching guidance document."
+        },
+        "docs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Guidance documents by topic (import, inspect, acceptance, ...), relative to the adapter folder, or to the preset file for a shipped preset"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "fact": {
+                "type": "string",
+                "pattern": "\\S",
+                "description": "Dotted name of the fact, e.g. unitsPerMeter or textures.normalGreen"
+              },
+              "url": {
+                "type": "string",
+                "pattern": "\\S"
+              },
+              "says": {
+                "type": "string",
+                "description": "What the source states, quoted or summarised"
+              }
+            },
+            "required": [
+              "fact",
+              "url"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Where each fact comes from"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "facts"
+      ],
+      "additionalProperties": false,
+      "title": "Engine adapter (adapter.json or a shipped preset)"
+    }
+  }
+}

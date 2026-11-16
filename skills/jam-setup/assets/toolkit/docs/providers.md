@@ -1,59 +1,57 @@
-# Provider execution
+# Providers: the neutral contract
 
-Read this for paid work or selecting a generation/DCC route. [Research](asset-workflows.md) supplies dated evidence, not permanent IDs, price tables or limits. [Setup](setup.md) names supported integrations. Use their current skills and schemas; if a chosen skill/tool fails or is unavailable, report the failure and stop that route. Never implement a substitute client. A human may deliberately choose another supported route, with new scope/cost/input evidence.
+A provider is a generation service the project can use, described by a descriptor (`providers/<id>.json` in the toolkit, `jam/providers/<id>.json` in the project; `schemas/provider.schema.json`). The toolkit never calls a provider for images or meshes: the agent drives the provider's own command, MCP server or skill, and the run's ledger records what was intended and what happened. Everything that is true of one vendor only is in `docs/providers/<id>.md`; read that page before the first job with that provider.
 
-## Shared operation boundary
+## Routes
 
-1. Read the style and accepted inputs; geometry/surface operations also require the asset profile. Concept/turnaround work can use a style-bound run without a profile; exploratory style images use the [guided brief](style-exploration.md#establish-the-brief) without settled style/profile. Select capability, provider and transport from the request and available evidence. Record why the route fits; check account balances and route-specific benefits. For direct Meshy, consult [CLI billing](meshy-billing.md), including the web-only retry distinction.
-2. Load the official provider skill and discover the live operation schema/help, including plan access, inputs, limits, ignored fields, topology and texture behavior. Recheck before submission if a model/schema changes or a retirement is announced. Never pass direct Meshy parameters to Scenario by renaming guesses.
-3. Resolve scope/account and apply [task intent](task-intent.md). An active generation request plus approval of its required quote/budget can authorize submission; do not ask again merely because the answer used a budget option rather than “generate.” Clarify remaining ambiguity or spending outside the authorization before uploading or submitting.
-4. Obtain a quote or dated estimate with source in native units. Reserve intent using `job-intent` before submitting. Store only credential-free settings, selected view names/hash mapping and durable asset IDs; omit signed URLs and image data URIs from committed request files.
-5. Submit once. Save the provider ID immediately with `job-update`. Resume known jobs with the provider's wait tool. A transport error is not proof no task was created.
-6. Download every needed output to an immutable candidate directory promptly. Keep originals, model/version, task/job ID, actual charge, settings, license/rights evidence and file hashes. Open and inspect the files before review.
+A **route** is one way to get a capability served: `image`, `mesh`, `sound`, `voice`. `jam provider list` shows which providers serve each, how each is reached, its unit, and whether paid work is enabled. `routes.<capability>` in `jam.config.json` is the project's usual choice.
 
-Intent accounting is a local audit/control, not a network gateway. It cannot prevent unrecorded calls; every skill owns following this boundary. Estimate overruns are recorded honestly and stop further spending; never reduce recorded charges to fit the limit.
+Before the first offer of a session, find out which routes can actually be called:
 
-## Choose the mesh input mode
+1. `jam provider list`, then `jam provider probe <id>` for each candidate. It reports **installed**, **authenticated** and **reachable** separately, and says `unknown` for what the toolkit cannot see.
+2. Settle each `unknown` yourself with a free call through the provider's own tool (its status or balance read, a model listing; the provider's page names it). A route is callable only when such a call succeeded in this session. A tool the agent itself holds has no account to read: it is callable when it is in this session's tool list.
+3. Include the routes that cost nothing extra: a provider whose unit is marked not billed per job (an image tool included in a plan the person already pays for, the agent's own image tool). Offer those beside the paid ones, with what each costs in words.
 
-**Multiview is the default when a turnaround exists.** The turnaround's different sides should inform mesh generation, subject to the selected operation's supported input count. Discover current supported modes, plan access, price and topology controls before presenting the choice. `providers.mesh` selects a provider, not its single-view/multiview mode.
+Report the three facts separately when one is missing ("installed, not signed in"). A route that is installed is not thereby working.
 
-Reuse an established mode choice within its stated asset/project scope. If mode is unspecified, ask one concise choice through the harness question tool: recommend **Multiview**, explain that it uses several approved sides, and offer **Single-view** only when supported, explaining its real tradeoff. Explain meaningful differences in topology controls, later retopology and cost without implying that a budget target guarantees a usable mesh. Do not infer single-view from a low triangle target, a cheaper quote, provider selection or a tool's default. An explicit delegation such as “choose the mode for me” permits using the multiview default within the approved constraints; routine answers to unrelated questions do not delegate this choice.
+`routes` is a preference. Using another callable route for one operation is fine when the person chose it or the usual one cannot serve the request; say which route and model is in use.
 
-If multiview is unavailable on the selected route, disclose that before submission and ask whether to use a supported single-view mode or investigate a supported multiview route. Do not label single-view as multiview, silently fall back, switch providers or upgrade a plan. With only multiview available, ask whether to use it or revisit the route rather than inventing a single-view option. A known incompatible budget/capability calls for a real tradeoff decision, not a hidden mode change.
+When nothing callable fits what the person allowed (they asked for free, and every route for this capability is paid), stop and say which routes exist and what each needs: a sign-in, a spending limit, or a file they supply. Do not deliver a lesser stand-in without saying so.
 
-Record the mode, its user decision or explicit delegation, selected view names and actual input mapping in the asset brief/request evidence. In multiview mode, send multiple individual views within the discovered limits; keep all five canonical views for review. A single-view selection submits its chosen image and records why; the archive remains available for qualification. Verify the outgoing payload matches the decision.
+## One paid job, start to finish
 
-Selecting this missing mode completes a prerequisite of an already requested generation. Apply [task intent](task-intent.md) and proceed when the other prerequisites are ready, without a separate “generate now?” question. Surface similarly consequential, unresolved generation choices when they change the intended result or cost; reuse settled decisions and keep routine implementation details out of the conversation.
+1. **Load the provider's own skill or help** and read the live schema of the operation: inputs, limits, ignored fields, plan access. Parameters do not carry over between providers.
+2. **Price it** the way the descriptor's `quote` says (`jam provider probe <id>` prints it). An exact quote is priced on the real request with the real inputs.
+3. **Write the request file** in the run folder, as it will be sent, without credentials, signed URLs or embedded image data.
+4. **Open the job**: `jam job open <id> <step> --provider <p> --operation "<model and operation>" --estimate <n> --request <file> --price-source "<where the number came from>"`, with `--quote` for an exact quote or `--list-price` for a published price. A refusal names the cap or the unsettled job in the way; stop and report it.
+5. **Submit once**, then at once `jam job submitted <id> <job> --provider-job <the provider's id>`.
+6. **Wait by polling the job** with the provider's own wait or status call.
+7. **Download every output** into the run folder straight away and leave those files untouched; later edits work on copies. Download links expire and some providers keep outputs only for days.
+8. **Settle**: `jam job done <id> <job> --actual <charge> --evidence "<task id, billing entry or file>"`, or `jam job failed` / `jam job cancelled` with the real charge.
+9. **Inspect, then record the step** with `--job <job>`. The provider's "succeeded" means a file exists; whether it is right is the step's own inspection.
 
-## Direct Meshy
+If the response to a submission is lost: `jam job lost <id> <job>`, then look in the provider's own job history for it. Found: `jam job submitted` with its id. Confirmed absent: `jam job cancelled` with that evidence. A second submission before that could be charged twice, and the ledger refuses it.
 
-Use the official `meshy-3d-generation` skill from [meshy-dev/meshy-3d-agent](https://github.com/meshy-dev/meshy-3d-agent). Prefer the official CLI with device/browser login. Read its setup and pipeline references, then current CLI help; do not hard-code its changing flags here. The CLI covers API operations without a custom client. Its `make --dry-run` is an estimate; actual charge comes from the task. The optional official MCP has no dry-run equivalent: use a dated published price estimate and supported balance check, not a fabricated quote.
+## Pacing
 
-An accepted five-view turnaround is always the prerequisite for new 3D generation. Apply the input-mode choice above to these branches:
+- **Poll; never sleep for a guessed time.** The job's own status is the only clock. A "typical wait" in a descriptor is for telling the person what to expect.
+- **A refusal that states a wait means exactly that wait.** "Wait 2298 seconds" is a cooldown of 38 minutes on that model, not a queue position. Do not retry the same model inside it.
+- **Cooldowns are usually per model.** When the descriptor says so, send the next job to another suitable model and say which model is now in use; tell the person when the model changes, because the result may differ.
+- **One job at a time per account** unless the descriptor's `pacing.concurrent` says more. Agents sharing an account say which model each is using.
+- **Read real limits before planning around them**: the provider's own limit or usage call, not memory.
 
-- **Multiview (default):** a current multiview geometry model, followed by explicitly qualified `jam-retopo` as needed. This can preserve hidden-side information but does not guarantee a good budget mesh. Direct multiview does not currently expose Smart Topology. First input is front where documented; the remaining ordering is not fixed.
-- **Single-view alternative:** single-image Smart Topology at the chosen target. It generates triangles. Meshy's published advice favors this route for face budgets; explain that tradeoff and obtain the mode choice rather than silently preferring it. Keep all five approved views, record which one was submitted and why.
+## Mesh input
 
-Discover the exact model/limits for the chosen route. Hosted Scenario's input count/UV caps may differ. A quad setting does not prove exported quads or edge flow; preserve native editable source separately. Provider-created UVs and textures can be retained only after their independent checks.
+Multiview is the default whenever a turnaround exists: send the individual views the operation accepts (the descriptor's `capabilities.mesh` gives the count and which comes first), keep all five for review, and record which were sent. The contact sheet is never sent as one view. Single-view is used only when the person chose it or the route has no multiview, and that is said before submitting. A lower triangle target, a cheaper quote or a tool's default does not choose single-view.
 
-After an ambiguous create, preserve `unknown`; follow the official lifecycle procedure (currently wait about a minute, then list newest tasks by creation time and correlate exact operation/input/time). Absence from one partial page is not enough. If correlation remains ambiguous, stop for reconciliation rather than resubmit. A recovered task resumes under its ID. Read the actual HTTP/status semantics before treating a refusal as not submitted. In-progress jobs generally cannot be cancelled; pending cancellation/refund requires confirmed provider evidence. The official [task lifecycle](https://docs.meshy.ai/en/api/task-lifecycle) and [retention](https://docs.meshy.ai/en/api/asset-retention) govern current behavior.
+## Local tools are routes too
 
-## Scenario (including hosted Meshy)
+A DCC step (retopology, unwrapping, baking, conversion) done on this machine is a route with no job: record it with `--tool "<program and version>"`. A failed remote operation does not by itself authorize switching to a local one, or the reverse; say what failed and which route you propose.
 
-Load official `scenario`, the selected image-model skill, and `scenario-meshy`/`scenario-3d` as relevant from [scenario-labs/skills](https://github.com/scenario-labs/skills). Use the native HTTP MCP endpoint with OAuth. Follow its tools, not a reimplemented client.
+## Trying a provider
 
-Resolve `team_id`/`project_id` with free discovery, retaining already confirmed scope. `recommend` discovers a capability; `search` finds named models. Read `model_schema_get` before running, including `runs_as`/`run_with` for LoRAs/compositions and plan restrictions. Upload local inputs with the documented upload/complete flow; file fields use asset IDs. Do not paste large base64 blobs into tool arguments.
+`jam run start provider-test <id> --brief-text "..."` runs the `provider-test` recipe: one paid job inside the normal caps, to prove a provider works on this machine. Its output is test evidence; it cannot be delivered or used as content.
 
-For mesh work, apply the same [input-mode selection](#choose-the-mesh-input-mode) to the hosted model's actual schema. A provider/model recommendation is not the user's mode decision; direct Meshy capability descriptions do not establish hosted support.
+## Adding a provider
 
-**Cost nesting is critical:** direct `model_run` takes `dry_run: true` at the top level alongside `model_id` and `parameters`. Catalog-executor arguments go inside the executor's `parameters` object, including a tool's own dry-run field. Discover the invoked schema; misplaced keys can be ignored and a job billed. Quote the actual payload with real inputs. A quote for a placeholder missing asset proves nothing. Later stages may use a stated estimate until real inputs allow an exact quote.
-
-Record the returned ID and use `jobs_wait`; after a timed-out wait, continue with `pending_job_ids`. Never submit a second `model_run` to poll. If the create response was lost, inspect `jobs_list` in the same scope and reconcile before any retry. Quota, concurrency, plan and moderation failures have different recovery; follow the provider skill and report the actual class. Do not switch scope, upgrade billing or silently choose a cheaper model.
-
-Download using the supported asset download tool; use the live URL only for the download and retain its durable asset ID instead. Actual map sizes and defaults may differ across model members, so inspect downloaded geometry/maps.
-
-## Browser and local Blender routes
-
-A browser route is supported when intentionally selected before work, using the available browser skill/tool and current visible controls. Verify signed-in account/project, model/options, cost display and exact inputs before submission. Save the visible job/asset ID and result evidence, then download to the same artifact contract. If the UI exposes no reliable price or job identity, state that limitation and stop dependent spending until resolved. No DOM guesses, invented controls or silent API-to-browser fallback. Human sign-in/CAPTCHA stays human. The toolkit does not implement browser automation or a second provider API.
-
-Blender is an independent, deliberately chosen local DCC route for cleanup, reduction, UVs, baking and inspection. Use its available MCP plus API discovery, or documented headless scripts supplied by an installed DCC skill. Scenario publishes `scenario-blender-retopology`, `scenario-blender-uv-baking` and `scenario-blender-texturing-shading`; install only the needed skill. Record the actual Blender version and transport. A failed remote remesh does not authorize switching to Blender; surface the failure and get the route decision if not already authorized. Local edits preserve originals and use the same review/measurement contracts.
+Write `jam/providers/<id>.json` against `schemas/provider.schema.json`: label, unit (and whether it is paid), capabilities, how it is reached, pacing, how to quote, how to recover a lost job, and a `docs` page for the vendor's specifics. `jam provider list` shows it once the file is valid.
