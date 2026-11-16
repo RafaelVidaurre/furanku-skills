@@ -59,6 +59,15 @@ export const assetFiles = (root: string, assetRoots: ReadonlyArray<string>): Ass
       return missing(cause) ? { real: direct, stat: null } : { real: null, stat: null }
     }
   }
+  const realRoots = new Map<string, Promise<string | null>>()
+  const realRoot = (assetRoot: string): Promise<string | null> => {
+    let known = realRoots.get(assetRoot)
+    if (!known) {
+      known = fsp.realpath(assetRoot === "" ? root : nodePath.join(root, ...assetRoot.split("/"))).catch(() => null)
+      realRoots.set(assetRoot, known)
+    }
+    return known
+  }
   const locate = async (path: string): Promise<ConfinedFile | ToolError> => {
     const problem = portableProblem(path)
     if (problem) return toolError("forbidden", problem)
@@ -67,8 +76,7 @@ export const assetFiles = (root: string, assetRoots: ReadonlyArray<string>): Ass
     if (real === null || !inside(root, real)) return toolError("forbidden", "symlink escapes the project")
     for (const assetRoot of assetRoots) {
       if (!isUnder(assetRoot, path)) continue
-      const base = assetRoot === "" ? root : nodePath.join(root, ...assetRoot.split("/"))
-      const realBase = await fsp.realpath(base).catch(() => null)
+      const realBase = await realRoot(assetRoot)
       if (realBase !== null && inside(realBase, real)) return { full, stat }
     }
     return toolError("forbidden", `path is outside the declared asset roots: ${path}`)

@@ -2,13 +2,13 @@
 // side resolves on its own: a side that is missing or corrupt says so and is never filled in
 // from the other.
 import * as Effect from "effect/Effect"
-import type { ToolError } from "../../kernel/errors.ts"
+import { fail, type ToolError } from "../../kernel/errors.ts"
 import { digest } from "../../kernel/hash.ts"
 import type { ProjectFiles } from "../../kernel/ProjectFiles.ts"
 import type { Evidence } from "../Evidence.ts"
 import { ensureHashed, targetAssets } from "../hashes.ts"
 import type { MediaKinds } from "../MediaKinds.ts"
-import { reviewAttrs, unitParts } from "../model/parts.ts"
+import { isItemEvidence, reviewAttrs, unitParts } from "../model/parts.ts"
 import type { LeafEvidence } from "../model/types.ts"
 import { factsOf, type Projection, typeOf } from "../Projection.ts"
 import { frozenPart, type Leaf, leaves } from "./evidence.ts"
@@ -67,8 +67,12 @@ export const compare = (p: Projection, evidence: Evidence["Service"], a: FrozenR
     const left = yield* frozenPart(p, a.submission, a.item, a.part)
     const right = b && b !== "current" ? yield* frozenPart(p, b.submission, b.item, b.part) : null
     const target = left.item.target
+    // A capture or a work item's decision belongs to its submission: there is no current version of it.
+    if (!right && (target === null || isItemEvidence(a.part))) {
+      return yield* fail("invalid", `${a.part} of item ${a.item} has no current version; compare it with another frozen part`)
+    }
     // The current side is compared by digest, so its files are hashed now if they never were.
-    if (!right) yield* ensureHashed(p, targetAssets(p, target))
+    if (!right) yield* ensureHashed(p, targetAssets(p, target!))
     const rows = new Map<string, { a?: Leaf; b?: { readonly label: string; readonly evidence: Side } }>()
     for (const leaf of leaves(p, left.part.evidence, left.part.label)) rows.set(leaf.key, { a: leaf })
     if (right) {
@@ -78,12 +82,12 @@ export const compare = (p: Projection, evidence: Evidence["Service"], a: FrozenR
       for (const [key, row] of rows) {
         const leaf = row.a!
         if (key === "base") {
-          const collection = target.kind === "collection" ? p.collectionsById.get(target.id) : undefined
+          const collection = target?.kind === "collection" ? p.collectionsById.get(target.id) : undefined
           const spec = collection ? previewSpec(p, collection) : null
           row.b = { label: "Base", evidence: spec?.base ? currentAsset(p, spec.base) : null }
           continue
         }
-        const unitId = leaf.unit ?? (target.kind === "unit" ? target.id : null)
+        const unitId = leaf.unit ?? (target?.kind === "unit" ? target.id : null)
         row.b = { label: leaf.label, evidence: unitId === null ? null : currentLeaf(p, unitId, leaf.unit !== undefined ? leaf.part ?? "" : a.part) }
       }
     }

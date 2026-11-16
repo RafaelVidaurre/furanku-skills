@@ -82,6 +82,8 @@ export class Catalog extends Context.Service<Catalog, {
   previewModule(name: string): Effect.Effect<PreviewModule, ToolError>
   /** The declared browser module of a media kind: what registers its viewer, thumbnail and comparer. */
   kindModule(kind: string): Effect.Effect<BrowserModule, ToolError>
+  /** A declared module of type views and panels. */
+  viewModule(name: string): Effect.Effect<BrowserModule, ToolError>
   /** The server of this checkout, when one is running (see `ServerState`). */
   readonly server: Effect.Effect<ServerRecord | null>
   /** Write a machine-local file such as a capture (`captures/<name>.png`); returns its project path. */
@@ -120,6 +122,11 @@ export class Catalog extends Context.Service<Catalog, {
         return typeof reference === "string" ? readBrowserModule(files, reference, `browser module of media kind ${kind}`) : fail("not_found", `media kind ${kind} declares no browser module`)
       }
 
+      const viewModule = (set: PluginSet, name: string): Effect.Effect<BrowserModule, ToolError> => {
+        const reference = Object.hasOwn(set.viewModules, name) ? set.viewModules[name] : undefined
+        return typeof reference === "string" ? readBrowserModule(files, reference, "view module") : fail("not_found", `no view module ${name}`)
+      }
+
       /** The one projection of an action: current sources, current records, current policy. */
       const project = (set: PluginSet): Effect.Effect<Projection, ToolError> =>
         Effect.gen(function*() {
@@ -129,11 +136,12 @@ export class Catalog extends Context.Service<Catalog, {
           const view = yield* records.view
           const previews = yield* moduleDigests(files, set.previews, "preview module")
           const kinds = yield* moduleDigests(files, set.kindModules, "media kind module")
+          const views = yield* moduleDigests(files, set.viewModules, "view module")
           // Nothing it is made of changed: the same projection (and what it already computed) serves again.
-          const made = JSON.stringify([set.signature, effective.problems, [...previews], [...kinds]])
+          const made = JSON.stringify([set.signature, effective.problems, [...previews], [...kinds], [...views]])
           if (lastProjection && lastProjection.made === made && lastProjection.value.snapshot === snapshot && lastProjection.value.records === view) return lastProjection.value
           projections++
-          const projection = buildProjection(snapshot, view, policies.for(set), effective, previews, kinds)
+          const projection = buildProjection(snapshot, view, policies.for(set), effective, { previews, kinds, views })
           // "Changed since its verdict" compares digests, so the files behind decided parts are
           // hashed here (once per file version on this machine). Nothing else is read in full.
           yield* Effect.provideContext(ensureHashed(projection, decidedAssets(projection)), services)
@@ -260,6 +268,7 @@ export class Catalog extends Context.Service<Catalog, {
         beforeMedia: (submission, item, view) => withProjection((projection) => beforeMedia(projection, evidence, submission, item, view)),
         previewModule: (name) => Effect.flatMap(plugins.current, (set) => previewModule(set, name)),
         kindModule: (kind) => Effect.flatMap(plugins.current, (set) => kindModule(set, kind)),
+        viewModule: (name) => Effect.flatMap(plugins.current, (set) => viewModule(set, name)),
         server: servers.known,
         writeLocal: records.writeLocal,
         stats: Effect.gen(function*() {

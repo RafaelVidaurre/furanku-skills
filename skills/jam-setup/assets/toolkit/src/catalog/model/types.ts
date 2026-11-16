@@ -36,6 +36,28 @@ export interface FieldDef {
   readonly summary: boolean
 }
 
+/** A browser module mounted for a unit of a type: an inspector in its visual strip, or a sidebar panel. */
+export interface MountDef {
+  readonly key: string
+  readonly label: string
+  /** The name a plugin declared the module under (`views`). */
+  readonly module: string
+  /** The module's export that mounts it (default: the default export). */
+  readonly export: string
+  readonly help: string | null
+}
+
+export interface ViewDef extends MountDef {
+  /** Opens first, before any media of the unit. */
+  readonly default: boolean
+}
+
+/** How a type's images are shown. */
+export interface DisplayDef {
+  /** Hard texels and whole images (contain, not cover) in thumbnails and image viewers. */
+  readonly pixelArt: boolean
+}
+
 export interface TypeDef {
   readonly scope: string
   readonly label: string
@@ -46,6 +68,10 @@ export interface TypeDef {
   readonly audioTranscript: unknown
   /** False when the fields are provenance and reviewers judge only the media. */
   readonly reviewAttributes: boolean
+  readonly views: ReadonlyArray<ViewDef>
+  readonly panels: ReadonlyArray<MountDef>
+  /** The type's own display policy, or null to follow the project's. */
+  readonly display: DisplayDef | null
 }
 
 export interface PreviewDecl {
@@ -61,7 +87,8 @@ export interface CollectionKind {
   readonly label: string
   readonly preview: PreviewDecl | null
   readonly memberField: string | null
-  readonly memberExtra: { readonly key?: string } | null
+  /** A member's own value shown beside it: `×N` (count, the default) or as written (`text`). */
+  readonly memberExtra: { readonly key?: string; readonly format?: "count" | "text" } | null
 }
 
 export interface CatalogSchema {
@@ -90,6 +117,8 @@ export interface Unit {
   readonly adapterTags: ReadonlyArray<string>
   readonly adapterCategory: string | null
   readonly explain: Record<string, unknown>
+  /** Keys of the type's views this unit shows; null for all of them. */
+  readonly views: ReadonlyArray<string> | null
 }
 
 export interface Asset {
@@ -221,6 +250,8 @@ export interface LeafEvidence {
   readonly size?: number
   readonly sha256?: string
   readonly ref?: EvidenceRef
+  /** Who rendered a capture (for example a game engine); captures only. */
+  readonly renderer?: string
 }
 
 export interface DefinitionEvidence {
@@ -239,6 +270,9 @@ export interface PartEvidence extends LeafEvidence {
   readonly moduleSha?: string
   readonly config?: Record<string, unknown>
   readonly roles?: ReadonlyArray<string>
+  /** A before/after capture: two frozen files and their labels. */
+  readonly pair?: { readonly before: LeafEvidence; readonly after: LeafEvidence }
+  readonly labels?: ReadonlyArray<string>
 }
 
 export interface FrozenPart {
@@ -247,6 +281,8 @@ export interface FrozenPart {
   readonly role?: string | null
   readonly asset?: string | null
   readonly member?: string
+  /** Who rendered a capture part. */
+  readonly renderer?: string
   readonly evidence: PartEvidence
 }
 
@@ -269,9 +305,12 @@ export interface FrozenView {
 
 export interface SubmissionItem {
   readonly id: string
-  readonly target: Target
+  /** Null for work that is not catalog content: the item holds captures and/or text only. */
+  readonly target: Target | null
   readonly title: string
-  readonly kind: "unit" | "collection"
+  /** Shown above the item's evidence. */
+  readonly text?: string
+  readonly kind: "unit" | "collection" | "work"
   readonly definition: DefinitionEvidence
   readonly parts: ReadonlyArray<FrozenPart>
   readonly views: ReadonlyArray<FrozenView>

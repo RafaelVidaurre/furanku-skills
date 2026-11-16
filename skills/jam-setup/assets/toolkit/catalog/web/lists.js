@@ -1,4 +1,4 @@
-import { html, useState, useEffect, useLayoutEffect, useRef, useQuery, write, href, withQuery, replace, entityHref, Icon, Popover, Thumb, NoteCount, TagPicker, KindIcon, kindLabel, scopeOf, sectionLabel, session, toast, enc, ErrorLine, newRequestId, fmtSize } from './core.js';
+import { html, useState, useEffect, useLayoutEffect, useRef, useQuery, write, href, withQuery, replace, entityHref, Icon, Popover, Thumb, pixelArt, NoteCount, TagPicker, KindIcon, kindLabel, scopeOf, sectionLabel, session, toast, enc, ErrorLine, newRequestId, fmtSize } from './core.js';
 
 // A list shows units of one scope, collections, or media files.
 const searchSection = (section) => (section === 'collections' ? 'collections' : section === 'files' ? 'assets' : 'units');
@@ -100,13 +100,13 @@ const Match = ({ m }) => (m?.member ? html`<span class="match" title="Matching m
 
 function UnitItem({ e, h, selected, rows, picked, onPick }) {
   if (rows) return html`<a class=${`row${selected ? ' sel' : ''}`} href=${h} role="listitem" aria-current=${selected ? 'true' : undefined}>
-    <${Pick} picked=${picked} onPick=${onPick} /><${Thumb} asset=${e.thumb} size=${34} label=${e.typeLabel[0]} />
+    <${Pick} picked=${picked} onPick=${onPick} /><${Thumb} asset=${e.thumb} size=${34} label=${e.typeLabel[0]} pixel=${pixelArt(e.type)} />
     <span class="row-main"><span class="row-name">${e.name}</span><span class="row-sub">${e.category?.split('/').slice(1).join(' / ') || e.typeLabel}</span></span>
     <${NoteCount} n=${e.notes} />
   </a>`;
   return html`<a class=${`card${selected ? ' sel' : ''}${picked ? ' picked' : ''}`} href=${h} role="listitem">
     <${Pick} picked=${picked} onPick=${onPick} />
-    <span class="card-media">${e.thumb ? html`<${Thumb} asset=${e.thumb} fill />` : html`<span class="card-placeholder" aria-label="No preview available"><${Icon} name="picture" size=${28} /><span>No preview</span></span>`}</span>
+    <span class="card-media">${e.thumb ? html`<${Thumb} asset=${e.thumb} fill pixel=${pixelArt(e.type)} />` : html`<span class="card-placeholder" aria-label="No preview available"><${Icon} name="picture" size=${28} /><span>No preview</span></span>`}</span>
     <span class="card-name">${e.name}</span>
     <span class="card-sub"><span>${e.category?.split('/').slice(1).join(' / ') || e.typeLabel}</span><span class="push"></span><${NoteCount} n=${e.notes} /></span>
   </a>`;

@@ -11,7 +11,7 @@ import { ProjectFiles } from "../../kernel/ProjectFiles.ts"
 import { Catalog } from "../Catalog.ts"
 import type { ServerState } from "../ServerState.ts"
 import type { ViewerTarget } from "../viewerActions.ts"
-import { callAction } from "./client.ts"
+import { callAction, health } from "./client.ts"
 import { Renderer } from "./Renderer.ts"
 import { CatalogServer, type ServeOptions } from "./Server.ts"
 
@@ -39,7 +39,7 @@ export interface CaptureRequest {
   readonly mode?: string | undefined
   /** An animation clip, shown paused at its first frame. */
   readonly animation?: string | undefined
-  /** Copy the capture to this file (any path on this machine). Local captures only. */
+  /** Copy the capture to this file (any path on this machine), from the checkout of the server that took it. */
   readonly out?: string | undefined
   /** A running server to capture through, instead of a temporary one. */
   readonly url?: string | undefined
@@ -53,9 +53,6 @@ const SESSION = "cli"
  */
 export const capture = (request: CaptureRequest, server: Omit<ServeOptions, "port" | "record">): Effect.Effect<unknown, ToolError, Services> =>
   Effect.gen(function*() {
-    if (request.url !== undefined && request.out !== undefined) {
-      return yield* fail("invalid", "--out needs a local capture", { fix: "leave out --url, or read the file the result names from the server's project" })
-    }
     const controls = {
       ...(request.camera === undefined ? {} : { camera: request.camera }),
       ...(request.mode === undefined ? {} : { mode: request.mode }),
@@ -68,13 +65,20 @@ export const capture = (request: CaptureRequest, server: Omit<ServeOptions, "por
         return (yield* run("viewer.capture", { session: SESSION })) as { file: string } & Record<string, unknown>
       })
     const url = request.url
-    if (url !== undefined) return yield* steps((action, input) => callAction(url, action, { input }))
-
-    const root = (yield* ProjectFiles).root
-    const captured = yield* Effect.flatMap(Renderer, (renderer) => steps(renderer.run)).pipe(
-      Effect.provide(CatalogServer.layer({ ...server, port: 0, record: false })),
-      Effect.scoped
-    )
+    // The capture is saved in the checkout of the server that took it: a running one (its health
+    // answer names its folder), or a temporary one for this checkout.
+    const { captured, root } = url !== undefined
+      ? {
+        captured: yield* steps((action, input) => callAction(url, action, { input })),
+        root: request.out === undefined ? "" : (yield* health(url))?.root ?? (yield* fail("unavailable", `the catalog server at ${url} stopped answering; the capture was not copied`))
+      }
+      : {
+        captured: yield* Effect.flatMap(Renderer, (renderer) => steps(renderer.run)).pipe(
+          Effect.provide(CatalogServer.layer({ ...server, port: 0, record: false })),
+          Effect.scoped
+        ),
+        root: (yield* ProjectFiles).root
+      }
     if (request.out === undefined) return captured
     const out = nodePath.resolve(request.out)
     yield* attemptPromise(`write ${out}`, async () => {

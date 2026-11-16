@@ -6,7 +6,7 @@ import type { ProjectFiles } from "../../kernel/ProjectFiles.ts"
 import type { Facts } from "../Facts.ts"
 import { ensureHashed } from "../hashes.ts"
 import type { MediaKinds } from "../MediaKinds.ts"
-import { unitParts } from "../model/parts.ts"
+import { isItemEvidence, unitParts } from "../model/parts.ts"
 import type { Actor, Target } from "../model/types.ts"
 import { eventOrder, eventVerdicts } from "../model/verdicts.ts"
 import { factsOf, type Projection, targetKey, typeOf } from "../Projection.ts"
@@ -15,16 +15,17 @@ import { unique } from "../support.ts"
 import { noteView } from "./notes.ts"
 import { allTags, organizationOf } from "./organization.ts"
 import { currentDigest, openItemsFor, partAssets, previewSpec, reviewOf, summaryOf } from "./review.ts"
-import { assetRef, evidenceUrl, formatValue, missingRoles, roleLabel, thumbOf, unitSummary } from "./summaries.ts"
+import { assetRef, evidenceUrl, formatValue, missingRoles, roleLabel, thumbOf, unitSummary, viewModuleOf } from "./summaries.ts"
 
 type FactsService = Facts["Service"]
 const newestFirst = <A extends { readonly at: string }>(list: Array<A>): Array<A> => list.sort((a, b) => b.at.localeCompare(a.at))
 
-/** Verdict events on a target, newest first, each with the parts that changed since. */
+/** Verdict events on a target, newest first, each with the content parts that changed since. */
 const historyFor = (p: Projection, target: Target) =>
   [...(p.eventsByTarget.get(targetKey(target)) ?? [])].sort(eventOrder).reverse().map((event) => {
     const { item, submission } = p.items.get(event.item)!
-    const changedParts = Object.keys(eventVerdicts(event)).filter((part) => {
+    // A capture has no current version, so it never reads as content that changed.
+    const changedParts = Object.keys(eventVerdicts(event)).filter((part) => !isItemEvidence(part)).filter((part) => {
       const frozen = item.parts.find((candidate) => candidate.id === part)?.evidence
       return !!frozen && frozen.digest !== currentDigest(p, target, part)
     })
@@ -91,7 +92,11 @@ export const unitGet = (p: Projection, facts: FactsService, id: string): Effect.
       notes: newestFirst([...(p.notesByTarget.get(`unit:${id}`) ?? []), ...linkedAssets.flatMap((asset) => p.notesByTarget.get(`asset:${asset}`) ?? [])].map((note) => noteView(p, note))),
       refs: Object.fromEntries(Object.entries(unit.attrs).filter(([key]) => type.fields.find((field) => field.key === key)?.kind === "refs").map(([key, value]) => [key, unitRefs(p, (Array.isArray(value) ? value : [value]).map(String))])),
       relations: relationsOf(p, id),
-      waiting: openItemsFor(p, { kind: "unit", id })
+      waiting: openItemsFor(p, { kind: "unit", id }),
+      // Inspectors and sidebar sections the type mounts for this unit, each with where its module loads from.
+      views: type.views.filter((view) => unit.views === null || unit.views.includes(view.key)).map((view) => ({ ...view, ...viewModuleOf(p, view.module) })),
+      panels: type.panels.map((panel) => ({ ...panel, ...viewModuleOf(p, panel.module) })),
+      display: type.display ?? p.plugins.config.display
     }
   })
 
@@ -126,7 +131,8 @@ export const collectionGet = (p: Projection, id: string): Effect.Effect<unknown,
       members: collection.members.map((member, position) => {
         const unit = unitsById.get(member.unit)
         if (!unit) return { id: member.unit, name: member.unit, missingTarget: true, position }
-        const extra = kind?.memberField ? formatValue(p, unit.attrs[kind.memberField]) : extraKey !== undefined && member[extraKey] != null ? `×${String(member[extraKey])}` : null
+        const value = extraKey === undefined ? null : member[extraKey]
+        const extra = kind?.memberField ? formatValue(p, unit.attrs[kind.memberField]) : value == null ? null : kind?.memberExtra?.format === "text" ? String(value) : `×${String(value)}`
         return { ...unitSummary(p, unit), position, extra, inCollection: review.parts.find((part) => part.id === `member:${unit.id}`) ?? null }
       }),
       preview,
@@ -170,6 +176,8 @@ export const assetGet = (p: Projection, facts: FactsService, id: string): Effect
     const verdicts: Array<{ at: string; by: Actor } & Record<string, unknown>> = []
     for (const { item, submission } of p.items.values()) {
       for (const part of item.parts) {
+        // Captures are files of a submission, not versions of a catalog asset.
+        if (isItemEvidence(part.id)) continue
         const direct = part.evidence.asset === id
         const refs = direct
           ? [{ evidence: part.evidence, leaf: "" }]

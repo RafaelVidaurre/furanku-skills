@@ -4,6 +4,7 @@ import { PreviewHost } from './previews.js';
 import { useActiveViewer, setSelectionProvider, setSelectHandler } from './controller.js';
 import { NotesBlock } from './notes.js';
 import { CollectionToggle } from './lists.js';
+import { ViewHost, PanelHost } from './views.js';
 
 const organize = (target, body) => write('organize.set', { target, ...body }).catch((e) => toast(e.message, 'err'));
 
@@ -27,16 +28,20 @@ export function UnitDetail({ route, ctx }) {
   }, [d?.unit.id, d?.unit.scope, route.section, ctx]);
   const partId = route.query.get('part');
   const visual = d ? d.review.parts.filter((p) => p.asset) : [];
-  // No part named: show the first visual. A named part that does not exist is an error, never a substitute.
-  const sel = partId ? visual.find((p) => p.id === partId) : visual[0];
-  const badPart = !!d && !!partId && !sel;
+  const views = d?.views ?? [];
+  // No part named: the type's default view, else the first visual. Views are parts `view:<key>`.
+  // A named part or view that does not exist is an error, never a substitute.
+  const selView = partId ? (partId.startsWith('view:') ? views.find((v) => `view:${v.key}` === partId) ?? null : null) : views.find((v) => v.default) ?? null;
+  const sel = selView ? null : partId ? visual.find((p) => p.id === partId) : visual[0];
+  const badPart = !!d && !!partId && !sel && !selView;
   const col = useQuery('collection.get', { id: ctx ?? '' }, !!ctx);
   const notMember = !!ctx && !!col.data && col.data.collection.id === ctx && !col.data.members.some((m) => m.id === id);
   const setPart = (pid) => replace(withQuery(route, { part: pid }));
   const link = sel && d.links.find((l) => l.asset.id === sel.asset && l.role === sel.role);
-  const unavailable = notMember ? `${id} is not a member of ${ctx}` : badPart ? `${d.unit.name} has no visual part "${partId}"` : (q.error && !d ? q.error.message : null);
-  setSelectionProvider(() => ({ kind: 'unit', id, collection: ctx ?? null, part: sel?.id ?? (badPart ? partId : null), loading: (!d && !q.error) || q.stale || (!!ctx && !col.data), unavailable: !!unavailable, error: unavailable, parts: visual.map((p) => p.id), asset: link ? { id: link.asset.id, sha256: link.asset.sha256, kind: link.asset.kind } : null }));
-  setSelectHandler((s) => { if (!s.part) return { ok: true }; if (!visual.some((p) => p.id === s.part)) return { error: `no visual part ${s.part}`, code: 'not_found' }; setPart(s.part); return { ok: true }; });
+  const unavailable = notMember ? `${id} is not a member of ${ctx}` : badPart ? `${d.unit.name} has no visual part or view "${partId}"` : (q.error && !d ? q.error.message : null);
+  const viewIds = views.map((v) => `view:${v.key}`);
+  setSelectionProvider(() => ({ kind: 'unit', id, collection: ctx ?? null, part: selView ? `view:${selView.key}` : sel?.id ?? (badPart ? partId : null), loading: (!d && !q.error) || q.stale || (!!ctx && !col.data), unavailable: !!unavailable, error: unavailable, parts: [...viewIds, ...visual.map((p) => p.id)], asset: link ? { id: link.asset.id, sha256: link.asset.sha256, kind: link.asset.kind } : null }));
+  setSelectHandler((s) => { if (!s.part) return { ok: true }; if (!visual.some((p) => p.id === s.part) && !viewIds.includes(s.part)) return { error: `no visual part or view ${s.part}`, code: 'not_found' }; setPart(s.part); return { ok: true }; });
   useEffect(() => () => { setSelectionProvider(() => null); setSelectHandler(null); }, []);
   if (notMember) return html`<div class="detail"><${MemberNav} route=${route} col=${ctx} unitId=${id} /><div class="errline" role="alert"><${Icon} name="warn" size=${13} /><span>${unavailable}</span></div></div>`;
   if (!d || d.unit.id !== id) return html`<${Loading} q=${q} />`;
@@ -49,11 +54,11 @@ export function UnitDetail({ route, ctx }) {
       <div class="d-title"><h1>${d.unit.name}</h1></div>
       <div class="d-meta"><span class="type" title=${d.type.help ?? ''}>${d.type.label}</span><${OrgLine} target=${target} o=${d.organization} tags=${d.tags} /></div>
     </header>
-    <div class=${`d-body${visual.length || d.missing.length || badPart ? '' : ' single'}`}>
-      ${(visual.length > 0 || d.missing.length > 0 || badPart) && html`<div class="d-main"><${Stage} d=${d} visual=${visual} sel=${sel} link=${link} setPart=${setPart} badPart=${badPart ? partId : null} /></div>`}
-      ${!visual.length && contentFields.length > 0 && html`<section class="block content-properties" aria-label="Content details"><${Attributes} d=${d} technical=${false} /></section>`}
+    <div class=${`d-body${visual.length || views.length || d.missing.length || badPart ? '' : ' single'}`}>
+      ${(visual.length > 0 || views.length > 0 || d.missing.length > 0 || badPart) && html`<div class="d-main"><${Stage} d=${d} visual=${visual} views=${views} selView=${selView} sel=${sel} link=${link} setPart=${setPart} badPart=${badPart ? partId : null} route=${route} /></div>`}
+      ${!visual.length && !views.length && contentFields.length > 0 && html`<section class="block content-properties" aria-label="Content details"><${Attributes} d=${d} technical=${false} /></section>`}
       <div class="d-side">
-        ${visual.length > 0 && contentFields.length > 0 && html`<section class="block content-properties" aria-label="Content details"><${Attributes} d=${d} technical=${false} /></section>`}
+        ${(visual.length > 0 || views.length > 0) && contentFields.length > 0 && html`<section class="block content-properties" aria-label="Content details"><${Attributes} d=${d} technical=${false} /></section>`}
         ${d.links.length > 0 && html`<section class="block" aria-label="Files"><header class="block-h"><h3>Files</h3><span class="badge">${d.links.length}</span></header><div class="usage">${d.links.map(l => html`<a class="mship" href=${entityHref('asset', l.asset.id)}><${KindIcon} kind=${l.asset.kind} size=${16} /><span><strong>${l.roleLabel}</strong><span class="asset-filename">${baseName(l.asset.path)}</span></span><${Icon} name="chev" size=${12} /></a>`)}</div></section>`}
         ${(technicalFields.length > 0 || d.unit.sources.length > 0) && html`<details class="disclosure"><summary>Technical details</summary><${Attributes} d=${d} technical /></details>`}
         <section class="block" aria-label="Collections">
@@ -63,28 +68,38 @@ export function UnitDetail({ route, ctx }) {
           <div class="memberships">${d.memberships.map((c) => html`<a class="mship" href=${href({ section: 'collections', kind: 'c', id: c.id, member: id })}>
             <span>${c.name}</span><span class="muted small">${c.category ?? ''}</span><span class="push"></span></a>`)}</div>
         </section>
+        ${(d.panels ?? []).map((p) => html`<${PanelHost} key=${`${d.unit.id}:${p.key}`} unit=${d.unit} panel=${p} />`)}
         <details class="disclosure"><summary>Notes${d.notes.length ? ` (${d.notes.length})` : ''}</summary><${NotesBlock} target=${target} notes=${d.notes} parts=${d.review.parts} /></details>
       </div>
     </div>
   </div>`;
 }
 
-function Stage({ d, visual, sel, link, setPart, badPart }) {
+// A view's own state (its selections) lives in the page address, so a link reopens it as it was.
+const viewStateOf = (route) => { try { return JSON.parse(route.query.get('vs') ?? '{}'); } catch { return {}; } };
+
+function Stage({ d, visual, views = [], selView, sel, link, setPart, badPart, route }) {
   useActiveViewer('stage', true);
   const a = link?.asset;
   const source = a && { unit: d.unit.id, part: sel.id, asset: a.id, path: a.path, sha256: a.sha256 };
-  return html`<div class="stage">
+  const ids = [...views.map((v) => `view:${v.key}`), ...visual.map((p) => p.id)];
+  const current = selView ? `view:${selView.key}` : sel?.id;
+  return html`<div class=${`stage${d.display?.pixelArt ? ' pixel-art' : ''}`}>
+    ${selView && html`<div class="stage-view view-stage" data-viewer-root data-active="true"><${ViewHost} key=${`${d.unit.id}:${selView.key}`} unit=${d.unit} view=${selView} source=${{ unit: d.unit.id, part: `view:${selView.key}`, view: selView.key }}
+      viewState=${viewStateOf(route)} onState=${(state) => replace(withQuery(route, { vs: state && Object.keys(state).length ? JSON.stringify(state) : null }))} /></div>`}
     ${badPart && html`<div class="stage-view" data-viewer-root data-active="true"><${UnavailableViewer} viewerId="stage" source=${{ unit: d.unit.id, part: badPart }} message=${`No visual part "${badPart}"`} /></div>`}
     ${a && html`<div class="stage-view" data-viewer-root data-active="true">
       <${MediaViewer} media=${a} viewerId="stage" source=${source} label=${a.id} keepCamera context=${{ unit: d.unit, type: d.type, link }} />
     </div>`}
     <div class="strip" role="tablist" aria-label="Visuals"
-      onKeyDown=${(e) => { if (isTyping(e) && !e.target.closest('.strip')) return; const i = visual.indexOf(sel); const n = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : null; if (n != null && visual[n]) { setPart(visual[n].id); e.preventDefault(); requestAnimationFrame(() => document.querySelector('.strip [aria-selected="true"]')?.focus()); } }}>
+      onKeyDown=${(e) => { if (isTyping(e) && !e.target.closest('.strip')) return; const i = ids.indexOf(current); const n = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : null; if (n != null && ids[n]) { setPart(ids[n]); e.preventDefault(); requestAnimationFrame(() => document.querySelector('.strip [aria-selected="true"]')?.focus()); } }}>
+      ${views.map((v) => html`<button role="tab" aria-selected=${v === selView} tabindex=${v === selView ? 0 : -1} class=${`tile${v === selView ? ' on' : ''}`} onClick=${() => setPart(`view:${v.key}`)} title=${v.help ?? v.label}>
+        <span class="thumb view-thumb" style="width:52px;height:52px"><${Icon} name="expand" size=${20} /></span><span class="tile-l">${v.label}</span></button>`)}
       ${visual.map((p) => {
         const l = d.links.find((x) => x.asset.id === p.asset && x.role === p.role);
         const shared = l.alsoUsedBy.length;
         return html`<button role="tab" aria-selected=${p === sel} tabindex=${p === sel ? 0 : -1} class=${`tile${p === sel ? ' on' : ''}`} onClick=${() => setPart(p.id)} title=${l.asset.id}>
-          <${Thumb} asset=${l.asset} size=${52} />
+          <${Thumb} asset=${l.asset} size=${52} pixel=${!!d.display?.pixelArt} />
           <span class="tile-l">${p.label}</span>
           ${shared > 0 && html`<span class="tile-shared" title=${`Shared by ${shared + 1} catalog entries`}><${Icon} name="link" size=${10} />${shared + 1}</span>`}
 

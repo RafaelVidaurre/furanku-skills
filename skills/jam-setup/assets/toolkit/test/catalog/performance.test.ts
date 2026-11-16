@@ -144,6 +144,40 @@ test("sources invalidate through their declared inputs: an unchanged source is n
   cleanup(dir)
 })
 
+// Measured on a real project (2,446 media files, 2,515 source files): a page asking for its 21
+// thumbnails at once ran one full check of the sources per request, one after another, and the
+// last thumbnail answered after 3.7 s.
+test("requests arriving together share a check of the sources that began after they arrived", async () => {
+  const dir = tmp("cc-burst-")
+  git(dir, "init", "-q")
+  write(dir, "data/list.json", [{ id: "p/1" }])
+  for (let i = 0; i < 20; i++) write(dir, `media/${i}.png`, png(4, 4, [i, 0, 0, 255]))
+  let checks = 0
+  const counted = definePlugin({
+    name: "counted",
+    sources: [{
+      name: "list",
+      inputs: () => (checks++, ["data/list.json", "media"]),
+      load: async (context) => ({
+        types: { pic: { label: "Pic", roles: [{ key: "pic", label: "Pic", kinds: ["image"], many: true }] } },
+        assetRoots: ["media"],
+        units: ((await context.files.readJson("data/list.json")) as Array<{ id: string }>).map((entry) => ({ id: entry.id, type: "pic", links: Array.from({ length: 20 }, (_, i) => ({ role: "pic", asset: `media/${i}.png` })) }))
+      })
+    }]
+  })
+  write(dir, "catalog.config.json", { version: 2, plugins: ["counted"] })
+  const app = await open(dir, { plugins: { counted } })
+  await app.run("context", {})
+  checks = 0
+  const files = await Promise.all(Array.from({ length: 20 }, (_, i) => app.assetFile(`media/${i}.png`)))
+  assert.equal(files.length, 20)
+  assert.ok(checks <= 2, `20 requests at once checked the sources ${checks} times`)
+  // Each answer still reflects the files as they were when it was asked for.
+  write(dir, "data/list.json", [{ id: "p/1" }, { id: "p/2" }])
+  assert.equal((await app.run("catalog.search", {})).total, 2)
+  cleanup(dir)
+})
+
 test("record scans are incremental: only files that changed are read again", async () => {
   const dir = await standardProject()
   const app = await open(dir)

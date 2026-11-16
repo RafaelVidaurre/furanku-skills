@@ -3,7 +3,7 @@
 // compared by size and modification time, which stays cheap for large files.
 import * as Effect from "effect/Effect"
 import { sha256 } from "../kernel/hash.ts"
-import type { ProjectFiles } from "../kernel/ProjectFiles.ts"
+import type { ProjectFiles, WalkedFile } from "../kernel/ProjectFiles.ts"
 
 const DATA = /\.(json|jsonl|yaml|yml|toml|ini|csv|tsv)$/i
 const SKIPPED = new Set([".git", ".catalog", "node_modules"])
@@ -28,8 +28,9 @@ export const fingerprint = (files: ProjectFiles["Service"], inputs: ReadonlyArra
       if (stat === undefined) continue
       if (stat === null) parts.push(`${input}:none`)
       else if (stat.kind === "directory") {
-        const inside = yield* files.walk(input, { skip }).pipe(Effect.catch(() => Effect.succeed([] as ReadonlyArray<string>)))
-        parts.push(...(yield* Effect.forEach(inside, one, { concurrency: 16 })))
+        // One lstat per file: the folder itself was confined above, and linked folders are not entered.
+        const inside = yield* files.walkStats(input, { skip }).pipe(Effect.catch(() => Effect.succeed([] as ReadonlyArray<WalkedFile>)))
+        parts.push(...(yield* Effect.forEach(inside, (file) => (DATA.test(file.path) ? one(file.path) : Effect.succeed(`${file.path}:${file.size}:${file.mtimeMs}`)), { concurrency: 16 })))
       } else parts.push(yield* one(input))
     }
     return sha256(parts.join("\n"))

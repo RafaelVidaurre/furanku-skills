@@ -7,9 +7,9 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as fsp from "node:fs/promises"
 import * as nodePath from "node:path"
-import type { ToolError } from "../kernel/errors.ts"
+import { fail, type ToolError } from "../kernel/errors.ts"
 import { type Checkout, Git } from "../kernel/Git.ts"
-import { canonical, sha256 } from "../kernel/hash.ts"
+import { canonical, portableProblem, sha256 } from "../kernel/hash.ts"
 import { ProjectFiles } from "../kernel/ProjectFiles.ts"
 import type { DefinitionEvidence, EvidenceRef, LeafEvidence } from "./model/types.ts"
 import { Records } from "./Records.ts"
@@ -32,12 +32,24 @@ export interface EvidenceStatus {
 
 type GitRef = Extract<EvidenceRef, { git: unknown }>["git"]
 
+/** A file as it was committed: the blob reference that stands for it, and its bytes. */
+export interface Committed {
+  readonly ref: { readonly git: GitRef }
+  readonly bytes: Uint8Array
+  readonly sha256: string
+}
+
 export class Evidence extends Context.Service<Evidence, {
   /**
    * Freeze a file whose current SHA-256 is known. Null when its bytes changed while freezing.
    * `full` is the confined absolute path of the project-relative `path`.
    */
   freezeFile(path: string, full: string, expectedSha: string, extension: string, checkout: Checkout): Effect.Effect<EvidenceRef | null, ToolError>
+  /**
+   * A file as committed at a revision (a commit id, branch or tag), read through the local LFS
+   * store for LFS files. Fails `not_found` when the commit or the file at it does not exist.
+   */
+  committed(revision: string, path: string): Effect.Effect<Committed, ToolError>
   /** Freeze a definition as canonical JSON. */
   freezeJson(value: unknown): Effect.Effect<DefinitionEvidence, ToolError>
   /** The referenced bytes, verified against the expected digest. Never fails: a problem is a status. */
@@ -71,22 +83,41 @@ export class Evidence extends Context.Service<Evidence, {
           return blob ? { commit: checkout.head, path, blob } : null
         })
 
-      const readGit = (ref: GitRef, expectedSha: string): Effect.Effect<ReadResult> =>
+      /** The bytes a blob stands for: its own, or those of the LFS object it points to. */
+      const blobBytes = (ref: GitRef): Effect.Effect<{ readonly bytes: Uint8Array } | { readonly status: "missing" | "unavailable"; readonly error: string }> =>
         Effect.gen(function*() {
-          if (!/^[0-9a-f]{40,64}$/.test(ref.blob)) return { status: "unavailable", error: "invalid Git reference" }
+          if (!/^[0-9a-f]{40,64}$/.test(ref.blob)) return { status: "unavailable", error: "invalid Git reference" } as const
           let bytes = yield* git.bytes(["cat-file", "blob", ref.blob])
           if (bytes === null) {
-            return { status: "missing", error: `Git object ${ref.blob.slice(0, 12)} (${ref.path} at ${ref.commit.slice(0, 12)}) is not available in this clone` }
+            return { status: "missing", error: `Git object ${ref.blob.slice(0, 12)} (${ref.path} at ${ref.commit.slice(0, 12)}) is not available in this clone` } as const
           }
           const oid = lfsPointer(bytes)
           if (oid !== null) {
             const object = yield* lfsObject(oid)
             bytes = object === null ? null : yield* readFile(object)
             if (bytes === null) {
-              return { status: "missing", error: `Git LFS object ${oid.slice(0, 12)} for ${ref.path} is not available locally; fetch LFS data for ${ref.commit.slice(0, 12)}` }
+              return { status: "missing", error: `Git LFS object ${oid.slice(0, 12)} for ${ref.path} is not available locally; fetch LFS data for ${ref.commit.slice(0, 12)}` } as const
             }
           }
-          return verify(bytes, expectedSha)
+          return { bytes }
+        })
+      const readGit = (ref: GitRef, expectedSha: string): Effect.Effect<ReadResult> =>
+        Effect.map(blobBytes(ref), (read) => ("bytes" in read ? verify(read.bytes, expectedSha) : read))
+
+      const committed = (revision: string, path: string): Effect.Effect<Committed, ToolError> =>
+        Effect.gen(function*() {
+          // A revision is passed to Git as one argument; one that looks like an option is refused.
+          if (revision === "" || revision.startsWith("-") || /\s/.test(revision)) return yield* fail("invalid", `revision ${JSON.stringify(revision)} is not a Git revision`)
+          const problem = portableProblem(path)
+          if (problem !== null || /(^|\/)\.git(\/|$)/.test(path)) return yield* fail("invalid", `${path} is not a repository path: ${problem ?? "repository metadata is not evidence"}`)
+          const commit = yield* git.text(["rev-parse", "--verify", "-q", `${revision}^{commit}`])
+          if (!commit) return yield* fail("not_found", `commit ${revision} is not in this repository`, { fix: "fetch it, or name a commit this clone has" })
+          const blob = yield* git.text(["rev-parse", "--verify", "-q", `${commit}:${path}`])
+          if (!blob || (yield* git.text(["cat-file", "-t", blob])) !== "blob") return yield* fail("not_found", `${path} is not a file in commit ${commit.slice(0, 12)}`)
+          const ref = { commit, path, blob }
+          const read = yield* blobBytes(ref)
+          if (!("bytes" in read)) return yield* fail("unavailable", `${path} at ${commit.slice(0, 12)} cannot be read: ${read.error}`)
+          return { ref: { git: ref }, bytes: read.bytes, sha256: sha256(read.bytes) }
         })
       const verify = (bytes: Uint8Array, expectedSha: string): ReadResult => {
         const actual = sha256(bytes)
@@ -154,7 +185,7 @@ export class Evidence extends Context.Service<Evidence, {
           return value
         })
 
-      return { freezeFile, freezeJson, readRef, status }
+      return { committed, freezeFile, freezeJson, readRef, status }
     })
   )
 }

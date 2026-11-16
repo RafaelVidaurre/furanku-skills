@@ -12,6 +12,7 @@ import { fail, type ToolError, toolError } from "../../kernel/errors.ts"
 import { ProjectFiles } from "../../kernel/ProjectFiles.ts"
 import type { ViewerTarget } from "../viewerActions.ts"
 import { type Launch, openServer, serverStatus, stopServer } from "./control.ts"
+import { allowedOrigins } from "./origins.ts"
 
 const toolkit = (): string => (JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf8")) as { version: string }).version
 
@@ -19,16 +20,24 @@ const toolkit = (): string => (JSON.parse(readFileSync(new URL("../../../package
 const identity = () => ({ pid: process.pid, toolkit: toolkit(), browser: { channel: process.env["CATALOG_BROWSER_CHANNEL"] } })
 
 /** The same toolkit, started again as `catalog serve` for a project: how `open` launches the server. */
-const launchFor = (root: string): Launch => ({
+const launchFor = (root: string, allowOrigins: ReadonlyArray<string>): Launch => ({
   command: process.execPath,
-  args: [...process.execArgv, process.argv[1] ?? "", "catalog", "serve", "--root", root, "--port", "auto"],
-  toolkit: toolkit()
+  args: [...process.execArgv, process.argv[1] ?? "", "catalog", "serve", "--root", root, "--port", "auto", ...allowOrigins.flatMap((origin) => ["--allow-origin", origin])],
+  toolkit: toolkit(),
+  allowOrigins
 })
 
-const open = Command.make("open", {}, () =>
+// Opt-in: a private HTTPS proxy in front of the loopback server (a person reviewing from a phone).
+const allowOrigin = Flag.String("allow-origin").pipe(
+  Flag.withDescription("Also admit this exact origin and its host, for a private HTTPS proxy in front of the server (repeatable)"),
+  Flag.atLeast(0)
+)
+const originsOf = (given: ReadonlyArray<string>): Effect.Effect<ReadonlyArray<string>, ToolError> => Effect.map(allowedOrigins(given), (allowed) => [...allowed.origins])
+
+const open = Command.make("open", { allowOrigin }, (flags) =>
   Effect.gen(function*() {
     const output = yield* Output
-    const opened = yield* openServer(launchFor((yield* ProjectFiles).root))
+    const opened = yield* openServer(launchFor((yield* ProjectFiles).root, yield* originsOf(flags.allowOrigin)))
     yield* output.emit(opened, opened.url)
     yield* output.note(opened.started
       ? `started the catalog server (process ${opened.pid}); it keeps running after this command. Stop it with: jam catalog stop`
@@ -62,12 +71,13 @@ const portOf = (given: Option.Option<string>): Effect.Effect<number | "auto", To
 
 const serve = Command.make(
   "serve",
-  { port: Flag.String("port").pipe(Flag.withDescription("Port to listen on (default: the first free port from 4600; 0: any free port)"), Flag.optional) },
+  { port: Flag.String("port").pipe(Flag.withDescription("Port to listen on (default: the first free port from 4600; 0: any free port)"), Flag.optional), allowOrigin },
   (flags) =>
     Effect.gen(function*() {
       const port = yield* portOf(flags.port)
+      const allowOrigins = yield* originsOf(flags.allowOrigin)
       const { serve: program } = yield* Effect.promise(() => import("./programs.ts"))
-      return yield* program({ ...identity(), port, record: true })
+      return yield* program({ ...identity(), port, record: true, allowOrigins })
     })
 ).pipe(Command.withDescription("Serve the catalog in the foreground until interrupted (127.0.0.1 only)"))
 

@@ -38,8 +38,8 @@ const started = new Set<number>()
 after(() => {
   for (const pid of started) if (alive(pid)) process.kill(pid, "SIGKILL")
 })
-const opened = (dir: string): Any => {
-  const result = cli(dir)("open", "--json")
+const opened = (dir: string, ...args: ReadonlyArray<string>): Any => {
+  const result = cli(dir)("open", ...args, "--json")
   assert.equal(result.status, 0, result.stderr)
   const answer = JSON.parse(result.stdout)
   started.add(answer.pid)
@@ -67,7 +67,8 @@ test("open starts a server that outlives the command, reuses it, links results t
     assert.match(first.stderr, /started the catalog server \(process \d+\); it keeps running/)
     const record = JSON.parse(readFileSync(stateFile(dir), "utf8"))
     started.add(record.pid)
-    assert.deepEqual(Object.keys(record).sort(), ["checkout", "host", "pid", "port", "startedAt", "toolkit", "url"])
+    assert.deepEqual(Object.keys(record).sort(), ["allowOrigins", "checkout", "host", "pid", "port", "startedAt", "toolkit", "url"])
+    assert.deepEqual(record.allowOrigins, [])
     assert.deepEqual([record.url, record.port, record.host], [url, Number(new URL(url).port), hostname()])
     assert.ok(record.port >= 4600, "ports are taken from 4600 up")
     assert.equal(record.toolkit, JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version)
@@ -174,6 +175,32 @@ test("a stale or foreign record is replaced without touching the process it name
     assert.notEqual(fourth.pid, third.pid)
     assert.ok(await gone(third.pid), "the older server was stopped")
     assert.equal(JSON.parse(readFileSync(stateFile(dir), "utf8")).pid, fourth.pid)
+  } finally {
+    run("stop")
+    cleanup(dir)
+  }
+})
+
+test("open --allow-origin: a server admits exactly the origins it was opened with, and open reuses only such a server", async () => {
+  const dir = await standardProject()
+  const run = cli(dir)
+  const PROXY = "https://box.tail.ts.net:8908"
+  const asProxy = (url: string) => fetch(`${url}api/actions`, { headers: { origin: PROXY } }).then((response) => response.status)
+  try {
+    const plain = opened(dir)
+    assert.equal(await asProxy(plain.url), 403)
+    const proxied = opened(dir, "--allow-origin", PROXY)
+    assert.equal(proxied.started, true, "a server admitting other origins is replaced")
+    assert.ok(await gone(plain.pid))
+    assert.deepEqual([JSON.parse(readFileSync(stateFile(dir), "utf8")).allowOrigins, proxied.allowOrigins], [[PROXY], [PROXY]])
+    assert.equal(await asProxy(proxied.url), 200)
+    assert.deepEqual([opened(dir, "--allow-origin", `${PROXY}/`).started, opened(dir, "--allow-origin", PROXY).pid], [false, proxied.pid], "the same origins: the same server")
+    const again = opened(dir)
+    assert.equal(again.started, true, "open without the origin does not hand out a server that admits it")
+    assert.equal(await asProxy(again.url), 403)
+    const wrong = run("open", "--allow-origin", "https://box.tail.ts.net:8908/catalog", "--json")
+    assert.equal(wrong.status, 2)
+    assert.match(JSON.parse(wrong.stderr).error.message, /is not one origin/)
   } finally {
     run("stop")
     cleanup(dir)
@@ -288,8 +315,6 @@ test("capture and example refuse what they cannot do before a server or a browse
   assert.match(refused("capture", "--target", "armor/helm").message, /--target must be unit:<id>, collection:<id>, asset:<id> or submission:<id>\/<item>/)
   assert.match(refused("capture", "--target", "unit:armor/helm", "--size", "big").message, /--size must be <width>x<height>/)
   assert.match(refused("capture", "--target", "unit:armor/helm", "--camera", "{nope").message, /--camera is not valid JSON/)
-  const both = refused("capture", "--target", "unit:armor/helm", "--url", "http://127.0.0.1:1/", "--out", join(dir, "x.png"))
-  assert.match(both.message, /--out needs a local capture/)
   // Through a server that is not there: the failure says so and how to get one.
   const nowhere = run("capture", "--target", "unit:armor/helm", "--url", "http://127.0.0.1:1/", "--json")
   assert.equal(nowhere.status, 1)

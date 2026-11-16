@@ -23,7 +23,7 @@ export interface TestServer {
 }
 
 export const startServer = async (root: string, options: OpenOptions & Partial<ServeOptions> = {}): Promise<TestServer> => {
-  const serving = CatalogServer.layer({ port: options.port ?? 0, record: options.record ?? false, pid: process.pid, toolkit: options.toolkit ?? "test", browser: options.browser })
+  const serving = CatalogServer.layer({ port: options.port ?? 0, record: options.record ?? false, pid: process.pid, toolkit: options.toolkit ?? "test", browser: options.browser, allowOrigins: options.allowOrigins })
   const base = ServerState.layerNoDeps.pipe(Layer.provideMerge(catalogLayer(root, options)))
   const runtime = ManagedRuntime.make(serving.pipe(Layer.provideMerge(base)))
   const server = await runtime.runPromise(Effect.flatMap(CatalogServer, (running) => Effect.succeed(running))).catch(async (error) => {

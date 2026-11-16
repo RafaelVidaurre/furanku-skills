@@ -2,6 +2,7 @@
 // response is allowed to do in a browser. Pure; the routes apply them.
 import { createHash } from "node:crypto"
 import type { ErrorCode, ToolError } from "../../kernel/errors.ts"
+import { type AllowedOrigins, NO_ORIGINS } from "./origins.ts"
 import type { Request, Response } from "./http.ts"
 
 /** The server listens here and nowhere else: it is reachable from this machine only. */
@@ -16,13 +17,15 @@ const hostsOf = (port: number): ReadonlyArray<string> => [`127.0.0.1:${port}`, `
 /**
  * Why a request is refused before any route sees it, or null. A page on another site can make a
  * browser send requests here (and a hostile DNS name can point at 127.0.0.1), so the Host header
- * must name this server and an Origin, when sent, must be this server.
+ * must name this server and an Origin, when sent, must be this server: its loopback address, or
+ * an origin admitted exactly as given (scheme, host and port).
  */
-export const refusal = (request: Request, port: number): string | null => {
+export const refusal = (request: Request, port: number, allowed: AllowedOrigins = NO_ORIGINS): string | null => {
   const hosts = hostsOf(port)
-  if (!hosts.includes(request.header("host") ?? "")) return "unexpected Host header"
+  const host = request.header("host") ?? ""
+  if (!hosts.includes(host) && !allowed.hosts.has(host)) return "unexpected Host header"
   const origin = request.header("origin")
-  if (origin !== undefined && !hosts.includes(origin.replace(/^http:\/\//, ""))) return "cross-origin requests are not allowed"
+  if (origin !== undefined && !hosts.some((loopback) => origin === `http://${loopback}`) && !allowed.origins.has(origin)) return "cross-origin requests are not allowed"
   return null
 }
 
@@ -47,7 +50,8 @@ export const SCRIPT_CSP = "default-src 'none'"
  * hash), media from this server or generated in the page, nothing framed, nothing posted away.
  */
 export const pageCsp = (importMap: string): string =>
-  `default-src 'none'; script-src 'self' 'sha256-${createHash("sha256").update(importMap).digest("base64")}'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self' blob: data:; worker-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`
+  // 'wasm-unsafe-eval' admits compiling WebAssembly only (a view's mesh decoder); evaluating JavaScript stays refused.
+  `default-src 'none'; script-src 'self' 'sha256-${createHash("sha256").update(importMap).digest("base64")}' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self' blob: data:; worker-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`
 
 const STATUS: Readonly<Record<ErrorCode, number>> = {
   invalid: 400,

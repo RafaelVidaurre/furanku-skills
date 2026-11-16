@@ -175,10 +175,27 @@ export class Snapshot extends Context.Service<Snapshot, {
           }
         })
 
-      // Refreshes share the source states, so two actions arriving together take turns.
+      // Refreshes share the source states, so actions arriving together take turns. A caller that
+      // waited while a check ran takes the result of a check that began after it arrived, so a
+      // burst (a page fetching its thumbnails) costs at most two checks and every answer still
+      // reflects the files as they were when it was asked for.
       const turn = Semaphore.makeUnsafe(1)
+      let begun = 0
+      let finished: { readonly round: number; readonly signature: string } | null = null
       const current = (plugins: PluginSet): Effect.Effect<SnapshotData> =>
-        turn.withPermit(Effect.gen(function*() {
+        Effect.suspend(() => {
+          const arrived = begun
+          return turn.withPermit(Effect.suspend(() =>
+            last !== null && finished !== null && finished.round > arrived && finished.signature === plugins.signature
+              ? Effect.succeed(last)
+              : Effect.suspend(() => {
+                const round = ++begun
+                return Effect.tap(check(plugins), () => Effect.sync(() => void (finished = { round, signature: plugins.signature })))
+              })
+          ))
+        })
+      const check = (plugins: PluginSet): Effect.Effect<SnapshotData> =>
+        Effect.gen(function*() {
           if (pluginSignature !== plugins.signature) {
             // New plugin objects: nothing loaded by the old ones can be trusted to match.
             pluginSignature = plugins.signature
@@ -202,7 +219,7 @@ export class Snapshot extends Context.Service<Snapshot, {
           if (last !== null && last.version === version && last.units === data.units) return last
           last = { ...data, version, facts: new Map(data.assets.map((asset, index) => [asset.id, facts[index]!])) }
           return last
-        }))
+        })
 
       return { current, loads: Effect.sync(() => ({ ...loads })) }
     })

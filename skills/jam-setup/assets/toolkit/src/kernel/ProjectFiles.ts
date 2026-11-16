@@ -36,6 +36,12 @@ export interface AccessOptions {
   readonly noFollow?: boolean
 }
 
+export interface WalkedFile {
+  readonly path: string
+  readonly size: number
+  readonly mtimeMs: number
+}
+
 export interface WalkOptions {
   /** Return true to leave a directory or file out; receives the project-relative path. */
   readonly skip?: (path: string, kind: "file" | "directory") => boolean
@@ -64,6 +70,11 @@ export class ProjectFiles extends Context.Service<ProjectFiles, {
   list(path: string, options?: AccessOptions): Effect.Effect<ReadonlyArray<DirEntry>, ToolError>
   /** Every file under a folder, sorted. Linked folders are not entered. A missing folder is empty. */
   walk(path: string, options?: WalkOptions): Effect.Effect<ReadonlyArray<string>, ToolError>
+  /**
+   * `walk` with each file's size and modification time, at one `lstat` per file. A linked file
+   * counts only when it resolves inside the project.
+   */
+  walkStats(path: string, options?: WalkOptions): Effect.Effect<ReadonlyArray<WalkedFile>, ToolError>
   /** SHA-256 of a file's bytes, cached while its size and modification time are unchanged. */
   sha256(path: string): Effect.Effect<string, ToolError>
   /** Hold an exclusive lock file until the scope closes. Fails with `locked` when it is held. */
@@ -264,6 +275,29 @@ function make(rootInput: string): ProjectFiles["Service"] {
         return out
       }))
 
+  const walkStats = (path: string, options?: WalkOptions): Effect.Effect<ReadonlyArray<WalkedFile>, ToolError> =>
+    Effect.flatMap(walk(path, options), (paths) =>
+      io(`walk ${path}`, async () => {
+        const one = async (rel: string): Promise<WalkedFile | null> => {
+          const full = nodePath.join(root, ...rel.split("/"))
+          try {
+            const link = await fsp.lstat(full)
+            if (!link.isSymbolicLink()) return { path: rel, size: link.size, mtimeMs: link.mtimeMs }
+            if (!inside(root, await fsp.realpath(full))) return null
+            const target = await fsp.stat(full)
+            return { path: rel, size: target.size, mtimeMs: target.mtimeMs }
+          } catch (cause) {
+            if (missing(cause)) return null
+            throw cause
+          }
+        }
+        const out: Array<WalkedFile> = []
+        for (let start = 0; start < paths.length; start += 32) {
+          for (const file of await Promise.all(paths.slice(start, start + 32).map(one))) if (file !== null) out.push(file)
+        }
+        return out
+      }))
+
   const hashFile = (full: string): Promise<string> =>
     new Promise((done, reject) => {
       const hash = createHash("sha256")
@@ -343,6 +377,7 @@ function make(rootInput: string): ProjectFiles["Service"] {
     makeDirectory,
     list,
     walk,
+    walkStats,
     sha256,
     lock,
     lockHolder,
