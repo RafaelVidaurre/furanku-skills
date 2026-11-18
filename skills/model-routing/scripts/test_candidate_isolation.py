@@ -43,7 +43,7 @@ class CandidateIsolationTest(unittest.TestCase):
                 "routes": {
                     "captain": {
                         "agent": "codex",
-                        "model": "gpt-6-astra",
+                        "model": "gpt-6.2-astra",
                         "effort": "high",
                     },
                     "worker": {
@@ -224,7 +224,7 @@ class CandidateIsolationTest(unittest.TestCase):
         self.assertFalse(result.stdout.strip())
         decision = self.check(
             "--candidate",
-            "codex/gpt-6-astra/high",
+            "codex/gpt-6.2-astra/high",
             "--reason",
             "Unrelated valid candidate stays checkable.",
             runtime={"harnesses": {"codex": {"quota": {"status": "known"}}}},
@@ -334,7 +334,7 @@ class CandidateIsolationTest(unittest.TestCase):
                     "captain..bad": {
                         "work": "Invalid id.",
                         "agent": "codex",
-                        "model": "gpt-6-astra",
+                        "model": "gpt-6.2-astra",
                         "effort": "high",
                     }
                 },

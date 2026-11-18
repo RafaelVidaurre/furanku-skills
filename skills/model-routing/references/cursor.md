@@ -7,7 +7,8 @@ The catalog adds availability; it does not change user routes or preferences.
 ## Launch contract
 
 The local Cursor CLI help and account model inventory were checked on
-2026-10-21; the Fable 5.2 aliases were checked on 2026-11-10. The [official CLI parameters](https://cursor.com/docs/cli/reference/parameters)
+2026-10-21; the Fable 5.2 aliases were checked on 2026-11-10; on 2026-11-18 the
+inventory still listed no GPT-6.x model. The [official CLI parameters](https://cursor.com/docs/cli/reference/parameters)
 document `--model`, `--list-models`, and workspace selection. The installed CLI
 also documents quoted parameter overrides such as
 `--model 'claude-opus-5-5[effort=high]'`; effort is part of the model selection,
@@ -16,7 +17,7 @@ name `agent` may belong to another harness.
 
 | Catalog model | Catalog efforts | Inventory evidence |
 | --- | --- | --- |
-| `gpt-6.1-sol` | high | User-requested route; absent from the checked Cursor inventory |
+| `gpt-6.2-sol` | high | User-requested route; absent from the checked Cursor inventory |
 | `claude-opus-5-5` | low, medium, high, xhigh, max | Effort-suffixed aliases listed |
 | `claude-fable-5-2` | medium, high, xhigh, max | Effort-suffixed aliases listed |
 | `grok-4.7` | low, medium, high, xhigh | Effort-suffixed aliases listed |
@@ -30,7 +31,7 @@ Before launch, run `cursor-agent models` and inspect `cursor-agent --help`.
 Verify the requested model and effort are available to the selected account,
 then retain evidence that the CLI accepted the exact tuple. A missing model
 is a launcher gap: report it and preserve the requested route. In particular,
-GPT-6.1 Sol catalog support does not establish current Cursor availability;
+GPT-6.2 Sol catalog support does not establish current Cursor availability;
 GPT-5.6 Sol is a different model and cannot satisfy that request.
 
 Use the selected orchestration surface's delivery protocol. Crew's

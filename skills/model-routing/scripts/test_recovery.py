@@ -11,7 +11,7 @@ import pytest
 import recovery
 import router
 
-ORIGINAL = 'codex/gpt-6.1-sol/high'
+ORIGINAL = 'codex/gpt-6.2-sol/high'
 ALTERNATIVE = 'grok/grok-4.7/high'
 NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 

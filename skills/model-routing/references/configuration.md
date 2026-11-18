@@ -26,7 +26,7 @@ Persisted layers and consumer defaults are version 4 documents. A persisted laye
 {
   "version": 4,
   "routes": {
-    "design": { "agent": "codex", "model": "gpt-6-astra", "effort": "high" },
+    "design": { "agent": "codex", "model": "gpt-6.2-astra", "effort": "high" },
     "implementation": {
       "agent": "grok",
       "model": "grok-4.7",
@@ -39,10 +39,10 @@ Persisted layers and consumer defaults are version 4 documents. A persisted laye
   ],
   "candidates": {
     "opencode/kimi-for-coding/k3/max": { "enabled": false },
-    "codex-fixed/gpt-6-astra/high": {
+    "codex-fixed/gpt-6.2-astra/high": {
       "launch": {
         "agent": "codex-fixed",
-        "model": "gpt-6-astra",
+        "model": "gpt-6.2-astra",
         "effort": "high"
       },
       "quota_provider": {
@@ -60,7 +60,7 @@ Persisted layers and consumer defaults are version 4 documents. A persisted laye
 
 - `preferences` are plain-language routing statements addressed to the spawning agent. They may name models, candidates, tiers, budgets, or conditions—anything the user wants weighed. They are not machine-enforced; the brief presents them and the spawn guidance makes them binding on the agent's judgment.
 - `candidates` add new launchable candidates or patch builtin ones. A candidate carries one exact `agent/model/effort` launch tuple; capability assessments carry a score, conservative value, confidence, date, public evidence, and a `scale` naming the benchmark and version; unavailable evidence remains unknown. `{"enabled": false}` makes it unavailable. `{"enabled": true, "explicit": true}` requires a principal request for that model and effort, recorded with `check --explicit-basis`. The default is enabled; `explicit: false` restores ordinary selection. A candidate whose launcher always bills one fixed account sets `quota_account` to that account's provider key in `accounts`.
-- The `agent` token names the launcher capability that can serve the model, not a vendor. Two launchers reaching the same model hold different tokens — `codex/gpt-6-astra/high` and `claudex/gpt-6-astra/high` are the same model through different surfaces. Give a launcher its own token whenever it serves models no other launcher can reach, so that a consumer omitting it from `check --launchable-via` genuinely loses those models. Folding such a launcher under a broader token makes its exclusive models unrefusable: the gate compares tokens, so a model reachable only through a parked launcher stays selectable under the shared token. Keep the launcher out of the model name; the token carries it.
+- The `agent` token names the launcher capability that can serve the model, not a vendor. Two launchers reaching the same model hold different tokens — `codex/gpt-6.2-astra/high` and `claudex/gpt-6.2-astra/high` are the same model through different surfaces. Give a launcher its own token whenever it serves models no other launcher can reach, so that a consumer omitting it from `check --launchable-via` genuinely loses those models. Folding such a launcher under a broader token makes its exclusive models unrefusable: the gate compares tokens, so a model reachable only through a parked launcher stays selectable under the shared token. Keep the launcher out of the model name; the token carries it.
 - `quota_pool` marks a candidate that does not bill the account its launch harness uses — the same model reached through a proxy that holds several credentials and picks one per request. It carries the billed `provider` and a `detail` explaining the arrangement. Such a candidate never inherits its harness's quota and never borrows a single credential's number. Its quota reports `pooled`, which passes with a warning: the surface has no one account to measure and rotates off exhausted credentials itself, so this is a settled state rather than a failed reading, and acceptance stays for quota that is normally readable and currently is not. The harness's authentication and health still gate it: the proxy supplies the account, not the ability to run.
 - `quota_provider` marks a candidate billed by a provider other than its launch harness. It carries the billed `provider` and a `detail` explaining the arrangement. The candidate keeps the harness's authentication and health gates but never inherits the harness account's quota. Provider runtime is projected onto the candidate when an adapter supplies it; otherwise quota stays `unknown` and requires explicit acceptance. Use this for a single-provider route; use `quota_pool` only when the serving surface actually rotates credentials.
 - `accounts` is a private registry of provider account identities (`claude`, `codex`, `grok`). It does not apply an account to every candidate from that provider. `check` compares a quota reading with a registered account only when that candidate opts in through `quota_account`; a mismatch is refused in both directions because neither apparent headroom nor exhaustion describes that fixed-account launch.
@@ -127,8 +127,8 @@ The first shows persisted layers, exact rows, whole-row winners, and any exclude
 Set a model and effort in the machine-wide layer by default. When several launch surfaces match, choose one with `--agent` or deliberately change all with `--all-agents`. Use `--scope repo` for tracked project behavior or `--scope machine-repo` for private project behavior. Creating a combination absent from the catalog requires `--create --agent <launcher>`; the new candidate has unknown capability evidence until separately researched.
 
 ```sh
-python3 <skill-dir>/scripts/config.py set explicit gpt-6-astra high --agent codex --repo <root>
-python3 <skill-dir>/scripts/config.py set enabled gpt-6-sol xhigh --agent codex --create --repo <root>
+python3 <skill-dir>/scripts/config.py set explicit gpt-6.2-astra high --agent codex --repo <root>
+python3 <skill-dir>/scripts/config.py set enabled gpt-6.2-sol xhigh --agent codex --create --repo <root>
 ```
 
 The command preserves other configuration fields, refuses a lower-scope state shadowed by a higher scope, and prints the effective changed rows. Re-run `models` to inspect the result. A candidate made explicit can pass `router.py check` only with `--explicit-basis` carrying the principal's request for its model and effort. Naming an exact route without naming the model and effort does not authorize an explicit candidate or a quota fallback to one.

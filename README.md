@@ -337,7 +337,7 @@ What has been validated and what has not:
 
 **Guided setup:** [Configure routing and recovery](skills/model-routing/references/setup.md) through an idempotent preview/apply flow. Shipped policy has no preferred models. Quota readings default to 30-minute freshness; a 5% reserve diverts work only when a ready equivalent exists. Choose whether usage limits trigger an alternative, a question, or a bounded wait, and whether unanswered questions stop work or permit continuation after a configurable window (default 10 minutes). Crew uses the orchestrator's existing lifecycle and failure evidence. Jev routing is retired; Codemap owns its separate Gateway setup.
 
-Use `/model-routing accounts` (or `list`) for account quotas through CodexBar CLI. Use `/model-routing models` to see effective model and effort states. Use `/model-routing set explicit gpt-6-astra high --agent codex` to require an explicit user request for that combination; `enabled` and `disabled` are the other states. When a combination has several launch surfaces, specify the agent or ask for all of them. The skill runs the configuration helper and shows the effective result.
+Use `/model-routing accounts` (or `list`) for account quotas through CodexBar CLI. Use `/model-routing models` to see effective model and effort states. Use `/model-routing set explicit gpt-6.2-astra high --agent codex` to require an explicit user request for that combination; `enabled` and `disabled` are the other states. When a combination has several launch surfaces, specify the agent or ask for all of them. The skill runs the configuration helper and shows the effective result.
 
 ```text
 > Which model should own this refactor? Show me the routing brief.

@@ -137,7 +137,7 @@ class PacketTest(unittest.TestCase):
             )
             runtime = root / "runtime.json"
             runtime.write_text(json.dumps({"harnesses": {"codex": {"quota": {"status": "known"}}}}))
-            override = {"agent": "codex", "model": "gpt-6.1-sol", "effort": "high"}
+            override = {"agent": "codex", "model": "gpt-6.2-sol", "effort": "high"}
             for config in (None, {"version": 4, "routes": {"worker": override}}):
                 if config:
                     path = root / "home" / ".furanku-skills" / "model-routing" / "config.json"
@@ -156,17 +156,17 @@ class PacketTest(unittest.TestCase):
                 self.assertEqual(0, result.returncode, result.stderr)
                 routing = json.loads(result.stdout)["routing"]
                 self.assertEqual("global", routing["source"]["scope"])
-                self.assertEqual("gpt-6.1-sol", routing["model"])
+                self.assertEqual("gpt-6.2-sol", routing["model"])
                 self.assertEqual("high", routing["effort"])
 
     def test_sol61_packet_uses_real_catalog_gate_and_preserves_descendant_constraint(self):
         router = SCRIPT.parents[2] / "model-routing" / "scripts" / "router.py"
-        constraint = "All new Codex descendants must use gpt-6.1-sol at high."
+        constraint = "All new Codex descendants must use gpt-6.2-sol at high."
         with tempfile.TemporaryDirectory() as directory:
             decision_path = Path(directory) / "decision.json"
             checked = subprocess.run(
                 [sys.executable, str(router), "check", "--repo", directory,
-                 "--candidate", "codex/gpt-6.1-sol/high", "--launchable-via", "codex",
+                 "--candidate", "codex/gpt-6.2-sol/high", "--launchable-via", "codex",
                  "--reason", "Verify the principal's exact launch constraint.",
                  "--accept-quota-unknown", "Hermetic test only; no agent is launched."],
                 capture_output=True, text=True, env=PACKET_ENV, check=False,
@@ -178,9 +178,9 @@ class PacketTest(unittest.TestCase):
             result = run(*args)
         self.assertEqual(0, result.returncode, result.stderr)
         packet = json.loads(result.stdout)
-        self.assertEqual("gpt-6.1-sol", packet["routing"]["model"])
+        self.assertEqual("gpt-6.2-sol", packet["routing"]["model"])
         self.assertEqual("high", packet["routing"]["effort"])
-        self.assertEqual(["codex", "--no-alt-screen", "--model", "gpt-6.1-sol", "-c", "model_reasoning_effort=high"], packet["launch_argv"])
+        self.assertEqual(["codex", "--no-alt-screen", "--model", "gpt-6.2-sol", "-c", "model_reasoning_effort=high"], packet["launch_argv"])
         self.assertIn(constraint, packet["spec"])
 
     def test_brief_derives_launchers_from_manifest(self):
@@ -404,7 +404,7 @@ class PacketTest(unittest.TestCase):
             result = run(
                 *BASE,
                 "--candidate",
-                "codex/gpt-6-astra/high",
+                "codex/gpt-6.2-astra/high",
                 "--reason",
                 SELECTED["reason"],
                 "--router",
@@ -444,7 +444,7 @@ class PacketTest(unittest.TestCase):
         result = run(
             *packet_args(SELECTED),
             "--candidate",
-            "codex/gpt-6-astra/high",
+            "codex/gpt-6.2-astra/high",
             "--reason",
             "A reason.",
         )
@@ -455,7 +455,7 @@ class PacketTest(unittest.TestCase):
         candidate = run(
             *BASE,
             "--candidate",
-            "codex/gpt-6-astra/high",
+            "codex/gpt-6.2-astra/high",
             "--reason",
             "A reason.",
             "--route-basis",
@@ -568,7 +568,7 @@ class PacketTest(unittest.TestCase):
                 self.assertEqual(decision, {key: replayed["routing_decision"][key] for key in decision})
 
     def test_builtin_orca_cursor_packet_encodes_model_and_effort_together(self):
-        for model, effort in (("gpt-6.1-sol", "high"), ("claude-opus-5-5", "max"),
+        for model, effort in (("gpt-6.2-sol", "high"), ("claude-opus-5-5", "max"),
                               ("claude-fable-5-2", "medium"), ("grok-4.7", "xhigh")):
             with self.subTest(model=model, effort=effort):
                 decision = {**SELECTED, "selected": {"id": f"cursor/{model}/{effort}",

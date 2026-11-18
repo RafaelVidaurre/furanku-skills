@@ -1,5 +1,9 @@
 # Commander model-catalog research
 
+> Routing update, 2026-11-18: the catalog now routes GPT-6.2 Astra (high) and
+> GPT-6.2 Sol (high, max) in place of GPT-6 Astra, GPT-6 Sol and GPT-6.1 Sol. See
+> [GPT-6.2 Astra and Sol evidence](../docs/research/gpt-6-2-astra-sol-capability-evidence-2026-11-18.md).
+
 > Routing update, 2026-09-04: the maintained catalog now uses GPT-6 Astra at
 > high effort. See [current Astra evidence](../docs/research/gpt-6-astra-capability-evidence-2026-09-04.md).
 > This dated snapshot preserves the original models and measurements; it is

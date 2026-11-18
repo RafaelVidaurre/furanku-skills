@@ -1,5 +1,9 @@
 # GPT-6 Sol and GPT-6 Luna capability evidence
 
+> Routing update, 2026-11-18: the catalog now routes GPT-6.2 Astra (high) and
+> GPT-6.2 Sol (high, max) in place of GPT-6 Astra, GPT-6 Sol and GPT-6.1 Sol. See
+> [GPT-6.2 Astra and Sol evidence](gpt-6-2-astra-sol-capability-evidence-2026-11-18.md).
+
 > Maintained-catalog assessment as of 2026-09-22 (Europe/Lisbon). This file
 > assesses `codex/gpt-6-luna/max`, the proposed replacement for the builtin
 > `worker` route `codex/gpt-5.6-luna/max`, and a possible

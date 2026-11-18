@@ -115,19 +115,19 @@ class ConfigTest(unittest.TestCase):
 
     def test_model_state_command_preserves_other_config_and_lists_effective_states(self):
         self.write("global", {"version": 4, "routes": {}, "preferences": ["Keep this preference."]})
-        ambiguous = self.run_config("set", "explicit", "gpt-6-astra", "high", "--repo", str(self.repo), ok=False)
+        ambiguous = self.run_config("set", "explicit", "gpt-6.2-astra", "high", "--repo", str(self.repo), ok=False)
         self.assertIn("multiple launch surfaces", ambiguous.stderr)
-        self.run_config("set", "explicit", "gpt-6-astra", "high", "--all-agents", "--repo", str(self.repo))
+        self.run_config("set", "explicit", "gpt-6.2-astra", "high", "--all-agents", "--repo", str(self.repo))
         listed = json.loads(self.run_config("models", "--format", "json", "--repo", str(self.repo)).stdout)["models"]
-        astra = [row for row in listed if row["model"] == "gpt-6-astra" and row["effort"] == "high"]
+        astra = [row for row in listed if row["model"] == "gpt-6.2-astra" and row["effort"] == "high"]
         self.assertEqual({"explicit"}, {row["state"] for row in astra})
         self.assertEqual({"global"}, {row["source"] for row in astra})
         config = json.loads(self.run_config("read", "global").stdout)["config"]
         self.assertEqual(["Keep this preference."], config["preferences"])
-        self.run_config("set", "disabled", "gpt-6-astra", "high", "--all-agents", "--repo", str(self.repo))
-        self.run_config("set", "enabled", "gpt-6-astra", "high", "--all-agents", "--repo", str(self.repo))
+        self.run_config("set", "disabled", "gpt-6.2-astra", "high", "--all-agents", "--repo", str(self.repo))
+        self.run_config("set", "enabled", "gpt-6.2-astra", "high", "--all-agents", "--repo", str(self.repo))
         listed = json.loads(self.run_config("list", "--format", "json", "--repo", str(self.repo)).stdout)["models"]
-        self.assertEqual({"enabled"}, {row["state"] for row in listed if row["model"] == "gpt-6-astra" and row["effort"] == "high"})
+        self.assertEqual({"enabled"}, {row["state"] for row in listed if row["model"] == "gpt-6.2-astra" and row["effort"] == "high"})
 
     def test_model_state_create_and_scope_shadowing(self):
         self.run_config("set", "explicit", "gpt-6-sol", "high", "--repo", str(self.repo), ok=False)
@@ -139,11 +139,11 @@ class ConfigTest(unittest.TestCase):
         self.assertIn("repo overrides state", result.stderr)
 
     def test_models_source_names_state_layer_after_unrelated_override(self):
-        self.run_config("set", "explicit", "gpt-6-astra", "high", "--agent", "codex", "--repo", str(self.repo))
+        self.run_config("set", "explicit", "gpt-6.2-astra", "high", "--agent", "codex", "--repo", str(self.repo))
         self.write("repo", {"version": 4, "routes": {},
-                            "candidates": {"codex/gpt-6-astra/high": {"features": ["vision"]}}}, self.repo)
+                            "candidates": {"codex/gpt-6.2-astra/high": {"features": ["vision"]}}}, self.repo)
         rows = json.loads(self.run_config("models", "--format", "json", "--repo", str(self.repo)).stdout)["models"]
-        row = next(row for row in rows if row["candidate"] == "codex/gpt-6-astra/high")
+        row = next(row for row in rows if row["candidate"] == "codex/gpt-6.2-astra/high")
         self.assertEqual("explicit", row["state"])
         self.assertEqual("global", row["source"])
 
@@ -195,8 +195,8 @@ class ConfigTest(unittest.TestCase):
             "version": 4,
             "routes": self.base_config()["routes"],
             "preferences": [
-                "Captains default to gpt-6-astra at high.",
-                "For the hardest design work, use gpt-6-astra at high, ahead of fable.",
+                "Captains default to gpt-6.2-astra at high.",
+                "For the hardest design work, use gpt-6.2-astra at high, ahead of fable.",
             ],
             "candidates": {"grok/grok-4.7/high": {"enabled": False}},
         }

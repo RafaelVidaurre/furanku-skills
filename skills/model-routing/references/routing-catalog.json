@@ -360,10 +360,10 @@
         }
       }
     },
-    "codex/gpt-6.1-sol/high": {
+    "codex/gpt-6.2-sol/high": {
       "launch": {
         "agent": "codex",
-        "model": "gpt-6.1-sol",
+        "model": "gpt-6.2-sol",
         "effort": "high"
       },
       "features": [
@@ -371,29 +371,54 @@
       ],
       "capabilities": {
         "reasoning": {
-          "status": "unknown",
-          "reason": "Launch support only; independent performance evidence for GPT-6.1 Sol at high has not been assessed. GPT-6 Sol scores do not establish this tuple.",
-          "researched_at": "2026-09-29"
+          "status": "known",
+          "score": 0.5489,
+          "conservative": 0.5289,
+          "confidence": "high",
+          "assessed_at": "2026-11-18",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-6-2-sol",
+            "https://artificialanalysis.ai/articles/openai-has-the-2-model-in-the-intelligence-index-with-the-release-of-gpt-6-2-astra-and-gpt-6-2-sol"
+          ],
+          "scale": "AA Intelligence Index v5.0.1",
+          "note": "Exact GPT-6.2 Sol (High) record 54.8899 on v5.0.1 (AA per-effort URL now redirects to the release page); score = index/100, conservative = score - 0.02. v5.0.1 is not comparable with v4.3.2 or v5.0 cells."
         },
         "implementation": {
           "status": "unknown",
-          "reason": "Launch support only; independent performance evidence for GPT-6.1 Sol at high has not been assessed. GPT-6 Sol scores do not establish this tuple.",
-          "researched_at": "2026-09-29"
+          "reason": "CursorBench 4.0 (changelog through 2026-10-07) has no GPT-6.x row and DeepSWE v1.1 (updated 2026-09-22) has no GPT-6.2 row. AA's exact Codex row (Coding Agent Index v2.1: FrontierCode 2.0, SWE-Atlas-QnA, Terminal-Bench v4) is a different scale.",
+          "researched_at": "2026-11-18"
         },
         "agentic": {
-          "status": "unknown",
-          "reason": "Launch support only; independent performance evidence for GPT-6.1 Sol at high has not been assessed. GPT-6 Sol scores do not establish this tuple.",
-          "researched_at": "2026-09-29"
+          "status": "known",
+          "score": 0.5204,
+          "conservative": 0.4954,
+          "confidence": "medium",
+          "assessed_at": "2026-11-18",
+          "evidence": [
+            "https://artificialanalysis.ai/models/gpt-6-2-sol",
+            "https://artificialanalysis.ai/evaluations/aa-briefcase",
+            "https://artificialanalysis.ai/methodology/intelligence-benchmarking"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Exact high Elo 1540.79 (95% CI lower 1530.79); score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 for Stirrup-to-launcher transfer. Snapshot 2026-11-18, one day after release."
         },
         "ui": {
           "status": "unknown",
-          "reason": "Launch support only; independent performance evidence for GPT-6.1 Sol at high has not been assessed. GPT-6 Sol scores do not establish this tuple.",
-          "researched_at": "2026-09-29"
+          "reason": "Arena WebDev (page date 2026-11-13, 159 models) predates the 2026-11-17 release and shows no GPT-6.2 row in the readable ranks 1-152. GPT-6.1 Sol (Max) rank is not carried over.",
+          "researched_at": "2026-11-18"
         },
         "spatial-3d": {
           "status": "unknown",
-          "reason": "Launch support only; independent performance evidence for GPT-6.1 Sol at high has not been assessed. GPT-6 Sol scores do not establish this tuple.",
-          "researched_at": "2026-09-29"
+          "reason": "Design Arena added gpt-6.2-sol on 2026-11-17, but the 3D board (data stamp 2026-11-18T10:37Z, 183 models) has no row for it and the registry labels no effort. GPT-6.1 Sol ranks are not carried over; AA-3D is a different benchmark.",
+          "researched_at": "2026-11-18"
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 77.8,
+          "basis": "Artificial Analysis, exact high, headline end-to-end output speed (5-day average); not a median and not end-to-end task latency",
+          "assessed_at": "2026-11-18",
+          "source": "https://artificialanalysis.ai/models/gpt-6-2-sol"
         }
       }
     },
@@ -501,10 +526,10 @@
         }
       }
     },
-    "codex/gpt-6-sol/max": {
+    "codex/gpt-6.2-sol/max": {
       "launch": {
         "agent": "codex",
-        "model": "gpt-6-sol",
+        "model": "gpt-6.2-sol",
         "effort": "max"
       },
       "features": [
@@ -513,52 +538,53 @@
       "capabilities": {
         "reasoning": {
           "status": "known",
-          "score": 0.48,
-          "conservative": 0.46,
+          "score": 0.5726,
+          "conservative": 0.5526,
           "confidence": "high",
-          "assessed_at": "2026-09-22",
+          "assessed_at": "2026-11-18",
           "evidence": [
-            "https://artificialanalysis.ai/models/gpt-6-sol"
+            "https://artificialanalysis.ai/models/gpt-6-2-sol",
+            "https://artificialanalysis.ai/articles/openai-has-the-2-model-in-the-intelligence-index-with-the-release-of-gpt-6-2-astra-and-gpt-6-2-sol"
           ],
-          "scale": "AA Intelligence Index v4.3.2",
-          "note": "GPT-6 Sol (max) 47.53 on v4.3.2; score = index/100, conservative = score - 0.02."
+          "scale": "AA Intelligence Index v5.0.1",
+          "note": "Exact GPT-6.2 Sol (Max) record 57.2576 on v5.0.1; score = index/100, conservative = score - 0.02. v5.0.1 is not comparable with v4.3.2 or v5.0 cells."
         },
         "implementation": {
-          "status": "known",
-          "score": 0.69,
-          "conservative": 0.662,
-          "confidence": "medium",
-          "assessed_at": "2026-09-22",
-          "evidence": [
-            "https://artificialanalysis.ai/agents/coding-agents",
-            "https://artificialanalysis.ai/articles/gpt-6-sol-and-luna-push-the-cost-efficiency-frontier"
-          ],
-          "scale": "DeepSWE v1.1 (Codex harness, Artificial Analysis)",
-          "note": "Exact max row 69.03% (337 attempts) in Codex v0.154.0; no published interval, so conservative = score - 0.028, GPT-5.6 Sol max's published DeepSWE run-to-run half-width. DeepSWE's own board and CursorBench 4.0 have no GPT-6 Sol row. Not comparable with CursorBench 4.0 cells."
+          "status": "unknown",
+          "reason": "CursorBench 4.0 (changelog through 2026-10-07) has no GPT-6.x row and DeepSWE v1.1 (updated 2026-09-22) has no GPT-6.2 row. AA's Coding Agent Index v2.1 no longer contains DeepSWE, so the AA-Codex DeepSWE path used for GPT-6 Sol max is unavailable; GPT-6 Sol's cell is not carried over.",
+          "researched_at": "2026-11-18"
         },
         "agentic": {
           "status": "known",
-          "score": 0.491,
-          "conservative": 0.466,
+          "score": 0.556,
+          "conservative": 0.5314,
           "confidence": "medium",
-          "assessed_at": "2026-09-22",
+          "assessed_at": "2026-11-18",
           "evidence": [
-            "https://artificialanalysis.ai/models/gpt-6-sol",
+            "https://artificialanalysis.ai/models/gpt-6-2-sol",
             "https://artificialanalysis.ai/evaluations/aa-briefcase",
             "https://artificialanalysis.ai/methodology/intelligence-benchmarking"
           ],
           "scale": "AA-Briefcase v1.1 Elo, mapped",
-          "note": "Exact AA-Briefcase v1.1 Elo 1482.78 (95% CI lower 1472.91); mapped with AA's own clamp((Elo - 500) / 2000); conservative = mapped lower bound - 0.02 harness transfer (Stirrup to launcher)."
+          "note": "Exact max Elo 1612.06 (95% CI lower 1602.83); score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 for Stirrup-to-launcher transfer. Snapshot 2026-11-18, one day after release."
         },
         "ui": {
           "status": "unknown",
-          "reason": "Arena WebDev (stamp 2026-09-22, 130 models) has no gpt-6-sol row at any effort.",
-          "researched_at": "2026-09-22"
+          "reason": "Arena WebDev (page date 2026-11-13, 159 models) predates the 2026-11-17 release and shows no GPT-6.2 row in the readable ranks 1-152. GPT-6 Sol (Max) and GPT-6.1 Sol (Max) ranks are not carried over.",
+          "researched_at": "2026-11-18"
         },
         "spatial-3d": {
           "status": "unknown",
-          "reason": "Design Arena's 3D board (data stamp 2026-09-22T18:06Z, 153 models), registry, and changelog through 2026-09-20 have no gpt-6-sol entry.",
-          "researched_at": "2026-09-22"
+          "reason": "Design Arena added gpt-6.2-sol on 2026-11-17, but the 3D board (data stamp 2026-11-18T10:37Z, 183 models) has no row for it and the registry labels no effort (no -max mode). Predecessor ranks are not carried over; AA-3D is a different benchmark.",
+          "researched_at": "2026-11-18"
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 84.6,
+          "basis": "Artificial Analysis, exact max, headline end-to-end output speed (5-day average); not a median and not end-to-end task latency",
+          "assessed_at": "2026-11-18",
+          "source": "https://artificialanalysis.ai/models/gpt-6-2-sol"
         }
       }
     },
@@ -1006,10 +1032,10 @@
         }
       }
     },
-    "codex/gpt-6-astra/high": {
+    "codex/gpt-6.2-astra/high": {
       "launch": {
         "agent": "codex",
-        "model": "gpt-6-astra",
+        "model": "gpt-6.2-astra",
         "effort": "high"
       },
       "features": [
@@ -1018,72 +1044,60 @@
       "capabilities": {
         "reasoning": {
           "status": "known",
-          "score": 0.51,
-          "conservative": 0.49,
+          "score": 0.6009,
+          "conservative": 0.5809,
           "confidence": "high",
-          "assessed_at": "2026-09-22",
+          "assessed_at": "2026-11-18",
           "evidence": [
-            "https://artificialanalysis.ai/models/gpt-6-astra-high"
+            "https://artificialanalysis.ai/models/gpt-6-2-astra",
+            "https://artificialanalysis.ai/articles/openai-has-the-2-model-in-the-intelligence-index-with-the-release-of-gpt-6-2-astra-and-gpt-6-2-sol"
           ],
-          "scale": "AA Intelligence Index v4.3.2",
-          "note": "GPT-6 Astra (high) 50.92 on v4.3.2; score = index/100, conservative = score - 0.02."
+          "scale": "AA Intelligence Index v5.0.1",
+          "note": "Exact GPT-6.2 Astra (High) record 60.0882 on v5.0.1 (AA per-effort URL now redirects to the release page); score = index/100, conservative = score - 0.02. v5.0.1 is not comparable with v4.3.2 or v5.0 cells."
         },
         "implementation": {
-          "status": "known",
-          "score": 0.7323,
-          "conservative": 0.698,
-          "confidence": "medium",
-          "assessed_at": "2026-09-22",
-          "evidence": [
-            "https://deepswe.datacurve.ai/"
-          ],
-          "scale": "DeepSWE v1.1 (mini-swe-agent)",
-          "note": "Not on the CursorBench 4.0 scale: Cursor publishes no row for this model at any effort. DeepSWE exact row; conservative = lower 95% run-to-run bound. Do not compare numerically with CursorBench 4.0 cells."
+          "status": "unknown",
+          "reason": "CursorBench 4.0 (changelog through 2026-10-07) has no GPT-6.x row and DeepSWE v1.1 (updated 2026-09-22) has no GPT-6.2 row. AA's exact Codex row (Coding Agent Index v2.1: FrontierCode 2.0, SWE-Atlas-QnA, Terminal-Bench v4) is a different scale; GPT-6 Astra's DeepSWE cell is not carried over.",
+          "researched_at": "2026-11-18"
         },
         "agentic": {
           "status": "known",
-          "score": 0.503,
-          "conservative": 0.479,
+          "score": 0.5352,
+          "conservative": 0.5104,
           "confidence": "medium",
-          "assessed_at": "2026-09-22",
+          "assessed_at": "2026-11-18",
           "evidence": [
-            "https://artificialanalysis.ai/models/gpt-6-astra-high",
+            "https://artificialanalysis.ai/models/gpt-6-2-astra",
             "https://artificialanalysis.ai/evaluations/aa-briefcase",
             "https://artificialanalysis.ai/methodology/intelligence-benchmarking"
           ],
           "scale": "AA-Briefcase v1.1 Elo, mapped",
-          "note": "Exact AA-Briefcase v1.1 Elo 1506.86 (95% CI lower 1497.09); mapped with AA's own clamp((Elo - 500) / 2000); conservative = mapped lower bound - 0.02 harness transfer (Stirrup to launcher)."
+          "note": "Exact high Elo 1570.41 (95% CI lower 1560.83); score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 for Stirrup-to-launcher transfer. Snapshot 2026-11-18, one day after release."
         },
         "ui": {
           "status": "unknown",
-          "reason": "Arena WebDev (vote cutoff 2026-09-11) lists gpt-6-astra-max (rank 1) only; no high row. The max rank is not carried to high.",
-          "researched_at": "2026-09-22"
+          "reason": "Arena WebDev (page date 2026-11-13, 159 models) predates the 2026-11-17 release and shows no GPT-6.2 row in the readable ranks 1-152. GPT-6 Astra (Max) rank is not carried over.",
+          "researched_at": "2026-11-18"
         },
         "spatial-3d": {
           "status": "unknown",
-          "reason": "Design Arena's 3D board ranks gpt-6-astra #1 (Elo 1476), but its registry labels that model 'GPT-6 Astra (xhigh)'. An xhigh rank is not a high rank.",
-          "researched_at": "2026-09-22"
+          "reason": "Design Arena added gpt-6.2-astra on 2026-11-17, but the 3D board (data stamp 2026-11-18T10:37Z, 183 models) has no row for it and the registry labels no effort. GPT-6 Astra ranks are not carried over; AA-3D is a different benchmark.",
+          "researched_at": "2026-11-18"
         }
       },
       "economics": {
-        "task_cost_usd": {
-          "value": 3.9237,
-          "basis": "DeepSWE high, mini-swe-agent; current OpenAI pricing",
-          "assessed_at": "2026-09-22",
-          "source": "https://deepswe.datacurve.ai/"
-        },
         "output_tokens_per_second": {
-          "value": 52.2,
-          "basis": "Artificial Analysis, GPT-6 Astra high",
-          "assessed_at": "2026-09-22",
-          "source": "https://artificialanalysis.ai/models/gpt-6-astra-high"
+          "value": 55.6,
+          "basis": "Artificial Analysis, exact high, headline end-to-end output speed (5-day average); not a median and not end-to-end task latency",
+          "assessed_at": "2026-11-18",
+          "source": "https://artificialanalysis.ai/models/gpt-6-2-astra"
         }
       }
     },
-    "claudex/gpt-6-astra/high": {
+    "claudex/gpt-6.2-astra/high": {
       "launch": {
         "agent": "claudex",
-        "model": "gpt-6-astra",
+        "model": "gpt-6.2-astra",
         "effort": "high"
       },
       "features": [
@@ -1092,65 +1106,53 @@
       "capabilities": {
         "reasoning": {
           "status": "known",
-          "score": 0.51,
-          "conservative": 0.49,
+          "score": 0.6009,
+          "conservative": 0.5809,
           "confidence": "high",
-          "assessed_at": "2026-09-22",
+          "assessed_at": "2026-11-18",
           "evidence": [
-            "https://artificialanalysis.ai/models/gpt-6-astra-high"
+            "https://artificialanalysis.ai/models/gpt-6-2-astra",
+            "https://artificialanalysis.ai/articles/openai-has-the-2-model-in-the-intelligence-index-with-the-release-of-gpt-6-2-astra-and-gpt-6-2-sol"
           ],
-          "scale": "AA Intelligence Index v4.3.2",
-          "note": "GPT-6 Astra (high) 50.92 on v4.3.2; score = index/100, conservative = score - 0.02."
+          "scale": "AA Intelligence Index v5.0.1",
+          "note": "Exact GPT-6.2 Astra (High) record 60.0882 on v5.0.1 (AA per-effort URL now redirects to the release page); score = index/100, conservative = score - 0.02. v5.0.1 is not comparable with v4.3.2 or v5.0 cells."
         },
         "implementation": {
-          "status": "known",
-          "score": 0.7323,
-          "conservative": 0.698,
-          "confidence": "medium",
-          "assessed_at": "2026-09-22",
-          "evidence": [
-            "https://deepswe.datacurve.ai/"
-          ],
-          "scale": "DeepSWE v1.1 (mini-swe-agent)",
-          "note": "Not on the CursorBench 4.0 scale: Cursor publishes no row for this model at any effort. DeepSWE exact row; conservative = lower 95% run-to-run bound. Do not compare numerically with CursorBench 4.0 cells."
+          "status": "unknown",
+          "reason": "CursorBench 4.0 (changelog through 2026-10-07) has no GPT-6.x row and DeepSWE v1.1 (updated 2026-09-22) has no GPT-6.2 row. AA's exact Codex row (Coding Agent Index v2.1: FrontierCode 2.0, SWE-Atlas-QnA, Terminal-Bench v4) is a different scale; GPT-6 Astra's DeepSWE cell is not carried over.",
+          "researched_at": "2026-11-18"
         },
         "agentic": {
           "status": "known",
-          "score": 0.503,
-          "conservative": 0.479,
+          "score": 0.5352,
+          "conservative": 0.5104,
           "confidence": "medium",
-          "assessed_at": "2026-09-22",
+          "assessed_at": "2026-11-18",
           "evidence": [
-            "https://artificialanalysis.ai/models/gpt-6-astra-high",
+            "https://artificialanalysis.ai/models/gpt-6-2-astra",
             "https://artificialanalysis.ai/evaluations/aa-briefcase",
             "https://artificialanalysis.ai/methodology/intelligence-benchmarking"
           ],
           "scale": "AA-Briefcase v1.1 Elo, mapped",
-          "note": "Exact AA-Briefcase v1.1 Elo 1506.86 (95% CI lower 1497.09); mapped with AA's own clamp((Elo - 500) / 2000); conservative = mapped lower bound - 0.02 harness transfer (Stirrup to launcher)."
+          "note": "Exact high Elo 1570.41 (95% CI lower 1560.83); score = (Elo - 500)/2000, conservative = mapped lower bound - 0.02 for Stirrup-to-launcher transfer. Snapshot 2026-11-18, one day after release."
         },
         "ui": {
           "status": "unknown",
-          "reason": "Arena WebDev (vote cutoff 2026-09-11) lists gpt-6-astra-max (rank 1) only; no high row. The max rank is not carried to high.",
-          "researched_at": "2026-09-22"
+          "reason": "Arena WebDev (page date 2026-11-13, 159 models) predates the 2026-11-17 release and shows no GPT-6.2 row in the readable ranks 1-152. GPT-6 Astra (Max) rank is not carried over.",
+          "researched_at": "2026-11-18"
         },
         "spatial-3d": {
           "status": "unknown",
-          "reason": "Design Arena's 3D board ranks gpt-6-astra #1 (Elo 1476), but its registry labels that model 'GPT-6 Astra (xhigh)'. An xhigh rank is not a high rank.",
-          "researched_at": "2026-09-22"
+          "reason": "Design Arena added gpt-6.2-astra on 2026-11-17, but the 3D board (data stamp 2026-11-18T10:37Z, 183 models) has no row for it and the registry labels no effort. GPT-6 Astra ranks are not carried over; AA-3D is a different benchmark.",
+          "researched_at": "2026-11-18"
         }
       },
       "economics": {
-        "task_cost_usd": {
-          "value": 3.9237,
-          "basis": "DeepSWE high, mini-swe-agent; current OpenAI pricing",
-          "assessed_at": "2026-09-22",
-          "source": "https://deepswe.datacurve.ai/"
-        },
         "output_tokens_per_second": {
-          "value": 52.2,
-          "basis": "Artificial Analysis, GPT-6 Astra high",
-          "assessed_at": "2026-09-22",
-          "source": "https://artificialanalysis.ai/models/gpt-6-astra-high"
+          "value": 55.6,
+          "basis": "Artificial Analysis, exact high, headline end-to-end output speed (5-day average); not a median and not end-to-end task latency",
+          "assessed_at": "2026-11-18",
+          "source": "https://artificialanalysis.ai/models/gpt-6-2-astra"
         }
       },
       "quota_provider": {
@@ -1852,37 +1854,37 @@
         }
       }
     },
-    "cursor/gpt-6.1-sol/high": {
+    "cursor/gpt-6.2-sol/high": {
       "launch": {
         "agent": "cursor",
-        "model": "gpt-6.1-sol",
+        "model": "gpt-6.2-sol",
         "effort": "high"
       },
       "capabilities": {
         "reasoning": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for gpt-6.1-sol at high has not been assessed. User-requested route; absent from the checked Cursor model inventory. Verify availability before launch.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for gpt-6.2-sol at high has not been assessed. User-requested route; absent from the checked Cursor model inventory. Verify availability before launch.",
+          "researched_at": "2026-11-18"
         },
         "implementation": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for gpt-6.1-sol at high has not been assessed. User-requested route; absent from the checked Cursor model inventory. Verify availability before launch.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for gpt-6.2-sol at high has not been assessed. User-requested route; absent from the checked Cursor model inventory. Verify availability before launch.",
+          "researched_at": "2026-11-18"
         },
         "agentic": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for gpt-6.1-sol at high has not been assessed. User-requested route; absent from the checked Cursor model inventory. Verify availability before launch.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for gpt-6.2-sol at high has not been assessed. User-requested route; absent from the checked Cursor model inventory. Verify availability before launch.",
+          "researched_at": "2026-11-18"
         },
         "ui": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for gpt-6.1-sol at high has not been assessed. User-requested route; absent from the checked Cursor model inventory. Verify availability before launch.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for gpt-6.2-sol at high has not been assessed. User-requested route; absent from the checked Cursor model inventory. Verify availability before launch.",
+          "researched_at": "2026-11-18"
         },
         "spatial-3d": {
           "status": "unknown",
-          "reason": "Launch support only; exact Cursor evidence for gpt-6.1-sol at high has not been assessed. User-requested route; absent from the checked Cursor model inventory. Verify availability before launch.",
-          "researched_at": "2026-10-21"
+          "reason": "Launch support only; exact Cursor evidence for gpt-6.2-sol at high has not been assessed. User-requested route; absent from the checked Cursor model inventory. Verify availability before launch.",
+          "researched_at": "2026-11-18"
         }
       }
     },

@@ -1,5 +1,9 @@
 # GPT-6 Astra capability evidence
 
+> Routing update, 2026-11-18: the catalog now routes GPT-6.2 Astra (high) and
+> GPT-6.2 Sol (high, max) in place of GPT-6 Astra, GPT-6 Sol and GPT-6.1 Sol. See
+> [GPT-6.2 Astra and Sol evidence](gpt-6-2-astra-sol-capability-evidence-2026-11-18.md).
+
 > Score update, 2026-09-22: catalog scores now sit on one scale per
 > dimension. See [score normalization](model-routing-score-normalization-2026-09-22.md).
 

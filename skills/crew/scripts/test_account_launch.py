@@ -468,7 +468,7 @@ def test_native_capability_interruption_and_expiry_leave_assignment_undelivered(
 
 
 @pytest.mark.parametrize('active_remaining, expected_method', [(10, 'command'), (80, 'orca-native')])
-@pytest.mark.parametrize('provider,model', [('codex', 'gpt-6-astra'), ('claude', 'claude-opus-5-5')])
+@pytest.mark.parametrize('provider,model', [('codex', 'gpt-6.2-astra'), ('claude', 'claude-opus-5-5')])
 def test_orca_rotates_accounts_before_changing_model(tmp_path, active_remaining, expected_method, provider, model):
     env, argv, path, decision, log, response = native_fixture(tmp_path, provider=provider, active='other', native_only=False)
     capabilities = tmp_path / 'capabilities.json'
