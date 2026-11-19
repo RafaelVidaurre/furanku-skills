@@ -1,5 +1,5 @@
 // What a reviewer can give a verdict on. Part identity is explicit: it never depends on a label or
-// on the order of links, so a rename or a reorder keeps verdicts where they were.
+// on the order of links, so a rename or a reorder keeps decisions where they were.
 import type { CatalogSchema, Collection, Part, TypeDef, Unit } from "./types.ts"
 
 const stem = (path: string): string => (path.split("/").pop() ?? path).replace(/\.[^.]+$/, "")
@@ -11,7 +11,7 @@ export const reviewAttrs = (unit: Unit, type: TypeDef): Record<string, unknown> 
 }
 
 /**
- * A unit's parts: each linked visual, keyed by role (single) or role plus link key or asset
+ * A unit's parts: each linked asset, keyed by role (single) or role plus link key or asset
  * (many), then its attributes.
  */
 export const unitParts = (unit: Unit, type: TypeDef): ReadonlyArray<Part> => {
@@ -54,13 +54,13 @@ export const collectionParts = (
 /** A capture part: externally rendered evidence frozen with one submission item. */
 export const CAPTURE_PART = /^capture:[1-9][0-9]*$/
 /** The one part of a work item that has text and no captures. */
-export const DECISION_PART = "decision"
+export const ITEM_PART = "item"
 
 /**
  * Parts that belong to one submission item and to no content: captures and a work item's
- * decision. They have no current version, so they never count as content that changed.
+ * text. They have no current version, so they never count as content that changed.
  */
-export const isItemEvidence = (partId: string): boolean => CAPTURE_PART.test(partId) || partId === DECISION_PART
+export const isItemEvidence = (partId: string): boolean => CAPTURE_PART.test(partId) || partId === ITEM_PART
 
 /** The role a part belongs to, for deciding whether it is reference material. */
 export const partRole = (part: { readonly id: string; readonly role?: string | null | undefined }): string =>

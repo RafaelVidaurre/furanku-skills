@@ -1,0 +1,25 @@
+{
+  "id": "vd_mwkpd92j35re2xhqd9",
+  "submission": "sub_mwkpd925c73ud7fwwe",
+  "item": "it_mwkpd925fh5mzpaqem",
+  "by": {
+    "name": "Rae Tester",
+    "kind": "human"
+  },
+  "at": "2026-11-17T13:02:57.067Z",
+  "comment": "Canon.",
+  "requestId": "rq-current",
+  "requestBinding": {
+    "action": "review.decideCurrent",
+    "digest": "a9df9e059281e22bda9208d60b429acc04813a4a39fd1f62cbe8b973529b58ad",
+    "context": "ff52585e9d24:main"
+  },
+  "scope": {
+    "kind": "whole",
+    "parts": [
+      "attributes"
+    ]
+  },
+  "verdict": "approved",
+  "exceptions": {}
+}

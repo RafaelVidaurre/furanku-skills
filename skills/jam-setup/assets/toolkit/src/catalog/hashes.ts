@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect"
 import { ProjectFiles } from "../kernel/ProjectFiles.ts"
 import { assetFiles } from "./assetFiles.ts"
 import { MediaKinds } from "./MediaKinds.ts"
-import { eventVerdicts } from "./model/verdicts.ts"
+import { decisionVerdicts } from "./model/verdicts.ts"
 import type { Target } from "./model/types.ts"
 import type { Projection } from "./Projection.ts"
 import { partAssets } from "./queries/review.ts"
@@ -48,10 +48,10 @@ export const targetAssets = (p: Projection, target: Target): Array<string> => {
  */
 export const decidedAssets = (p: Projection): Array<string> => {
   const out = new Set<string>()
-  for (const events of p.eventsByTarget.values()) {
+  for (const events of p.decisionsByTarget.values()) {
     // Events are grouped by target, so the item of each one has a target.
     const target = p.items.get(events[0]!.item)!.item.target!
-    const parts = new Set(events.flatMap((event) => Object.keys(eventVerdicts(event))))
+    const parts = new Set(events.flatMap((event) => Object.keys(decisionVerdicts(event))))
     for (const part of parts) for (const asset of partAssets(p, target, part)) out.add(asset)
   }
   return [...out]

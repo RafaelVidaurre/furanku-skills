@@ -2,6 +2,7 @@
 // are reported. A command returns data; this module decides how it reaches the terminal.
 import * as Cause from "effect/Cause"
 import * as CliError from "effect/cli/CliError"
+import type * as Command from "effect/cli/Command"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -130,3 +131,15 @@ export const kernelLayerFor = (edge: EdgeArgs): Layer.Layer<Kernel, ToolError> =
 
 /** The services a command may use without declaring anything further. */
 export type Kernel = ProjectFiles | Process | Git | Ids | Output
+
+/**
+ * What a command group contributes: its commands, and a layer for the services they need beyond
+ * the kernel. The layer may require kernel services and may fail with a ToolError.
+ */
+export interface CommandGroup {
+  // Commands differ in name and input, so the list is necessarily loosely typed.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readonly commands: ReadonlyArray<Command.Command<any, any, any, any, any>>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readonly layer: Layer.Layer<never, any, any> | Layer.Layer<any, any, any>
+}

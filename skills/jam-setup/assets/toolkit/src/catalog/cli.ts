@@ -7,12 +7,12 @@ import * as Flag from "effect/cli/Flag"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Layer from "effect/Layer"
-import type { CommandGroup } from "../cli/main.ts"
-import { Output } from "../kernel/cli.ts"
+import { type CommandGroup, Output } from "../kernel/cli.ts"
 import { Detached } from "../kernel/Detached.ts"
 import { fail, type ToolError, toolError } from "../kernel/errors.ts"
 import type { ActionInfo } from "./Actions.ts"
 import { Catalog, type RunMeta } from "./Catalog.ts"
+import { migrateCommand } from "./migrate/command.ts"
 import { callAction } from "./server/client.ts"
 import { serverCommands } from "./server/commands.ts"
 import { ServerState } from "./ServerState.ts"
@@ -66,8 +66,8 @@ const actions = Command.make("actions", {}, () =>
   Effect.gen(function*() {
     // Viewer actions run in a server (`jam catalog open`); they are listed with the rest.
     const list = [...(yield* (yield* Catalog).discover), ...viewerActionInfo()]
-    yield* (yield* Output).emit({ actions: list }, () => columns(list.map((action: ActionInfo) => [action.name, action.kind, short(action.description)])))
-  })).pipe(Command.withDescription("List every action with its input schema (--json for the schemas)"))
+    yield* (yield* Output).emit({ actions: list }, () => columns(list.map((action: ActionInfo) => [action.name, action.access, action.requires.join(","), short(action.description)])))
+  })).pipe(Command.withDescription("List every action with its input and output schemas (--json for the schemas)"))
 
 const run = Command.make(
   "run",
@@ -104,14 +104,14 @@ interface Inbox {
   readonly waiting: ReadonlyArray<Linked & { readonly ref: string; readonly title: string; readonly waiting: number; readonly items: number; readonly by: { readonly name: string } }>
   readonly notes: ReadonlyArray<Linked & { readonly targetName: string; readonly partLabel: string | null; readonly body: string; readonly by: { readonly name: string } }>
   readonly changed: ReadonlyArray<Linked & { readonly name: string; readonly target: { readonly kind: string; readonly id: string }; readonly parts: ReadonlyArray<{ readonly label: string; readonly verdict: string | null }> }>
-  readonly problems: ReadonlyArray<{ readonly source: string; readonly error: string }>
+  readonly problems: ReadonlyArray<{ readonly subject: string; readonly error: string }>
   readonly hint?: string
 }
 
 /** Where to open an entry: the full address while a server runs, else the route the hint explains. */
 const where = (entry: Linked): string => entry.url ?? entry.route ?? ""
 
-const todoText = (inbox: Inbox): string => {
+const inboxText = (inbox: Inbox): string => {
   const { counts } = inbox
   if (counts.waiting + counts.notes + counts.changed + counts.problems === 0) return "Nothing is waiting: no undecided reviews, open notes, changed verdicts or problems."
   const section = (title: string, total: number, rows: ReadonlyArray<ReadonlyArray<string>>): Array<string> =>
@@ -121,15 +121,15 @@ const todoText = (inbox: Inbox): string => {
     ...section("Reviews waiting for a verdict", counts.waiting, inbox.waiting.map((review) => [review.ref, short(review.title, 48), `${review.waiting} of ${review.items} items undecided`, `asked by ${review.by.name}`, where(review)])),
     ...section("Open notes", counts.notes, inbox.notes.map((note) => [short(`${note.targetName}${note.partLabel ? ` · ${note.partLabel}` : ""}`, 36), short(note.body, 60), `from ${note.by.name}`, where(note)])),
     ...section("Changed since their verdict", counts.changed, inbox.changed.map((entry) => [`${entry.target.kind} ${entry.target.id}`, entry.parts.map((part) => `${part.label} (${part.verdict})`).join(", "), where(entry)])),
-    ...section("Problems", counts.problems, inbox.problems.map((problem) => [short(problem.source, 40), short(problem.error, 80)])),
+    ...section("Problems", counts.problems, inbox.problems.map((problem) => [short(problem.subject, 40), short(problem.error, 80)])),
     ...(inbox.hint === undefined ? [] : [inbox.hint])
   ].join("\n").trimEnd()
 }
 
-const todo = Command.make("todo", {}, () =>
+const inbox = Command.make("inbox", {}, () =>
   Effect.gen(function*() {
-    const inbox = (yield* (yield* Catalog).run("inbox", {})) as Inbox
-    yield* (yield* Output).emit(inbox, () => todoText(inbox))
+    const result = (yield* (yield* Catalog).run("inbox", {})) as Inbox
+    yield* (yield* Output).emit(result, () => inboxText(result))
   })).pipe(Command.withDescription("What is waiting on someone: reviews, open notes, changed verdicts, problems"))
 
 interface DoctorReport {
@@ -175,21 +175,21 @@ const doctor = Command.make(
 
 const unlock = Command.make(
   "unlock",
-  { lock: Argument.String("lock").pipe(Argument.withDescription("The lock's name or file (see `jam catalog run locks.list`)")), ...actorFlags },
+  { lock: Argument.String("lock").pipe(Argument.withDescription("The lock's name or file (see `jam catalog run lock.list`)")), ...actorFlags },
   (flags) =>
     Effect.gen(function*() {
       const catalog = yield* Catalog
       const declared = yield* metaOf(flags)
       // Removing a stale lock is a person's decision at their own terminal unless said otherwise.
       const meta = declared.actor ? declared : { ...declared, actor: yield* catalog.defaultActor }
-      const result = (yield* catalog.run("unlock", { lock: flags.lock }, meta)) as { readonly removed: string }
+      const result = yield* catalog.run("lock.remove", { lock: flags.lock }, meta)
       yield* (yield* Output).emit(result, `removed lock ${result.removed}`)
     })
 ).pipe(Command.withDescription("Remove a record lock whose owning process has exited on this machine"))
 
 const catalog = Command.make("catalog").pipe(
   Command.withDescription("Browse, organise and review project content"),
-  Command.withSubcommands([actions, run, todo, doctor, unlock, ...serverCommands])
+  Command.withSubcommands([actions, run, inbox, doctor, unlock, migrateCommand, ...serverCommands])
 )
 
 export const group: CommandGroup = {

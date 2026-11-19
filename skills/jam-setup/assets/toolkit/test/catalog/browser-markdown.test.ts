@@ -1,5 +1,5 @@
 // Ported from the version 1 engine's browser-markdown.test.mjs. Real Chromium acceptance for
-// Markdown submission notes: the review page renders the formatting an agent writes and drops
+// Markdown submission briefs: the review page renders the formatting an agent writes and drops
 // anything that could run code or load content. Nothing changed but the way the server is started.
 import assert from "node:assert/strict"
 import { after, before, describe, it } from "node:test"
@@ -14,7 +14,7 @@ let browser: Browser
 let found: Awaited<ReturnType<typeof browserOrSkip>>
 
 // Written the way the jam-catalog skill asks: what to decide, what changed and why, known limits.
-const NOTE = `Answer to the v001 review ("fix the **skin patches** on the hair"). The scalp showed through above the ears, and the hair edge ran in steps along the quad grid.
+const BRIEF = `Answer to the v001 review ("fix the **skin patches** on the hair"). The scalp showed through above the ears, and the hair edge ran in steps along the quad grid.
 
 ### Decide
 1. Topology: hair edge now follows the painted hairline
@@ -22,7 +22,7 @@ const NOTE = `Answer to the v001 review ("fix the **skin patches** on the hair")
 
 ### Known limits
 - Faint line at the forehead when the hair is removed
-- Not yet rendered in the engine; same helmet slot as [boots](#/content/u/armor%2Fboots), see the [brief](https://example.com/brief)`
+- Not yet rendered in the engine; same helmet slot as [boots](#/main/u/armor%2Fboots), see the [brief](https://example.com/brief)`
 // HTML blocks, inline HTML with handlers and styles, a javascript: link and markup in a code span.
 const HOSTILE = `Inert: <script>window.__pwned = 1</script><img src=x onerror="window.__pwned = 2"> <a href="#" onclick="window.__pwned = 3" style="color:red">click</a> [js](javascript:window.__pwned=4) \`<b>code</b>\`
 
@@ -43,12 +43,12 @@ after(async () => {
   if (dir) cleanup(dir)
 })
 
-describe("Markdown submission note", () => {
-  const show = async (note: string): Promise<{ p: TestPage; md: Locator }> => {
-    const s = await W(server.app, agent)("review.submit", { title: "Helm hair fix", note, items: [{ target: { kind: "unit", id: "armor/helm" } }] })
+describe("Markdown submission brief", () => {
+  const show = async (brief: string): Promise<{ p: TestPage; md: Locator }> => {
+    const s = await W(server.app, agent)("review.submit", { title: "Helm hair fix", brief, items: [{ target: { kind: "unit", id: "armor/helm" } }] })
     const p = await newPage(browser, { viewport: { width: 1440, height: 900 } })
     await p.goto(`${server.url}#/reviews/s/${s.submission.id}`)
-    const md = p.locator('.md[aria-label="Submission note"]')
+    const md = p.locator('.md[aria-label="Submission brief"]')
     await md.waitFor()
     return { p, md }
   }
@@ -60,20 +60,20 @@ describe("Markdown submission note", () => {
 
   it("renders headings, lists, emphasis and links; catalog links stay in the app, others open a new tab", async (t) => {
     if ("skip" in found) return t.skip(found.skip)
-    const { md, p } = await show(NOTE)
+    const { md, p } = await show(BRIEF)
     assert.deepEqual(await md.locator("h3").allTextContents(), ["Decide", "Known limits"])
     assert.equal(await md.locator("ol > li").count(), 2)
     assert.equal(await md.locator("ul > li").count(), 2)
     assert.equal(await md.locator("strong").textContent(), "skin patches")
     assert.equal(await md.locator("em").textContent(), "Hairline")
     const links = await md.locator("a").evaluateAll((as) => as.map((a) => [a.textContent, a.getAttribute("href"), a.getAttribute("target"), a.getAttribute("rel")]))
-    assert.deepEqual(links, [["boots", "#/content/u/armor%2Fboots", null, null], ["brief", "https://example.com/brief", "_blank", "noopener noreferrer"]])
+    assert.deepEqual(links, [["boots", "#/main/u/armor%2Fboots", null, null], ["brief", "https://example.com/brief", "_blank", "noopener noreferrer"]])
     await p.evaluate(() => window.catalogViewer.settled())
-    await shot(p, "markdown-submission-note")
+    await shot(p, "markdown-submission-brief")
     await md.scrollIntoViewIfNeeded()
-    await shot(md, "markdown-note-block")
+    await shot(md, "markdown-brief-block")
     await md.locator("a", { hasText: "boots" }).click()
-    await p.waitForFunction(() => location.hash === "#/content/u/armor%2Fboots")
+    await p.waitForFunction(() => location.hash === "#/main/u/armor%2Fboots")
     await done(p)
   })
 
@@ -86,7 +86,7 @@ describe("Markdown submission note", () => {
     await md.locator("a", { hasText: "js" }).click()
     await md.locator("a", { hasText: "click" }).click()
     assert.equal(await p.evaluate(() => (window as unknown as { __pwned?: number }).__pwned), undefined, "no injected code ran")
-    await shot(p, "markdown-hostile-note")
+    await shot(p, "markdown-hostile-brief")
     await done(p)
   })
 })

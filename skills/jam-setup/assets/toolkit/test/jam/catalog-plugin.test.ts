@@ -12,9 +12,9 @@ import { AGENT_MODE, makeFiles, record, start } from "./flow.ts"
 type Any = any
 
 const MANIFEST = {
-  version: 1,
+  version: 2,
   assetRoots: ["kit"],
-  types: { piece: { label: "Kit piece", roles: [{ key: "model", label: "Model", kinds: ["model"] }, { key: "picture", label: "Picture", kinds: ["image"] }] } },
+  types: { piece: { label: "Kit piece", roles: [{ key: "model", label: "Model", mediaKinds: ["model"] }, { key: "picture", label: "Picture", mediaKinds: ["image"] }] } },
   units: [{ id: "kit/plank", type: "piece", name: "Plank", links: [{ role: "model", asset: "kit/plank.glb" }, { role: "picture", asset: "kit/plank.png" }] }]
 }
 
@@ -29,7 +29,7 @@ describe("probes", () => {
   it("the toolkit's measurements appear on any catalog asset and are made once per file version", async () => {
     const root = await kitProject()
     const app = openCatalog(root)
-    assert.deepEqual((await app.run("schema", {})).probes.map((probe: Any) => [probe.name, probe.plugin, probe.kinds]), [["jam-geometry", "jam", ["model"]], ["jam-pixels", "jam", ["image"]]])
+    assert.deepEqual((await app.run("schema", {})).probes.map((probe: Any) => [probe.name, probe.plugin, probe.mediaKinds]), [["jam-geometry", "jam", ["model"]], ["jam-pixels", "jam", ["image"]]])
     // Hand-registered content, never part of a run.
     const plank = await app.run("unit.get", { id: "kit/plank" })
     const facts = Object.fromEntries(plank.links.map((entry: Any) => [entry.role, entry.facts]))
@@ -107,7 +107,7 @@ process.on("exit", () => process.stderr.write("\\nLOADED " + JSON.stringify([...
       assert.deepEqual(loaded(withRuns, ...command).filter((path) => path.startsWith("src/catalog/") || path.startsWith("src/jam/catalog/")), [], `jam ${command.join(" ")}`)
     }
     // With the plugin listed, the catalog reads runs through the ledger.
-    assert.ok(loaded(withRuns, "catalog", "run", "catalog.search").includes("src/jam/runs/Runs.ts"))
+    assert.ok(loaded(withRuns, "catalog", "run", "unit.search").includes("src/jam/runs/Runs.ts"))
     assert.ok(existsSync(join(withRuns, "catalog.config.json")))
   })
 })

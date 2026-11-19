@@ -1,18 +1,18 @@
 // The video kind: a muted looping player, a first-frame thumbnail, and two players side by side.
 import { html, useEffect, useRef, useState, prefersReducedMotion } from '../core.js';
-import { registerViewer } from '../controller.js';
+import { useViewer } from '../controller.js';
 import { registerMediaKind } from '../media-kinds.js';
 import { Msg } from '../viewers.js';
 import { sideLabel, SideError } from '../compare.js';
 
 // ---------- Video: ordinary controls, muted, no surprise audio; explicit readiness ----------
-export function VideoViewer({ src, videoRef, viewerId, source, onStatus }) {
+export function VideoViewer({ src, videoRef, viewerId, shows, onStatus }) {
   const [status, setStatus] = useState('loading');
   const [nonce, setNonce] = useState(0);
   const local = useRef(); const ref = videoRef ?? local;
   useEffect(() => setStatus('loading'), [src, nonce]);
   useEffect(() => { onStatus?.(status); }, [status]);
-  registerViewer(viewerId, () => ({ kind: 'video', status, error: status === 'error' ? `Video could not be played: ${source?.path ?? src}` : null, source, time: ref.current ? +ref.current.currentTime.toFixed(2) : null, duration: ref.current?.duration ?? null, paused: ref.current?.paused ?? null, controls: ['video'] }),
+  useViewer(viewerId, () => ({ kind: 'video', status, error: status === 'error' ? `Video could not be played: ${shows?.path ?? src}` : null, shows, time: ref.current ? +ref.current.currentTime.toFixed(2) : null, duration: ref.current?.duration ?? null, paused: ref.current?.paused ?? null, controls: ['video'] }),
     (c) => { if (c.video && ref.current) { if (c.video.time != null) ref.current.currentTime = c.video.time; if (c.video.playing === false) ref.current.pause(); if (c.video.playing === true) ref.current.play(); return true; } return false; });
   return html`<div class="viewer viewer-video">
     <${Msg} status=${status} error="Video could not be decoded or loaded" onRetry=${() => setNonce(nonce + 1)} />
@@ -35,6 +35,7 @@ export function VideoCompare({ a, b, labels, mark }) {
 
 registerMediaKind('video', {
   icon: 'M3 4h14v12H3z M8 7.5v5l4.5-2.5z',
+  controls: ['video'],
   viewer: ({ media, ...rest }) => html`<${VideoViewer} src=${media.url} ...${rest} />`,
   thumbnail: ({ asset }) => html`<video src=${`${asset.url}#t=0.5`} muted playsinline preload="metadata" tabindex="-1" aria-hidden="true"></video>`,
   compare: VideoCompare,

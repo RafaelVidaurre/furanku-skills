@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "assetRoots": [
     "Art"
   ],
@@ -50,14 +50,14 @@
         {
           "key": "model",
           "label": "Model",
-          "kinds": [
+          "mediaKinds": [
             "model"
           ]
         },
         {
           "key": "image",
           "label": "Image",
-          "kinds": [
+          "mediaKinds": [
             "image"
           ],
           "many": true
@@ -65,7 +65,7 @@
         {
           "key": "video",
           "label": "Video",
-          "kinds": [
+          "mediaKinds": [
             "video"
           ],
           "many": true

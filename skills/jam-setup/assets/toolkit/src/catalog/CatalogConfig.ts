@@ -26,55 +26,41 @@ const Display = Schema.Struct({
   pixelArt: Schema.optionalKey(Schema.Boolean).annotate({ description: "Keep hard texels and show whole images in thumbnails and image viewers (pixel art). A type's own display wins" })
 }).annotate({ description: "How images are shown, for types that do not say" })
 
-/** The current form of the file. */
-export const ConfigV2 = Schema.Struct({
+const PluginEntry = Schema.Union([
+  NonEmpty.annotate({ description: "A built-in name (manifest, jam) or a project-relative module (./catalog/plugin.ts)" }),
+  Schema.Struct({
+    plugin: NonEmpty.annotate({ description: "A built-in name or a project-relative module" }),
+    options: Schema.optionalKey(Schema.Record(Schema.String, Schema.Unknown)).annotate({ description: "This plugin's options" })
+  })
+])
+
+/** The file. Older versions are refused with the migration that moves them to this one. */
+export const CatalogConfigFile = Schema.Struct({
   $schema: Schema.optionalKey(Schema.String),
-  version: Schema.Literal(2),
-  plugins: Schema.optionalKey(Schema.Array(NonEmpty)).annotate({
-    description: "Plugins in load order: a built-in name (manifest, jam) or a project-relative module (./jam/catalog/game.ts)"
-  }),
-  options: Schema.optionalKey(Schema.Record(Schema.String, Schema.Record(Schema.String, Schema.Unknown))).annotate({
-    description: "Options per plugin name"
+  version: Schema.Literal(3),
+  plugins: Schema.optionalKey(Schema.Array(PluginEntry)).annotate({
+    description: 'Plugins in load order: a built-in name or a project-relative module path, or { "plugin": <name or path>, "options": { … } }'
   }),
   review: Schema.optionalKey(Review),
   display: Schema.optionalKey(Display)
-}).annotate({ identifier: "CatalogConfig", title: "catalog.config.json", description: "Catalog plugins, review policy and display" })
-
-/** Version 1: one adapter. Still read, never written. Unknown fields were always ignored. */
-export const ConfigV1 = Schema.Struct({
-  version: Schema.Literal(1),
-  adapter: Schema.optionalKey(NonEmpty),
-  options: Schema.optionalKey(Schema.Record(Schema.String, Schema.Unknown)),
-  previewModules: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
-  review: Schema.optionalKey(Schema.Struct({
-    resolver: Schema.optionalKey(NonEmpty),
-    resolverModule: Schema.optionalKey(NonEmpty),
-    referenceRoles: Schema.optionalKey(Schema.Array(NonEmpty)),
-    verdicts: Schema.optionalKey(Schema.Array(Schema.String))
-  })),
-  display: Schema.optionalKey(Display)
-})
+}).annotate({ identifier: "CatalogConfig", title: "catalog.config.json", description: "Catalog plugins with their options, review policy and display" })
 
 export interface PluginRef {
   /** A built-in name or a project-relative module path. */
   readonly ref: string
-  /** Version 1 adapters take the whole `options` object; plugins take their own entry. */
-  readonly adapterOptions?: Record<string, unknown>
+  /** The options of its entry (empty when it has none). */
+  readonly options: Readonly<Record<string, unknown>>
 }
 
-/** The configuration in one form, whichever version the file is. */
+/** The configuration with its defaults applied. */
 export interface ResolvedConfig {
-  readonly version: 1 | 2
+  readonly version: 3
   readonly plugins: ReadonlyArray<PluginRef>
-  readonly options: Readonly<Record<string, Readonly<Record<string, unknown>>>>
   readonly review: {
     readonly resolver: string
-    readonly resolverModule: string | null
     readonly referenceRoles: ReadonlyArray<string>
     readonly verdicts: ReadonlyArray<string>
   }
-  /** Version 1 `previewModules`; version 2 registers previews through plugins. */
-  readonly previewModules: Readonly<Record<string, string>>
   /** How images are shown for types that do not say. */
   readonly display: { readonly pixelArt: boolean }
 }
@@ -90,6 +76,7 @@ export interface Setup {
   readonly defaults?: ReadonlyArray<string> | undefined
   readonly overrides: {
     readonly plugins?: ReadonlyArray<string> | undefined
+    /** Options by plugin entry (name or path), in place of the entry's own. */
     readonly options?: Readonly<Record<string, Readonly<Record<string, unknown>>>> | undefined
     readonly resolver?: string | undefined
   }
@@ -97,56 +84,35 @@ export interface Setup {
 
 export const CatalogSetup = Context.Reference<Setup>("jam/catalog/Setup", { defaultValue: () => ({ plugins: {}, overrides: {} }) })
 
-const strip = (path: string): string => path.replace(/^\.\//, "")
-
-const fromV1 = (file: typeof ConfigV1.Type): ResolvedConfig => {
-  const adapter = file.adapter ?? "manifest"
-  const options = file.options ?? {}
-  // The manifest adapter's one option was the manifest path; the plugin calls it `file`.
-  const manifest = typeof options["manifest"] === "string" ? { manifest: { file: options["manifest"] } } : {}
-  return {
-    version: 1,
-    plugins: [adapter === "manifest" ? { ref: "manifest" } : { ref: adapter, adapterOptions: options }],
-    options: adapter === "manifest" ? manifest : { [adapter]: options },
-    review: {
-      resolver: file.review?.resolver ?? "latest",
-      resolverModule: file.review?.resolverModule === undefined ? null : strip(file.review.resolverModule),
-      referenceRoles: file.review?.referenceRoles ?? [],
-      verdicts: file.review?.verdicts ?? ["approved", "changes", "rejected"]
-    },
-    previewModules: Object.fromEntries(Object.entries(file.previewModules ?? {}).map(([name, path]) => [name, strip(path)])),
-    display: { pixelArt: file.display?.pixelArt === true }
-  }
-}
-
-const fromV2 = (file: typeof ConfigV2.Type): ResolvedConfig => ({
-  version: 2,
-  plugins: (file.plugins ?? ["manifest"]).map((ref) => ({ ref })),
-  options: file.options ?? {},
+const fromFile = (file: typeof CatalogConfigFile.Type): ResolvedConfig => ({
+  version: 3,
+  plugins: (file.plugins ?? ["manifest"]).map((entry) => (typeof entry === "string" ? { ref: entry, options: {} } : { ref: entry.plugin, options: entry.options ?? {} })),
   review: {
     resolver: file.review?.resolver ?? "latest",
-    resolverModule: null,
     referenceRoles: file.review?.referenceRoles ?? [],
     verdicts: file.review?.verdicts ?? ["approved", "changes", "rejected"]
   },
-  previewModules: {},
   display: { pixelArt: file.display?.pixelArt === true }
 })
 
-const withOverrides = (config: ResolvedConfig, overrides: Setup["overrides"]): ResolvedConfig => ({
-  ...config,
-  plugins: overrides.plugins?.map((ref) => ({ ref })) ?? config.plugins,
-  options: { ...config.options, ...overrides.options },
-  review: { ...config.review, resolver: overrides.resolver ?? config.review.resolver }
-})
+const withOverrides = (config: ResolvedConfig, overrides: Setup["overrides"]): ResolvedConfig => {
+  const plugins = overrides.plugins?.map((ref): PluginRef => ({ ref, options: config.plugins.find((entry) => entry.ref === ref)?.options ?? {} })) ?? config.plugins
+  return {
+    ...config,
+    plugins: plugins.map((entry) => ({ ...entry, options: overrides.options?.[entry.ref] ?? entry.options })),
+    review: { ...config.review, resolver: overrides.resolver ?? config.review.resolver }
+  }
+}
 
-/** Decode the parsed file. Exported for the tests of both versions. */
+/** Decode the parsed file. Exported for the tests. */
 export const resolveConfig = (value: unknown): Effect.Effect<ResolvedConfig, ToolError> =>
   Effect.gen(function*() {
     const version = isRecord(value) ? value["version"] : undefined
-    if (version === 1) return fromV1(yield* decode(ConfigV1, { what: CONFIG_FILE, strict: false })(value))
-    if (version === 2) return fromV2(yield* decode(ConfigV2, { what: CONFIG_FILE })(value))
-    return yield* fail("invalid", `${CONFIG_FILE}: unsupported version`, { fix: 'set "version": 2' })
+    if (version === 1 || version === 2) {
+      return yield* fail("unsupported", `${CONFIG_FILE} was written by an older toolkit (version ${version})`, { fix: "run: jam catalog migrate" })
+    }
+    if (version !== 3) return yield* fail("invalid", `${CONFIG_FILE}: unsupported version`, { fix: 'set "version": 3' })
+    return fromFile(yield* decode(CatalogConfigFile, { what: CONFIG_FILE })(value))
   })
 
 export interface ConfigState {
@@ -173,7 +139,7 @@ export class CatalogConfig extends Context.Service<CatalogConfig, {
       )
       const parse = (text: string | null): Effect.Effect<ResolvedConfig, ToolError> =>
         text === null
-          ? Effect.succeed(fromV2({ version: 2, ...(setup.defaults === undefined ? {} : { plugins: [...setup.defaults] }) }))
+          ? Effect.succeed(fromFile({ version: 3, ...(setup.defaults === undefined ? {} : { plugins: [...setup.defaults] }) }))
           : Effect.try({
             try: () => JSON.parse(text) as unknown,
             catch: (cause) => ({ cause })
@@ -190,7 +156,7 @@ export class CatalogConfig extends Context.Service<CatalogConfig, {
           if (!last) return yield* Effect.fail(loaded.failure)
           // Keep serving the last good settings; say so until the file is fixed.
           const problem: Problem = {
-            source: CONFIG_FILE,
+            subject: CONFIG_FILE,
             error: loaded.failure.message,
             recovery: "fix the configuration; the previous project settings stay in use until then"
           }

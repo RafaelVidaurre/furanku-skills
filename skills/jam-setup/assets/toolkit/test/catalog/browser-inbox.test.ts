@@ -22,7 +22,7 @@ test("the attention view lists waiting reviews, open notes, changed verdicts and
     const errors: Array<string> = []
     page.on("pageerror", (error) => errors.push(String(error)))
     // Nothing waiting: the link is there without a count, and the view says so.
-    await page.goto(`${s.url}#/content`)
+    await page.goto(`${s.url}#/main`)
     const link = page.locator(".top").getByRole("link", { name: /Needs attention/ })
     await link.waitFor()
     assert.equal(await link.locator(".badge").count(), 0)
@@ -67,7 +67,7 @@ test("the attention view lists waiting reviews, open notes, changed verdicts and
     await page.goBack()
     await section("Open notes").getByRole("link").click()
     await page.locator("h1").filter({ hasText: "Iron Helm" }).waitFor()
-    assert.match(page.url(), /#\/content\/u\/armor%2Fhelm/)
+    assert.match(page.url(), /#\/main\/u\/armor%2Fhelm/)
     await page.goBack()
     await section("Changed since their verdict").getByRole("link").click()
     await page.locator("h1").filter({ hasText: "Iron Helm" }).waitFor()

@@ -23,9 +23,5 @@
     "uv",
     "texture",
     "delivery"
-  ],
-  "catalog": {
-    "adapter": "./tools/jam/catalog-adapter.mjs",
-    "manifest": "Art/catalog.json"
-  }
+  ]
 }

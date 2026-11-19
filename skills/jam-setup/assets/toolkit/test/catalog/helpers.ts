@@ -13,8 +13,8 @@ import { devNull, tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { after } from "node:test"
 import { crc32, deflateSync } from "node:zlib"
-import type { ActionInfo } from "../../src/catalog/Actions.ts"
-import { Catalog, type CatalogStats, type RunMeta } from "../../src/catalog/Catalog.ts"
+import { type ActionInfo, CatalogOutputCheck } from "../../src/catalog/Actions.ts"
+import { Catalog, CatalogDiagnostics, type CatalogStats, type RunMeta } from "../../src/catalog/Catalog.ts"
 import type { Setup } from "../../src/catalog/CatalogConfig.ts"
 import { Git } from "../../src/kernel/Git.ts"
 import { Ids } from "../../src/kernel/Ids.ts"
@@ -141,10 +141,10 @@ export const TYPES = {
     thumb: "icon",
     fields: [{ key: "slot", label: "Slot" }, { key: "armor", label: "Armor", kind: "number", help: "Damage absorbed per hit." }, { key: "parts", label: "Parts", kind: "refs" }],
     roles: [
-      { key: "icon", label: "Icon", kinds: ["image"], expected: true },
-      { key: "model", label: "Model", kinds: ["model"], expected: true },
-      { key: "concept", label: "Concept", kinds: ["image"], many: true },
-      { key: "clip", label: "Clip", kinds: ["video"] }
+      { key: "icon", label: "Icon", mediaKinds: ["image"], expected: true },
+      { key: "model", label: "Model", mediaKinds: ["model"], expected: true },
+      { key: "concept", label: "Concept", mediaKinds: ["image"], many: true },
+      { key: "clip", label: "Clip", mediaKinds: ["video"] }
     ]
   },
   lore: { label: "Lore", fields: [{ key: "text", label: "Text" }], roles: [] }
@@ -160,13 +160,13 @@ export interface ProjectSpec {
   readonly commit?: boolean
 }
 
-/** A version 1 manifest project with one file per unit, committed on main. */
+/** A manifest project (configuration version 3, manifest version 2) with one file per unit, committed on main. */
 export const makeProject = async ({ assets = {}, collections = [], commit = true, extra = {}, units = [] }: ProjectSpec = {}): Promise<string> => {
   const dir = tmp()
   git(dir, "init", "-q")
-  write(dir, "catalog.config.json", { version: 1, adapter: "manifest", review: { resolver: "latest" } })
+  write(dir, "catalog.config.json", { version: 3, plugins: ["manifest"], review: { resolver: "latest" } })
   write(dir, "catalog.manifest.json", {
-    version: 1,
+    version: 2,
     project: "Testgame",
     assetRoots: ["art"],
     types: TYPES,
@@ -212,11 +212,11 @@ export interface App {
   discover(): Promise<ReadonlyArray<ActionInfo>>
   stats(): Promise<CatalogStats>
   /** Run any effect against this catalog's services. */
-  effect<A, E>(effect: Effect.Effect<A, E, Catalog>): Promise<A>
+  effect<A, E>(effect: Effect.Effect<A, E, Catalog | CatalogDiagnostics>): Promise<A>
   evidenceMedia(submission: string, item: string, part: string, leaf?: string): Promise<{ bytes: Uint8Array; mime: string | undefined; sha256: string }>
   beforeMedia(submission: string, item: string, view: string): Promise<{ bytes: Uint8Array; mime: string | undefined; sha256: string }>
   assetFile(id: string): Promise<{ file: string; mime: string; version: string; size: number }>
-  previewModule(name: string): Promise<{ file: string; bytes: Uint8Array; sha256: string }>
+  browserModule(name: string): Promise<{ file: string; bytes: Uint8Array; sha256: string }>
 }
 
 export interface OpenOptions extends Partial<Setup> {
@@ -229,10 +229,13 @@ export interface OpenOptions extends Partial<Setup> {
   readonly extra?: Layer.Layer<any>
 }
 
+/** Every result, of the catalog and of a server's viewer sessions, is decoded against its declared output. */
+const outputsChecked = Layer.succeed(CatalogOutputCheck, true)
+
 /** The kernel of a test project and its catalog, as one layer. */
 export const catalogLayer = (root: string, options: OpenOptions = {}) => {
   const kernel = Layer.mergeAll(Git.layerNoDeps, options.ids ?? Ids.layer).pipe(Layer.provideMerge(Layer.mergeAll(ProjectFiles.layer(root), options.process ?? Process.layer)))
-  return Catalog.layerWith(options).pipe(Layer.provideMerge(kernel), Layer.provideMerge(options.extra ?? Layer.empty))
+  return Catalog.layerWith(options).pipe(Layer.provideMerge(kernel), Layer.provideMerge(options.extra ?? Layer.empty), Layer.provideMerge(outputsChecked))
 }
 
 /** Open the catalog of a project: a fresh engine, as a second process or a restart would have. */
@@ -244,8 +247,8 @@ export const open = async (root: string, options: OpenOptions = {}): Promise<App
 
 /** The promise-based test surface over a runtime that provides a catalog. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const appOf = (root: string, runtime: ManagedRuntime.ManagedRuntime<Catalog, any>): App => {
-  const effect = async <A, E>(body: Effect.Effect<A, E, Catalog>): Promise<A> => {
+export const appOf = (root: string, runtime: ManagedRuntime.ManagedRuntime<Catalog | CatalogDiagnostics, any>): App => {
+  const effect = async <A, E>(body: Effect.Effect<A, E, Catalog | CatalogDiagnostics>): Promise<A> => {
     const exit = await runtime.runPromiseExit(body)
     if (Exit.isSuccess(exit)) return exit.value
     throw Option.getOrUndefined(Exit.findErrorOption(exit)) ?? new Error(`defect: ${String(exit.cause)}`)
@@ -255,12 +258,12 @@ export const appOf = (root: string, runtime: ManagedRuntime.ManagedRuntime<Catal
     root,
     run: (action, input, meta) => use((catalog) => catalog.run(action, input, meta)),
     discover: () => use((catalog) => catalog.discover),
-    stats: () => use((catalog) => catalog.stats),
+    stats: () => effect(Effect.flatMap(CatalogDiagnostics, (diagnostics) => diagnostics.stats)),
     effect,
     evidenceMedia: (submission, item, part, leaf) => use((catalog) => catalog.evidenceMedia(submission, item, part, leaf)),
     beforeMedia: (submission, item, view) => use((catalog) => catalog.beforeMedia(submission, item, view)),
     assetFile: (id) => use((catalog) => catalog.assetFile(id)),
-    previewModule: (name) => use((catalog) => catalog.previewModule(name))
+    browserModule: (name) => use((catalog) => catalog.browserModule(name))
   }
 }
 

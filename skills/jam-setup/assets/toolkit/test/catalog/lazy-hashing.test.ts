@@ -46,26 +46,26 @@ test(`opening a project with ${COUNT} files of 16 MiB and listing it hashes zero
   const app = await open(dir)
   const started = Date.now()
   const reads = await hashedBy(app, async () => {
-    const context = await app.run("context", {})
-    assert.equal(context.counts.assets, COUNT)
-    const units = await app.run("catalog.search", { pageSize: 200 })
+    const summary = await app.run("summary", {})
+    assert.equal(summary.counts.assets, COUNT)
+    const units = await app.run("unit.search", { pageSize: 200 })
     assert.equal(units.total, COUNT)
     // Every card can show its picture: the file is known to be an image and has an address.
-    for (const item of units.items) {
+    for (const item of units.units) {
       assert.deepEqual([item.thumb.state, item.thumb.kind, item.thumb.mime, item.thumb.size, item.thumb.sha256], ["ok", "image", "image/png", SIZE, null])
       assert.match(item.thumb.url, /^\/media\/asset\/art%2Fbig-\d\d\.png\?v=[0-9a-f]{16}$/)
       assert.equal(item.thumb.url.split("?v=")[1], item.thumb.version)
     }
-    assert.equal(new Set(units.items.map((item: Any) => item.thumb.version)).size, COUNT, "each file has its own version")
-    const files = await app.run("catalog.search", { section: "assets", pageSize: 200, filters: { state: ["ok"] } })
+    assert.equal(new Set(units.units.map((item: Any) => item.thumb.version)).size, COUNT, "each file has its own version")
+    const files = await app.run("asset.search", { pageSize: 200, filters: { state: ["ok"] } })
     assert.equal(files.total, COUNT)
-    await app.run("catalog.search", { section: "collections" })
-    await app.run("catalog.search", { q: "big 7", filters: { visual: ["icon"], review: ["none"] } })
+    await app.run("collection.search", {})
+    await app.run("unit.search", { q: "big 7", filters: { role: ["icon"], review: ["none"] } })
     await app.run("schema", {})
     await app.run("problems", {})
     await app.run("inbox", {})
-    await app.run("reviews.list", {})
-    await app.run("notes.list", {})
+    await app.run("review.list", {})
+    await app.run("note.list", {})
     await app.run("organization.list", {})
     await app.run("doctor", {})
     // Serving a file is by its version too.
@@ -76,7 +76,7 @@ test(`opening a project with ${COUNT} files of 16 MiB and listing it hashes zero
   assert.ok(Date.now() - started < 20_000, `opening and listing took ${Date.now() - started} ms`)
   // A second process starts from the cached sniffing results and still hashes nothing.
   const restarted = await open(dir)
-  assert.equal(await hashedBy(restarted, () => restarted.run("catalog.search", { pageSize: 200 })), 0)
+  assert.equal(await hashedBy(restarted, () => restarted.run("unit.search", { pageSize: 200 })), 0)
   cleanup(dir)
 })
 
@@ -91,7 +91,7 @@ test("the digest is computed where it is needed, once per version of a file: det
   assert.equal(detail.links[0].asset.sha256, sha("art/big-00.png"))
   assert.equal(await hashedBy(app, () => app.run("unit.get", { id: "armor/big-0" })), 0, "known at this size and time")
   // The list keeps the address it had; it now also knows the digest it was told to compute.
-  const listed = (await app.run("catalog.search", { q: "Big 0" })).items.find((item: Any) => item.id === "armor/big-0")
+  const listed = (await app.run("unit.search", { q: "Big 0" })).units.find((item: Any) => item.id === "armor/big-0")
   assert.equal(listed.thumb.url, detail.links[0].asset.url)
   assert.equal(listed.thumb.sha256, detail.links[0].asset.sha256)
   // One asset's page.
@@ -102,14 +102,14 @@ test("the digest is computed where it is needed, once per version of a file: det
   const review = await app.run("review.get", { submission: submitted.submission.id })
   assert.equal(review.items[0].parts.find((p: Any) => p.id === "icon").evidence.sha256, sha("art/big-10.png"))
   // A waiting review asks nothing of lists.
-  assert.equal(await hashedBy(app, () => app.run("catalog.search", { pageSize: 200 })), 0)
+  assert.equal(await hashedBy(app, () => app.run("unit.search", { pageSize: 200 })), 0)
   // A verdict: "changed since" compares digests, so decided parts are the files a list may hash.
   await run("review.decide", { submission: review.id, item: review.items[0].id, whole: "approved" })
-  assert.equal(await hashedBy(app, () => app.run("catalog.search", { pageSize: 200 })), 0, "the decided file is already hashed")
+  assert.equal(await hashedBy(app, () => app.run("unit.search", { pageSize: 200 })), 0, "the decided file is already hashed")
   large(dir, "art/big-10.png", 200)
   large(dir, "art/big-20.png", 201)
   let after: Any
-  assert.equal(await hashedBy(app, async () => { after = await app.run("catalog.search", { pageSize: 200, filters: { review: ["changed"] } }) }), 1, "only the changed file that has a verdict is read")
+  assert.equal(await hashedBy(app, async () => { after = await app.run("unit.search", { pageSize: 200, filters: { review: ["changed"] } }) }), 1, "only the changed file that has a verdict is read")
   assert.deepEqual(after.ids, ["armor/big-10"])
   assert.deepEqual((await app.run("inbox", {})).changed.map((entry: Any) => entry.target.id), ["armor/big-10"])
   // Reviewing current content compares it with what waits, then freezes it.

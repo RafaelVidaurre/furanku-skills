@@ -2,25 +2,18 @@
 // never pays for the catalog's HTTP stack and the reverse.
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
 import * as NodeServices from "@effect/platform-node/NodeServices"
+import * as CliError from "effect/cli/CliError"
 import * as Command from "effect/cli/Command"
 import * as Flag from "effect/cli/Flag"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
+import * as Runtime from "effect/Runtime"
 import { readFileSync } from "node:fs"
-import { edgeArgs, kernelLayerFor, launcherArgv, reportFailure } from "../kernel/cli.ts"
+import { type CommandGroup, edgeArgs, kernelLayerFor, launcherArgv, reportFailure } from "../kernel/cli.ts"
 import { withJamPlugin, withReviewDesk } from "./compose.ts"
 
-/**
- * What a command group contributes: its commands, and a layer for the services they need beyond
- * the kernel. The layer may require kernel services and may fail with a ToolError.
- */
-export interface CommandGroup {
-  // Commands differ in name and input, so the list is necessarily loosely typed.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly commands: ReadonlyArray<Command.Command<any, any, any, any, any>>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly layer: Layer.Layer<never, any, any> | Layer.Layer<any, any, any>
-}
+export type { CommandGroup } from "../kernel/cli.ts"
 
 // The two groups know nothing of each other; compose.ts gives the catalog its `jam` plugin and the
 // run commands the catalog as their review desk. A step is submitted there under the agent's name
@@ -64,4 +57,8 @@ const program = root.pipe(
   Effect.tapCause((cause) => Effect.sync(() => reportFailure(cause, edge.json, (line) => void process.stderr.write(`${line}\n`))))
 ) as Effect.Effect<void, unknown>
 
-NodeRuntime.runMain(program, { disableErrorReporting: true })
+// A command line the parser refused (an unknown flag, a missing argument) exits 2; any other failure 1.
+const usageError = (exit: Exit.Exit<unknown, unknown>): boolean =>
+  Exit.isFailure(exit) && exit.cause.reasons.some((reason) => reason._tag === "Fail" && CliError.isCliError(reason.error))
+
+NodeRuntime.runMain(program, { disableErrorReporting: true, teardown: (exit, onExit) => (usageError(exit) ? onExit(2) : Runtime.defaultTeardown(exit, onExit)) })

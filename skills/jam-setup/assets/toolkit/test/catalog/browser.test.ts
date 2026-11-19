@@ -42,6 +42,8 @@ const done = async (p: TestPage): Promise<void> => {
 const viewerState = (p: TestPage): Promise<Any> => p.evaluate(() => window.catalogViewer.state())
 const settled = (p: TestPage): Promise<Any> => p.evaluate(() => window.catalogViewer.settled(15000))
 const api = (name: string, input: unknown): Promise<Any> => server.viewer(name, input)
+// The page address of a comparison of frozen evidence with current content.
+const cmp = (submission: string, item: string, part: string) => `cmp=${encodeURIComponent(JSON.stringify({ a: { submission, item, part } }))}`
 
 before(async () => {
   found = await browserOrSkip()
@@ -114,7 +116,7 @@ describe("viewers, agent control and capture", () => {
     assert.deepEqual(v.clips.map((c: Any) => c.name), ["Idle", "Alert"])
     assert.ok(v.textures.length >= 1, "embedded texture discovered")
     assert.ok(v.controls.includes("animation") && v.controls.includes("texture") && v.controls.includes("camera"))
-    assert.equal(o.state.selection.asset.sha256, v.source.sha256)
+    assert.equal(o.state.selection.asset.sha256, v.shows.sha256)
     const c1 = await api("viewer.capture", { session: "t" })
     await api("viewer.control", { session: "t", camera: { position: [0.2, 3, 0.2], target: [0.5, 0.5, 0] }, mode: "wireframe", animation: { clip: "Alert", time: 0.5, playing: false } })
     const st = (await api("viewer.state", { session: "t" })).state.viewer
@@ -135,8 +137,8 @@ describe("viewers, agent control and capture", () => {
     const refused = await api("viewer.capture", { session: "t" }).catch((e) => e)
     assert.equal(refused.code, "unavailable")
     // Evidence capture identifies the frozen submission view.
-    const subs = await app.run("reviews.list", { state: "all" })
-    const rv = await app.run("review.get", { submission: subs.items[0].id })
+    const subs = await app.run("review.list", { state: "all" })
+    const rv = await app.run("review.get", { submission: subs.submissions[0].id })
     const item = rv.items[0]
     await api("viewer.open", { target: { kind: "submission", id: rv.id, item: item.id, view: item.views[0].id }, session: "t" })
     const ce = await api("viewer.capture", { session: "t" })
@@ -156,13 +158,13 @@ describe("viewers, agent control and capture", () => {
       await gate
       await route.continue()
     })
-    await p.goto(`${base}#/content/u/armor%2Fhelm?part=icon`)
+    await p.goto(`${base}#/main/u/armor%2Fhelm?part=icon`)
     await p.waitForFunction(() => window.catalogViewer?.state().viewer)
     assert.equal((await viewerState(p)).viewer.status, "loading")
     release()
     await settled(p)
     assert.equal((await viewerState(p)).viewer.status, "ready")
-    await p.goto(`${base}#/content/u/armor%2Flong?part=icon`)
+    await p.goto(`${base}#/main/u/armor%2Flong?part=icon`)
     await settled(p)
     assert.equal((await viewerState(p)).viewer.status, "error")
     await openNotes(p)
@@ -180,7 +182,7 @@ describe("viewers, agent control and capture", () => {
     assert.equal(await p.inputValue(".note-new textarea"), "Draft about the broken icon")
     assert.equal((await viewerState(p)).selection.part, "icon")
     if (hasFfmpeg) {
-      await p.goto(`${base}#/content/u/armor%2Fhelm?part=clip`)
+      await p.goto(`${base}#/main/u/armor%2Fhelm?part=clip`)
       await settled(p)
       const v = (await viewerState(p)).viewer
       assert.equal(v.kind, "video")
@@ -195,12 +197,12 @@ describe("viewers, agent control and capture", () => {
 describe("comparison", () => {
   it("T16 image compare: unaligned defaults to side by side; divider drag vs tap; toggle by Space keeps framing; fullscreen focus and return", async (t) => {
     if ("skip" in found) return t.skip(found.skip)
-    const subs = await app.run("reviews.list", { state: "all" })
-    const rv = await app.run("review.get", { submission: subs.items[0].id })
+    const subs = await app.run("review.list", { state: "all" })
+    const rv = await app.run("review.get", { submission: subs.submissions[0].id })
     const item = rv.items[0]
     const p = await page()
     // Changed icon with identical dimensions: divider by default.
-    await p.goto(`${base}#/content/u/armor%2Fhelm?cmp=${rv.id}~${item.id}~icon`)
+    await p.goto(`${base}#/main/u/armor%2Fhelm?${cmp(rv.id, item.id, "icon")}`)
     await settled(p)
     assert.equal(await p.getAttribute('.cmp-tools [role="radio"][aria-checked="true"]', "aria-checked"), "true")
     assert.equal(await p.textContent('.cmp-tools [role="radio"][aria-checked="true"]'), "Divider")
@@ -237,7 +239,7 @@ describe("comparison", () => {
     // Unaligned dimensions (64 vs 128 wide concept compared with the icon side is not possible; use asset versions of concept): side by side.
     write(dir, "art/wide.png", png(64, 64, [1, 1, 1, 255]))
     await p.waitForTimeout(2800)
-    await p.goto(`${base}#/content/u/armor%2Fhelm?cmp=${rv.id}~${item.id}~concept:art%2Fwide.png`)
+    await p.goto(`${base}#/main/u/armor%2Fhelm?${cmp(rv.id, item.id, "concept:art/wide.png")}`)
     await settled(p)
     assert.equal(await p.textContent('.cmp-tools [role="radio"][aria-checked="true"]'), "Side by side")
     await shot(p, "compare-unaligned")
@@ -246,11 +248,11 @@ describe("comparison", () => {
 
   it("T17 3D compare: linked cameras; a missing clip on one side shows rest pose explicitly", async (t) => {
     if ("skip" in found) return t.skip(found.skip)
-    const subs = await app.run("reviews.list", { state: "all" })
-    const rv = await app.run("review.get", { submission: subs.items[0].id })
+    const subs = await app.run("review.list", { state: "all" })
+    const rv = await app.run("review.get", { submission: subs.submissions[0].id })
     const item = rv.items[0]
     const p = await page()
-    await p.goto(`${base}#/content/u/armor%2Fhelm?cmp=${rv.id}~${item.id}~model`)
+    await p.goto(`${base}#/main/u/armor%2Fhelm?${cmp(rv.id, item.id, "model")}`)
     await settled(p)
     const canvases = p.locator(".cmp-side canvas")
     assert.equal(await canvases.count(), 2)
@@ -270,13 +272,13 @@ describe("comparison", () => {
     assert.match(note!, /No "Alert" clip · rest pose/)
     await shot(p, "compare-3d")
     // Surface modes and mesh isolation on the standalone viewer.
-    await p.goto(`${base}#/content/u/armor%2Fboots?part=model`)
+    await p.goto(`${base}#/main/u/armor%2Fboots?part=model`)
     await settled(p)
     await p.click('.viewer-tools button:has-text("Clay")')
     assert.equal((await viewerState(p)).viewer.mode, "clay")
     await shot(p, "unit-detail-model-clay")
     // Added for the screenshots only: a textured model in its unit, and a collection with its preview.
-    await p.goto(`${base}#/content/u/armor%2Fhelm?part=model`)
+    await p.goto(`${base}#/main/u/armor%2Fhelm?part=model`)
     await settled(p)
     await shot(p, "unit-detail-model")
     await p.goto(`${base}#/collections/c/outfit%2Firon`)
@@ -290,7 +292,7 @@ describe("keyboard, layout and resources", () => {
   it("T18 shortcuts never steal typing, slider or viewer input; a held approval key records one event and cannot approve the next item", async (t) => {
     if ("skip" in found) return t.skip(found.skip)
     const p = await page()
-    await p.goto(`${base}#/content`)
+    await p.goto(`${base}#/main`)
     await p.waitForSelector(".card")
     await p.click("[data-list-search]")
     await p.keyboard.type("jk/")
@@ -312,7 +314,7 @@ describe("keyboard, layout and resources", () => {
     await p.waitForTimeout(900)
     await p.keyboard.up("a")
     const held = await app.run("review.get", { submission: rv.id })
-    assert.equal(held.events.length, 1, "one activation, one event")
+    assert.equal(held.decisions.length, 1, "one activation, one decision")
     assert.equal(held.items[0].state, "approved")
     assert.equal(held.items[1].state, "undecided", "the next item was not approved")
     assert.ok(p.url().includes(rv.items[1].id), "first verdict advanced to the next waiting item")
@@ -324,7 +326,7 @@ describe("keyboard, layout and resources", () => {
     await p.waitForTimeout(600)
     assert.ok(p.url().includes(rv.items[0].id))
     // Arrow keys inside a focused model viewer do not switch views.
-    const sub1 = (await app.run("reviews.list", { state: "all" })).items.find((x: Any) => x.title === "Helm and boots")
+    const sub1 = (await app.run("review.list", { state: "all" })).submissions.find((x: Any) => x.title === "Helm and boots")
     const r1 = await app.run("review.get", { submission: sub1.id })
     await p.goto(`${base}#/reviews/s/${r1.id}/${r1.items[0].id}`)
     await settled(p)
@@ -338,7 +340,7 @@ describe("keyboard, layout and resources", () => {
 
   it("T14 submission → item → view navigation: view cycling replaces history, item changes push it, Back returns", async (t) => {
     if ("skip" in found) return t.skip(found.skip)
-    const sub1 = (await app.run("reviews.list", { state: "all" })).items.find((x: Any) => x.title === "Helm and boots")
+    const sub1 = (await app.run("review.list", { state: "all" })).submissions.find((x: Any) => x.title === "Helm and boots")
     const rv = await app.run("review.get", { submission: sub1.id })
     const p = await page()
     await p.goto(`${base}#/reviews`)
@@ -367,7 +369,7 @@ describe("keyboard, layout and resources", () => {
     if ("skip" in found) return t.skip(found.skip)
     const p = await page({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, reducedMotion: "reduce" })
     const overflow = () => p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
-    for (const [name, hash] of [["narrow-list", "#/content"], ["narrow-long", "#/content/u/armor%2Flong"], ["narrow-unit", "#/content/u/armor%2Fhelm?part=model"], ["narrow-collection", "#/collections/c/outfit%2Firon"], ["narrow-notes", "#/notes"], ["narrow-reviews", "#/reviews?state=all"]] as const) {
+    for (const [name, hash] of [["narrow-list", "#/main"], ["narrow-long", "#/main/u/armor%2Flong"], ["narrow-unit", "#/main/u/armor%2Fhelm?part=model"], ["narrow-collection", "#/collections/c/outfit%2Firon"], ["narrow-notes", "#/notes"], ["narrow-reviews", "#/reviews?state=all"]] as const) {
       await p.goto(`${base}${hash}`)
       await settled(p)
       await p.waitForTimeout(300)
@@ -376,12 +378,12 @@ describe("keyboard, layout and resources", () => {
       await shot(p, name)
     }
     if (hasFfmpeg) {
-      await p.goto(`${base}#/content/u/armor%2Fhelm?part=clip`)
+      await p.goto(`${base}#/main/u/armor%2Fhelm?part=clip`)
       await settled(p)
       await p.waitForSelector(".viewer-video video", { timeout: 5000 })
       assert.equal(await p.evaluate(() => document.querySelector<HTMLVideoElement>(".viewer-video video")!.autoplay), false)
     }
-    const sub = (await app.run("reviews.list", { state: "all" })).items.find((x: Any) => x.title === "Helm and boots")
+    const sub = (await app.run("review.list", { state: "all" })).submissions.find((x: Any) => x.title === "Helm and boots")
     await p.goto(`${base}#/reviews/s/${sub.id}`)
     await settled(p)
     assert.ok(await overflow() <= 0, "submission view")
@@ -392,7 +394,7 @@ describe("keyboard, layout and resources", () => {
   it("T20 large catalog: bounded pages, one shared thumbnail renderer, rapid selection shows only the final target, changed asset refreshes its thumbnails", async (t) => {
     if ("skip" in found) return t.skip(found.skip)
     const p = await page()
-    await p.goto(`${base}#/content`)
+    await p.goto(`${base}#/main`)
     await p.waitForSelector(".card")
     assert.equal(await p.locator(".grid .card").count(), 60, "first page bounded")
     await settled(p)
@@ -409,14 +411,14 @@ describe("keyboard, layout and resources", () => {
     // WebGL contexts: thumbnails share one offscreen renderer; the page holds no per-card canvases.
     assert.equal(await p.locator(".grid canvas").count(), 0)
     // Rapid selection changes.
-    for (let i = 0; i < 8; i++) await p.evaluate((h) => { location.hash = h }, `#/content/u/armor%2Fbulk-${String(i).padStart(3, "0")}?part=model`)
+    for (let i = 0; i < 8; i++) await p.evaluate((h) => { location.hash = h }, `#/main/u/armor%2Fbulk-${String(i).padStart(3, "0")}?part=model`)
     await settled(p)
     const st = await viewerState(p)
     assert.equal(st.selection.id, "armor/bulk-007")
-    assert.equal(st.viewer.source.unit, "armor/bulk-007")
+    assert.equal(st.viewer.shows.unit, "armor/bulk-007")
     assert.equal(await p.locator(".stage-view canvas").count(), 1, "one live renderer in the stage")
     // Invalidate one asset: thumbnails using it get a new version key; others keep theirs.
-    await p.goto(`${base}#/content?f.tag=`)
+    await p.goto(`${base}#/main?f.tag=`)
     await p.waitForSelector(".card")
     const srcs = () => p.$$eval(".card img", (els) => els.map((e) => e.getAttribute("src")))
     const s1 = await srcs()
@@ -435,7 +437,7 @@ describe("keyboard, layout and resources", () => {
   it("T05 Back from a detail restores the filtered page and its scroll position (narrow)", async (t) => {
     if ("skip" in found) return t.skip(found.skip)
     const p = await page({ viewport: { width: 390, height: 844 } })
-    await p.goto(`${base}#/content?q=bulk&page=2`)
+    await p.goto(`${base}#/main?q=bulk&page=2`)
     await p.waitForSelector(".card")
     await p.evaluate(() => { document.querySelector(".list-pane")!.scrollTop = 900 })
     await p.waitForTimeout(200)
@@ -452,14 +454,14 @@ describe("keyboard, layout and resources", () => {
     assert.ok(p.url().includes("/u/"))
     let release: () => void = () => undefined
     const gate = new Promise<void>((resolve) => { release = resolve })
-    await p.route("**/api/run/catalog.search", async (route) => {
+    await p.route("**/api/run/unit.search", async (route) => {
       const input = route.request().postDataJSON().input
       if (input.q === "bulk" && input.page === 2) await gate
       await route.continue()
     })
     try {
       await p.goBack()
-      await p.getByRole("status").filter({ hasText: "Loading content" }).waitFor()
+      await p.getByRole("status").filter({ hasText: "Loading main" }).waitFor()
       assert.equal(await p.locator(".card").count(), 0)
     } finally {
       release()
@@ -477,13 +479,13 @@ describe("keyboard, layout and resources", () => {
   it("T15/T02 drafts survive navigation and a lost save response; retry records once; a branch switch pauses saving and keeps the draft", async (t) => {
     if ("skip" in found) return t.skip(found.skip)
     const p = await page()
-    await p.goto(`${base}#/content/u/armor%2Fboots`)
+    await p.goto(`${base}#/main/u/armor%2Fboots`)
     await settled(p)
     await openNotes(p)
     await p.fill(".note-new textarea", "Kept across navigation")
-    await p.goto(`${base}#/content/u/armor%2Fhelm`)
+    await p.goto(`${base}#/main/u/armor%2Fhelm`)
     await settled(p)
-    await p.goto(`${base}#/content/u/armor%2Fboots`)
+    await p.goto(`${base}#/main/u/armor%2Fboots`)
     await settled(p)
     await openNotes(p)
     assert.equal(await p.inputValue(".note-new textarea"), "Kept across navigation")
@@ -503,7 +505,7 @@ describe("keyboard, layout and resources", () => {
     assert.equal(await p.inputValue(".note-new textarea"), "Kept across navigation", "text kept after failure")
     await p.click('.note-new .errline button:has-text("Retry")')
     await p.waitForTimeout(800)
-    const notes = (await app.run("notes.list", { target: { kind: "unit", id: "armor/boots" } })).notes.filter((n: Any) => n.body === "Kept across navigation")
+    const notes = (await app.run("note.list", { target: { kind: "unit", id: "armor/boots" } })).notes.filter((n: Any) => n.body === "Kept across navigation")
     assert.equal(notes.length, 1, "recorded once")
     // Application reload keeps an unsaved draft.
     await openNotes(p)
@@ -577,7 +579,7 @@ describe("before/after review views", () => {
     let st = await viewerState(p)
     assert.equal(st.viewer.kind, "compare")
     assert.equal(st.viewer.status, "ready")
-    assert.equal(st.viewer.source.view, icon.id)
+    assert.equal(st.viewer.shows.view, icon.id)
     assert.deepEqual(st.viewer.sides.map((x: Any) => x.sha256), [icon.before.sha256, item.parts.find((x: Any) => x.id === "icon").evidence.sha256])
     assert.equal(st.selection.before.label, "Blue")
     assert.equal(await p.textContent('.stage .cmp-tools [role="radio"][aria-checked="true"]'), "Divider", "same-size images open on the divider")

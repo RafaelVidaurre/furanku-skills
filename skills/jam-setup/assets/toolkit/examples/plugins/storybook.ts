@@ -1,19 +1,19 @@
 // An example catalog plugin that uses every extension point. It catalogs a small story: scenes and
 // the characters in them, read from two JSON files, with caption files as a media kind of its own.
 //
-// To use it in a project, copy this file (with storyboard.mjs and storybook.views.js) into the project, for example to
-// catalog/storybook.ts, point the import below at the toolkit's src/catalog/plugin.ts, and list it
-// in catalog.config.json:
+// To use it in a project, copy this file (with storyboard.mjs and storybook.web.js) into the
+// project, for example to catalog/storybook.ts, point the import below at the toolkit's stable
+// entry (`../tools/jam/catalog-plugin.ts`), and list it in catalog.config.json:
 //
-//   { "version": 2, "plugins": ["./catalog/storybook.ts"],
-//     "options": { "storybook": { "folder": "story" } },
+//   { "version": 3,
+//     "plugins": [{ "plugin": "./catalog/storybook.ts", "options": { "folder": "story" } }],
 //     "review": { "resolver": "human-first" } }
 //
 // Project files it reads (all under the `folder` option, default "story"):
 //   scenes.json      [{ "id", "title", "summary?", "characters": ["id"], "image?", "captions?" }]
 //   characters.json  [{ "id", "name", "portrait?" }]
 //   order.json       ["scene id", …]   the running order; the doctor check keeps it complete
-import { type CheckProblem, defineAction, definePlugin, Effect, type PluginContext, Schema, type UnitInput } from "../../src/catalog/plugin.ts"
+import { type CheckProblem, defineAction, definePlugin, defineSource, defineType, Effect, optional, type PluginContext, Schema, type UnitInput } from "../../catalog-plugin.ts"
 
 interface Scene {
   readonly id: string
@@ -34,7 +34,7 @@ const readList = async <A>(context: PluginContext, file: string): Promise<Readon
   const path = `${folder(context)}/${file}`
   return (await context.files.exists(path)) ? ((await context.files.readJson(path)) as ReadonlyArray<A>) : []
 }
-const sceneUnit = (scene: Scene, source: string): UnitInput => ({
+const sceneUnit = (scene: Scene, file: string): UnitInput => ({
   id: `scene/${scene.id}`,
   type: "scene",
   name: scene.title,
@@ -44,7 +44,7 @@ const sceneUnit = (scene: Scene, source: string): UnitInput => ({
     // `meta` carries per-link data the viewer may show; it is never part of a verdict.
     ...(scene.captions ? [{ role: "captions", asset: scene.captions, meta: { language: "en" } }] : [])
   ],
-  sources: [source]
+  sources: [file]
 })
 
 /** The start time, in seconds, of each cue in a WebVTT file. */
@@ -54,7 +54,7 @@ const cueStarts = (text: string): Array<number> =>
 export default definePlugin({
   name: "storybook",
 
-  // Two top-level groups instead of the default content/assets split.
+  // Two top-level groups instead of the default main/material split.
   scopes: [
     { id: "story", label: "Story", description: "Scenes in running order" },
     { id: "cast", label: "Cast", description: "Characters that appear in scenes" }
@@ -62,31 +62,31 @@ export default definePlugin({
 
   // Each source is reloaded only when one of its own inputs changed.
   sources: [
-    {
+    defineSource({
       name: "scenes",
       inputs: (context) => [`${folder(context)}/scenes.json`],
       load: async (context) => ({
         project: "Storybook",
         assetRoots: [folder(context)],
         types: {
-          scene: {
+          scene: defineType({
             label: "Scene",
             scope: "story",
             fields: [{ key: "summary", label: "Summary" }, { key: "characters", label: "Characters", kind: "refs" }, { key: "position", label: "Position", derived: true }],
-            roles: [{ key: "image", label: "Image", kinds: ["image"], expected: true }, { key: "captions", label: "Captions", kinds: ["captions"] }],
-            // Browser modules mounted per scene: an inspector in its visual strip and a sidebar section.
-            views: [{ key: "beats", label: "Beats", module: "storybook", export: "beats", help: "The scene's cast; highlight one" }],
+            roles: [{ key: "image", label: "Image", mediaKinds: ["image"], expected: true }, { key: "captions", label: "Captions", mediaKinds: ["captions"] }],
+            // Browser modules mounted per scene: an inspector in its media strip and a sidebar section.
+            inspectors: [{ key: "beats", label: "Beats", module: "storybook", export: "beats", help: "The scene's cast; highlight one" }],
             panels: [{ key: "placement", label: "Running order", module: "storybook", export: "placement" }]
-          }
+          })
         },
         units: (await readList<Scene>(context, "scenes.json")).map((scene) => sceneUnit(scene, `${folder(context)}/scenes.json`))
       })
-    },
-    {
+    }),
+    defineSource({
       name: "characters",
       inputs: (context) => [`${folder(context)}/characters.json`],
       load: async (context) => ({
-        types: { character: { label: "Character", scope: "cast", fields: [], roles: [{ key: "portrait", label: "Portrait", kinds: ["image"] }] } },
+        types: { character: { label: "Character", scope: "cast", fields: [], roles: [{ key: "portrait", label: "Portrait", mediaKinds: ["image"] }] } },
         units: (await readList<Character>(context, "characters.json")).map((character): UnitInput => ({
           id: `character/${character.id}`,
           type: "character",
@@ -95,7 +95,7 @@ export default definePlugin({
           sources: [`${folder(context)}/characters.json`]
         }))
       })
-    }
+    })
   ],
 
   // After the sources merge: file every unit under a category and number the scenes. `position`
@@ -127,7 +127,7 @@ export default definePlugin({
   probes: [{
     name: "captions",
     version: "1",
-    kinds: ["captions"],
+    mediaKinds: ["captions"],
     fields: [{ key: "cues", label: "Cues" }, { key: "lastCue", label: "Last cue starts", unit: "s" }],
     measure: (file, context) =>
       Effect.map(Effect.promise(() => context.files.readText(file.path)), (text) => {
@@ -165,16 +165,18 @@ export default definePlugin({
   actions: [
     defineAction({
       name: "storybook.outline",
-      kind: "read",
+      access: "read",
       description: "Scenes in running order with their characters; optionally only those a character appears in",
-      input: Schema.Struct({ character: Schema.optionalKey(Schema.String) }),
+      input: Schema.Struct({ character: optional(Schema.String) }),
+      // Published as the action's output; the tests decode every result against it.
+      output: Schema.Struct({ scenes: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String, characters: Schema.Array(Schema.String) })) }),
       run: async (input, context) => {
         const order = await readList<string>(context, "order.json")
         const scenes = await readList<Scene>(context, "scenes.json")
         const position = (scene: Scene): number => (order.includes(scene.id) ? order.indexOf(scene.id) : order.length)
         return {
           scenes: [...scenes]
-            .filter((scene) => input.character === undefined || (scene.characters ?? []).includes(input.character))
+            .filter((scene) => input.character == null || (scene.characters ?? []).includes(input.character))
             .sort((a, b) => position(a) - position(b))
             .map((scene) => ({ id: scene.id, title: scene.title, characters: scene.characters ?? [] }))
         }
@@ -182,23 +184,25 @@ export default definePlugin({
     }),
     defineAction({
       name: "storybook.flag",
-      kind: "write",
+      access: "write",
       description: "Leave a note on a scene for whoever edits it next",
       input: Schema.Struct({ scene: Schema.String, reason: Schema.String }),
-      // A write goes through the catalog's own actions, so the note is a normal catalog record.
-      run: (input, context) => context.run("note.create", { target: { kind: "unit", id: `scene/${input.scene}` }, body: `Flagged: ${input.reason}` })
+      // A write goes through the catalog's own actions, so the note is a normal catalog record. Its
+      // context has the declared actor (a read's has none).
+      run: (input, context) => context.run("note.create", { target: { kind: "unit", id: `scene/${input.scene}` }, body: `Flagged by ${context.actor.name}: ${input.reason}` })
     })
   ],
 
   // Selected with "review": { "resolver": "human-first" }: an agent's verdict never overrides a person's.
   resolvers: {
-    "human-first": (events) => events.findLast((event) => event.by.kind === "human") ?? events.at(-1) ?? null
+    "human-first": (decisions) => decisions.findLast((decision) => decision.by.kind === "human") ?? decisions.at(-1) ?? null
   },
 
-  // A browser module a collection kind can name as its preview (`preview.module`).
-  previews: { storyboard: "catalog/storyboard.mjs" },
-
-  // The module of the scene type's views and panels. It ships beside this plugin, wherever the
-  // plugin is installed, so it is declared as a file: URL.
-  views: { storybook: new URL("./storybook.views.js", import.meta.url).href }
+  // Browser modules for the page, in one namespace: a collection preview a collection kind can name
+  // (`preview.module`), a project file; and the module of the scene type's inspectors and panels,
+  // which ships beside this plugin wherever it is installed, so it is declared as a file: URL.
+  browserModules: {
+    storyboard: "catalog/storyboard.mjs",
+    storybook: new URL("./storybook.web.js", import.meta.url).href
+  }
 })

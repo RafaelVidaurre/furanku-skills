@@ -12,6 +12,7 @@ import { join } from "node:path"
 import { after, before, describe, it } from "node:test"
 import { fileURLToPath } from "node:url"
 import type { Browser, BrowserContextOptions } from "playwright"
+import { definePlugin } from "../../src/catalog/plugin.ts"
 import { type App, cleanup, git, glb, human, makeProject, png, read, W, write } from "./helpers.ts"
 import { browserOrSkip, newPage, screenshots, startServer, type TestPage, type TestServer, withTexture } from "./server.ts"
 
@@ -25,6 +26,9 @@ let browser: Browser
 let base: string
 let found: Awaited<ReturnType<typeof browserOrSkip>>
 const unit = (id: string) => ({ kind: "unit", id })
+const cmp = (submission: string, item: string, part: string) => `cmp=${encodeURIComponent(JSON.stringify({ a: { submission, item, part } }))}`
+// The project's preview module, declared by a plugin of the project.
+const lineup = definePlugin({ name: "lineup", browserModules: { lineup: "previews/lineup.mjs" } })
 
 const page = (opts: BrowserContextOptions = {}): Promise<TestPage> => newPage(browser, { viewport: { width: 1440, height: 900 }, ...opts })
 const done = async (p: TestPage): Promise<void> => {
@@ -68,14 +72,14 @@ before(async () => {
   })
   mkdirSync(join(dir, "previews"), { recursive: true })
   copyFileSync(LINEUP, join(dir, "previews/lineup.mjs"))
-  write(dir, "catalog.config.json", { version: 1, adapter: "manifest", previewModules: { lineup: "./previews/lineup.mjs" } })
+  write(dir, "catalog.config.json", { version: 3, plugins: ["manifest", "lineup"] })
   execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=s=160x120:d=1:r=12", "-pix_fmt", "yuv420p", "-c:v", "libx264", join(dir, "art/clip.mp4")])
   const helm = read(dir, "content/armor_helm.json")
   helm.links.push({ role: "clip", asset: "art/clip.mp4" })
   write(dir, "content/armor_helm.json", helm)
   git(dir, "add", "-A")
   git(dir, "commit", "-q", "-m", "initial")
-  server = await startServer(dir)
+  server = await startServer(dir, { plugins: { lineup } })
   app = server.app
   base = server.url
 })
@@ -89,16 +93,16 @@ describe("selection integrity", () => {
   it("P2 explicit missing parts, views, items and members are errors for people and agents; empty selections default", async (t) => {
     if ("skip" in found) return t.skip(found.skip)
     const p = await page()
-    await p.goto(`${base}#/content/u/armor%2Fhelm?part=nope`)
+    await p.goto(`${base}#/main/u/armor%2Fhelm?part=nope`)
     await settled(p)
     const st = await state(p)
     assert.equal(st.selection.unavailable, true)
     assert.equal(st.viewer.status, "error")
-    assert.match((await p.textContent(".stage-view"))!, /No visual part "nope"/)
+    assert.match((await p.textContent(".stage-view"))!, /No media part or inspector "nope"/)
     await shot(p, "missing-part")
-    await p.goto(`${base}#/content/u/armor%2Fhelm`)
+    await p.goto(`${base}#/main/u/armor%2Fhelm`)
     await settled(p)
-    assert.equal((await state(p)).selection.part, "icon", "no selection chooses the first visual")
+    assert.equal((await state(p)).selection.part, "icon", "no selection chooses the first media part")
     await p.goto(`${base}#/collections/c/row%2Firon/armor%2Fghost`)
     await settled(p)
     assert.equal((await state(p)).selection.unavailable, true)
@@ -119,7 +123,7 @@ describe("selection integrity", () => {
     const refused = await api("viewer.capture", { session: "p2" }).catch((e) => e)
     assert.equal(refused.code, "unavailable")
     const okOpen = await api("viewer.open", { target: { kind: "unit", id: "armor/helm", part: "model" }, session: "p2" })
-    assert.equal(okOpen.state.viewer.source.part, "model")
+    assert.equal(okOpen.state.viewer.shows.part, "model")
     const cap = await api("viewer.capture", { session: "p2" })
     assert.equal(cap.shows.part, "model")
     assert.equal(cap.shows.sha256, okOpen.state.selection.asset.sha256)
@@ -135,8 +139,8 @@ describe("project preview modules", () => {
     await settled(p)
     const v = (await state(p)).viewer
     assert.equal(v.status, "ready")
-    assert.equal(v.source.module, "lineup")
-    assert.equal(v.source.spacing, 1.75, "declared config reached the module")
+    assert.equal(v.shows.module, "lineup")
+    assert.equal(v.shows.spacing, 1.75, "declared config reached the module")
     assert.equal(v.files.models.length, 2)
     assert.equal(v.files.ghosts.length, 2)
     assert.ok(v.files.ghosts.every((u: string) => u.includes("stand.glb")), "declared base dependency loaded")
@@ -159,14 +163,14 @@ describe("project preview modules", () => {
     // This is already the current URL: goto would leave refresh to the visibility-
     // sensitive 2.5-second poll. Reload to fetch the edited fixture deterministically.
     await p.reload()
-    await p.waitForFunction(() => window.catalogViewer?.state().viewer?.source?.spacing === 3)
+    await p.waitForFunction(() => window.catalogViewer?.state().viewer?.shows?.spacing === 3)
     await settled(p)
-    assert.equal((await state(p)).viewer.source.spacing, 3)
+    assert.equal((await state(p)).viewer.shows.spacing, 3)
     await p.goto(`${base}#/reviews/s/${rv.id}/${rv.items[0].id}`)
     await settled(p)
     const fv = (await state(p)).viewer
     assert.equal(fv.status, "ready")
-    assert.equal(fv.source.spacing, 1.75, "frozen config")
+    assert.equal(fv.shows.spacing, 1.75, "frozen config")
     assert.ok(fv.files.ghosts.every((u: string) => u.includes("/media/evidence/") && u.includes("leaf=base")), "frozen base bytes, not current")
     assert.ok(fv.files.models.every((u: string) => u.includes("/media/evidence/")))
     const c = await app.run("evidence.compare", { a: { submission: rv.id, item: rv.items[0].id, part: "preview" }, b: "current" })
@@ -262,7 +266,7 @@ describe("interaction coverage", () => {
   it("T07 notes in the UI: edit, deal with an explanation, reopen and clear", async (t) => {
     if ("skip" in found) return t.skip(found.skip)
     const p = await page()
-    await p.goto(`${base}#/content/u/armor%2Fboots`)
+    await p.goto(`${base}#/main/u/armor%2Fboots`)
     await settled(p)
     await p.locator(".disclosure > summary").filter({ hasText: /^Notes/ }).click()
     await p.fill(".note-new textarea", "Toe cap too round")
@@ -280,7 +284,7 @@ describe("interaction coverage", () => {
     await p.fill(".resolve input", "Squared in v2")
     await p.click(".resolve button")
     await p.waitForSelector('.block[aria-label="Notes"] details summary:has-text("Dealt with")')
-    const n = (await app.run("notes.list", { state: "all", target: unit("armor/boots") })).notes[0]
+    const n = (await app.run("note.list", { state: "all", target: unit("armor/boots") })).notes[0]
     assert.equal(n.body, "Toe cap too round at 10 m")
     assert.equal(n.resolved.explanation, "Squared in v2")
     await p.click('.block[aria-label="Notes"] details summary')
@@ -294,14 +298,14 @@ describe("interaction coverage", () => {
     await open.locator('button[aria-label="Clear note"]').click()
     await open.locator('button:has-text("Clear")').click()
     await p.waitForFunction(() => !document.body.textContent!.includes("at 10 m"))
-    assert.equal((await app.run("notes.list", { state: "all", target: unit("armor/boots") })).total, 0)
+    assert.equal((await app.run("note.list", { state: "all", target: unit("armor/boots") })).total, 0)
     await done(p)
   })
 
   it("T17 texture inspection and mesh isolation through the visible controls", async (t) => {
     if ("skip" in found) return t.skip(found.skip)
     const p = await page()
-    await p.goto(`${base}#/content/u/armor%2Fhelm?part=model`)
+    await p.goto(`${base}#/main/u/armor%2Fhelm?part=model`)
     await settled(p)
     const v0 = (await state(p)).viewer
     assert.ok(v0.textures.length >= 1 && v0.meshes.length === 2)
@@ -321,7 +325,7 @@ describe("interaction coverage", () => {
   it("T18 shortcuts are ignored while a video control has focus", async (t) => {
     if ("skip" in found) return t.skip(found.skip)
     const p = await page()
-    await p.goto(`${base}#/content/u/armor%2Fhelm?part=clip`)
+    await p.goto(`${base}#/main/u/armor%2Fhelm?part=clip`)
     await settled(p)
     const url = p.url()
     await p.focus(".viewer-video video")
@@ -336,7 +340,7 @@ describe("interaction coverage", () => {
     const rv = await app.run("review.get", { submission: s.submission.id })
     write(dir, "art/helm.png", png(64, 64, [10, 10, 10, 255]))
     const p = await page({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
-    await p.goto(`${base}#/content/u/armor%2Fhelm?cmp=${rv.id}~${rv.items[0].id}~icon`)
+    await p.goto(`${base}#/main/u/armor%2Fhelm?${cmp(rv.id, rv.items[0].id, "icon")}`)
     await settled(p)
     await p.waitForSelector(".slider")
     const box = (await p.locator(".slider").boundingBox())!
@@ -379,7 +383,7 @@ describe("interaction coverage", () => {
       await gate
       await route.continue()
     })
-    await p.goto(`${base}#/content/u/armor%2Fboots?cmp=${rv.id}~${rv.items[0].id}~icon`)
+    await p.goto(`${base}#/main/u/armor%2Fboots?${cmp(rv.id, rv.items[0].id, "icon")}`)
     await p.waitForFunction(() => window.catalogViewer.state().viewer?.kind === "compare")
     assert.equal((await state(p)).viewer.status, "loading")
     assert.equal(await p.evaluate(() => window.catalogViewer.settled(800)), false, "not settled while a side is loading")
@@ -392,11 +396,11 @@ describe("interaction coverage", () => {
     await done(p)
   })
 
-  it("T03/T04 refresh changes only affected state; an adapter variant change keeps the selected part, camera, draft and targets", async (t) => {
+  it("T03/T04 refresh changes only affected state; a project variant change keeps the selected part, camera, draft and targets", async (t) => {
     if ("skip" in found) return t.skip(found.skip)
     const p = await page()
     await W(app, human)("review.decideCurrent", { target: unit("armor/helm"), whole: "approved" })
-    await p.goto(`${base}#/content/u/armor%2Fhelm?part=model`)
+    await p.goto(`${base}#/main/u/armor%2Fhelm?part=model`)
     await settled(p)
     await p.evaluate(() => window.catalogViewer.control({ camera: { position: [2, 1, 2], target: [0.5, 0.5, 0] } }))
     await p.locator(".disclosure > summary").filter({ hasText: /^Notes/ }).click()
@@ -407,13 +411,13 @@ describe("interaction coverage", () => {
     await settled(p)
     const same = (await state(p)).viewer
     assert.deepEqual(same.camera, before.camera, "camera untouched")
-    assert.equal(same.source.sha256, before.source.sha256)
+    assert.equal(same.shows.sha256, before.shows.sha256)
     assert.equal(await p.inputValue(".note-new textarea"), "Draft during refresh")
     // Variant change in the project data: the model role now points at another asset.
     const helm = read(dir, "content/armor_helm.json")
     helm.links = helm.links.map((l: Any) => (l.role === "model" ? { role: "model", asset: "art/helm_variant.glb" } : l))
     write(dir, "content/armor_helm.json", helm)
-    await p.waitForFunction(() => window.catalogViewer.state().viewer?.source?.asset === "art/helm_variant.glb", null, { timeout: 8000 })
+    await p.waitForFunction(() => window.catalogViewer.state().viewer?.shows?.asset === "art/helm_variant.glb", null, { timeout: 8000 })
     await settled(p)
     const st = await state(p)
     assert.equal(st.selection.part, "model")

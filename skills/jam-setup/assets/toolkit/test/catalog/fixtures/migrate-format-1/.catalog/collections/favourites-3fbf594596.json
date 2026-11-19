@@ -1,0 +1,30 @@
+{
+  "id": "favourites",
+  "name": "Favourites",
+  "kind": "outfit",
+  "category": null,
+  "tags": [
+    "shortlist"
+  ],
+  "members": [
+    {
+      "unit": "armor/helm"
+    },
+    {
+      "unit": "armor/coat",
+      "count": 2
+    }
+  ],
+  "revision": 1,
+  "createdBy": {
+    "name": "Rae Tester",
+    "kind": "human"
+  },
+  "createdAt": "2026-11-17T13:02:56.583Z",
+  "requestId": "rq-collection",
+  "requestBinding": {
+    "action": "collection.create",
+    "digest": "09009970113572fa19912f2f3968a210f4a5871e9c8d7de41a363eb49718387d",
+    "context": "ff52585e9d24:main"
+  }
+}

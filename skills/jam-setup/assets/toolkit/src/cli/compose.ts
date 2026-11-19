@@ -6,13 +6,12 @@ import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import type * as Scope from "effect/Scope"
-import type { Catalog } from "../catalog/Catalog.ts"
+import type { Catalog, CatalogDiagnostics } from "../catalog/Catalog.ts"
 import type { Plugin } from "../catalog/plugin.ts"
 import type { RunCatalog } from "../jam/catalog/RunCatalog.ts"
 import type { JamCore, JamServices } from "../jam/layers.ts"
 import type { ReviewDesk } from "../jam/runs/ReviewDesk.ts"
-import type { Kernel } from "../kernel/cli.ts"
-import type { CommandGroup } from "./main.ts"
+import type { CommandGroup, Kernel } from "../kernel/cli.ts"
 
 /** The name the review desk submits under when the caller gives none. */
 const AGENT = "jam"
@@ -60,7 +59,7 @@ const jamDefaults: Effect.Effect<ReadonlyArray<string> | undefined, never, Kerne
 })
 
 /** The catalog with the `jam` plugin, for code that is not the command line. */
-export const catalogWithJam: Layer.Layer<Catalog, never, Kernel> = Layer.unwrap(Effect.gen(function*() {
+export const catalogWithJam: Layer.Layer<Catalog | CatalogDiagnostics, never, Kernel> = Layer.unwrap(Effect.gen(function*() {
   const plugin = yield* jamPlugin(yield* ledgerOver(jamCore))
   const { Catalog } = yield* Effect.promise(() => import("../catalog/Catalog.ts"))
   const defaults = yield* jamDefaults

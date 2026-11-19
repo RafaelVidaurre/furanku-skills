@@ -11,6 +11,7 @@ import { decode } from "../../kernel/decode.ts"
 import { type ErrorCode, fail, type ToolError, toolError } from "../../kernel/errors.ts"
 import { sha256 } from "../../kernel/hash.ts"
 import { nowIso } from "../../kernel/Ids.ts"
+import { CatalogOutputCheck, checkOutput } from "../Actions.ts"
 import { Catalog } from "../Catalog.ts"
 import { assetRoute, collectionRoute, reviewRoute, unitRoute } from "../routes.ts"
 import { VIEWER_ACTIONS, type ViewerOpen, type ViewerTarget } from "../viewerActions.ts"
@@ -39,7 +40,8 @@ interface ViewerState {
     readonly kind?: string | null
     readonly status?: string
     readonly error?: string | null
-    readonly source?: { readonly part?: string; readonly view?: string; readonly sha256?: string | null } & Record<string, unknown>
+    /** The identity of what the viewer shows. */
+    readonly shows?: { readonly part?: string; readonly view?: string; readonly sha256?: string | null } & Record<string, unknown>
   } | null
 }
 interface PageGlobal {
@@ -48,7 +50,8 @@ interface PageGlobal {
     readonly booted?: boolean
     settled(timeout: number): Promise<boolean>
     state(): ViewerState
-    control(command: unknown): unknown
+    /** A viewer's answer to a command, or the refusal it threw (see web/controller.js). */
+    control(command: unknown): Promise<{ readonly ok: true; readonly result: unknown } | { readonly ok: false; readonly code: string; readonly error: string; readonly details?: unknown }>
     /** How the active viewer's media kind describes a capture of it. */
     capture(): { readonly renderer: string; readonly blocked: string | null }
   }
@@ -62,13 +65,15 @@ interface Session {
 
 type Input = Readonly<Record<string, unknown>>
 const SETTLE_MS = 20_000
+const ERROR_CODES: ReadonlyArray<ErrorCode> = ["invalid", "not_found", "conflict", "checkout_changed", "locked", "unsupported", "malformed", "forbidden", "unavailable", "internal"]
 const sessionOf = (input: Input): string => (typeof input["session"] === "string" ? input["session"] : "default")
 
 const query = (target: ViewerTarget): string => {
   const params = new URLSearchParams()
   if (target.part) params.set("part", target.part)
   if (target.view) params.set("view", target.view)
-  if (target.compare) params.set("cmp", target.compare)
+  // The page's address carries a comparison as the object evidence.compare takes.
+  if (target.compare) params.set("cmp", JSON.stringify(target.compare))
   const text = params.toString()
   return text === "" ? "" : `?${text}`
 }
@@ -77,16 +82,16 @@ const query = (target: ViewerTarget): string => {
 const identityProblem = (target: Record<string, unknown> | null, state: ViewerState): string | null => {
   if (!target) return null
   const selection = state.selection ?? {}
-  const source = state.viewer?.source ?? {}
+  const shows = state.viewer?.shows ?? {}
   if (target["compare"]) return state.viewer?.kind === "compare" ? null : "view (no comparison is open)"
   if (target["kind"] === "unit") {
-    if (selection.kind !== "unit" || selection.id !== target["id"]) return "content unit"
-    if (target["part"] && (selection.part !== target["part"] || source.part !== target["part"])) return "part"
-    if (source.sha256 && selection.asset?.sha256 && source.sha256 !== selection.asset.sha256) return "asset version"
+    if (selection.kind !== "unit" || selection.id !== target["id"]) return "unit"
+    if (target["part"] && (selection.part !== target["part"] || shows.part !== target["part"])) return "part"
+    if (shows.sha256 && selection.asset?.sha256 && shows.sha256 !== selection.asset.sha256) return "asset version"
   }
   if (target["kind"] === "submission") {
     if (selection.submission !== target["id"] || selection.item !== target["item"]) return "submission item"
-    if (target["view"] && (selection.view !== target["view"] || source.view !== target["view"])) return "evidence view"
+    if (target["view"] && (selection.view !== target["view"] || shows.view !== target["view"])) return "evidence view"
   }
   if (target["kind"] === "collection" && selection.kind === "collection" && selection.id !== target["id"]) return "collection"
   if (target["kind"] === "asset" && selection.id !== target["id"]) return "asset"
@@ -104,6 +109,7 @@ export class Renderer extends Context.Service<Renderer, {
       Effect.gen(function*() {
         const catalog = yield* Catalog
         const address = yield* PageAddress
+        const checked = yield* CatalogOutputCheck
         const sessions = new Map<string, Session>()
         // One action at a time: a page is a single thread of navigation and state.
         const turn = yield* Semaphore.make(1)
@@ -157,8 +163,8 @@ export class Renderer extends Context.Service<Renderer, {
             if (target.kind === "asset") return `${assetRoute(target.id)}${query(target)}`
             // A unit is shown under its scope; one the catalog does not know is opened anyway, so
             // the page can say it is not available.
-            const schema = (yield* catalog.run("schema", {})) as { readonly scopes: ReadonlyArray<{ readonly id: string }>; readonly unitScopes: Readonly<Record<string, string>> }
-            return `${unitRoute(schema.unitScopes[target.id] ?? schema.scopes[0]?.id ?? "content", target.id)}${query(target)}`
+            const schema = yield* catalog.run("schema")
+            return `${unitRoute(schema.unitScopes[target.id] ?? schema.scopes[0]?.id ?? "main", target.id)}${query(target)}`
           })
 
         const open = (input: typeof ViewerOpen.Type, name: string) =>
@@ -182,11 +188,9 @@ export class Renderer extends Context.Service<Renderer, {
           Effect.gen(function*() {
             const session = yield* existing(name)
             const { session: _session, ...command } = input
-            const outcome = (yield* onPage("the control could not be applied", () => session.page.evaluate((cmd) => (globalThis as unknown as PageGlobal).catalogViewer.control(cmd), command as never))) as
-              | { readonly error?: string; readonly code?: ErrorCode; readonly details?: unknown }
-              | null
-              | undefined
-            if (outcome?.error) return yield* fail(outcome.code ?? "unsupported", outcome.error, { details: outcome.details })
+            const outcome = yield* onPage("the control could not be applied", () => session.page.evaluate((cmd) => (globalThis as unknown as PageGlobal).catalogViewer.control(cmd), command as never))
+            // A refusal carries the code its viewer threw; one that is not an error code reads as `invalid`.
+            if (!outcome.ok) return yield* fail(ERROR_CODES.includes(outcome.code as ErrorCode) ? (outcome.code as ErrorCode) : "invalid", outcome.error, { details: outcome.details })
             if (command["select"] && typeof command["select"] === "object" && session.target) Object.assign(session.target, command["select"])
             return { session: name, state: yield* settled(session.page), pageErrors: session.errors.splice(0) }
           })
@@ -199,7 +203,7 @@ export class Renderer extends Context.Service<Renderer, {
             if (state.selection?.unavailable) return yield* fail("unavailable", `the selection is not available (${state.selection.error}); nothing was captured`, { details: { state } })
             const mismatch = identityProblem(session.target, state)
             if (mismatch !== null) {
-              return yield* fail("conflict", `viewer shows a different ${mismatch} than requested; nothing was captured`, { details: { requested: session.target, selection: state.selection, source: state.viewer?.source ?? {} } })
+              return yield* fail("conflict", `viewer shows a different ${mismatch} than requested; nothing was captured`, { details: { requested: session.target, selection: state.selection, shows: state.viewer?.shows ?? {} } })
             }
             const unready = (reason: string) => fail("unavailable", `viewer is not showing ready media (${reason}); nothing was captured`, { details: { state } })
             if (state.viewer?.status !== "ready") return yield* unready(`${state.viewer?.status ?? "nothing selected"}${state.viewer?.error ? `: ${state.viewer.error}` : ""}`)
@@ -220,7 +224,7 @@ export class Renderer extends Context.Service<Renderer, {
               sha256: digest,
               width: Math.round(shot.box?.width ?? 0),
               height: Math.round(shot.box?.height ?? 0),
-              shows: state.viewer.source,
+              shows: state.viewer.shows,
               // A catalog render of the loaded media, not a screenshot of the running project.
               renderer: `${described.renderer}, headless Chromium`,
               state
@@ -243,11 +247,16 @@ export class Renderer extends Context.Service<Renderer, {
             if (!definition) return yield* fail("not_found", `unknown viewer action ${action}`)
             const decoded = (yield* (decode(definition.input, { what: `input of ${action}` })(input ?? {}) as Effect.Effect<unknown, ToolError>)) as Input
             const name = sessionOf(decoded)
-            if (action === "viewer.open") return yield* open(decoded as unknown as typeof ViewerOpen.Type, name)
-            if (action === "viewer.close") return yield* close(name)
-            if (action === "viewer.state") return { session: name, state: yield* stateOf((yield* existing(name)).page) }
-            if (action === "viewer.control") return yield* control(decoded, name)
-            return yield* capture(name)
+            const result: unknown = action === "viewer.open"
+              ? yield* open(decoded as unknown as typeof ViewerOpen.Type, name)
+              : action === "viewer.close"
+              ? yield* close(name)
+              : action === "viewer.state"
+              ? { session: name, state: yield* stateOf((yield* existing(name)).page) }
+              : action === "viewer.control"
+              ? yield* control(decoded, name)
+              : yield* capture(name)
+            return checked ? yield* checkOutput(action, definition.output, result) : result
           })
 
         return { run: (action, input) => turn.withPermit(run(action, input)) }

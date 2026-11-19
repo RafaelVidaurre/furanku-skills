@@ -1,5 +1,5 @@
 // How reviews are read in this project: which verdicts exist, which roles are only reference
-// material, and which resolver turns verdict events into one current verdict per part.
+// material, and which resolver turns decisions into one current verdict per part.
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"

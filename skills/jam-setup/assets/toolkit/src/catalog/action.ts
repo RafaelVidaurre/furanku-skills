@@ -2,6 +2,7 @@
 // a name, an input schema and a handler. The same definitions serve the CLI, HTTP and the browser,
 // so there is one place where an operation is validated and one place where it is described.
 import * as Effect from "effect/Effect"
+import * as JsonSchema from "effect/JsonSchema"
 import * as Schema from "effect/Schema"
 import { fail, type ToolError } from "../kernel/errors.ts"
 import { type Checkout, Git } from "../kernel/Git.ts"
@@ -45,30 +46,98 @@ export interface WriteEnv extends ReadEnv {
   readonly requestBinding: RequestBinding | undefined
 }
 
+/**
+ * An action's input or output as published (JSON Schema draft 2020-12): closed, as decoding
+ * refuses unknown fields.
+ */
+export const publishedSchema = (schema: Schema.Top): Record<string, unknown> => {
+  const document = Schema.toJsonSchemaDocument(schema, { onExcessProperty: "error" })
+  return {
+    $schema: JsonSchema.META_SCHEMA_URI_DRAFT_2020_12,
+    ...document.schema,
+    ...(Object.keys(document.definitions).length > 0 ? { $defs: document.definitions } : {})
+  }
+}
+
+/** Whether an action changes records or project files (`write`, which declares an actor) or only reads. */
+export type Access = "read" | "write"
+
+/** What an action needs besides its input: a declared actor (writes), or a running catalog server (viewer actions). */
+export type Requirement = "actor" | "server"
+
+/** What `discover` publishes for one action. */
+export interface ActionInfo {
+  readonly name: string
+  readonly access: Access
+  readonly requires: ReadonlyArray<Requirement>
+  readonly description: string
+  /** JSON Schema (draft 2020-12) of the input object. */
+  readonly input: Record<string, unknown>
+  /** JSON Schema (draft 2020-12) of the result; absent for a plugin action that declares none. */
+  readonly output?: Record<string, unknown>
+  /** The plugin that contributes the action; absent for built-in ones. */
+  readonly plugin?: string
+}
+
+const requirementsOf = (access: Access): ReadonlyArray<Requirement> => (access === "write" ? ["actor"] : [])
+
+/**
+ * One action as `discover` lists it. `requires` defaults to what its access needs; `output`
+ * replaces the definition's (`null`: none is published).
+ */
+export const infoOf = (
+  def: { readonly name: string; readonly access: Access; readonly description: string; readonly input: Schema.Top; readonly output?: Schema.Top | undefined },
+  extra: { readonly requires?: ReadonlyArray<Requirement>; readonly plugin?: string; readonly output?: Schema.Top | null } = {}
+): ActionInfo => {
+  const output = extra.output === undefined ? def.output : extra.output
+  return {
+    name: def.name,
+    access: def.access,
+    requires: extra.requires ?? requirementsOf(def.access),
+    description: def.description,
+    input: publishedSchema(def.input),
+    ...(output == null ? {} : { output: publishedSchema(output) }),
+    ...(extra.plugin === undefined ? {} : { plugin: extra.plugin })
+  }
+}
+
 export interface ActionDef {
   readonly name: string
-  readonly kind: "read" | "write"
+  readonly access: Access
   readonly description: string
   readonly input: Schema.Top
+  /** What the action returns to its caller; decoded strictly when `CatalogOutputCheck` is on. */
+  readonly output: Schema.Top
   /** The record lock a write holds while it runs; the projection is read after it is taken. */
   readonly lock?: ((input: never) => string) | undefined
   run(input: never, env: WriteEnv): Effect.Effect<unknown, ToolError, ActionServices>
 }
 
-export const read = <S extends Schema.Top>(
-  name: string,
-  description: string,
-  input: S,
-  run: (input: S["Type"], env: ReadEnv) => Effect.Effect<unknown, ToolError, ActionServices>
-): ActionDef => ({ name, kind: "read", description, input, run: run as ActionDef["run"] })
+/** An action definition that keeps its name and schemas in its type, so `actionMap.ts` derives the typed map from the definitions. */
+export interface TypedActionDef<N extends string, I extends Schema.Top, O extends Schema.Top> extends ActionDef {
+  readonly name: N
+  readonly input: I
+  readonly output: O
+}
 
-export const write = <S extends Schema.Top>(
-  name: string,
+// A handler's result is checked against `output` at run time (`CatalogOutputCheck`), not by type:
+// results are assembled from projections whose TypeScript types are wider than the published shape.
+export const read = <const N extends string, S extends Schema.Top, O extends Schema.Top>(
+  name: N,
   description: string,
   input: S,
+  output: O,
+  run: (input: S["Type"], env: ReadEnv) => Effect.Effect<unknown, ToolError, ActionServices>
+): TypedActionDef<N, S, O> => ({ name, access: "read", description, input, output, run: run as ActionDef["run"] })
+
+export const write = <const N extends string, S extends Schema.Top, O extends Schema.Top>(
+  name: N,
+  description: string,
+  input: S,
+  output: O,
   lock: string | ((input: S["Type"]) => string) | null,
   run: (input: S["Type"], env: WriteEnv) => Effect.Effect<unknown, ToolError, ActionServices>
-): ActionDef => ({ name, kind: "write", description, input, lock: (lock === null ? undefined : typeof lock === "string" ? () => lock : lock) as ActionDef["lock"], run: run as ActionDef["run"] })
+): TypedActionDef<N, S, O> => ({ name, access: "write", description, input, output, lock: (lock === null ? undefined : typeof lock === "string" ? () => lock : lock) as ActionDef["lock"], run: run as ActionDef["run"] })
 
 // ---- Schema pieces shared by action inputs
 
@@ -76,9 +145,30 @@ export const write = <S extends Schema.Top>(
 export const optional = <S extends Schema.Top>(schema: S) => Schema.optionalKey(Schema.NullOr(schema))
 export const Text = Schema.String.check(Schema.isNonEmpty())
 export const Page = { page: optional(Schema.Finite), pageSize: optional(Schema.Finite) }
-export const Empty = Schema.Struct({})
-export const targetOf = <const K extends ReadonlyArray<string>>(kinds: K) => Schema.Struct({ kind: Schema.Literals(kinds), id: Text })
-export const UnitOrCollection = targetOf(["unit", "collection"])
+/** The input of an action that takes none: an object with no fields. (`Schema.Struct({})` would accept anything but null.) */
+export const Empty = Schema.Record(Schema.String, Schema.Never.annotate({ message: "this action takes no fields" }))
+const RefMembers = {
+  item: optional(Text).annotate({ description: "A submission item id (with kind submission)" }),
+  part: optional(Text).annotate({ description: "A part id of the unit, collection or submission item" }),
+  leaf: optional(Text).annotate({ description: "One evidence leaf inside a member or preview part: <unit>/<part>, or base" })
+}
+type RefMember = keyof typeof RefMembers
+
+/**
+ * A reference to what an input addresses: `{ kind, id, item?, part?, leaf? }`, closed, with the
+ * kinds and optional members the action accepts. Parts stay strings.
+ */
+export const refOf = <const K extends ReadonlyArray<"unit" | "collection" | "asset" | "submission">, const M extends { readonly [P in RefMember]?: boolean } = {}>(
+  kinds: K,
+  members: M = {} as M
+) =>
+  Schema.Struct({
+    kind: Schema.Literals(kinds),
+    id: Text,
+    ...(Object.fromEntries((Object.keys(RefMembers) as Array<RefMember>).filter((key) => members[key] === true).map((key) => [key, RefMembers[key]])) as {
+      readonly [P in RefMember as M[P] extends true ? P : never]: (typeof RefMembers)[P]
+    })
+  })
 export const ExpectedRevision = optional(Schema.Int).annotate({ description: "The revision that was read; a stale value fails with conflict" })
 
 export const requestFields = (env: WriteEnv): { requestId?: string; requestBinding?: RequestBinding } =>
@@ -88,7 +178,7 @@ export const requestFields = (env: WriteEnv): { requestId?: string; requestBindi
  * A committed record carrying this request id. Records outlive the local replay journal, so their
  * binding must still match: the same id for another action, input, actor or checkout is refused.
  */
-export const priorRequest = <K extends "note" | "collection" | "submission" | "verdict">(
+export const priorRequest = <K extends "note" | "collection" | "submission" | "decision">(
   p: Projection,
   kind: K,
   requestId: string | null,
@@ -102,7 +192,7 @@ export const priorRequest = <K extends "note" | "collection" | "submission" | "v
     for (const prior of matches) {
       // A record from before bindings were recorded matches no binding, so its id is never replayed.
       if (prior[bindingField] == null || digest(prior[bindingField]) !== digest(binding)) {
-        return yield* fail("conflict", "request id was already used for a different action, input, actor or checkout context", { fix: "use a new request id for a new request" })
+        return yield* fail("conflict", "request id was already used for a different action, input, actor or checkout", { fix: "use a new request id for a new request" })
       }
     }
     return matches[0] as RecordsByKind[K] | undefined

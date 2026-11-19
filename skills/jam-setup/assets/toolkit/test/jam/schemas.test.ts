@@ -24,6 +24,9 @@ describe("published schemas", () => {
     assert.equal(check.status, 0, `${check.stderr}\nrun "node jam.mjs schemas write" in the toolkit and commit the result`)
     const committed = readdirSync(join(TOOLKIT, "schemas"))
     for (const entry of PUBLISHED) assert.ok(committed.includes(entry.file), `schemas/${entry.file} is committed`)
+    // The catalog's configuration and its six record kinds are published with the toolkit's own files.
+    const catalog = ["catalog.config", "catalog-note", "catalog-organization", "catalog-collection", "catalog-categories", "catalog-submission", "catalog-decision"].map((name) => `${name}.schema.json`)
+    for (const file of catalog) assert.ok(PUBLISHED.some((entry) => entry.file === file), `${file} is published`)
   })
 
   it("are closed JSON Schemas that name what is required", () => {

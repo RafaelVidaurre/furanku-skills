@@ -65,7 +65,7 @@ export class RunCatalog extends Context.Service<RunCatalog, {
         Effect.gen(function*() {
           const scan = yield* runs.scan
           const problems: Array<ProblemInput> = scan.unreadable.map((file) => ({
-            source: file.path,
+            subject: file.path,
             error: file.message,
             recovery: "run files are written by the tool: restore this one from Git, or remove its folder when the attempt is not needed"
           }))
@@ -76,7 +76,7 @@ export class RunCatalog extends Context.Service<RunCatalog, {
               const recipe = yield* Effect.result(recipes.get(ref.run.recipe))
               known.set(ref.run.recipe, recipe._tag === "Success" ? recipe.success : null)
               if (recipe._tag === "Failure") {
-                problems.push({ source: ref.path, error: recipe.failure.message, recovery: recipe.failure.fix ?? `restore recipe ${ref.run.recipe}; runs that use it are left out until then` })
+                problems.push({ subject: ref.path, error: recipe.failure.message, recovery: recipe.failure.fix ?? `restore recipe ${ref.run.recipe}; runs that use it are left out until then` })
               }
             }
             const recipe = known.get(ref.run.recipe)
@@ -112,7 +112,7 @@ export class RunCatalog extends Context.Service<RunCatalog, {
         // Not a jam project: nothing to list and nothing wrong.
         if (state.kind === "missing") return {}
         if (state.kind === "v1") {
-          return { problems: [{ source: CONFIG_FILE, error: `${CONFIG_FILE} is version 1, so its runs are not listed`, recovery: `run "jam config migrate"` }] }
+          return { problems: [{ subject: CONFIG_FILE, error: `${CONFIG_FILE} is version 1, so its runs are not listed`, recovery: `run "jam config migrate"` }] }
         }
         const found = yield* survey(state.config)
         recorded = [...new Set(found.subjects.flatMap((subject) => standsOn(subject.attempts[0]!.ref)))].sort()
@@ -122,7 +122,7 @@ export class RunCatalog extends Context.Service<RunCatalog, {
         Effect.catch((error) => {
           recorded = []
           folders = null
-          return Effect.succeed<SourceOutput>({ problems: [{ source: CONFIG_FILE, error: error.message, recovery: error.fix ?? null }] })
+          return Effect.succeed<SourceOutput>({ problems: [{ subject: CONFIG_FILE, error: error.message, recovery: error.fix ?? null }] })
         })
       )
 

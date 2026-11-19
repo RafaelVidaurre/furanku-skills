@@ -1,0 +1,1 @@
+{"attrs":{"armor":6,"slot":"Feet"},"id":"armor/boots","links":[{"asset":"art/boots.png","path":"art/boots.png","role":"icon"},{"asset":"art/boots.glb","path":"art/boots.glb","role":"model"}],"name":"Iron Boots","sources":["content/armor_boots.json"],"type":"armor"}

@@ -1,0 +1,3668 @@
+{
+  "toolkit": "8c4197d",
+  "problems": {
+    "problems": []
+  },
+  "reviews": {
+    "sub_mwkpd925c73ud7fwwe": {
+      "id": "sub_mwkpd925c73ud7fwwe",
+      "ref": "D7FWWE",
+      "route": "#/reviews/s/sub_mwkpd925c73ud7fwwe",
+      "title": "Origin Story",
+      "by": {
+        "name": "Rae Tester",
+        "kind": "human"
+      },
+      "at": "2026-11-17T13:02:57.053Z",
+      "context": {
+        "branch": "main",
+        "head": "d32763bad98949efac41f89397dfd3e4e1360f28",
+        "dirty": 1
+      },
+      "supersedes": null,
+      "note": null,
+      "counts": {
+        "items": 1,
+        "waiting": 0,
+        "approved": 1,
+        "changes": 0,
+        "rejected": 0
+      },
+      "items": [
+        {
+          "id": "it_mwkpd925fh5mzpaqem",
+          "target": {
+            "kind": "unit",
+            "id": "lore/origin"
+          },
+          "targetScope": "content",
+          "targetType": "lore",
+          "title": "Origin Story",
+          "text": null,
+          "targetExists": true,
+          "state": "approved",
+          "summary": {
+            "total": 1,
+            "approved": 1,
+            "changes": 0,
+            "rejected": 0,
+            "undecided": 0,
+            "changed": 0,
+            "state": "approved"
+          },
+          "parts": [
+            {
+              "id": "attributes",
+              "label": "Attributes",
+              "reviewable": true,
+              "verdict": "approved",
+              "event": {
+                "id": "vd_mwkpd92j35re2xhqd9",
+                "submission": "sub_mwkpd925c73ud7fwwe",
+                "ref": "D7FWWE",
+                "item": "it_mwkpd925fh5mzpaqem",
+                "by": {
+                  "name": "Rae Tester",
+                  "kind": "human"
+                },
+                "at": "2026-11-17T13:02:57.067Z",
+                "scope": "whole",
+                "verdicts": {
+                  "attributes": "approved"
+                },
+                "comment": "Canon.",
+                "partNotes": {}
+              },
+              "evidence": {
+                "digest": "808cf9310a7e960cc57a705b9863412ded8d84b4b0c46dd72983fb84d2f4a0e4",
+                "asset": null,
+                "path": null,
+                "kind": "attributes",
+                "mime": null,
+                "size": null,
+                "sha256": null,
+                "storage": null,
+                "unit": null
+              },
+              "leaves": [
+                {
+                  "key": "",
+                  "label": "Attributes",
+                  "kind": "attributes",
+                  "status": "ok",
+                  "attrs": {
+                    "text": "Long ago the iron mines opened."
+                  }
+                }
+              ]
+            }
+          ],
+          "views": [],
+          "attributes": null,
+          "kind": "unit",
+          "preview": null
+        }
+      ],
+      "events": [
+        {
+          "id": "vd_mwkpd92j35re2xhqd9",
+          "submission": "sub_mwkpd925c73ud7fwwe",
+          "ref": "D7FWWE",
+          "item": "it_mwkpd925fh5mzpaqem",
+          "by": {
+            "name": "Rae Tester",
+            "kind": "human"
+          },
+          "at": "2026-11-17T13:02:57.067Z",
+          "scope": "whole",
+          "verdicts": {
+            "attributes": "approved"
+          },
+          "comment": "Canon.",
+          "partNotes": {}
+        }
+      ],
+      "observations": [],
+      "supersededBy": [],
+      "hint": "No catalog server is running for this checkout. Run `jam catalog open` to start one; it prints the address these routes follow."
+    },
+    "sub_mwkpd90dv7vd6hyw5r": {
+      "id": "sub_mwkpd90dv7vd6hyw5r",
+      "ref": "6HYW5R",
+      "route": "#/reviews/s/sub_mwkpd90dv7vd6hyw5r",
+      "title": "Iron Outfit and 2 more",
+      "by": {
+        "name": "Rae Tester",
+        "kind": "human"
+      },
+      "at": "2026-11-17T13:02:56.989Z",
+      "context": {
+        "branch": "main",
+        "head": "d32763bad98949efac41f89397dfd3e4e1360f28",
+        "dirty": 1
+      },
+      "supersedes": null,
+      "note": null,
+      "counts": {
+        "items": 3,
+        "waiting": 2,
+        "approved": 1,
+        "changes": 0,
+        "rejected": 0
+      },
+      "items": [
+        {
+          "id": "it_mwkpd8vlgmjdzqcy3w",
+          "target": {
+            "kind": "collection",
+            "id": "outfit/iron"
+          },
+          "targetScope": null,
+          "targetType": null,
+          "title": "Iron Outfit",
+          "text": null,
+          "targetExists": true,
+          "state": "partial",
+          "summary": {
+            "total": 3,
+            "approved": 2,
+            "changes": 0,
+            "rejected": 0,
+            "undecided": 1,
+            "changed": 0,
+            "state": "partial"
+          },
+          "parts": [
+            {
+              "id": "member:armor/helm",
+              "label": "Iron Helm",
+              "reviewable": true,
+              "verdict": "approved",
+              "event": {
+                "id": "vd_mwkpd91nuscvp5dn8v",
+                "submission": "sub_mwkpd90dv7vd6hyw5r",
+                "ref": "6HYW5R",
+                "item": "it_mwkpd8vlgmjdzqcy3w",
+                "by": {
+                  "name": "Rae Tester",
+                  "kind": "human"
+                },
+                "at": "2026-11-17T13:02:57.035Z",
+                "scope": "parts",
+                "verdicts": {
+                  "member:armor/helm": "approved",
+                  "preview": "changes"
+                },
+                "comment": "The assembled view clips.",
+                "partNotes": {}
+              },
+              "member": "armor/helm",
+              "evidence": {
+                "digest": "fbd85c2d36296e09c73f1e99bd1de14ec8e619e90e1483c1222050e0c9e2e9b8",
+                "asset": null,
+                "path": null,
+                "kind": null,
+                "mime": null,
+                "size": null,
+                "sha256": null,
+                "storage": null,
+                "unit": "armor/helm"
+              },
+              "leaves": [
+                {
+                  "key": "armor/helm/icon",
+                  "label": "Iron Helm · Icon",
+                  "kind": "image",
+                  "path": "art/helm.png",
+                  "asset": "art/helm.png",
+                  "sha256": "32290f29e74c9664b416aae2adaad86e2fc460e717a6deaf7d9ccc22859cf9ea",
+                  "unit": "armor/helm",
+                  "part": "icon",
+                  "renderer": null,
+                  "storage": "git",
+                  "status": "ok",
+                  "url": "/media/evidence/sub_mwkpd90dv7vd6hyw5r/it_mwkpd8vlgmjdzqcy3w/member%3Aarmor%2Fhelm?leaf=armor%2Fhelm%2Ficon"
+                },
+                {
+                  "key": "armor/helm/model",
+                  "label": "Iron Helm · Model",
+                  "kind": "model",
+                  "path": "art/helm.glb",
+                  "asset": "art/helm.glb",
+                  "sha256": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+                  "unit": "armor/helm",
+                  "part": "model",
+                  "renderer": null,
+                  "storage": "git",
+                  "status": "ok",
+                  "url": "/media/evidence/sub_mwkpd90dv7vd6hyw5r/it_mwkpd8vlgmjdzqcy3w/member%3Aarmor%2Fhelm?leaf=armor%2Fhelm%2Fmodel"
+                },
+                {
+                  "key": "armor/helm/concept:art/sheet.png",
+                  "label": "Iron Helm · Concept",
+                  "kind": "image",
+                  "path": "art/sheet.png",
+                  "asset": "art/sheet.png",
+                  "sha256": "c1c7b6a0355cd9caec81b5ff9062c5e9729ea03f4d5eb9c81fd79882e2775f65",
+                  "unit": "armor/helm",
+                  "part": "concept:art/sheet.png",
+                  "renderer": null,
+                  "storage": "git",
+                  "status": "ok",
+                  "url": "/media/evidence/sub_mwkpd90dv7vd6hyw5r/it_mwkpd8vlgmjdzqcy3w/member%3Aarmor%2Fhelm?leaf=armor%2Fhelm%2Fconcept%3Aart%2Fsheet.png"
+                },
+                {
+                  "key": "armor/helm/attributes",
+                  "label": "Iron Helm · Attributes",
+                  "kind": "attributes",
+                  "status": "ok",
+                  "attrs": {
+                    "slot": "Head",
+                    "armor": 10
+                  }
+                }
+              ]
+            },
+            {
+              "id": "member:armor/boots",
+              "label": "Iron Boots",
+              "reviewable": true,
+              "verdict": null,
+              "event": null,
+              "member": "armor/boots",
+              "evidence": {
+                "digest": "4d2457d3f4125f6993593827a03d90ee479f06392c8731267a3b281ab1b952e6",
+                "asset": null,
+                "path": null,
+                "kind": null,
+                "mime": null,
+                "size": null,
+                "sha256": null,
+                "storage": null,
+                "unit": "armor/boots"
+              },
+              "leaves": [
+                {
+                  "key": "armor/boots/icon",
+                  "label": "Iron Boots · Icon",
+                  "kind": "image",
+                  "path": "art/boots.png",
+                  "asset": "art/boots.png",
+                  "sha256": "51758870c205dea33877c669b53240eeae2953f327885ecd950625128dd5ca1c",
+                  "unit": "armor/boots",
+                  "part": "icon",
+                  "renderer": null,
+                  "storage": "catalog",
+                  "status": "ok",
+                  "url": "/media/evidence/sub_mwkpd90dv7vd6hyw5r/it_mwkpd8vlgmjdzqcy3w/member%3Aarmor%2Fboots?leaf=armor%2Fboots%2Ficon"
+                },
+                {
+                  "key": "armor/boots/model",
+                  "label": "Iron Boots · Model",
+                  "kind": "model",
+                  "path": "art/boots.glb",
+                  "asset": "art/boots.glb",
+                  "sha256": "387f2593fee7616675f62a1019c3e560c0c969668139d1ff8808023a1d53f1df",
+                  "unit": "armor/boots",
+                  "part": "model",
+                  "renderer": null,
+                  "storage": "git",
+                  "status": "ok",
+                  "url": "/media/evidence/sub_mwkpd90dv7vd6hyw5r/it_mwkpd8vlgmjdzqcy3w/member%3Aarmor%2Fboots?leaf=armor%2Fboots%2Fmodel"
+                },
+                {
+                  "key": "armor/boots/attributes",
+                  "label": "Iron Boots · Attributes",
+                  "kind": "attributes",
+                  "status": "ok",
+                  "attrs": {
+                    "slot": "Feet",
+                    "armor": 6
+                  }
+                }
+              ]
+            },
+            {
+              "id": "preview",
+              "label": "Assembled",
+              "reviewable": true,
+              "verdict": "approved",
+              "event": {
+                "id": "vd_mwkpd91vxz7qbejkxg",
+                "submission": "sub_mwkpd90dv7vd6hyw5r",
+                "ref": "6HYW5R",
+                "item": "it_mwkpd8vlgmjdzqcy3w",
+                "by": {
+                  "name": "Sam Second",
+                  "kind": "human"
+                },
+                "at": "2026-11-17T13:02:57.043Z",
+                "scope": "parts",
+                "verdicts": {
+                  "preview": "approved"
+                },
+                "comment": "",
+                "partNotes": {}
+              },
+              "evidence": {
+                "digest": "920919d626ac88abdc32514ded85188c44b21f5a84c1f125cbff4425872de3b3",
+                "asset": null,
+                "path": null,
+                "kind": null,
+                "mime": null,
+                "size": null,
+                "sha256": null,
+                "storage": null,
+                "unit": null
+              },
+              "leaves": [
+                {
+                  "key": "armor/helm/model",
+                  "label": "Iron Helm · Model",
+                  "kind": "model",
+                  "path": "art/helm.glb",
+                  "asset": "art/helm.glb",
+                  "sha256": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+                  "unit": "armor/helm",
+                  "part": "model",
+                  "renderer": null,
+                  "storage": "git",
+                  "status": "ok",
+                  "url": "/media/evidence/sub_mwkpd90dv7vd6hyw5r/it_mwkpd8vlgmjdzqcy3w/preview?leaf=armor%2Fhelm%2Fmodel"
+                },
+                {
+                  "key": "armor/boots/model",
+                  "label": "Iron Boots · Model",
+                  "kind": "model",
+                  "path": "art/boots.glb",
+                  "asset": "art/boots.glb",
+                  "sha256": "387f2593fee7616675f62a1019c3e560c0c969668139d1ff8808023a1d53f1df",
+                  "unit": "armor/boots",
+                  "part": "model",
+                  "renderer": null,
+                  "storage": "git",
+                  "status": "ok",
+                  "url": "/media/evidence/sub_mwkpd90dv7vd6hyw5r/it_mwkpd8vlgmjdzqcy3w/preview?leaf=armor%2Fboots%2Fmodel"
+                }
+              ]
+            }
+          ],
+          "views": [
+            {
+              "id": "vw_mwkpd8zoxy3xnkhm5h",
+              "part": "member:armor/helm",
+              "leaf": "armor/helm/icon",
+              "caption": "Iron Helm · Icon",
+              "camera": null,
+              "state": null
+            },
+            {
+              "id": "vw_mwkpd8zo8ygtqmtkem",
+              "part": "member:armor/boots",
+              "leaf": "armor/boots/icon",
+              "caption": "Iron Boots · Icon",
+              "camera": null,
+              "state": null
+            },
+            {
+              "id": "vw_mwkpd8zo7uu2gju47b",
+              "part": "preview",
+              "leaf": null,
+              "caption": "Iron Outfit · Assembled",
+              "camera": null,
+              "state": null
+            }
+          ],
+          "attributes": null,
+          "kind": "collection",
+          "preview": {
+            "module": "assembled-mesh",
+            "label": "Assembled",
+            "config": {},
+            "roles": [
+              "model"
+            ],
+            "moduleUrl": null,
+            "moduleChanged": false,
+            "moduleError": null
+          }
+        },
+        {
+          "id": "it_mwkpd8zop7atz8m5qt",
+          "target": null,
+          "targetScope": null,
+          "targetType": null,
+          "title": "Torches flicker less?",
+          "text": "Halve the pulse of every torch in the mines.",
+          "targetExists": null,
+          "state": "approved",
+          "summary": {
+            "total": 1,
+            "approved": 1,
+            "changes": 0,
+            "rejected": 0,
+            "undecided": 0,
+            "changed": 0,
+            "state": "approved"
+          },
+          "parts": [
+            {
+              "id": "decision",
+              "label": "Decision",
+              "reviewable": true,
+              "verdict": "approved",
+              "event": {
+                "id": "vd_mwkpd91fuvte422khk",
+                "submission": "sub_mwkpd90dv7vd6hyw5r",
+                "ref": "6HYW5R",
+                "item": "it_mwkpd8zop7atz8m5qt",
+                "by": {
+                  "name": "checker",
+                  "kind": "agent"
+                },
+                "at": "2026-11-17T13:02:57.027Z",
+                "scope": "parts",
+                "verdicts": {
+                  "decision": "approved"
+                },
+                "comment": "",
+                "partNotes": {
+                  "decision": "Halve it."
+                },
+                "relay": {
+                  "by": "Rae Tester",
+                  "channel": "chat",
+                  "words": "Yes, halve the pulse."
+                }
+              },
+              "evidence": {
+                "digest": "5e136d44d1c7b04ec72c0d00876a2b02fe3e35cf3ff534bb0393404f0e3352a0",
+                "asset": null,
+                "path": null,
+                "kind": "attributes",
+                "mime": null,
+                "size": null,
+                "sha256": null,
+                "storage": null,
+                "unit": null
+              },
+              "leaves": [
+                {
+                  "key": "",
+                  "label": "Decision",
+                  "kind": "attributes",
+                  "status": "ok",
+                  "attrs": {
+                    "text": "Halve the pulse of every torch in the mines."
+                  }
+                }
+              ]
+            }
+          ],
+          "views": [],
+          "attributes": null,
+          "kind": "work",
+          "preview": null
+        },
+        {
+          "id": "it_mwkpd8zp6v2vtg6ek8",
+          "target": {
+            "kind": "unit",
+            "id": "armor/helm"
+          },
+          "targetScope": "content",
+          "targetType": "armor",
+          "title": "Iron Helm",
+          "text": null,
+          "targetExists": true,
+          "state": "undecided",
+          "summary": {
+            "total": 1,
+            "approved": 0,
+            "changes": 0,
+            "rejected": 0,
+            "undecided": 1,
+            "changed": 0,
+            "state": "undecided"
+          },
+          "parts": [
+            {
+              "id": "model",
+              "label": "Model",
+              "reviewable": true,
+              "verdict": null,
+              "event": null,
+              "role": "model",
+              "asset": "art/helm.glb",
+              "evidence": {
+                "digest": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+                "asset": "art/helm.glb",
+                "path": "art/helm.glb",
+                "kind": "model",
+                "mime": "model/gltf-binary",
+                "size": 1392,
+                "sha256": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+                "storage": "git",
+                "unit": null
+              },
+              "leaves": [
+                {
+                  "key": "",
+                  "label": "Model",
+                  "kind": "model",
+                  "path": "art/helm.glb",
+                  "asset": "art/helm.glb",
+                  "sha256": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+                  "unit": null,
+                  "part": null,
+                  "renderer": null,
+                  "storage": "git",
+                  "status": "ok",
+                  "url": "/media/evidence/sub_mwkpd90dv7vd6hyw5r/it_mwkpd8zp6v2vtg6ek8/model"
+                }
+              ]
+            }
+          ],
+          "views": [
+            {
+              "id": "vw_mwkpd90dazdd7sb6bd",
+              "part": "model",
+              "leaf": null,
+              "caption": "Model against the last pass",
+              "camera": null,
+              "state": null,
+              "before": {
+                "label": "Before",
+                "from": {
+                  "submission": "sub_mwkpd8ux8bkmc238mk",
+                  "item": "it_mwkpd8peav4b783fn3",
+                  "part": "model"
+                },
+                "kind": "model",
+                "path": "art/helm.glb",
+                "sha256": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+                "storage": "git",
+                "status": "ok",
+                "url": "/media/before/sub_mwkpd90dv7vd6hyw5r/it_mwkpd8zp6v2vtg6ek8/vw_mwkpd90dazdd7sb6bd"
+              },
+              "afterLabel": "After"
+            }
+          ],
+          "attributes": null,
+          "kind": "unit",
+          "preview": null
+        }
+      ],
+      "events": [
+        {
+          "id": "vd_mwkpd91vxz7qbejkxg",
+          "submission": "sub_mwkpd90dv7vd6hyw5r",
+          "ref": "6HYW5R",
+          "item": "it_mwkpd8vlgmjdzqcy3w",
+          "by": {
+            "name": "Sam Second",
+            "kind": "human"
+          },
+          "at": "2026-11-17T13:02:57.043Z",
+          "scope": "parts",
+          "verdicts": {
+            "preview": "approved"
+          },
+          "comment": "",
+          "partNotes": {}
+        },
+        {
+          "id": "vd_mwkpd91nuscvp5dn8v",
+          "submission": "sub_mwkpd90dv7vd6hyw5r",
+          "ref": "6HYW5R",
+          "item": "it_mwkpd8vlgmjdzqcy3w",
+          "by": {
+            "name": "Rae Tester",
+            "kind": "human"
+          },
+          "at": "2026-11-17T13:02:57.035Z",
+          "scope": "parts",
+          "verdicts": {
+            "member:armor/helm": "approved",
+            "preview": "changes"
+          },
+          "comment": "The assembled view clips.",
+          "partNotes": {}
+        },
+        {
+          "id": "vd_mwkpd91fuvte422khk",
+          "submission": "sub_mwkpd90dv7vd6hyw5r",
+          "ref": "6HYW5R",
+          "item": "it_mwkpd8zop7atz8m5qt",
+          "by": {
+            "name": "checker",
+            "kind": "agent"
+          },
+          "at": "2026-11-17T13:02:57.027Z",
+          "scope": "parts",
+          "verdicts": {
+            "decision": "approved"
+          },
+          "comment": "",
+          "partNotes": {
+            "decision": "Halve it."
+          },
+          "relay": {
+            "by": "Rae Tester",
+            "channel": "chat",
+            "words": "Yes, halve the pulse."
+          }
+        }
+      ],
+      "observations": [
+        {
+          "id": "nt_mwkpd93qgn7zgqxm6j",
+          "target": {
+            "kind": "submission",
+            "id": "sub_mwkpd90dv7vd6hyw5r",
+            "item": "it_mwkpd8zop7atz8m5qt",
+            "part": "decision"
+          },
+          "body": "Applied in the lighting pass (all torches).",
+          "by": {
+            "name": "checker",
+            "kind": "agent"
+          },
+          "at": "2026-11-17T13:02:57.110Z",
+          "revision": 2,
+          "requestId": "rq-note-2",
+          "requestBinding": {
+            "action": "note.create",
+            "digest": "cffd0eb7174f213ddeddd4566afd2fbb6c08c5245ef7b83e6f3f0d7a81810b7b",
+            "context": "ff52585e9d24:main"
+          },
+          "editedAt": "2026-11-17T13:02:57.145Z",
+          "lastRequestId": "rq-edit",
+          "lastRequestBinding": {
+            "action": "note.edit",
+            "digest": "975087f8ff96cb73d2c283904d587160bf64cfd82801249f7d151937d85aafd2",
+            "context": "ff52585e9d24:main"
+          },
+          "targetName": "Iron Outfit and 2 more · 6HYW5R · Torches flicker less?",
+          "targetExists": true,
+          "partLabel": "Decision",
+          "thumb": null,
+          "route": "#/reviews/s/sub_mwkpd90dv7vd6hyw5r/it_mwkpd8zop7atz8m5qt"
+        }
+      ],
+      "supersededBy": [],
+      "hint": "No catalog server is running for this checkout. Run `jam catalog open` to start one; it prints the address these routes follow."
+    },
+    "sub_mwkpd8ux8bkmc238mk": {
+      "id": "sub_mwkpd8ux8bkmc238mk",
+      "ref": "C238MK",
+      "route": "#/reviews/s/sub_mwkpd8ux8bkmc238mk",
+      "title": "Helm and boots pass",
+      "by": {
+        "name": "Rae Tester",
+        "kind": "human"
+      },
+      "at": "2026-11-17T13:02:56.793Z",
+      "context": {
+        "branch": "main",
+        "head": "d32763bad98949efac41f89397dfd3e4e1360f28",
+        "dirty": 1
+      },
+      "supersedes": null,
+      "note": "Please check the **visor** and the boots' colour.",
+      "counts": {
+        "items": 2,
+        "waiting": 1,
+        "approved": 0,
+        "changes": 2,
+        "rejected": 1
+      },
+      "items": [
+        {
+          "id": "it_mwkpd8peav4b783fn3",
+          "target": {
+            "kind": "unit",
+            "id": "armor/helm"
+          },
+          "targetScope": "content",
+          "targetType": "armor",
+          "title": "Iron Helm",
+          "text": "The helm in game, after the visor fix.",
+          "targetExists": true,
+          "state": "mixed",
+          "summary": {
+            "total": 6,
+            "approved": 4,
+            "changes": 1,
+            "rejected": 1,
+            "undecided": 0,
+            "changed": 0,
+            "state": "mixed"
+          },
+          "parts": [
+            {
+              "id": "capture:1",
+              "label": "Helm in game",
+              "reviewable": true,
+              "verdict": "approved",
+              "event": {
+                "id": "vd_mwkpd90w4cqjed7x7z",
+                "submission": "sub_mwkpd8ux8bkmc238mk",
+                "ref": "C238MK",
+                "item": "it_mwkpd8peav4b783fn3",
+                "by": {
+                  "name": "Rae Tester",
+                  "kind": "human"
+                },
+                "at": "2026-11-17T13:02:57.008Z",
+                "scope": "whole",
+                "verdicts": {
+                  "capture:1": "approved",
+                  "capture:2": "rejected",
+                  "icon": "approved",
+                  "model": "approved",
+                  "concept:art/sheet.png": "changes",
+                  "attributes": "approved"
+                },
+                "comment": "Good pass.",
+                "partNotes": {
+                  "concept:art/sheet.png": "The sheet is too dark.",
+                  "icon": "Crisp."
+                }
+              },
+              "renderer": "Unreal",
+              "pairLabels": [
+                "Today",
+                "Fixed"
+              ],
+              "evidence": {
+                "digest": "69c54f947627b73e07ca4e390ec8411f9aca43ae5ea3ec5823cfc6312978f1ec",
+                "asset": null,
+                "path": null,
+                "kind": null,
+                "mime": null,
+                "size": null,
+                "sha256": null,
+                "storage": null,
+                "unit": null
+              },
+              "leaves": [
+                {
+                  "key": "before",
+                  "label": "Helm in game · Today",
+                  "kind": "image",
+                  "path": "captures/before.png",
+                  "asset": "capture:1/before",
+                  "sha256": "d76c9d3be6ac0b43c89345599610881e9cfdc6f99c25435e4f1ed1cb25e987ef",
+                  "unit": null,
+                  "part": null,
+                  "renderer": "Unreal",
+                  "storage": "git",
+                  "status": "ok",
+                  "url": "/media/evidence/sub_mwkpd8ux8bkmc238mk/it_mwkpd8peav4b783fn3/capture%3A1?leaf=before"
+                },
+                {
+                  "key": "after",
+                  "label": "Helm in game · Fixed",
+                  "kind": "image",
+                  "path": "captures/after.png",
+                  "asset": "capture:1/after",
+                  "sha256": "a11da087f5d29fd5af8e0b4a59ee5b068c4282d80e38a7921b463dfb7d086d5b",
+                  "unit": null,
+                  "part": null,
+                  "renderer": "Unreal",
+                  "storage": "git",
+                  "status": "ok",
+                  "url": "/media/evidence/sub_mwkpd8ux8bkmc238mk/it_mwkpd8peav4b783fn3/capture%3A1?leaf=after"
+                }
+              ]
+            },
+            {
+              "id": "capture:2",
+              "label": "Close-up",
+              "reviewable": true,
+              "verdict": "rejected",
+              "event": {
+                "id": "vd_mwkpd90w4cqjed7x7z",
+                "submission": "sub_mwkpd8ux8bkmc238mk",
+                "ref": "C238MK",
+                "item": "it_mwkpd8peav4b783fn3",
+                "by": {
+                  "name": "Rae Tester",
+                  "kind": "human"
+                },
+                "at": "2026-11-17T13:02:57.008Z",
+                "scope": "whole",
+                "verdicts": {
+                  "capture:1": "approved",
+                  "capture:2": "rejected",
+                  "icon": "approved",
+                  "model": "approved",
+                  "concept:art/sheet.png": "changes",
+                  "attributes": "approved"
+                },
+                "comment": "Good pass.",
+                "partNotes": {
+                  "concept:art/sheet.png": "The sheet is too dark.",
+                  "icon": "Crisp."
+                }
+              },
+              "evidence": {
+                "digest": "e7df66addae77763add01fa45dbba4b79586cb920c756347f3f49c9c451f1c67",
+                "asset": "capture:2",
+                "path": "captures/shot.png",
+                "kind": "image",
+                "mime": "image/png",
+                "size": 74,
+                "sha256": "e7df66addae77763add01fa45dbba4b79586cb920c756347f3f49c9c451f1c67",
+                "storage": "git",
+                "unit": null
+              },
+              "leaves": [
+                {
+                  "key": "",
+                  "label": "Close-up",
+                  "kind": "image",
+                  "path": "captures/shot.png",
+                  "asset": "capture:2",
+                  "sha256": "e7df66addae77763add01fa45dbba4b79586cb920c756347f3f49c9c451f1c67",
+                  "unit": null,
+                  "part": null,
+                  "renderer": null,
+                  "storage": "git",
+                  "status": "ok",
+                  "url": "/media/evidence/sub_mwkpd8ux8bkmc238mk/it_mwkpd8peav4b783fn3/capture%3A2"
+                }
+              ]
+            },
+            {
+              "id": "icon",
+              "label": "Icon",
+              "reviewable": true,
+              "verdict": "approved",
+              "event": {
+                "id": "vd_mwkpd90w4cqjed7x7z",
+                "submission": "sub_mwkpd8ux8bkmc238mk",
+                "ref": "C238MK",
+                "item": "it_mwkpd8peav4b783fn3",
+                "by": {
+                  "name": "Rae Tester",
+                  "kind": "human"
+                },
+                "at": "2026-11-17T13:02:57.008Z",
+                "scope": "whole",
+                "verdicts": {
+                  "capture:1": "approved",
+                  "capture:2": "rejected",
+                  "icon": "approved",
+                  "model": "approved",
+                  "concept:art/sheet.png": "changes",
+                  "attributes": "approved"
+                },
+                "comment": "Good pass.",
+                "partNotes": {
+                  "concept:art/sheet.png": "The sheet is too dark.",
+                  "icon": "Crisp."
+                }
+              },
+              "role": "icon",
+              "asset": "art/helm.png",
+              "evidence": {
+                "digest": "32290f29e74c9664b416aae2adaad86e2fc460e717a6deaf7d9ccc22859cf9ea",
+                "asset": "art/helm.png",
+                "path": "art/helm.png",
+                "kind": "image",
+                "mime": "image/png",
+                "size": 75,
+                "sha256": "32290f29e74c9664b416aae2adaad86e2fc460e717a6deaf7d9ccc22859cf9ea",
+                "storage": "git",
+                "unit": null
+              },
+              "leaves": [
+                {
+                  "key": "",
+                  "label": "Icon",
+                  "kind": "image",
+                  "path": "art/helm.png",
+                  "asset": "art/helm.png",
+                  "sha256": "32290f29e74c9664b416aae2adaad86e2fc460e717a6deaf7d9ccc22859cf9ea",
+                  "unit": null,
+                  "part": null,
+                  "renderer": null,
+                  "storage": "git",
+                  "status": "ok",
+                  "url": "/media/evidence/sub_mwkpd8ux8bkmc238mk/it_mwkpd8peav4b783fn3/icon"
+                }
+              ]
+            },
+            {
+              "id": "model",
+              "label": "Model",
+              "reviewable": true,
+              "verdict": "approved",
+              "event": {
+                "id": "vd_mwkpd90w4cqjed7x7z",
+                "submission": "sub_mwkpd8ux8bkmc238mk",
+                "ref": "C238MK",
+                "item": "it_mwkpd8peav4b783fn3",
+                "by": {
+                  "name": "Rae Tester",
+                  "kind": "human"
+                },
+                "at": "2026-11-17T13:02:57.008Z",
+                "scope": "whole",
+                "verdicts": {
+                  "capture:1": "approved",
+                  "capture:2": "rejected",
+                  "icon": "approved",
+                  "model": "approved",
+                  "concept:art/sheet.png": "changes",
+                  "attributes": "approved"
+                },
+                "comment": "Good pass.",
+                "partNotes": {
+                  "concept:art/sheet.png": "The sheet is too dark.",
+                  "icon": "Crisp."
+                }
+              },
+              "role": "model",
+              "asset": "art/helm.glb",
+              "evidence": {
+                "digest": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+                "asset": "art/helm.glb",
+                "path": "art/helm.glb",
+                "kind": "model",
+                "mime": "model/gltf-binary",
+                "size": 1392,
+                "sha256": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+                "storage": "git",
+                "unit": null
+              },
+              "leaves": [
+                {
+                  "key": "",
+                  "label": "Model",
+                  "kind": "model",
+                  "path": "art/helm.glb",
+                  "asset": "art/helm.glb",
+                  "sha256": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+                  "unit": null,
+                  "part": null,
+                  "renderer": null,
+                  "storage": "git",
+                  "status": "ok",
+                  "url": "/media/evidence/sub_mwkpd8ux8bkmc238mk/it_mwkpd8peav4b783fn3/model"
+                }
+              ]
+            },
+            {
+              "id": "concept:art/sheet.png",
+              "label": "Concept",
+              "reviewable": true,
+              "verdict": "changes",
+              "event": {
+                "id": "vd_mwkpd90w4cqjed7x7z",
+                "submission": "sub_mwkpd8ux8bkmc238mk",
+                "ref": "C238MK",
+                "item": "it_mwkpd8peav4b783fn3",
+                "by": {
+                  "name": "Rae Tester",
+                  "kind": "human"
+                },
+                "at": "2026-11-17T13:02:57.008Z",
+                "scope": "whole",
+                "verdicts": {
+                  "capture:1": "approved",
+                  "capture:2": "rejected",
+                  "icon": "approved",
+                  "model": "approved",
+                  "concept:art/sheet.png": "changes",
+                  "attributes": "approved"
+                },
+                "comment": "Good pass.",
+                "partNotes": {
+                  "concept:art/sheet.png": "The sheet is too dark.",
+                  "icon": "Crisp."
+                }
+              },
+              "role": "concept",
+              "asset": "art/sheet.png",
+              "evidence": {
+                "digest": "c1c7b6a0355cd9caec81b5ff9062c5e9729ea03f4d5eb9c81fd79882e2775f65",
+                "asset": "art/sheet.png",
+                "path": "art/sheet.png",
+                "kind": "image",
+                "mime": "image/png",
+                "size": 74,
+                "sha256": "c1c7b6a0355cd9caec81b5ff9062c5e9729ea03f4d5eb9c81fd79882e2775f65",
+                "storage": "git",
+                "unit": null
+              },
+              "leaves": [
+                {
+                  "key": "",
+                  "label": "Concept",
+                  "kind": "image",
+                  "path": "art/sheet.png",
+                  "asset": "art/sheet.png",
+                  "sha256": "c1c7b6a0355cd9caec81b5ff9062c5e9729ea03f4d5eb9c81fd79882e2775f65",
+                  "unit": null,
+                  "part": null,
+                  "renderer": null,
+                  "storage": "git",
+                  "status": "ok",
+                  "url": "/media/evidence/sub_mwkpd8ux8bkmc238mk/it_mwkpd8peav4b783fn3/concept%3Aart%2Fsheet.png"
+                }
+              ]
+            },
+            {
+              "id": "attributes",
+              "label": "Attributes",
+              "reviewable": true,
+              "verdict": "approved",
+              "event": {
+                "id": "vd_mwkpd90w4cqjed7x7z",
+                "submission": "sub_mwkpd8ux8bkmc238mk",
+                "ref": "C238MK",
+                "item": "it_mwkpd8peav4b783fn3",
+                "by": {
+                  "name": "Rae Tester",
+                  "kind": "human"
+                },
+                "at": "2026-11-17T13:02:57.008Z",
+                "scope": "whole",
+                "verdicts": {
+                  "capture:1": "approved",
+                  "capture:2": "rejected",
+                  "icon": "approved",
+                  "model": "approved",
+                  "concept:art/sheet.png": "changes",
+                  "attributes": "approved"
+                },
+                "comment": "Good pass.",
+                "partNotes": {
+                  "concept:art/sheet.png": "The sheet is too dark.",
+                  "icon": "Crisp."
+                }
+              },
+              "evidence": {
+                "digest": "39240358c49c0c900dca7719c1dae401095c02ec5fe8fb183e7cc92ba0747d03",
+                "asset": null,
+                "path": null,
+                "kind": "attributes",
+                "mime": null,
+                "size": null,
+                "sha256": null,
+                "storage": null,
+                "unit": null
+              },
+              "leaves": [
+                {
+                  "key": "",
+                  "label": "Attributes",
+                  "kind": "attributes",
+                  "status": "ok",
+                  "attrs": {
+                    "slot": "Head",
+                    "armor": 10
+                  }
+                }
+              ]
+            }
+          ],
+          "views": [
+            {
+              "id": "vw_mwkpd8t8xkhqxygpvw",
+              "part": "icon",
+              "leaf": null,
+              "caption": "Icon against v1",
+              "camera": null,
+              "state": null,
+              "before": {
+                "label": "v1",
+                "from": null,
+                "kind": "image",
+                "path": "art/helm-v1.png",
+                "sha256": "685cb39c77281125da6ce7ea0f7cdd1f4085a45c0e87e35bd4ba47adbc4681e1",
+                "storage": "git",
+                "status": "ok",
+                "url": "/media/before/sub_mwkpd8ux8bkmc238mk/it_mwkpd8peav4b783fn3/vw_mwkpd8t8xkhqxygpvw"
+              },
+              "afterLabel": "v2"
+            },
+            {
+              "id": "vw_mwkpd8t8x99fn7xuyy",
+              "part": "model",
+              "leaf": null,
+              "caption": "Model, idle",
+              "camera": null,
+              "state": {
+                "mode": "clay",
+                "animation": {
+                  "clip": "Idle",
+                  "time": 0.5
+                }
+              }
+            },
+            {
+              "id": "vw_mwkpd8t8vrsbjde5fr",
+              "part": "capture:1",
+              "leaf": null,
+              "caption": "In game",
+              "camera": null,
+              "state": null
+            }
+          ],
+          "attributes": null,
+          "kind": "unit",
+          "preview": null
+        },
+        {
+          "id": "it_mwkpd8tww8ykqk7tq9",
+          "target": {
+            "kind": "unit",
+            "id": "armor/boots"
+          },
+          "targetScope": "content",
+          "targetType": "armor",
+          "title": "Iron Boots",
+          "text": null,
+          "targetExists": true,
+          "state": "changes",
+          "summary": {
+            "total": 3,
+            "approved": 0,
+            "changes": 1,
+            "rejected": 0,
+            "undecided": 2,
+            "changed": 0,
+            "state": "changes"
+          },
+          "parts": [
+            {
+              "id": "icon",
+              "label": "Icon",
+              "reviewable": true,
+              "verdict": "changes",
+              "event": {
+                "id": "vd_mwkpd915zavw7rh3cx",
+                "submission": "sub_mwkpd8ux8bkmc238mk",
+                "ref": "C238MK",
+                "item": "it_mwkpd8tww8ykqk7tq9",
+                "by": {
+                  "name": "Sam Second",
+                  "kind": "human"
+                },
+                "at": "2026-11-17T13:02:57.017Z",
+                "scope": "parts",
+                "verdicts": {
+                  "icon": "changes"
+                },
+                "comment": "",
+                "partNotes": {
+                  "icon": "Greener, please."
+                }
+              },
+              "role": "icon",
+              "asset": "art/boots.png",
+              "evidence": {
+                "digest": "51758870c205dea33877c669b53240eeae2953f327885ecd950625128dd5ca1c",
+                "asset": "art/boots.png",
+                "path": "art/boots.png",
+                "kind": "image",
+                "mime": "image/png",
+                "size": 74,
+                "sha256": "51758870c205dea33877c669b53240eeae2953f327885ecd950625128dd5ca1c",
+                "storage": "catalog",
+                "unit": null
+              },
+              "leaves": [
+                {
+                  "key": "",
+                  "label": "Icon",
+                  "kind": "image",
+                  "path": "art/boots.png",
+                  "asset": "art/boots.png",
+                  "sha256": "51758870c205dea33877c669b53240eeae2953f327885ecd950625128dd5ca1c",
+                  "unit": null,
+                  "part": null,
+                  "renderer": null,
+                  "storage": "catalog",
+                  "status": "ok",
+                  "url": "/media/evidence/sub_mwkpd8ux8bkmc238mk/it_mwkpd8tww8ykqk7tq9/icon"
+                }
+              ]
+            },
+            {
+              "id": "model",
+              "label": "Model",
+              "reviewable": true,
+              "verdict": null,
+              "event": null,
+              "role": "model",
+              "asset": "art/boots.glb",
+              "evidence": {
+                "digest": "387f2593fee7616675f62a1019c3e560c0c969668139d1ff8808023a1d53f1df",
+                "asset": "art/boots.glb",
+                "path": "art/boots.glb",
+                "kind": "model",
+                "mime": "model/gltf-binary",
+                "size": 976,
+                "sha256": "387f2593fee7616675f62a1019c3e560c0c969668139d1ff8808023a1d53f1df",
+                "storage": "git",
+                "unit": null
+              },
+              "leaves": [
+                {
+                  "key": "",
+                  "label": "Model",
+                  "kind": "model",
+                  "path": "art/boots.glb",
+                  "asset": "art/boots.glb",
+                  "sha256": "387f2593fee7616675f62a1019c3e560c0c969668139d1ff8808023a1d53f1df",
+                  "unit": null,
+                  "part": null,
+                  "renderer": null,
+                  "storage": "git",
+                  "status": "ok",
+                  "url": "/media/evidence/sub_mwkpd8ux8bkmc238mk/it_mwkpd8tww8ykqk7tq9/model"
+                }
+              ]
+            },
+            {
+              "id": "attributes",
+              "label": "Attributes",
+              "reviewable": true,
+              "verdict": null,
+              "event": null,
+              "evidence": {
+                "digest": "16193dbae8a0605d9e1e13418a1ad501de229857924c3e204b012960138d9436",
+                "asset": null,
+                "path": null,
+                "kind": "attributes",
+                "mime": null,
+                "size": null,
+                "sha256": null,
+                "storage": null,
+                "unit": null
+              },
+              "leaves": [
+                {
+                  "key": "",
+                  "label": "Attributes",
+                  "kind": "attributes",
+                  "status": "ok",
+                  "attrs": {
+                    "slot": "Feet",
+                    "armor": 6
+                  }
+                }
+              ]
+            }
+          ],
+          "views": [
+            {
+              "id": "vw_mwkpd8uwmdegtejv6w",
+              "part": "icon",
+              "leaf": null,
+              "caption": "Iron Boots · Icon",
+              "camera": null,
+              "state": null
+            },
+            {
+              "id": "vw_mwkpd8uwr5d37hg8jr",
+              "part": "model",
+              "leaf": null,
+              "caption": "Iron Boots · Model",
+              "camera": null,
+              "state": null
+            }
+          ],
+          "attributes": null,
+          "kind": "unit",
+          "preview": null
+        }
+      ],
+      "events": [
+        {
+          "id": "vd_mwkpd915zavw7rh3cx",
+          "submission": "sub_mwkpd8ux8bkmc238mk",
+          "ref": "C238MK",
+          "item": "it_mwkpd8tww8ykqk7tq9",
+          "by": {
+            "name": "Sam Second",
+            "kind": "human"
+          },
+          "at": "2026-11-17T13:02:57.017Z",
+          "scope": "parts",
+          "verdicts": {
+            "icon": "changes"
+          },
+          "comment": "",
+          "partNotes": {
+            "icon": "Greener, please."
+          }
+        },
+        {
+          "id": "vd_mwkpd90w4cqjed7x7z",
+          "submission": "sub_mwkpd8ux8bkmc238mk",
+          "ref": "C238MK",
+          "item": "it_mwkpd8peav4b783fn3",
+          "by": {
+            "name": "Rae Tester",
+            "kind": "human"
+          },
+          "at": "2026-11-17T13:02:57.008Z",
+          "scope": "whole",
+          "verdicts": {
+            "capture:1": "approved",
+            "capture:2": "rejected",
+            "icon": "approved",
+            "model": "approved",
+            "concept:art/sheet.png": "changes",
+            "attributes": "approved"
+          },
+          "comment": "Good pass.",
+          "partNotes": {
+            "concept:art/sheet.png": "The sheet is too dark.",
+            "icon": "Crisp."
+          }
+        }
+      ],
+      "observations": [
+        {
+          "id": "nt_mwkpd93yrpu37qr6xz",
+          "target": {
+            "kind": "submission",
+            "id": "sub_mwkpd8ux8bkmc238mk",
+            "item": "it_mwkpd8peav4b783fn3",
+            "part": "capture:1"
+          },
+          "body": "The after shot is overexposed.",
+          "by": {
+            "name": "Rae Tester",
+            "kind": "human"
+          },
+          "at": "2026-11-17T13:02:57.118Z",
+          "revision": 1,
+          "targetName": "Helm and boots pass · C238MK · Iron Helm",
+          "targetExists": true,
+          "partLabel": "Helm in game",
+          "thumb": null,
+          "route": "#/reviews/s/sub_mwkpd8ux8bkmc238mk/it_mwkpd8peav4b783fn3"
+        },
+        {
+          "id": "nt_mwkpd93igm6mkt6pfa",
+          "target": {
+            "kind": "submission",
+            "id": "sub_mwkpd8ux8bkmc238mk"
+          },
+          "body": "Second pass next week.",
+          "by": {
+            "name": "Rae Tester",
+            "kind": "human"
+          },
+          "at": "2026-11-17T13:02:57.102Z",
+          "revision": 1,
+          "targetName": "Helm and boots pass · C238MK",
+          "targetExists": true,
+          "partLabel": null,
+          "thumb": null,
+          "route": "#/reviews/s/sub_mwkpd8ux8bkmc238mk"
+        }
+      ],
+      "supersededBy": [],
+      "hint": "No catalog server is running for this checkout. Run `jam catalog open` to start one; it prints the address these routes follow."
+    }
+  },
+  "units": {
+    "armor/helm": {
+      "route": "#/content/u/armor%2Fhelm",
+      "unit": {
+        "id": "armor/helm",
+        "scope": "content",
+        "name": "Iron Helm",
+        "type": "armor",
+        "attrs": {
+          "slot": "Head",
+          "armor": 10
+        },
+        "aliases": [],
+        "sources": [
+          "content/armor_helm.json"
+        ],
+        "explain": {}
+      },
+      "type": {
+        "scope": "content",
+        "label": "Armor",
+        "roles": [
+          {
+            "key": "icon",
+            "label": "Icon",
+            "kinds": [
+              "image"
+            ],
+            "many": false,
+            "expected": true,
+            "help": null
+          },
+          {
+            "key": "model",
+            "label": "Model",
+            "kinds": [
+              "model"
+            ],
+            "many": false,
+            "expected": false,
+            "help": null
+          },
+          {
+            "key": "concept",
+            "label": "Concept",
+            "kinds": [
+              "image"
+            ],
+            "many": true,
+            "expected": false,
+            "help": null
+          }
+        ],
+        "fields": [
+          {
+            "key": "slot",
+            "label": "Slot",
+            "kind": "text",
+            "unit": null,
+            "help": null,
+            "group": null,
+            "filter": false,
+            "derived": false,
+            "summary": true
+          },
+          {
+            "key": "armor",
+            "label": "Armor",
+            "kind": "number",
+            "unit": null,
+            "help": null,
+            "group": null,
+            "filter": false,
+            "derived": false,
+            "summary": true
+          }
+        ],
+        "thumb": "icon",
+        "help": null,
+        "audioTranscript": null,
+        "reviewAttributes": true,
+        "views": [
+          {
+            "key": "turntable",
+            "label": "Turntable",
+            "module": "turntable",
+            "export": "default",
+            "help": "Spins the model",
+            "default": false
+          }
+        ],
+        "panels": [],
+        "display": null
+      },
+      "organization": {
+        "category": "Gear/Heavy",
+        "tags": [
+          "tier:1",
+          "metal"
+        ],
+        "projectTags": [],
+        "projectCategory": null,
+        "revision": 1
+      },
+      "tags": [
+        "tier:1",
+        "metal"
+      ],
+      "links": [
+        {
+          "role": "icon",
+          "roleLabel": "Icon",
+          "asset": {
+            "id": "art/helm.png",
+            "path": "art/helm.png",
+            "kind": "image",
+            "state": "ok",
+            "error": null,
+            "sha256": "32290f29e74c9664b416aae2adaad86e2fc460e717a6deaf7d9ccc22859cf9ea",
+            "version": "ccf4b69ac21d0cd0",
+            "size": 75,
+            "mime": "image/png",
+            "url": "/media/asset/art%2Fhelm.png?v=ccf4b69ac21d0cd0"
+          },
+          "alsoUsedBy": [],
+          "meta": null,
+          "facts": {}
+        },
+        {
+          "role": "model",
+          "roleLabel": "Model",
+          "asset": {
+            "id": "art/helm.glb",
+            "path": "art/helm.glb",
+            "kind": "model",
+            "state": "ok",
+            "error": null,
+            "sha256": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+            "version": "8a5f72c6be87f434",
+            "size": 1392,
+            "mime": "model/gltf-binary",
+            "url": "/media/asset/art%2Fhelm.glb?v=8a5f72c6be87f434"
+          },
+          "alsoUsedBy": [],
+          "meta": null,
+          "facts": {}
+        },
+        {
+          "role": "concept",
+          "roleLabel": "Concept",
+          "asset": {
+            "id": "art/sheet.png",
+            "path": "art/sheet.png",
+            "kind": "image",
+            "state": "ok",
+            "error": null,
+            "sha256": "c1c7b6a0355cd9caec81b5ff9062c5e9729ea03f4d5eb9c81fd79882e2775f65",
+            "version": "5d21314d519b46a2",
+            "size": 74,
+            "mime": "image/png",
+            "url": "/media/asset/art%2Fsheet.png?v=5d21314d519b46a2"
+          },
+          "alsoUsedBy": [],
+          "meta": null,
+          "facts": {}
+        }
+      ],
+      "missing": [],
+      "review": {
+        "parts": [
+          {
+            "id": "icon",
+            "label": "Icon",
+            "role": "icon",
+            "asset": "art/helm.png",
+            "reviewable": true,
+            "verdict": "approved",
+            "event": {
+              "id": "vd_mwkpd90w4cqjed7x7z",
+              "submission": "sub_mwkpd8ux8bkmc238mk",
+              "ref": "C238MK",
+              "item": "it_mwkpd8peav4b783fn3",
+              "by": {
+                "name": "Rae Tester",
+                "kind": "human"
+              },
+              "at": "2026-11-17T13:02:57.008Z",
+              "scope": "whole",
+              "verdicts": {
+                "capture:1": "approved",
+                "capture:2": "rejected",
+                "icon": "approved",
+                "model": "approved",
+                "concept:art/sheet.png": "changes",
+                "attributes": "approved"
+              },
+              "comment": "Good pass.",
+              "partNotes": {
+                "concept:art/sheet.png": "The sheet is too dark.",
+                "icon": "Crisp."
+              }
+            },
+            "changed": false
+          },
+          {
+            "id": "model",
+            "label": "Model",
+            "role": "model",
+            "asset": "art/helm.glb",
+            "reviewable": true,
+            "verdict": "approved",
+            "event": {
+              "id": "vd_mwkpd90w4cqjed7x7z",
+              "submission": "sub_mwkpd8ux8bkmc238mk",
+              "ref": "C238MK",
+              "item": "it_mwkpd8peav4b783fn3",
+              "by": {
+                "name": "Rae Tester",
+                "kind": "human"
+              },
+              "at": "2026-11-17T13:02:57.008Z",
+              "scope": "whole",
+              "verdicts": {
+                "capture:1": "approved",
+                "capture:2": "rejected",
+                "icon": "approved",
+                "model": "approved",
+                "concept:art/sheet.png": "changes",
+                "attributes": "approved"
+              },
+              "comment": "Good pass.",
+              "partNotes": {
+                "concept:art/sheet.png": "The sheet is too dark.",
+                "icon": "Crisp."
+              }
+            },
+            "changed": false
+          },
+          {
+            "id": "concept:art/sheet.png",
+            "label": "Concept",
+            "role": "concept",
+            "asset": "art/sheet.png",
+            "reviewable": true,
+            "verdict": "changes",
+            "event": {
+              "id": "vd_mwkpd90w4cqjed7x7z",
+              "submission": "sub_mwkpd8ux8bkmc238mk",
+              "ref": "C238MK",
+              "item": "it_mwkpd8peav4b783fn3",
+              "by": {
+                "name": "Rae Tester",
+                "kind": "human"
+              },
+              "at": "2026-11-17T13:02:57.008Z",
+              "scope": "whole",
+              "verdicts": {
+                "capture:1": "approved",
+                "capture:2": "rejected",
+                "icon": "approved",
+                "model": "approved",
+                "concept:art/sheet.png": "changes",
+                "attributes": "approved"
+              },
+              "comment": "Good pass.",
+              "partNotes": {
+                "concept:art/sheet.png": "The sheet is too dark.",
+                "icon": "Crisp."
+              }
+            },
+            "changed": false
+          },
+          {
+            "id": "attributes",
+            "label": "Attributes",
+            "reviewable": true,
+            "verdict": "approved",
+            "event": {
+              "id": "vd_mwkpd90w4cqjed7x7z",
+              "submission": "sub_mwkpd8ux8bkmc238mk",
+              "ref": "C238MK",
+              "item": "it_mwkpd8peav4b783fn3",
+              "by": {
+                "name": "Rae Tester",
+                "kind": "human"
+              },
+              "at": "2026-11-17T13:02:57.008Z",
+              "scope": "whole",
+              "verdicts": {
+                "capture:1": "approved",
+                "capture:2": "rejected",
+                "icon": "approved",
+                "model": "approved",
+                "concept:art/sheet.png": "changes",
+                "attributes": "approved"
+              },
+              "comment": "Good pass.",
+              "partNotes": {
+                "concept:art/sheet.png": "The sheet is too dark.",
+                "icon": "Crisp."
+              }
+            },
+            "changed": false
+          }
+        ],
+        "summary": {
+          "total": 4,
+          "approved": 3,
+          "changes": 1,
+          "rejected": 0,
+          "undecided": 0,
+          "changed": 0,
+          "state": "changes"
+        }
+      },
+      "history": [
+        {
+          "id": "vd_mwkpd90w4cqjed7x7z",
+          "submission": "sub_mwkpd8ux8bkmc238mk",
+          "ref": "C238MK",
+          "item": "it_mwkpd8peav4b783fn3",
+          "by": {
+            "name": "Rae Tester",
+            "kind": "human"
+          },
+          "at": "2026-11-17T13:02:57.008Z",
+          "scope": "whole",
+          "verdicts": {
+            "capture:1": "approved",
+            "capture:2": "rejected",
+            "icon": "approved",
+            "model": "approved",
+            "concept:art/sheet.png": "changes",
+            "attributes": "approved"
+          },
+          "comment": "Good pass.",
+          "partNotes": {
+            "concept:art/sheet.png": "The sheet is too dark.",
+            "icon": "Crisp."
+          },
+          "title": "Helm and boots pass",
+          "partLabels": {
+            "capture:1": "Helm in game",
+            "capture:2": "Close-up",
+            "icon": "Icon",
+            "model": "Model",
+            "concept:art/sheet.png": "Concept",
+            "attributes": "Attributes"
+          },
+          "changedParts": []
+        }
+      ],
+      "memberships": [
+        {
+          "id": "outfit/iron",
+          "name": "Iron Outfit",
+          "category": "Gear/Heavy",
+          "verdict": "approved",
+          "position": 0,
+          "count": 2
+        },
+        {
+          "id": "favourites",
+          "name": "Favourites",
+          "category": null,
+          "verdict": null,
+          "position": 0,
+          "count": 2
+        }
+      ],
+      "notes": [
+        {
+          "id": "nt_mwkpd939fkzmj3wamg",
+          "target": {
+            "kind": "asset",
+            "id": "art/sheet.png"
+          },
+          "body": "Export at twice the size.",
+          "by": {
+            "name": "Rae Tester",
+            "kind": "human"
+          },
+          "at": "2026-11-17T13:02:57.094Z",
+          "revision": 1,
+          "targetName": "sheet.png",
+          "targetExists": true,
+          "partLabel": null,
+          "thumb": {
+            "id": "art/sheet.png",
+            "path": "art/sheet.png",
+            "kind": "image",
+            "state": "ok",
+            "error": null,
+            "sha256": "c1c7b6a0355cd9caec81b5ff9062c5e9729ea03f4d5eb9c81fd79882e2775f65",
+            "version": "5d21314d519b46a2",
+            "size": 74,
+            "mime": "image/png",
+            "url": "/media/asset/art%2Fsheet.png?v=5d21314d519b46a2"
+          },
+          "route": "#/files/a/art%2Fsheet.png"
+        },
+        {
+          "id": "nt_mwkpd92uzey7kwxtzf",
+          "target": {
+            "kind": "unit",
+            "id": "armor/helm",
+            "part": "model"
+          },
+          "body": "The visor clips at the hinge.",
+          "by": {
+            "name": "Rae Tester",
+            "kind": "human"
+          },
+          "at": "2026-11-17T13:02:57.078Z",
+          "revision": 1,
+          "requestId": "rq-note-1",
+          "requestBinding": {
+            "action": "note.create",
+            "digest": "e923f013255295df13a10d507dcae5bfe91abf8009a43242cfa3d170ccaf81a9",
+            "context": "ff52585e9d24:main"
+          },
+          "targetName": "Iron Helm",
+          "targetExists": true,
+          "partLabel": "Model",
+          "thumb": {
+            "id": "art/helm.png",
+            "path": "art/helm.png",
+            "kind": "image",
+            "state": "ok",
+            "error": null,
+            "sha256": "32290f29e74c9664b416aae2adaad86e2fc460e717a6deaf7d9ccc22859cf9ea",
+            "version": "ccf4b69ac21d0cd0",
+            "size": 75,
+            "mime": "image/png",
+            "url": "/media/asset/art%2Fhelm.png?v=ccf4b69ac21d0cd0"
+          },
+          "route": "#/content/u/armor%2Fhelm"
+        }
+      ],
+      "refs": {},
+      "relations": [],
+      "waiting": [
+        {
+          "submission": "sub_mwkpd90dv7vd6hyw5r",
+          "ref": "6HYW5R",
+          "title": "Iron Outfit and 2 more",
+          "item": "it_mwkpd8zp6v2vtg6ek8",
+          "state": {
+            "total": 1,
+            "approved": 0,
+            "changes": 0,
+            "rejected": 0,
+            "undecided": 1,
+            "changed": 0,
+            "state": "undecided"
+          }
+        }
+      ],
+      "views": [
+        {
+          "key": "turntable",
+          "label": "Turntable",
+          "module": "turntable",
+          "export": "default",
+          "help": "Spins the model",
+          "default": false,
+          "url": null,
+          "error": "view module \"turntable\" is not declared by any plugin (a plugin lists it under views)"
+        }
+      ],
+      "panels": [],
+      "display": {
+        "pixelArt": false
+      },
+      "hint": "No catalog server is running for this checkout. Run `jam catalog open` to start one; it prints the address these routes follow."
+    },
+    "armor/boots": {
+      "route": "#/content/u/armor%2Fboots",
+      "unit": {
+        "id": "armor/boots",
+        "scope": "content",
+        "name": "Iron Boots",
+        "type": "armor",
+        "attrs": {
+          "slot": "Feet",
+          "armor": 6
+        },
+        "aliases": [],
+        "sources": [
+          "content/armor_boots.json"
+        ],
+        "explain": {}
+      },
+      "type": {
+        "scope": "content",
+        "label": "Armor",
+        "roles": [
+          {
+            "key": "icon",
+            "label": "Icon",
+            "kinds": [
+              "image"
+            ],
+            "many": false,
+            "expected": true,
+            "help": null
+          },
+          {
+            "key": "model",
+            "label": "Model",
+            "kinds": [
+              "model"
+            ],
+            "many": false,
+            "expected": false,
+            "help": null
+          },
+          {
+            "key": "concept",
+            "label": "Concept",
+            "kinds": [
+              "image"
+            ],
+            "many": true,
+            "expected": false,
+            "help": null
+          }
+        ],
+        "fields": [
+          {
+            "key": "slot",
+            "label": "Slot",
+            "kind": "text",
+            "unit": null,
+            "help": null,
+            "group": null,
+            "filter": false,
+            "derived": false,
+            "summary": true
+          },
+          {
+            "key": "armor",
+            "label": "Armor",
+            "kind": "number",
+            "unit": null,
+            "help": null,
+            "group": null,
+            "filter": false,
+            "derived": false,
+            "summary": true
+          }
+        ],
+        "thumb": "icon",
+        "help": null,
+        "audioTranscript": null,
+        "reviewAttributes": true,
+        "views": [
+          {
+            "key": "turntable",
+            "label": "Turntable",
+            "module": "turntable",
+            "export": "default",
+            "help": "Spins the model",
+            "default": false
+          }
+        ],
+        "panels": [],
+        "display": null
+      },
+      "organization": {
+        "category": null,
+        "tags": [],
+        "projectTags": [],
+        "projectCategory": null,
+        "revision": null
+      },
+      "tags": [],
+      "links": [
+        {
+          "role": "icon",
+          "roleLabel": "Icon",
+          "asset": {
+            "id": "art/boots.png",
+            "path": "art/boots.png",
+            "kind": "image",
+            "state": "ok",
+            "error": null,
+            "sha256": "f4d0d1758db8ff561dc1b5b521825df7248552843e2c469fdf142e082431cf9a",
+            "version": "ae37e0eb02992321",
+            "size": 74,
+            "mime": "image/png",
+            "url": "/media/asset/art%2Fboots.png?v=ae37e0eb02992321"
+          },
+          "alsoUsedBy": [],
+          "meta": null,
+          "facts": {}
+        },
+        {
+          "role": "model",
+          "roleLabel": "Model",
+          "asset": {
+            "id": "art/boots.glb",
+            "path": "art/boots.glb",
+            "kind": "model",
+            "state": "ok",
+            "error": null,
+            "sha256": "387f2593fee7616675f62a1019c3e560c0c969668139d1ff8808023a1d53f1df",
+            "version": "af814304e2488d05",
+            "size": 976,
+            "mime": "model/gltf-binary",
+            "url": "/media/asset/art%2Fboots.glb?v=af814304e2488d05"
+          },
+          "alsoUsedBy": [],
+          "meta": null,
+          "facts": {}
+        }
+      ],
+      "missing": [],
+      "review": {
+        "parts": [
+          {
+            "id": "icon",
+            "label": "Icon",
+            "role": "icon",
+            "asset": "art/boots.png",
+            "reviewable": true,
+            "verdict": "changes",
+            "event": {
+              "id": "vd_mwkpd915zavw7rh3cx",
+              "submission": "sub_mwkpd8ux8bkmc238mk",
+              "ref": "C238MK",
+              "item": "it_mwkpd8tww8ykqk7tq9",
+              "by": {
+                "name": "Sam Second",
+                "kind": "human"
+              },
+              "at": "2026-11-17T13:02:57.017Z",
+              "scope": "parts",
+              "verdicts": {
+                "icon": "changes"
+              },
+              "comment": "",
+              "partNotes": {
+                "icon": "Greener, please."
+              }
+            },
+            "changed": true
+          },
+          {
+            "id": "model",
+            "label": "Model",
+            "role": "model",
+            "asset": "art/boots.glb",
+            "reviewable": true,
+            "verdict": null,
+            "event": null,
+            "changed": false
+          },
+          {
+            "id": "attributes",
+            "label": "Attributes",
+            "reviewable": true,
+            "verdict": null,
+            "event": null,
+            "changed": false
+          }
+        ],
+        "summary": {
+          "total": 3,
+          "approved": 0,
+          "changes": 1,
+          "rejected": 0,
+          "undecided": 2,
+          "changed": 1,
+          "state": "changes"
+        }
+      },
+      "history": [
+        {
+          "id": "vd_mwkpd915zavw7rh3cx",
+          "submission": "sub_mwkpd8ux8bkmc238mk",
+          "ref": "C238MK",
+          "item": "it_mwkpd8tww8ykqk7tq9",
+          "by": {
+            "name": "Sam Second",
+            "kind": "human"
+          },
+          "at": "2026-11-17T13:02:57.017Z",
+          "scope": "parts",
+          "verdicts": {
+            "icon": "changes"
+          },
+          "comment": "",
+          "partNotes": {
+            "icon": "Greener, please."
+          },
+          "title": "Helm and boots pass",
+          "partLabels": {
+            "icon": "Icon",
+            "model": "Model",
+            "attributes": "Attributes"
+          },
+          "changedParts": [
+            "icon"
+          ]
+        }
+      ],
+      "memberships": [
+        {
+          "id": "outfit/iron",
+          "name": "Iron Outfit",
+          "category": "Gear/Heavy",
+          "verdict": null,
+          "position": 1,
+          "count": 2
+        }
+      ],
+      "notes": [],
+      "refs": {},
+      "relations": [],
+      "waiting": [
+        {
+          "submission": "sub_mwkpd8ux8bkmc238mk",
+          "ref": "C238MK",
+          "title": "Helm and boots pass",
+          "item": "it_mwkpd8tww8ykqk7tq9",
+          "state": {
+            "total": 3,
+            "approved": 0,
+            "changes": 1,
+            "rejected": 0,
+            "undecided": 2,
+            "changed": 0,
+            "state": "changes"
+          }
+        }
+      ],
+      "views": [
+        {
+          "key": "turntable",
+          "label": "Turntable",
+          "module": "turntable",
+          "export": "default",
+          "help": "Spins the model",
+          "default": false,
+          "url": null,
+          "error": "view module \"turntable\" is not declared by any plugin (a plugin lists it under views)"
+        }
+      ],
+      "panels": [],
+      "display": {
+        "pixelArt": false
+      },
+      "hint": "No catalog server is running for this checkout. Run `jam catalog open` to start one; it prints the address these routes follow."
+    },
+    "armor/coat": {
+      "route": "#/content/u/armor%2Fcoat",
+      "unit": {
+        "id": "armor/coat",
+        "scope": "content",
+        "name": "Wool Coat",
+        "type": "armor",
+        "attrs": {
+          "slot": "Body",
+          "armor": 3
+        },
+        "aliases": [],
+        "sources": [
+          "project.manifest.json"
+        ],
+        "explain": {}
+      },
+      "type": {
+        "scope": "content",
+        "label": "Armor",
+        "roles": [
+          {
+            "key": "icon",
+            "label": "Icon",
+            "kinds": [
+              "image"
+            ],
+            "many": false,
+            "expected": true,
+            "help": null
+          },
+          {
+            "key": "model",
+            "label": "Model",
+            "kinds": [
+              "model"
+            ],
+            "many": false,
+            "expected": false,
+            "help": null
+          },
+          {
+            "key": "concept",
+            "label": "Concept",
+            "kinds": [
+              "image"
+            ],
+            "many": true,
+            "expected": false,
+            "help": null
+          }
+        ],
+        "fields": [
+          {
+            "key": "slot",
+            "label": "Slot",
+            "kind": "text",
+            "unit": null,
+            "help": null,
+            "group": null,
+            "filter": false,
+            "derived": false,
+            "summary": true
+          },
+          {
+            "key": "armor",
+            "label": "Armor",
+            "kind": "number",
+            "unit": null,
+            "help": null,
+            "group": null,
+            "filter": false,
+            "derived": false,
+            "summary": true
+          }
+        ],
+        "thumb": "icon",
+        "help": null,
+        "audioTranscript": null,
+        "reviewAttributes": true,
+        "views": [
+          {
+            "key": "turntable",
+            "label": "Turntable",
+            "module": "turntable",
+            "export": "default",
+            "help": "Spins the model",
+            "default": false
+          }
+        ],
+        "panels": [],
+        "display": null
+      },
+      "organization": {
+        "category": null,
+        "tags": [],
+        "projectTags": [],
+        "projectCategory": null,
+        "revision": null
+      },
+      "tags": [],
+      "links": [
+        {
+          "role": "icon",
+          "roleLabel": "Icon",
+          "asset": {
+            "id": "art/coat.png",
+            "path": "art/coat.png",
+            "kind": "image",
+            "state": "ok",
+            "error": null,
+            "sha256": "bc2c20926ada156a6be36696064bac2a44730a956fe17fbf70f2901f56e01886",
+            "version": "389d36fa63c4129c",
+            "size": 75,
+            "mime": "image/png",
+            "url": "/media/asset/art%2Fcoat.png?v=389d36fa63c4129c"
+          },
+          "alsoUsedBy": [],
+          "meta": null,
+          "facts": {}
+        }
+      ],
+      "missing": [],
+      "review": {
+        "parts": [
+          {
+            "id": "icon",
+            "label": "Icon",
+            "role": "icon",
+            "asset": "art/coat.png",
+            "reviewable": true,
+            "verdict": null,
+            "event": null,
+            "changed": false
+          },
+          {
+            "id": "attributes",
+            "label": "Attributes",
+            "reviewable": true,
+            "verdict": null,
+            "event": null,
+            "changed": false
+          }
+        ],
+        "summary": {
+          "total": 2,
+          "approved": 0,
+          "changes": 0,
+          "rejected": 0,
+          "undecided": 2,
+          "changed": 0,
+          "state": "undecided"
+        }
+      },
+      "history": [],
+      "memberships": [
+        {
+          "id": "favourites",
+          "name": "Favourites",
+          "category": null,
+          "verdict": null,
+          "position": 1,
+          "count": 2
+        }
+      ],
+      "notes": [
+        {
+          "id": "nt_mwkpd946rncu3wuquc",
+          "target": {
+            "kind": "unit",
+            "id": "armor/coat"
+          },
+          "body": "Needs a model.",
+          "by": {
+            "name": "Rae Tester",
+            "kind": "human"
+          },
+          "at": "2026-11-17T13:02:57.126Z",
+          "revision": 2,
+          "resolved": {
+            "by": {
+              "name": "Rae Tester",
+              "kind": "human"
+            },
+            "at": "2026-11-17T13:02:57.136Z",
+            "explanation": "Out of scope."
+          },
+          "lastRequestId": "rq-resolve",
+          "lastRequestBinding": {
+            "action": "note.resolve",
+            "digest": "f6ae96685a56d74504f806ab12b13733971632d1ad02104bcbd594d155752bf7",
+            "context": "ff52585e9d24:main"
+          },
+          "targetName": "Wool Coat",
+          "targetExists": true,
+          "partLabel": null,
+          "thumb": {
+            "id": "art/coat.png",
+            "path": "art/coat.png",
+            "kind": "image",
+            "state": "ok",
+            "error": null,
+            "sha256": "bc2c20926ada156a6be36696064bac2a44730a956fe17fbf70f2901f56e01886",
+            "version": "389d36fa63c4129c",
+            "size": 75,
+            "mime": "image/png",
+            "url": "/media/asset/art%2Fcoat.png?v=389d36fa63c4129c"
+          },
+          "route": "#/content/u/armor%2Fcoat"
+        }
+      ],
+      "refs": {},
+      "relations": [],
+      "waiting": [],
+      "views": [],
+      "panels": [],
+      "display": {
+        "pixelArt": false
+      },
+      "hint": "No catalog server is running for this checkout. Run `jam catalog open` to start one; it prints the address these routes follow."
+    },
+    "lore/origin": {
+      "route": "#/content/u/lore%2Forigin",
+      "unit": {
+        "id": "lore/origin",
+        "scope": "content",
+        "name": "Origin Story",
+        "type": "lore",
+        "attrs": {
+          "text": "Long ago the iron mines opened."
+        },
+        "aliases": [],
+        "sources": [
+          "project.manifest.json"
+        ],
+        "explain": {}
+      },
+      "type": {
+        "scope": "content",
+        "label": "Lore",
+        "roles": [],
+        "fields": [
+          {
+            "key": "text",
+            "label": "Text",
+            "kind": "text",
+            "unit": null,
+            "help": null,
+            "group": null,
+            "filter": false,
+            "derived": false,
+            "summary": true
+          }
+        ],
+        "thumb": null,
+        "help": null,
+        "audioTranscript": null,
+        "reviewAttributes": true,
+        "views": [],
+        "panels": [],
+        "display": null
+      },
+      "organization": {
+        "category": "Lore",
+        "tags": [],
+        "projectTags": [],
+        "projectCategory": null,
+        "revision": 1
+      },
+      "tags": [],
+      "links": [],
+      "missing": [],
+      "review": {
+        "parts": [
+          {
+            "id": "attributes",
+            "label": "Attributes",
+            "reviewable": true,
+            "verdict": "approved",
+            "event": {
+              "id": "vd_mwkpd92j35re2xhqd9",
+              "submission": "sub_mwkpd925c73ud7fwwe",
+              "ref": "D7FWWE",
+              "item": "it_mwkpd925fh5mzpaqem",
+              "by": {
+                "name": "Rae Tester",
+                "kind": "human"
+              },
+              "at": "2026-11-17T13:02:57.067Z",
+              "scope": "whole",
+              "verdicts": {
+                "attributes": "approved"
+              },
+              "comment": "Canon.",
+              "partNotes": {}
+            },
+            "changed": false
+          }
+        ],
+        "summary": {
+          "total": 1,
+          "approved": 1,
+          "changes": 0,
+          "rejected": 0,
+          "undecided": 0,
+          "changed": 0,
+          "state": "approved"
+        }
+      },
+      "history": [
+        {
+          "id": "vd_mwkpd92j35re2xhqd9",
+          "submission": "sub_mwkpd925c73ud7fwwe",
+          "ref": "D7FWWE",
+          "item": "it_mwkpd925fh5mzpaqem",
+          "by": {
+            "name": "Rae Tester",
+            "kind": "human"
+          },
+          "at": "2026-11-17T13:02:57.067Z",
+          "scope": "whole",
+          "verdicts": {
+            "attributes": "approved"
+          },
+          "comment": "Canon.",
+          "partNotes": {},
+          "title": "Origin Story",
+          "partLabels": {
+            "attributes": "Attributes"
+          },
+          "changedParts": []
+        }
+      ],
+      "memberships": [],
+      "notes": [],
+      "refs": {},
+      "relations": [],
+      "waiting": [],
+      "views": [],
+      "panels": [],
+      "display": {
+        "pixelArt": false
+      },
+      "hint": "No catalog server is running for this checkout. Run `jam catalog open` to start one; it prints the address these routes follow."
+    }
+  },
+  "collections": {
+    "outfit/iron": {
+      "route": "#/collections/c/outfit%2Firon",
+      "collection": {
+        "id": "outfit/iron",
+        "name": "Iron Outfit",
+        "kind": "outfit",
+        "kindLabel": "Outfit",
+        "owner": "adapter",
+        "revision": null,
+        "createdBy": null
+      },
+      "organization": {
+        "category": "Gear/Heavy",
+        "tags": [
+          "starter"
+        ],
+        "projectTags": [],
+        "projectCategory": null,
+        "revision": 1,
+        "owner": "adapter"
+      },
+      "tags": [
+        "starter"
+      ],
+      "members": [
+        {
+          "id": "armor/helm",
+          "scope": "content",
+          "name": "Iron Helm",
+          "type": "armor",
+          "typeLabel": "Armor",
+          "thumb": {
+            "id": "art/helm.png",
+            "path": "art/helm.png",
+            "kind": "image",
+            "state": "ok",
+            "error": null,
+            "sha256": "32290f29e74c9664b416aae2adaad86e2fc460e717a6deaf7d9ccc22859cf9ea",
+            "version": "ccf4b69ac21d0cd0",
+            "size": 75,
+            "mime": "image/png",
+            "url": "/media/asset/art%2Fhelm.png?v=ccf4b69ac21d0cd0"
+          },
+          "roles": [
+            {
+              "key": "icon",
+              "label": "Icon",
+              "kind": "image",
+              "shared": false
+            },
+            {
+              "key": "model",
+              "label": "Model",
+              "kind": "model",
+              "shared": false
+            },
+            {
+              "key": "concept",
+              "label": "Concept",
+              "kind": "image",
+              "shared": false
+            }
+          ],
+          "missing": [],
+          "attrsPreview": null,
+          "status": {
+            "state": "changes",
+            "summary": {
+              "total": 4,
+              "approved": 3,
+              "changes": 1,
+              "rejected": 0,
+              "undecided": 0,
+              "changed": 0,
+              "state": "changes"
+            },
+            "parts": [
+              {
+                "id": "icon",
+                "label": "Icon",
+                "verdict": "approved",
+                "changed": false
+              },
+              {
+                "id": "model",
+                "label": "Model",
+                "verdict": "approved",
+                "changed": false
+              },
+              {
+                "id": "concept:art/sheet.png",
+                "label": "Concept",
+                "verdict": "changes",
+                "changed": false
+              },
+              {
+                "id": "attributes",
+                "label": "Attributes",
+                "verdict": "approved",
+                "changed": false
+              }
+            ]
+          },
+          "notes": 1,
+          "category": "Gear/Heavy",
+          "tags": [
+            "tier:1",
+            "metal"
+          ],
+          "position": 0,
+          "extra": null,
+          "inCollection": {
+            "id": "member:armor/helm",
+            "label": "Iron Helm",
+            "member": "armor/helm",
+            "reviewable": true,
+            "verdict": "approved",
+            "event": {
+              "id": "vd_mwkpd91nuscvp5dn8v",
+              "submission": "sub_mwkpd90dv7vd6hyw5r",
+              "ref": "6HYW5R",
+              "item": "it_mwkpd8vlgmjdzqcy3w",
+              "by": {
+                "name": "Rae Tester",
+                "kind": "human"
+              },
+              "at": "2026-11-17T13:02:57.035Z",
+              "scope": "parts",
+              "verdicts": {
+                "member:armor/helm": "approved",
+                "preview": "changes"
+              },
+              "comment": "The assembled view clips.",
+              "partNotes": {}
+            },
+            "changed": false
+          }
+        },
+        {
+          "id": "armor/boots",
+          "scope": "content",
+          "name": "Iron Boots",
+          "type": "armor",
+          "typeLabel": "Armor",
+          "thumb": {
+            "id": "art/boots.png",
+            "path": "art/boots.png",
+            "kind": "image",
+            "state": "ok",
+            "error": null,
+            "sha256": "f4d0d1758db8ff561dc1b5b521825df7248552843e2c469fdf142e082431cf9a",
+            "version": "ae37e0eb02992321",
+            "size": 74,
+            "mime": "image/png",
+            "url": "/media/asset/art%2Fboots.png?v=ae37e0eb02992321"
+          },
+          "roles": [
+            {
+              "key": "icon",
+              "label": "Icon",
+              "kind": "image",
+              "shared": false
+            },
+            {
+              "key": "model",
+              "label": "Model",
+              "kind": "model",
+              "shared": false
+            }
+          ],
+          "missing": [],
+          "attrsPreview": null,
+          "status": {
+            "state": "changes",
+            "summary": {
+              "total": 3,
+              "approved": 0,
+              "changes": 1,
+              "rejected": 0,
+              "undecided": 2,
+              "changed": 1,
+              "state": "changes"
+            },
+            "parts": [
+              {
+                "id": "icon",
+                "label": "Icon",
+                "verdict": "changes",
+                "changed": true
+              },
+              {
+                "id": "model",
+                "label": "Model",
+                "verdict": null,
+                "changed": false
+              },
+              {
+                "id": "attributes",
+                "label": "Attributes",
+                "verdict": null,
+                "changed": false
+              }
+            ]
+          },
+          "notes": 0,
+          "category": null,
+          "tags": [],
+          "position": 1,
+          "extra": null,
+          "inCollection": {
+            "id": "member:armor/boots",
+            "label": "Iron Boots",
+            "member": "armor/boots",
+            "reviewable": true,
+            "verdict": null,
+            "event": null,
+            "changed": false
+          }
+        }
+      ],
+      "preview": {
+        "label": "Assembled",
+        "module": "assembled-mesh",
+        "moduleUrl": null,
+        "moduleError": null,
+        "represents": "complete",
+        "config": {},
+        "roles": [
+          "model"
+        ],
+        "base": null,
+        "members": [
+          {
+            "unit": "armor/helm",
+            "part": "model",
+            "role": "model",
+            "asset": {
+              "id": "art/helm.glb",
+              "path": "art/helm.glb",
+              "kind": "model",
+              "state": "ok",
+              "error": null,
+              "sha256": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+              "version": "8a5f72c6be87f434",
+              "size": 1392,
+              "mime": "model/gltf-binary",
+              "url": "/media/asset/art%2Fhelm.glb?v=8a5f72c6be87f434"
+            }
+          },
+          {
+            "unit": "armor/boots",
+            "part": "model",
+            "role": "model",
+            "asset": {
+              "id": "art/boots.glb",
+              "path": "art/boots.glb",
+              "kind": "model",
+              "state": "ok",
+              "error": null,
+              "sha256": "387f2593fee7616675f62a1019c3e560c0c969668139d1ff8808023a1d53f1df",
+              "version": "af814304e2488d05",
+              "size": 976,
+              "mime": "model/gltf-binary",
+              "url": "/media/asset/art%2Fboots.glb?v=af814304e2488d05"
+            }
+          }
+        ]
+      },
+      "review": {
+        "parts": [
+          {
+            "id": "member:armor/helm",
+            "label": "Iron Helm",
+            "member": "armor/helm",
+            "reviewable": true,
+            "verdict": "approved",
+            "event": {
+              "id": "vd_mwkpd91nuscvp5dn8v",
+              "submission": "sub_mwkpd90dv7vd6hyw5r",
+              "ref": "6HYW5R",
+              "item": "it_mwkpd8vlgmjdzqcy3w",
+              "by": {
+                "name": "Rae Tester",
+                "kind": "human"
+              },
+              "at": "2026-11-17T13:02:57.035Z",
+              "scope": "parts",
+              "verdicts": {
+                "member:armor/helm": "approved",
+                "preview": "changes"
+              },
+              "comment": "The assembled view clips.",
+              "partNotes": {}
+            },
+            "changed": false
+          },
+          {
+            "id": "member:armor/boots",
+            "label": "Iron Boots",
+            "member": "armor/boots",
+            "reviewable": true,
+            "verdict": null,
+            "event": null,
+            "changed": false
+          },
+          {
+            "id": "preview",
+            "label": "Assembled",
+            "reviewable": true,
+            "verdict": "approved",
+            "event": {
+              "id": "vd_mwkpd91vxz7qbejkxg",
+              "submission": "sub_mwkpd90dv7vd6hyw5r",
+              "ref": "6HYW5R",
+              "item": "it_mwkpd8vlgmjdzqcy3w",
+              "by": {
+                "name": "Sam Second",
+                "kind": "human"
+              },
+              "at": "2026-11-17T13:02:57.043Z",
+              "scope": "parts",
+              "verdicts": {
+                "preview": "approved"
+              },
+              "comment": "",
+              "partNotes": {}
+            },
+            "changed": false
+          }
+        ],
+        "summary": {
+          "total": 3,
+          "approved": 2,
+          "changes": 0,
+          "rejected": 0,
+          "undecided": 1,
+          "changed": 0,
+          "state": "partial"
+        }
+      },
+      "history": [
+        {
+          "id": "vd_mwkpd91vxz7qbejkxg",
+          "submission": "sub_mwkpd90dv7vd6hyw5r",
+          "ref": "6HYW5R",
+          "item": "it_mwkpd8vlgmjdzqcy3w",
+          "by": {
+            "name": "Sam Second",
+            "kind": "human"
+          },
+          "at": "2026-11-17T13:02:57.043Z",
+          "scope": "parts",
+          "verdicts": {
+            "preview": "approved"
+          },
+          "comment": "",
+          "partNotes": {},
+          "title": "Iron Outfit and 2 more",
+          "partLabels": {
+            "member:armor/helm": "Iron Helm",
+            "member:armor/boots": "Iron Boots",
+            "preview": "Assembled"
+          },
+          "changedParts": []
+        },
+        {
+          "id": "vd_mwkpd91nuscvp5dn8v",
+          "submission": "sub_mwkpd90dv7vd6hyw5r",
+          "ref": "6HYW5R",
+          "item": "it_mwkpd8vlgmjdzqcy3w",
+          "by": {
+            "name": "Rae Tester",
+            "kind": "human"
+          },
+          "at": "2026-11-17T13:02:57.035Z",
+          "scope": "parts",
+          "verdicts": {
+            "member:armor/helm": "approved",
+            "preview": "changes"
+          },
+          "comment": "The assembled view clips.",
+          "partNotes": {},
+          "title": "Iron Outfit and 2 more",
+          "partLabels": {
+            "member:armor/helm": "Iron Helm",
+            "member:armor/boots": "Iron Boots",
+            "preview": "Assembled"
+          },
+          "changedParts": []
+        }
+      ],
+      "notes": [
+        {
+          "id": "nt_mwkpd933krmaepracx",
+          "target": {
+            "kind": "collection",
+            "id": "outfit/iron"
+          },
+          "body": "Add the gauntlets when they exist.",
+          "by": {
+            "name": "Rae Tester",
+            "kind": "human"
+          },
+          "at": "2026-11-17T13:02:57.087Z",
+          "revision": 1,
+          "targetName": "Iron Outfit",
+          "targetExists": true,
+          "partLabel": null,
+          "thumb": null,
+          "route": "#/collections/c/outfit%2Firon"
+        }
+      ],
+      "waiting": [
+        {
+          "submission": "sub_mwkpd90dv7vd6hyw5r",
+          "ref": "6HYW5R",
+          "title": "Iron Outfit and 2 more",
+          "item": "it_mwkpd8vlgmjdzqcy3w",
+          "state": {
+            "total": 3,
+            "approved": 2,
+            "changes": 0,
+            "rejected": 0,
+            "undecided": 1,
+            "changed": 0,
+            "state": "partial"
+          }
+        }
+      ],
+      "hint": "No catalog server is running for this checkout. Run `jam catalog open` to start one; it prints the address these routes follow."
+    },
+    "favourites": {
+      "route": "#/collections/c/favourites",
+      "collection": {
+        "id": "favourites",
+        "name": "Favourites",
+        "kind": "outfit",
+        "kindLabel": "Outfit",
+        "owner": "catalog",
+        "revision": 1,
+        "createdBy": {
+          "name": "Rae Tester",
+          "kind": "human"
+        }
+      },
+      "organization": {
+        "category": null,
+        "tags": [
+          "shortlist"
+        ],
+        "projectTags": [],
+        "projectCategory": null,
+        "revision": 1,
+        "owner": "catalog"
+      },
+      "tags": [
+        "shortlist"
+      ],
+      "members": [
+        {
+          "id": "armor/helm",
+          "scope": "content",
+          "name": "Iron Helm",
+          "type": "armor",
+          "typeLabel": "Armor",
+          "thumb": {
+            "id": "art/helm.png",
+            "path": "art/helm.png",
+            "kind": "image",
+            "state": "ok",
+            "error": null,
+            "sha256": "32290f29e74c9664b416aae2adaad86e2fc460e717a6deaf7d9ccc22859cf9ea",
+            "version": "ccf4b69ac21d0cd0",
+            "size": 75,
+            "mime": "image/png",
+            "url": "/media/asset/art%2Fhelm.png?v=ccf4b69ac21d0cd0"
+          },
+          "roles": [
+            {
+              "key": "icon",
+              "label": "Icon",
+              "kind": "image",
+              "shared": false
+            },
+            {
+              "key": "model",
+              "label": "Model",
+              "kind": "model",
+              "shared": false
+            },
+            {
+              "key": "concept",
+              "label": "Concept",
+              "kind": "image",
+              "shared": false
+            }
+          ],
+          "missing": [],
+          "attrsPreview": null,
+          "status": {
+            "state": "changes",
+            "summary": {
+              "total": 4,
+              "approved": 3,
+              "changes": 1,
+              "rejected": 0,
+              "undecided": 0,
+              "changed": 0,
+              "state": "changes"
+            },
+            "parts": [
+              {
+                "id": "icon",
+                "label": "Icon",
+                "verdict": "approved",
+                "changed": false
+              },
+              {
+                "id": "model",
+                "label": "Model",
+                "verdict": "approved",
+                "changed": false
+              },
+              {
+                "id": "concept:art/sheet.png",
+                "label": "Concept",
+                "verdict": "changes",
+                "changed": false
+              },
+              {
+                "id": "attributes",
+                "label": "Attributes",
+                "verdict": "approved",
+                "changed": false
+              }
+            ]
+          },
+          "notes": 1,
+          "category": "Gear/Heavy",
+          "tags": [
+            "tier:1",
+            "metal"
+          ],
+          "position": 0,
+          "extra": null,
+          "inCollection": {
+            "id": "member:armor/helm",
+            "label": "Iron Helm",
+            "member": "armor/helm",
+            "reviewable": true,
+            "verdict": null,
+            "event": null,
+            "changed": false
+          }
+        },
+        {
+          "id": "armor/coat",
+          "scope": "content",
+          "name": "Wool Coat",
+          "type": "armor",
+          "typeLabel": "Armor",
+          "thumb": {
+            "id": "art/coat.png",
+            "path": "art/coat.png",
+            "kind": "image",
+            "state": "ok",
+            "error": null,
+            "sha256": "bc2c20926ada156a6be36696064bac2a44730a956fe17fbf70f2901f56e01886",
+            "version": "389d36fa63c4129c",
+            "size": 75,
+            "mime": "image/png",
+            "url": "/media/asset/art%2Fcoat.png?v=389d36fa63c4129c"
+          },
+          "roles": [
+            {
+              "key": "icon",
+              "label": "Icon",
+              "kind": "image",
+              "shared": false
+            }
+          ],
+          "missing": [],
+          "attrsPreview": null,
+          "status": {
+            "state": "undecided",
+            "summary": {
+              "total": 2,
+              "approved": 0,
+              "changes": 0,
+              "rejected": 0,
+              "undecided": 2,
+              "changed": 0,
+              "state": "undecided"
+            },
+            "parts": [
+              {
+                "id": "icon",
+                "label": "Icon",
+                "verdict": null,
+                "changed": false
+              },
+              {
+                "id": "attributes",
+                "label": "Attributes",
+                "verdict": null,
+                "changed": false
+              }
+            ]
+          },
+          "notes": 0,
+          "category": null,
+          "tags": [],
+          "position": 1,
+          "extra": null,
+          "inCollection": {
+            "id": "member:armor/coat",
+            "label": "Wool Coat",
+            "member": "armor/coat",
+            "reviewable": true,
+            "verdict": null,
+            "event": null,
+            "changed": false
+          }
+        }
+      ],
+      "preview": {
+        "label": "Assembled",
+        "module": "assembled-mesh",
+        "moduleUrl": null,
+        "moduleError": null,
+        "represents": "complete",
+        "config": {},
+        "roles": [
+          "model"
+        ],
+        "base": null,
+        "members": [
+          {
+            "unit": "armor/helm",
+            "part": "model",
+            "role": "model",
+            "asset": {
+              "id": "art/helm.glb",
+              "path": "art/helm.glb",
+              "kind": "model",
+              "state": "ok",
+              "error": null,
+              "sha256": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+              "version": "8a5f72c6be87f434",
+              "size": 1392,
+              "mime": "model/gltf-binary",
+              "url": "/media/asset/art%2Fhelm.glb?v=8a5f72c6be87f434"
+            }
+          }
+        ]
+      },
+      "review": {
+        "parts": [
+          {
+            "id": "member:armor/helm",
+            "label": "Iron Helm",
+            "member": "armor/helm",
+            "reviewable": true,
+            "verdict": null,
+            "event": null,
+            "changed": false
+          },
+          {
+            "id": "member:armor/coat",
+            "label": "Wool Coat",
+            "member": "armor/coat",
+            "reviewable": true,
+            "verdict": null,
+            "event": null,
+            "changed": false
+          },
+          {
+            "id": "preview",
+            "label": "Assembled",
+            "reviewable": true,
+            "verdict": null,
+            "event": null,
+            "changed": false
+          }
+        ],
+        "summary": {
+          "total": 3,
+          "approved": 0,
+          "changes": 0,
+          "rejected": 0,
+          "undecided": 3,
+          "changed": 0,
+          "state": "undecided"
+        }
+      },
+      "history": [],
+      "notes": [],
+      "waiting": [],
+      "hint": "No catalog server is running for this checkout. Run `jam catalog open` to start one; it prints the address these routes follow."
+    }
+  },
+  "notes": {
+    "notes": [
+      {
+        "id": "nt_mwkpd946rncu3wuquc",
+        "target": {
+          "kind": "unit",
+          "id": "armor/coat"
+        },
+        "body": "Needs a model.",
+        "by": {
+          "name": "Rae Tester",
+          "kind": "human"
+        },
+        "at": "2026-11-17T13:02:57.126Z",
+        "revision": 2,
+        "resolved": {
+          "by": {
+            "name": "Rae Tester",
+            "kind": "human"
+          },
+          "at": "2026-11-17T13:02:57.136Z",
+          "explanation": "Out of scope."
+        },
+        "lastRequestId": "rq-resolve",
+        "lastRequestBinding": {
+          "action": "note.resolve",
+          "digest": "f6ae96685a56d74504f806ab12b13733971632d1ad02104bcbd594d155752bf7",
+          "context": "ff52585e9d24:main"
+        },
+        "targetName": "Wool Coat",
+        "targetExists": true,
+        "partLabel": null,
+        "thumb": {
+          "id": "art/coat.png",
+          "path": "art/coat.png",
+          "kind": "image",
+          "state": "ok",
+          "error": null,
+          "sha256": "bc2c20926ada156a6be36696064bac2a44730a956fe17fbf70f2901f56e01886",
+          "version": "389d36fa63c4129c",
+          "size": 75,
+          "mime": "image/png",
+          "url": "/media/asset/art%2Fcoat.png?v=389d36fa63c4129c"
+        },
+        "route": "#/content/u/armor%2Fcoat"
+      },
+      {
+        "id": "nt_mwkpd93yrpu37qr6xz",
+        "target": {
+          "kind": "submission",
+          "id": "sub_mwkpd8ux8bkmc238mk",
+          "item": "it_mwkpd8peav4b783fn3",
+          "part": "capture:1"
+        },
+        "body": "The after shot is overexposed.",
+        "by": {
+          "name": "Rae Tester",
+          "kind": "human"
+        },
+        "at": "2026-11-17T13:02:57.118Z",
+        "revision": 1,
+        "targetName": "Helm and boots pass · C238MK · Iron Helm",
+        "targetExists": true,
+        "partLabel": "Helm in game",
+        "thumb": null,
+        "route": "#/reviews/s/sub_mwkpd8ux8bkmc238mk/it_mwkpd8peav4b783fn3"
+      },
+      {
+        "id": "nt_mwkpd93qgn7zgqxm6j",
+        "target": {
+          "kind": "submission",
+          "id": "sub_mwkpd90dv7vd6hyw5r",
+          "item": "it_mwkpd8zop7atz8m5qt",
+          "part": "decision"
+        },
+        "body": "Applied in the lighting pass (all torches).",
+        "by": {
+          "name": "checker",
+          "kind": "agent"
+        },
+        "at": "2026-11-17T13:02:57.110Z",
+        "revision": 2,
+        "requestId": "rq-note-2",
+        "requestBinding": {
+          "action": "note.create",
+          "digest": "cffd0eb7174f213ddeddd4566afd2fbb6c08c5245ef7b83e6f3f0d7a81810b7b",
+          "context": "ff52585e9d24:main"
+        },
+        "editedAt": "2026-11-17T13:02:57.145Z",
+        "lastRequestId": "rq-edit",
+        "lastRequestBinding": {
+          "action": "note.edit",
+          "digest": "975087f8ff96cb73d2c283904d587160bf64cfd82801249f7d151937d85aafd2",
+          "context": "ff52585e9d24:main"
+        },
+        "targetName": "Iron Outfit and 2 more · 6HYW5R · Torches flicker less?",
+        "targetExists": true,
+        "partLabel": "Decision",
+        "thumb": null,
+        "route": "#/reviews/s/sub_mwkpd90dv7vd6hyw5r/it_mwkpd8zop7atz8m5qt"
+      },
+      {
+        "id": "nt_mwkpd93igm6mkt6pfa",
+        "target": {
+          "kind": "submission",
+          "id": "sub_mwkpd8ux8bkmc238mk"
+        },
+        "body": "Second pass next week.",
+        "by": {
+          "name": "Rae Tester",
+          "kind": "human"
+        },
+        "at": "2026-11-17T13:02:57.102Z",
+        "revision": 1,
+        "targetName": "Helm and boots pass · C238MK",
+        "targetExists": true,
+        "partLabel": null,
+        "thumb": null,
+        "route": "#/reviews/s/sub_mwkpd8ux8bkmc238mk"
+      },
+      {
+        "id": "nt_mwkpd939fkzmj3wamg",
+        "target": {
+          "kind": "asset",
+          "id": "art/sheet.png"
+        },
+        "body": "Export at twice the size.",
+        "by": {
+          "name": "Rae Tester",
+          "kind": "human"
+        },
+        "at": "2026-11-17T13:02:57.094Z",
+        "revision": 1,
+        "targetName": "sheet.png",
+        "targetExists": true,
+        "partLabel": null,
+        "thumb": {
+          "id": "art/sheet.png",
+          "path": "art/sheet.png",
+          "kind": "image",
+          "state": "ok",
+          "error": null,
+          "sha256": "c1c7b6a0355cd9caec81b5ff9062c5e9729ea03f4d5eb9c81fd79882e2775f65",
+          "version": "5d21314d519b46a2",
+          "size": 74,
+          "mime": "image/png",
+          "url": "/media/asset/art%2Fsheet.png?v=5d21314d519b46a2"
+        },
+        "route": "#/files/a/art%2Fsheet.png"
+      },
+      {
+        "id": "nt_mwkpd933krmaepracx",
+        "target": {
+          "kind": "collection",
+          "id": "outfit/iron"
+        },
+        "body": "Add the gauntlets when they exist.",
+        "by": {
+          "name": "Rae Tester",
+          "kind": "human"
+        },
+        "at": "2026-11-17T13:02:57.087Z",
+        "revision": 1,
+        "targetName": "Iron Outfit",
+        "targetExists": true,
+        "partLabel": null,
+        "thumb": null,
+        "route": "#/collections/c/outfit%2Firon"
+      },
+      {
+        "id": "nt_mwkpd92uzey7kwxtzf",
+        "target": {
+          "kind": "unit",
+          "id": "armor/helm",
+          "part": "model"
+        },
+        "body": "The visor clips at the hinge.",
+        "by": {
+          "name": "Rae Tester",
+          "kind": "human"
+        },
+        "at": "2026-11-17T13:02:57.078Z",
+        "revision": 1,
+        "requestId": "rq-note-1",
+        "requestBinding": {
+          "action": "note.create",
+          "digest": "e923f013255295df13a10d507dcae5bfe91abf8009a43242cfa3d170ccaf81a9",
+          "context": "ff52585e9d24:main"
+        },
+        "targetName": "Iron Helm",
+        "targetExists": true,
+        "partLabel": "Model",
+        "thumb": {
+          "id": "art/helm.png",
+          "path": "art/helm.png",
+          "kind": "image",
+          "state": "ok",
+          "error": null,
+          "sha256": "32290f29e74c9664b416aae2adaad86e2fc460e717a6deaf7d9ccc22859cf9ea",
+          "version": "ccf4b69ac21d0cd0",
+          "size": 75,
+          "mime": "image/png",
+          "url": "/media/asset/art%2Fhelm.png?v=ccf4b69ac21d0cd0"
+        },
+        "route": "#/content/u/armor%2Fhelm"
+      }
+    ],
+    "total": 7,
+    "page": 1,
+    "pages": 1,
+    "pageSize": 100,
+    "counts": {
+      "open": 6,
+      "resolved": 1,
+      "all": 7
+    },
+    "authors": [
+      "Rae Tester",
+      "checker"
+    ],
+    "hint": "No catalog server is running for this checkout. Run `jam catalog open` to start one; it prints the address these routes follow."
+  },
+  "inbox": {
+    "counts": {
+      "waiting": 2,
+      "notes": 6,
+      "changed": 1,
+      "problems": 0
+    },
+    "waiting": [
+      {
+        "submission": "sub_mwkpd90dv7vd6hyw5r",
+        "ref": "6HYW5R",
+        "title": "Iron Outfit and 2 more",
+        "by": {
+          "name": "Rae Tester",
+          "kind": "human"
+        },
+        "at": "2026-11-17T13:02:56.989Z",
+        "waiting": 2,
+        "items": 3,
+        "route": "#/reviews/s/sub_mwkpd90dv7vd6hyw5r"
+      },
+      {
+        "submission": "sub_mwkpd8ux8bkmc238mk",
+        "ref": "C238MK",
+        "title": "Helm and boots pass",
+        "by": {
+          "name": "Rae Tester",
+          "kind": "human"
+        },
+        "at": "2026-11-17T13:02:56.793Z",
+        "waiting": 1,
+        "items": 2,
+        "route": "#/reviews/s/sub_mwkpd8ux8bkmc238mk"
+      }
+    ],
+    "notes": [
+      {
+        "id": "nt_mwkpd93yrpu37qr6xz",
+        "target": {
+          "kind": "submission",
+          "id": "sub_mwkpd8ux8bkmc238mk",
+          "item": "it_mwkpd8peav4b783fn3",
+          "part": "capture:1"
+        },
+        "targetName": "Helm and boots pass · C238MK · Iron Helm",
+        "targetExists": true,
+        "partLabel": "Helm in game",
+        "body": "The after shot is overexposed.",
+        "by": {
+          "name": "Rae Tester",
+          "kind": "human"
+        },
+        "at": "2026-11-17T13:02:57.118Z",
+        "route": "#/reviews/s/sub_mwkpd8ux8bkmc238mk/it_mwkpd8peav4b783fn3"
+      },
+      {
+        "id": "nt_mwkpd93qgn7zgqxm6j",
+        "target": {
+          "kind": "submission",
+          "id": "sub_mwkpd90dv7vd6hyw5r",
+          "item": "it_mwkpd8zop7atz8m5qt",
+          "part": "decision"
+        },
+        "targetName": "Iron Outfit and 2 more · 6HYW5R · Torches flicker less?",
+        "targetExists": true,
+        "partLabel": "Decision",
+        "body": "Applied in the lighting pass (all torches).",
+        "by": {
+          "name": "checker",
+          "kind": "agent"
+        },
+        "at": "2026-11-17T13:02:57.110Z",
+        "route": "#/reviews/s/sub_mwkpd90dv7vd6hyw5r/it_mwkpd8zop7atz8m5qt"
+      },
+      {
+        "id": "nt_mwkpd93igm6mkt6pfa",
+        "target": {
+          "kind": "submission",
+          "id": "sub_mwkpd8ux8bkmc238mk"
+        },
+        "targetName": "Helm and boots pass · C238MK",
+        "targetExists": true,
+        "partLabel": null,
+        "body": "Second pass next week.",
+        "by": {
+          "name": "Rae Tester",
+          "kind": "human"
+        },
+        "at": "2026-11-17T13:02:57.102Z",
+        "route": "#/reviews/s/sub_mwkpd8ux8bkmc238mk"
+      },
+      {
+        "id": "nt_mwkpd939fkzmj3wamg",
+        "target": {
+          "kind": "asset",
+          "id": "art/sheet.png"
+        },
+        "targetName": "sheet.png",
+        "targetExists": true,
+        "partLabel": null,
+        "body": "Export at twice the size.",
+        "by": {
+          "name": "Rae Tester",
+          "kind": "human"
+        },
+        "at": "2026-11-17T13:02:57.094Z",
+        "route": "#/files/a/art%2Fsheet.png"
+      },
+      {
+        "id": "nt_mwkpd933krmaepracx",
+        "target": {
+          "kind": "collection",
+          "id": "outfit/iron"
+        },
+        "targetName": "Iron Outfit",
+        "targetExists": true,
+        "partLabel": null,
+        "body": "Add the gauntlets when they exist.",
+        "by": {
+          "name": "Rae Tester",
+          "kind": "human"
+        },
+        "at": "2026-11-17T13:02:57.087Z",
+        "route": "#/collections/c/outfit%2Firon"
+      },
+      {
+        "id": "nt_mwkpd92uzey7kwxtzf",
+        "target": {
+          "kind": "unit",
+          "id": "armor/helm",
+          "part": "model"
+        },
+        "targetName": "Iron Helm",
+        "targetExists": true,
+        "partLabel": "Model",
+        "body": "The visor clips at the hinge.",
+        "by": {
+          "name": "Rae Tester",
+          "kind": "human"
+        },
+        "at": "2026-11-17T13:02:57.078Z",
+        "route": "#/content/u/armor%2Fhelm"
+      }
+    ],
+    "changed": [
+      {
+        "target": {
+          "kind": "unit",
+          "id": "armor/boots"
+        },
+        "route": "#/content/u/armor%2Fboots",
+        "name": "Iron Boots",
+        "parts": [
+          {
+            "id": "icon",
+            "label": "Icon",
+            "verdict": "changes",
+            "submission": "sub_mwkpd8ux8bkmc238mk",
+            "ref": "C238MK"
+          }
+        ]
+      }
+    ],
+    "problems": [],
+    "hint": "No catalog server is running for this checkout. Run `jam catalog open` to start one; it prints the address these routes follow."
+  },
+  "organization": {
+    "categories": [
+      {
+        "path": "Gear",
+        "units": 1,
+        "collections": 1,
+        "assets": 0
+      },
+      {
+        "path": "Gear/Heavy",
+        "units": 1,
+        "collections": 1,
+        "assets": 0
+      },
+      {
+        "path": "Lore",
+        "units": 1,
+        "collections": 0,
+        "assets": 0
+      }
+    ],
+    "tags": [
+      {
+        "tag": "concept-sheet",
+        "projectOwned": false,
+        "units": 0,
+        "collections": 0,
+        "assets": 1
+      },
+      {
+        "tag": "metal",
+        "projectOwned": false,
+        "units": 1,
+        "collections": 0,
+        "assets": 0
+      },
+      {
+        "tag": "shortlist",
+        "projectOwned": false,
+        "units": 0,
+        "collections": 1,
+        "assets": 0
+      },
+      {
+        "tag": "starter",
+        "projectOwned": false,
+        "units": 0,
+        "collections": 1,
+        "assets": 0
+      },
+      {
+        "tag": "tier:1",
+        "projectOwned": false,
+        "units": 1,
+        "collections": 0,
+        "assets": 0
+      }
+    ]
+  }
+}

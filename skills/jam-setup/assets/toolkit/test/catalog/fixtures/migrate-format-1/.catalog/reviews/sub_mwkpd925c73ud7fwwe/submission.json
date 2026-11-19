@@ -1,0 +1,55 @@
+{
+  "id": "sub_mwkpd925c73ud7fwwe",
+  "title": "Origin Story",
+  "by": {
+    "name": "Rae Tester",
+    "kind": "human"
+  },
+  "at": "2026-11-17T13:02:57.053Z",
+  "context": {
+    "branch": "main",
+    "head": "d32763bad98949efac41f89397dfd3e4e1360f28",
+    "dirty": 1
+  },
+  "supersedes": null,
+  "note": null,
+  "items": [
+    {
+      "id": "it_mwkpd925fh5mzpaqem",
+      "target": {
+        "kind": "unit",
+        "id": "lore/origin"
+      },
+      "title": "Origin Story",
+      "kind": "unit",
+      "definition": {
+        "sha256": "9d4049a541ea47f6b86c526a1bbe8c0fc19a15fed5fd975fecfcb24e59b71ebb",
+        "ref": {
+          "store": ".catalog/evidence/9d/9d4049a541ea47f6b86c526a1bbe8c0fc19a15fed5fd975fecfcb24e59b71ebb.json"
+        }
+      },
+      "parts": [
+        {
+          "id": "attributes",
+          "label": "Attributes",
+          "role": null,
+          "asset": null,
+          "evidence": {
+            "kind": "attributes",
+            "attrs": {
+              "text": "Long ago the iron mines opened."
+            },
+            "digest": "808cf9310a7e960cc57a705b9863412ded8d84b4b0c46dd72983fb84d2f4a0e4"
+          }
+        }
+      ],
+      "views": []
+    }
+  ],
+  "requestId": "rq-current:submission",
+  "requestBinding": {
+    "action": "review.decideCurrent",
+    "digest": "a9df9e059281e22bda9208d60b429acc04813a4a39fd1f62cbe8b973529b58ad",
+    "context": "ff52585e9d24:main"
+  }
+}

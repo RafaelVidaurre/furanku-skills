@@ -1,16 +1,17 @@
 // Review submissions as lists and as one opened submission.
 import * as Effect from "effect/Effect"
-import { fail, type ToolError } from "../../kernel/errors.ts"
+import { fail } from "../../kernel/errors.ts"
 import { shortRef } from "../../kernel/Ids.ts"
 import type { Evidence } from "../Evidence.ts"
 import type { FrozenPart, SubmissionItem, SubmissionRecord, Target } from "../model/types.ts"
-import { eventOrder } from "../model/verdicts.ts"
+import { decisionOrder } from "../model/verdicts.ts"
 import type { Projection } from "../Projection.ts"
 import { reviewRoute } from "../routes.ts"
 import { paginate } from "../support.ts"
 import { leafView, leaves, publicEvidence, viewOf } from "./evidence.ts"
 import { noteView } from "./notes.ts"
 import { BUILTIN_PREVIEW, itemState, summaryOf } from "./review.ts"
+import { moduleUrl } from "./summaries.ts"
 
 const MAX_PAGE = 200
 
@@ -26,9 +27,9 @@ const framePreview = (p: Projection, item: SubmissionItem) => {
   const base = { module, label: part.label, config: evidence.config ?? {}, roles: evidence.roles ?? ["model"] }
   const submitted = evidence.moduleSha
   if (!submitted) return { ...base, moduleUrl: null, moduleChanged: false, moduleError: null }
-  const current = p.previewModules.get(module) ?? null
+  const current = p.browserModules.get(module) ?? null
   if (current === submitted) {
-    return { ...base, moduleSha: submitted, moduleUrl: `/project/preview/${encodeURIComponent(module)}?v=${submitted.slice(0, 16)}`, moduleChanged: false, moduleError: null }
+    return { ...base, moduleSha: submitted, moduleUrl: moduleUrl(module, submitted), moduleChanged: false, moduleError: null }
   }
   return {
     ...base,
@@ -71,9 +72,9 @@ const frame = <I extends ItemView>(submission: SubmissionRecord, items: Readonly
   title: submission.title,
   by: submission.by,
   at: submission.at,
-  context: submission.context,
+  checkout: submission.checkout,
   supersedes: submission.supersedes ?? null,
-  note: submission.note ?? null,
+  brief: submission.brief ?? null,
   counts: {
     items: items.length,
     waiting: items.filter((item) => item.summary.undecided > 0).length,
@@ -115,7 +116,7 @@ const submissionDetail = (p: Projection, evidence: Evidence["Service"], submissi
     (items) => frame(submission, items)
   )
 
-export interface ReviewsListInput {
+export interface ReviewListInput {
   readonly state?: string | null | undefined
   readonly q?: string | null | undefined
   readonly page?: number | null | undefined
@@ -123,7 +124,7 @@ export interface ReviewsListInput {
   readonly target?: Target | null | undefined
 }
 
-export const reviewsList = (p: Projection, input: ReviewsListInput) => {
+export const reviewList = (p: Projection, input: ReviewListInput) => {
   const { target } = input
   const q = (input.q ?? "").toLowerCase()
   let list = p.records.submission
@@ -141,18 +142,18 @@ export const reviewsList = (p: Projection, input: ReviewsListInput) => {
   const wanted = filters[input.state ?? "all"]
   if (wanted) list = list.filter(wanted)
   const page = paginate(list, input.page, input.pageSize, 50, MAX_PAGE)
-  return { total: list.length, page: page.page, pages: page.pages, counts, items: page.items }
+  return { submissions: page.items, total: list.length, page: page.page, pages: page.pages, pageSize: page.pageSize, counts }
 }
 
-/** One submission by id or short reference: items, parts, views, verdict projection, events, observations. */
-export const reviewGet = (p: Projection, evidence: Evidence["Service"], reference: string): Effect.Effect<unknown, ToolError> =>
+/** One submission by id or short reference: items, parts, views, verdict projection, decisions, observations. */
+export const reviewGet = (p: Projection, evidence: Evidence["Service"], reference: string) =>
   Effect.gen(function*() {
     const submission = p.records.submission.find((candidate) => candidate.id === reference || shortRef(candidate.id) === reference.toUpperCase())
     if (!submission) return yield* fail("not_found", `submission ${reference} not found`)
     const view = yield* submissionDetail(p, evidence, submission)
     return {
       ...view,
-      events: p.records.verdict.filter((event) => event.submission === submission.id).sort(eventOrder).reverse().map((event) => summaryOf(p, event)),
+      decisions: p.records.decision.filter((decision) => decision.submission === submission.id).sort(decisionOrder).reverse().map((decision) => summaryOf(p, decision)),
       observations: (p.notesByTarget.get(`submission:${submission.id}`) ?? []).map((note) => noteView(p, note)).sort((a, b) => b.at.localeCompare(a.at)),
       supersededBy: p.records.submission.filter((other) => other.supersedes === submission.id).map((other) => ({ id: other.id, ref: shortRef(other.id) }))
     }

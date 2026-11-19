@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "catalog-decision.schema.json",
+  "$ref": "#/$defs/DecisionRecord",
+  "$defs": {
+    "DecisionRecord": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^dc_[a-z0-9]+$"
+        },
+        "submission": {
+          "type": "string",
+          "pattern": "^sub_[a-z0-9]+$"
+        },
+        "item": {
+          "type": "string",
+          "pattern": "^it_[a-z0-9]+$"
+        },
+        "by": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "human",
+                "agent"
+              ]
+            }
+          },
+          "required": [
+            "name",
+            "kind"
+          ],
+          "additionalProperties": true
+        },
+        "at": {
+          "type": "string"
+        },
+        "comment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "covers": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "whole",
+                "parts"
+              ]
+            },
+            "parts": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "string"
+                }
+              ],
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "parts"
+          ],
+          "additionalProperties": true
+        },
+        "verdict": {
+          "type": "string",
+          "enum": [
+            "approved",
+            "changes",
+            "rejected"
+          ]
+        },
+        "exceptions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "approved",
+              "changes",
+              "rejected"
+            ]
+          }
+        },
+        "verdicts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "approved",
+              "changes",
+              "rejected"
+            ]
+          }
+        },
+        "partComments": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "relay": {
+          "type": "object",
+          "properties": {
+            "by": {
+              "type": "string"
+            },
+            "channel": {
+              "type": "string"
+            },
+            "words": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "by",
+            "channel",
+            "words"
+          ],
+          "additionalProperties": true
+        },
+        "requestId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requestBinding": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string"
+                },
+                "digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "checkout": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "action",
+                "digest",
+                "checkout"
+              ],
+              "additionalProperties": true
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "submission",
+        "item",
+        "by",
+        "at",
+        "covers"
+      ],
+      "additionalProperties": true
+    }
+  }
+}

@@ -41,9 +41,12 @@ export const decode = <S extends Schema.Top>(schema: S, options: DecodeOptions) 
     })
   )
 
-/** A publishable JSON Schema (draft 2020-12) for an authored file. */
-export const jsonSchemaOf = (schema: Schema.Top, id?: string): Record<string, unknown> => {
-  const document = Schema.toJsonSchemaDocument(schema)
+/**
+ * A publishable JSON Schema (draft 2020-12) for an authored file. `strict` closes every object, as
+ * decoding with unknown fields refused does; without it objects stay open.
+ */
+export const jsonSchemaOf = (schema: Schema.Top, id?: string, options?: { readonly strict?: boolean }): Record<string, unknown> => {
+  const document = Schema.toJsonSchemaDocument(schema, options?.strict === true ? { onExcessProperty: "error" } : undefined)
   return {
     $schema: JsonSchema.META_SCHEMA_URI_DRAFT_2020_12,
     ...(id === undefined ? {} : { $id: id }),

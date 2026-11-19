@@ -63,7 +63,7 @@ export class Facts extends Context.Service<Facts, {
         Effect.gen(function*() {
           const { kind, sha256, state } = facts
           if (state !== "ok" || sha256 === undefined || kind === undefined) return {}
-          const applicable = probes.filter((probe) => probe.value.kinds.includes(kind))
+          const applicable = probes.filter((probe) => probe.value.mediaKinds.includes(kind))
           const results = yield* Effect.forEach(applicable, (probe) => one(asset, { ...facts, sha256, kind }, probe))
           return Object.fromEntries(applicable.map((probe, index) => [probe.value.name, results[index]!]))
         })

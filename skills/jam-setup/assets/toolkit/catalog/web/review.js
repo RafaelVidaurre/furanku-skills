@@ -3,12 +3,12 @@ import { MediaViewer, UnavailableViewer } from './viewers.js';
 import { mediaKind } from './media-kinds.js';
 import { PreviewHost } from './previews.js';
 import { CompareRows } from './compare.js';
-import { useActiveViewer, setSelectionProvider, setSelectHandler } from './controller.js';
+import { refusal, useActiveViewer, setSelectionProvider, setSelectHandler } from './controller.js';
 import { NotesBlock } from './notes.js';
 import { Markdown } from './markdown.js';
 
 const VERDICTS = [['approved', 'check', 'Approve'], ['changes', 'x', 'Request changes'], ['rejected', 'stop', 'Reject']];
-const PART_NOTE_MAX = 5000; // Matches PART_NOTE_MAX in the catalog's record schemas.
+const PART_COMMENT_MAX = 5000; // Matches the part comment limit in the catalog's record schemas.
 
 // Whole-with-exceptions when every part has a verdict; otherwise a part-only decision.
 export function decisionFrom(verdicts, partIds) {
@@ -21,11 +21,11 @@ export function decisionFrom(verdicts, partIds) {
   }
   return { verdicts: Object.fromEntries(set.map((p) => [p, verdicts[p]])) };
 }
-// Part notes to send: only for parts the decision gives a verdict, trimmed, blanks dropped.
-// A note on a part left without a verdict stays in the draft but is not recorded.
-export function notesFor(dec, notes = {}, partIds) {
+// Part comments to send: only for parts the decision gives a verdict, trimmed, blanks dropped.
+// A comment on a part left without a verdict stays in the draft but is not recorded.
+export function commentsFor(dec, comments = {}, partIds) {
   if (!dec) return undefined;
-  const kept = Object.fromEntries(Object.entries(notes).filter(([p, t]) => t?.trim() && partIds.includes(p) && (dec.whole || dec.verdicts[p])).map(([p, t]) => [p, t.trim()]));
+  const kept = Object.fromEntries(Object.entries(comments).filter(([p, t]) => t?.trim() && partIds.includes(p) && (dec.whole || dec.verdicts[p])).map(([p, t]) => [p, t.trim()]));
   return Object.keys(kept).length ? kept : undefined;
 }
 function effectLine(dec, parts, name) {
@@ -48,20 +48,20 @@ export function SubmitDialog({ targets, parts, detail, onClose }) {
   const defaultViews = () => (parts ?? []).filter((p) => p.asset || p.member || p.id === 'preview').map((p) => ({ part: p.id, caption: p.label }));
   const key = `submit:${targets.map((t) => `${t.kind}:${t.id}`).join(',')}`;
   const [draft, setDraft] = useDraft(key, null);
-  const d = draft ?? { title: name, note: '', requestId: newRequestId(), parts: (parts ?? []).map((p) => p.id), views: defaultViews(), supersedes: '' };
+  const d = draft ?? { title: name, brief: '', requestId: newRequestId(), parts: (parts ?? []).map((p) => p.id), views: defaultViews(), supersedes: '' };
   const set = (x) => setDraft({ ...d, ...x });
   const ref = useDialog(onClose);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
-  const prior = useQuery('reviews.list', { state: 'all', pageSize: 50, target: single ? { kind: single.kind, id: single.id } : { kind: 'unit', id: '' } }, !!single);
-  const visualParts = (parts ?? []).filter((p) => d.parts.includes(p.id) && (p.asset || p.member || p.id === 'preview'));
+  const prior = useQuery('review.list', { state: 'all', pageSize: 50, target: single ? { kind: single.kind, id: single.id } : { kind: 'unit', id: '' } }, !!single);
+  const mediaParts = (parts ?? []).filter((p) => d.parts.includes(p.id) && (p.asset || p.member || p.id === 'preview'));
   const views = d.views.filter((v) => d.parts.includes(v.part));
   const togglePart = (id) => set({ parts: d.parts.includes(id) ? d.parts.filter((x) => x !== id) : [...d.parts, id] });
   const setViewAt = (i, x) => set({ views: views.map((v, j) => (j === i ? { ...v, ...x } : v)) });
   // Capture the live stage viewer's camera and state for a view of the same part.
   const previewLink = detail?.links?.find(l => l.asset.id === parts?.find(p => p.id === previewPart)?.asset) ?? detail?.links?.find(l => mediaKind(l.asset.kind)?.framing) ?? detail?.links?.[0];
   const shownPart = parts?.find(p => p.asset === previewLink?.asset.id)?.id;
-  const live = (part) => { const v = window.catalogViewer?.viewers().find((x) => x.id === 'stage'); return v && v.status === 'ready' && v.camera && v.source?.part === part ? v : null; };
+  const live = (part) => { const v = window.catalogViewer?.viewers().find((x) => x.id === 'stage'); return v && v.status === 'ready' && v.camera && v.shows?.part === part ? v : null; };
   // A viewer that can be framed reports its camera and the view state it can restore.
   const capture = (i) => { const v = live(views[i].part); if (v) setViewAt(i, { camera: v.camera, ...(v.view ? { state: v.view } : {}) }); };
   const go = async () => {
@@ -70,7 +70,7 @@ export function SubmitDialog({ targets, parts, detail, onClose }) {
       const items = single
         ? [{ target: { kind: single.kind, id: single.id }, parts: d.parts, ...(views.length ? { views: views.map((v) => ({ part: v.part, caption: v.caption, ...(v.camera ? { camera: v.camera } : {}), ...(v.state ? { state: v.state } : {}) })) } : {}) }]
         : targets.map(({ kind, id }) => ({ target: { kind, id } }));
-      const r = await write('review.submit', { items, ...(d.title.trim() ? { title: d.title.trim() } : {}), ...(d.note.trim() ? { note: d.note.trim() } : {}), ...(d.supersedes ? { supersedes: d.supersedes } : {}) }, d.requestId);
+      const r = await write('review.submit', { items, ...(d.title.trim() ? { title: d.title.trim() } : {}), ...(d.brief?.trim() ? { brief: d.brief.trim() } : {}), ...(d.supersedes ? { supersedes: d.supersedes } : {}) }, d.requestId);
       setDraft(null); onClose(); toast(`Submitted ${r.submission.ref}`);
       location.hash = href({ section: 'reviews', kind: 's', id: r.submission.id }).slice(1);
     } catch (e) { setErr(e); } finally { setBusy(false); }
@@ -78,54 +78,54 @@ export function SubmitDialog({ targets, parts, detail, onClose }) {
   return html`<div class="scrim" onPointerDown=${(e) => e.target === e.currentTarget && onClose()}>
     <div class="dialog composer submit" ref=${ref} role="dialog" aria-modal="true" aria-label="Submit for review">
       <header class="dialog-h"><h2>Submit for review</h2><button class="icon-btn" onClick=${onClose} aria-label="Close"><${Icon} name="x" /></button></header>
-      ${previewLink && html`<div class="submit-preview"><div class="stage-view" data-viewer-root data-active="true"><${MediaViewer} key=${previewLink.asset.id} media=${previewLink.asset} viewerId="stage" source=${{ part: shownPart }} /></div><label class="preview-select">Preview <select aria-label="Preview part" value=${shownPart} onChange=${e => setPreviewPart(e.target.value)}>${parts.filter(p => p.asset).map(p => html`<option value=${p.id}>${p.label}</option>`)}</select></label></div>`}
+      ${previewLink && html`<div class="submit-preview"><div class="stage-view" data-viewer-root data-active="true"><${MediaViewer} key=${previewLink.asset.id} media=${previewLink.asset} viewerId="stage" shows=${{ part: shownPart }} /></div><label class="preview-select">Preview <select aria-label="Preview part" value=${shownPart} onChange=${e => setPreviewPart(e.target.value)}>${parts.filter(p => p.asset).map(p => html`<option value=${p.id}>${p.label}</option>`)}</select></label></div>`}
       <div class="submit-form">
         <input value=${d.title} placeholder="Title" aria-label="Title" autofocus onInput=${(e) => set({ title: e.target.value })} />
-        <textarea rows="2" placeholder="Note (Markdown)" aria-label="Note" value=${d.note} onInput=${(e) => set({ note: e.target.value })}></textarea>
+        <textarea rows="2" placeholder="Brief for the reviewer (Markdown)" aria-label="Brief" value=${d.brief ?? ''} onInput=${(e) => set({ brief: e.target.value })}></textarea>
         ${!single && html`<div class="muted small">${targets.length} items: ${targets.map((t) => t.name ?? t.id).join(', ')}</div>`}
         ${single && html`
           <div class="part-toggles" role="group" aria-label="Parts">${parts.map((p) => html`<label class=${`ptog${d.parts.includes(p.id) ? ' on' : ''}`}><input type="checkbox" checked=${d.parts.includes(p.id)} onChange=${() => togglePart(p.id)} />${p.label}</label>`)}</div>
           <div class="view-list" role="list" aria-label="Views">${views.map((v, i) => html`<div class="view-row" role="listitem" key=${i}>
-            <select aria-label=${`View ${i + 1} part`} value=${v.part} onChange=${(e) => setViewAt(i, { part: e.target.value, camera: undefined, state: undefined })}>${visualParts.map((p) => html`<option value=${p.id}>${p.label}</option>`)}</select>
+            <select aria-label=${`View ${i + 1} part`} value=${v.part} onChange=${(e) => setViewAt(i, { part: e.target.value, camera: undefined, state: undefined })}>${mediaParts.map((p) => html`<option value=${p.id}>${p.label}</option>`)}</select>
             <input value=${v.caption} aria-label=${`View ${i + 1} caption`} placeholder="Caption" onInput=${(e) => setViewAt(i, { caption: e.target.value })} />
             ${v.camera ? html`<button class="btn xs on" title="Captured camera and viewer state" onClick=${() => setViewAt(i, { camera: undefined, state: undefined })}><${Icon} name="check" size=${11} />View</button>`
               : html`<button class="btn xs" disabled=${!live(v.part)} title=${live(v.part) ? 'Use the current camera and viewer state' : 'Show this part in the viewer to capture its camera'} onClick=${() => capture(i)}>Use current view</button>`}
             <button class="icon-btn sm" aria-label=${`Remove view ${i + 1}`} onClick=${() => set({ views: views.filter((_, j) => j !== i) })}><${Icon} name="x" size=${11} /></button>
           </div>`)}
-            ${visualParts.length > 0 && html`<button class="btn xs ghost add-view" onClick=${() => set({ views: [...views, { part: (live(visualParts[0].id) ? visualParts[0] : visualParts.find((p) => live(p.id)) ?? visualParts[0]).id, caption: `${name} · ${visualParts[0].label}` }] })}><${Icon} name="plus" size=${11} />View</button>`}
+            ${mediaParts.length > 0 && html`<button class="btn xs ghost add-view" onClick=${() => set({ views: [...views, { part: (live(mediaParts[0].id) ? mediaParts[0] : mediaParts.find((p) => live(p.id)) ?? mediaParts[0]).id, caption: `${name} · ${mediaParts[0].label}` }] })}><${Icon} name="plus" size=${11} />View</button>`}
           </div>
-          ${(prior.data?.items.length ?? 0) > 0 && html`<label class="replaces"><span class="muted small">Replaces</span><select aria-label="Replaces" value=${d.supersedes} onChange=${(e) => set({ supersedes: e.target.value })}><option value="">—</option>${prior.data.items.map((x) => html`<option value=${x.id}>${x.ref} · ${x.title}</option>`)}</select></label>`}`}
+          ${(prior.data?.submissions.length ?? 0) > 0 && html`<label class="replaces"><span class="muted small">Replaces</span><select aria-label="Replaces" value=${d.supersedes} onChange=${(e) => set({ supersedes: e.target.value })}><option value="">—</option>${prior.data.submissions.map((x) => html`<option value=${x.id}>${x.ref} · ${x.title}</option>`)}</select></label>`}`}
       </div>
-      <${ErrorLine} error=${err} onRetry=${err && err.code !== 'context_changed' ? go : null} />
+      <${ErrorLine} error=${err} onRetry=${err && err.code !== 'checkout_changed' ? go : null} />
       <footer class="dialog-f"><span class="push"></span><button class="btn primary" disabled=${busy || (single && !d.parts.length)} onClick=${go}>Submit</button></footer>
     </div>
   </div>`;
 }
 
-// Recorded part notes, each labeled with its part and that part's verdict in the event.
-function PartNotes({ e, label }) {
-  const notes = Object.keys(e.verdicts).filter((p) => e.partNotes?.[p]).map((p) => [p, e.partNotes[p]]);
-  return notes.length > 0 && html`<ul class="part-notes" aria-label="Part notes">${notes.map(([p, t]) => html`<li class="part-note" key=${p}>
+// Recorded part comments, each labeled with its part and that part's verdict in the decision.
+function PartComments({ e, label }) {
+  const comments = Object.keys(e.verdicts).filter((p) => e.partComments?.[p]).map((p) => [p, e.partComments[p]]);
+  return comments.length > 0 && html`<ul class="part-notes" aria-label="Part comments">${comments.map(([p, t]) => html`<li class="part-note" key=${p}>
     <span class=${`pv ${e.verdicts[p]}`}><${Icon} name=${e.verdicts[p] === 'approved' ? 'check' : e.verdicts[p] === 'changes' ? 'x' : 'stop'} size=${11} />${label(p)}</span><span class="part-note-t">${t}</span></li>`)}</ul>`;
 }
 
 // Part verdict editor shared by the catalog composer and the submission view.
-// A part with a verdict can carry its own note; the note is kept in the draft if the verdict is cleared.
-// A note field starts open when it has text; its toggle then overrides that, keeping the text.
-function PartVerdicts({ parts, verdicts, onChange, notes = {}, onNotes, current, onSelect }) {
+// A part with a verdict can carry its own comment; the comment is kept in the draft if the verdict is cleared.
+// A comment field starts open when it has text; its toggle then overrides that, keeping the text.
+function PartVerdicts({ parts, verdicts, onChange, comments = {}, onComments, current, onSelect }) {
   const setPart = (p, v) => { const next = { ...verdicts }; if (v) next[p] = v; else delete next[p]; onChange(next); };
   const [opened, setOpened] = useState({});
-  const setNote = (p, t) => onNotes({ ...notes, [p]: t });
+  const setComment = (p, t) => onComments({ ...comments, [p]: t });
   return html`<div class="comp-parts" role="list">
-    ${parts.map((p) => { const showNote = !!verdicts[p.id] && (opened[p.id] ?? !!notes[p.id]?.trim()); return html`<div class=${`comp-row${verdicts[p.id] ? ' set' : ''}`} role="listitem" key=${p.id}>
+    ${parts.map((p) => { const showComment = !!verdicts[p.id] && (opened[p.id] ?? !!comments[p.id]?.trim()); return html`<div class=${`comp-row${verdicts[p.id] ? ' set' : ''}`} role="listitem" key=${p.id}>
       <button class="pl part-select" aria-label=${`View ${p.label}`} onClick=${() => onSelect(p.id)}>${p.label}${p.changed && html`<span class="delta-inline" title="Changed since its verdict"><${Icon} name="delta" size=${10} /></span>`}</button>
       <span class="cur"><${Verdict} v=${current?.(p) ?? p.verdict} short /></span>
       <span class="seg" role="radiogroup" aria-label=${p.label}>
         <button role="radio" aria-checked=${!verdicts[p.id]} title="No verdict" class=${`seg-b none${!verdicts[p.id] ? ' on' : ''}`} onClick=${() => setPart(p.id, null)}>—</button>
         ${VERDICTS.map(([v, ic, t]) => html`<button role="radio" aria-checked=${verdicts[p.id] === v} title=${t} aria-label=${`${t}: ${p.label}`} class=${`seg-b ${v}${verdicts[p.id] === v ? ' on' : ''}`} onClick=${() => setPart(p.id, v)}><${Icon} name=${ic} size=${12} /></button>`)}
       </span>
-      ${onNotes && html`<button class=${`icon-btn sm note-tog${notes[p.id]?.trim() ? ' has' : ''}`} disabled=${!verdicts[p.id]} aria-expanded=${!!showNote} aria-label=${`Note on ${p.label}`} title=${verdicts[p.id] ? `Note on ${p.label}` : 'Choose a verdict to add a note on this part'} onClick=${() => setOpened({ ...opened, [p.id]: !showNote })}><${Icon} name="note" size=${12} /></button>`}
-      ${onNotes && showNote && html`<textarea class="part-note-in" rows="2" maxLength=${PART_NOTE_MAX} placeholder=${`Note on ${p.label}`} aria-label=${`Note on ${p.label}`} value=${notes[p.id] ?? ''} onInput=${(e) => setNote(p.id, e.target.value)}></textarea>`}
+      ${onComments && html`<button class=${`icon-btn sm note-tog${comments[p.id]?.trim() ? ' has' : ''}`} disabled=${!verdicts[p.id]} aria-expanded=${!!showComment} aria-label=${`Comment on ${p.label}`} title=${verdicts[p.id] ? `Comment on ${p.label}` : 'Choose a verdict to add a comment on this part'} onClick=${() => setOpened({ ...opened, [p.id]: !showComment })}><${Icon} name="note" size=${12} /></button>`}
+      ${onComments && showComment && html`<textarea class="part-note-in" rows="2" maxLength=${PART_COMMENT_MAX} placeholder=${`Comment on ${p.label}`} aria-label=${`Comment on ${p.label}`} value=${comments[p.id] ?? ''} onInput=${(e) => setComment(p.id, e.target.value)}></textarea>`}
     </div>`; })}
   </div>`;
 }
@@ -139,7 +139,7 @@ export function ReviewsView({ route }) {
   const [creating, setCreating] = useState(false);
   const st = route.query.get('state') ?? 'waiting';
   const q = route.query.get('q') ?? '';
-  const { data, error, reload } = useQuery('reviews.list', { state: st, q, pageSize: 100 });
+  const { data, error, reload } = useQuery('review.list', { state: st, q, pageSize: 100 });
   const set = (x) => replace(withQuery(route, x));
   return html`<div class="page">
     <header class="browse-head"><div><span class="eyebrow">Decisions & feedback</span><h1>Reviews</h1></div><button class="btn primary" onClick=${() => setCreating(true)}>New review</button></header>
@@ -149,8 +149,8 @@ export function ReviewsView({ route }) {
       <input class="search sm" type="search" placeholder="Filter" aria-label="Filter submissions" value=${q} onInput=${(e) => set({ q: e.target.value })} data-list-search />
     </div>
     <${ErrorLine} error=${error} onRetry=${reload} />
-    <div class="feed">${data?.items.map((s) => html`<a class="sub-row" key=${s.id} href=${href({ section: 'reviews', kind: 's', id: s.id, query: new URLSearchParams(route.query) })}>
-      <span class="sub-main"><span class="row-name">${s.title}</span><span class="row-sub"><span class="mono">${s.ref}</span> · <${Person} by=${s.by} /> · ${ago(s.at)}${s.context.dirty ? ' · uncommitted work' : ''}</span></span>
+    <div class="feed">${data?.submissions.map((s) => html`<a class="sub-row" key=${s.id} href=${href({ section: 'reviews', kind: 's', id: s.id, query: new URLSearchParams(route.query) })}>
+      <span class="sub-main"><span class="row-name">${s.title}</span><span class="row-sub"><span class="mono">${s.ref}</span> · <${Person} by=${s.by} /> · ${ago(s.at)}${s.checkout.dirty ? ' · uncommitted work' : ''}</span></span>
       <span class="sub-counts">${s.counts.waiting ? html`<span class="cnt wait">${s.counts.waiting} waiting</span>` : ''}${s.counts.changes ? html`<span class="cnt changes">${s.counts.changes} changes</span>` : ''}${s.counts.rejected ? html`<span class="cnt rejected">${s.counts.rejected} rejected</span>` : ''}<span class="cnt">${s.counts.approved}/${s.counts.items}</span></span>
     </a>`)}</div>
   </div>`;
@@ -170,10 +170,9 @@ export function SubmissionView({ route }) {
   const setView = (id) => replace(withQuery(route, { view: id }));
   setSelectionProvider(() => ({ kind: 'submission', submission: subId, item: itemId, view: view?.id ?? viewId ?? null, part: view?.part ?? null, loading: !sub && !error, unavailable: !!(unavailable || error), error: unavailable ?? error?.message ?? null, evidence: view && item ? leafOf(item, view) : null, before: view?.before ? { label: view.before.label, path: view.before.path, sha256: view.before.sha256, status: view.before.status, from: view.before.from } : null }));
   setSelectHandler((s) => {
-    if (s.item && !sub?.items.some((i) => i.id === s.item)) return { error: 'no such item', code: 'not_found' };
+    if (s.item && !sub?.items.some((i) => i.id === s.item)) throw refusal('not_found', 'no such item');
     if (s.item) goItem(s.item, false);
-    if (s.view) { const it = sub.items.find((i) => i.id === (s.item ?? itemId)); if (!it?.views.some((v) => v.id === s.view)) return { error: 'no such view', code: 'not_found' }; setTimeout(() => setView(s.view), 0); }
-    return { ok: true };
+    if (s.view) { const it = sub.items.find((i) => i.id === (s.item ?? itemId)); if (!it?.views.some((v) => v.id === s.view)) throw refusal('not_found', 'no such view'); setTimeout(() => setView(s.view), 0); }
   });
   useEffect(() => () => { setSelectionProvider(() => null); setSelectHandler(null); }, []);
   if (error) return html`<div class="detail"><${ErrorLine} error=${error} onRetry=${reload} /></div>`;
@@ -184,20 +183,20 @@ export function SubmissionView({ route }) {
       <div class="sub-head">
         <h1>${sub.title}</h1>
         <div class="row-sub"><${CopyId} id=${sub.id} label=${sub.ref} /> · <${Person} by=${sub.by} /> · ${ago(sub.at)}</div>
-        <div class="row-sub">${sub.context.branch ?? 'detached'} @ <span class="mono">${shortHash(sub.context.head)}</span>${sub.context.dirty ? ` · ${sub.context.dirty} uncommitted` : ''}</div>
+        <div class="row-sub">${sub.checkout.branch ?? 'detached'} @ <span class="mono">${shortHash(sub.checkout.head)}</span>${sub.checkout.dirty ? ` · ${sub.checkout.dirty} uncommitted` : ''}</div>
         ${sub.supersedes && html`<div class="row-sub">Replaces <a href=${href({ section: 'reviews', kind: 's', id: sub.supersedes })}>${sub.supersedes.slice(-6).toUpperCase()}</a></div>`}
         ${sub.supersededBy.length > 0 && html`<div class="row-sub">Replaced by ${sub.supersededBy.map((x) => html`<a href=${href({ section: 'reviews', kind: 's', id: x.id })}>${x.ref}</a> `)}</div>`}
         <div class="sub-counts">${sub.counts.waiting ? html`<span class="cnt wait">${sub.counts.waiting} waiting</span>` : ''}<span class="cnt">${sub.counts.approved}/${sub.counts.items} approved</span></div>
       </div>
       <div class="rows" role="list">${sub.items.map((it) => html`<a key=${it.id} role="listitem" class=${`row${it.id === itemId ? ' sel' : ''}`} aria-current=${it.id === itemId ? 'true' : undefined} href=${href({ section: 'reviews', kind: 's', id: subId, member: it.id })}>
-        <span class="row-main"><span class="row-name">${it.title}</span><span class="row-sub">${!it.target ? 'Work' : it.target.kind === 'collection' ? 'Collection' : scopeOf(it.targetScope)?.label ?? 'Entry'} · ${STATE_LABEL[it.state]}${it.target && !it.targetExists ? ' · removed from catalog' : ''}</span></span><${VerdictBar} parts=${it.parts.filter(p => p.reviewable !== false)} /></a>`)}</div>
+        <span class="row-main"><span class="row-name">${it.title}</span><span class="row-sub">${!it.target ? 'Work' : it.target.kind === 'collection' ? 'Collection' : scopeOf(it.targetScope)?.label ?? 'Unit'} · ${STATE_LABEL[it.state]}${it.target && !it.targetExists ? ' · removed from catalog' : ''}</span></span><${VerdictBar} parts=${it.parts.filter(p => p.reviewable !== false)} /></a>`)}</div>
     </aside>
     ${item && html`<${ItemView} key=${item.id} sub=${sub} item=${item} view=${view} viewError=${unavailable} setView=${setView} idx=${idx} goItem=${goItem} />`}
     ${!item && html`<div class="item-view"><div class="errline" role="alert"><${Icon} name="warn" size=${13} /><span>${unavailable}</span></div></div>`}
   </div>`;
 }
 
-// A capture: evidence rendered outside the catalog, its own part. A pair shows its two files compared.
+// A capture: evidence rendered outside the catalog, its own part. A pair shows its two images compared.
 const isCapture = (part) => !!part && part.id.startsWith('capture:');
 const isPair = (item, view) => !!view && !view.leaf && !!item.parts.find((x) => x.id === view.part)?.pairLabels;
 
@@ -215,7 +214,7 @@ function leafOf(item, view) {
 function EvidenceStage({ sub, item, view, viewError }) {
   const p = view && item.parts.find((x) => x.id === view.part);
   useActiveViewer('stage', true);
-  if (viewError) return html`<${UnavailableViewer} viewerId="stage" source=${{ submission: sub.id, item: item.id }} message=${viewError} />`;
+  if (viewError) return html`<${UnavailableViewer} viewerId="stage" shows=${{ submission: sub.id, item: item.id }} message=${viewError} />`;
   if (!view || !p) return html`<div class="viewer"><div class="viewer-msg muted">No preview for this view</div></div>`;
   const src = { submission: sub.id, item: item.id, view: view.id, ...leafOf(item, view) };
   if (view.part === 'preview') {
@@ -224,24 +223,24 @@ function EvidenceStage({ sub, item, view, viewError }) {
     const asset = (l) => ({ url: l.url, kind: l.kind, sha256: l.sha256, state: l.status === 'ok' ? 'ok' : l.status, error: l.error });
     const members = p.leaves.filter((l) => l.key !== 'base').map((l) => ({ unit: l.unit, part: l.part, role: l.part.split(':')[0], asset: asset(l) }));
     const baseLeaf = p.leaves.find((l) => l.key === 'base');
-    return html`<${PreviewHost} key=${view.id} module=${pv.module} moduleUrl=${pv.moduleUrl} moduleError=${pv.moduleError} members=${members} base=${baseLeaf ? asset(baseLeaf) : null} config=${pv.config ?? {}} label=${view.caption} viewerId="stage" source=${src} initialCamera=${view.camera} initialState=${view.state} />`;
+    return html`<${PreviewHost} key=${view.id} module=${pv.module} moduleUrl=${pv.moduleUrl} moduleError=${pv.moduleError} members=${members} base=${baseLeaf ? asset(baseLeaf) : null} config=${pv.config ?? {}} label=${view.caption} viewerId="stage" shows=${src} initialCamera=${view.camera} initialState=${view.state} />`;
   }
   if (isPair(item, view)) {
     const [before, after] = p.leaves;
     const row = { key: view.id, label: view.caption, a: before, b: after, identical: false };
-    return html`<div class="stage-cmp capture-pair"><${CompareRows} key=${view.id} rows=${[row]} labels=${p.pairLabels} viewerId="stage" source=${src} /></div>`;
+    return html`<div class="stage-cmp capture-pair"><${CompareRows} key=${view.id} rows=${[row]} labels=${p.pairLabels} viewerId="stage" shows=${src} /></div>`;
   }
   const l = view.leaf ? p.leaves.find((x) => x.key === view.leaf) : (p.leaves.find((x) => x.url) ?? p.leaves[0]);
-  if (!l) return html`<${UnavailableViewer} viewerId="stage" source=${src} message=${`Preview ${view.leaf ?? ''} is not recorded for this view`} />`;
+  if (!l) return html`<${UnavailableViewer} viewerId="stage" shows=${src} message=${`Preview ${view.leaf ?? ''} is not recorded for this view`} />`;
   if (view.before) {
     // The submitter chose a before side for this view: show both, each resolved independently.
     const b = view.before;
     const row = { key: view.id, label: view.caption, a: b, b: l, identical: b.status === 'ok' && l.status === 'ok' && b.sha256 === l.sha256 };
-    return html`<div class="stage-cmp"><${CompareRows} key=${view.id} rows=${[row]} labels=${[b.label, view.afterLabel]} viewerId="stage" source=${{ ...src, before: { path: b.path, sha256: b.sha256 } }} camera=${view.camera} state=${view.state} /></div>`;
+    return html`<div class="stage-cmp"><${CompareRows} key=${view.id} rows=${[row]} labels=${[b.label, view.afterLabel]} viewerId="stage" shows=${{ ...src, before: { path: b.path, sha256: b.sha256 } }} camera=${view.camera} state=${view.state} /></div>`;
   }
-  if (l.status !== 'ok') return html`<${UnavailableViewer} viewerId="stage" source=${src} asset=${{ kind: l.kind }} message=${`${l.status === 'corrupt' ? 'Saved file has changed: ' : 'Preview unavailable: '}${l.error}`} />`;
+  if (l.status !== 'ok') return html`<${UnavailableViewer} viewerId="stage" shows=${src} asset=${{ kind: l.kind }} message=${`${l.status === 'corrupt' ? 'Saved file has changed: ' : 'Preview unavailable: '}${l.error}`} />`;
   // Each view is its own viewer: its camera and state are those the submitter declared.
-  return html`<${MediaViewer} key=${view.id} media=${{ kind: l.kind, url: l.url, path: l.path, sha256: l.sha256 }} viewerId="stage" source=${src} initialCamera=${view.camera} initialState=${view.state} label=${view.caption} />`;
+  return html`<${MediaViewer} key=${view.id} media=${{ kind: l.kind, url: l.url, path: l.path, sha256: l.sha256 }} viewerId="stage" shows=${src} initialCamera=${view.camera} initialState=${view.state} label=${view.caption} />`;
 }
 
 // Horizontal touch swipe on the caption bar changes views; it never starts on a viewer surface.
@@ -261,7 +260,7 @@ function useSwipe(onSwipe) {
 
 function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
   const [draft, setDraft] = useDraft(`item:${sub.id}:${item.id}`, null);
-  const d = draft ?? { verdicts: {}, notes: {}, comment: '', requestId: newRequestId() };
+  const d = draft ?? { verdicts: {}, comments: {}, comment: '', requestId: newRequestId() };
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const saving = useRef(false);
@@ -274,12 +273,12 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
   const attrPart = parts.find((x) => x.id === 'attributes');
   const nextWaiting = () => sub.items.slice(idx + 1).concat(sub.items.slice(0, idx)).find((i) => i.summary.undecided > 0 && i.id !== item.id);
   // One activation targets the item shown at activation time; the item id is captured here.
-  const save = async (decision = dec, comment = d.comment, requestId = d.requestId, partNotes = notesFor(decision, d.notes, parts.map((p) => p.id))) => {
+  const save = async (decision = dec, comment = d.comment, requestId = d.requestId, partComments = commentsFor(decision, d.comments, parts.map((p) => p.id))) => {
     if (!decision || saving.current) return;
     saving.current = true; setBusy(true); setErr(null);
     const firstVerdict = item.summary.undecided === item.summary.total;
     try {
-      await write('review.decide', { submission: sub.id, item: item.id, ...decision, comment: comment || undefined, partNotes }, requestId);
+      await write('review.decide', { submission: sub.id, item: item.id, ...decision, comment: comment || undefined, partComments }, requestId);
       setDraft(null);
       toast(effectLine(decision, parts, item.title));
       const next = firstVerdict && nextWaiting();
@@ -343,7 +342,7 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
             ${(() => { const r = item.parts.find((x) => x.id === view.part)?.renderer; return r && html`<span class="renderer-badge" title="Rendered outside the catalog: these are the renderer's own pixels">${r}</span>`; })()}
             ${view.before?.from && html`<span class="push muted small">${view.before.label} from <a href=${href({ section: 'reviews', kind: 's', id: view.before.from.submission, member: view.before.from.item })}>${view.before.from.submission.slice(-6).toUpperCase()}</a></span>`}</div>`}
         </div>`}
-        ${sub.note && html`<section class="block submission-note"><${Markdown} text=${sub.note} label="Submission note" /></section>`}
+        ${sub.brief && html`<section class="block submission-note"><${Markdown} text=${sub.brief} label="Submission brief" /></section>`}
         ${references.length > 0 && html`<details class="disclosure"><summary>Supporting views (${references.length})</summary><div class="reference-links">${references.map(v => html`<button class="btn sm" onClick=${() => setView(v.id)}>${v.caption.replace(/Evidence[ ·:]*/gi, '')}</button>`)}</div></details>`}
         ${attrPart && html`<details ref=${attributesRef} tabindex="-1" class="disclosure"><summary>Properties</summary><${FrozenAttributes} part=${attrPart} /></details>`}
       </div>
@@ -351,18 +350,18 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
         <section class="block" aria-label="Decision">
           <header class="block-h"><h3>Decision</h3><${VerdictBar} parts=${parts} /><span class="muted small">${STATE_LABEL[item.state]}</span></header>
           <${AllParts} parts=${parts} onChange=${(v) => update({ verdicts: v })} />
-          <${PartVerdicts} onSelect=${selectPart} parts=${parts} verdicts=${d.verdicts} onChange=${(v) => update({ verdicts: v })} notes=${d.notes ?? {}} onNotes=${(n) => update({ notes: n })} />
+          <${PartVerdicts} onSelect=${selectPart} parts=${parts} verdicts=${d.verdicts} onChange=${(v) => update({ verdicts: v })} comments=${d.comments ?? {}} onComments=${(n) => update({ comments: n })} />
           <textarea class="comp-comment" placeholder="Comment on the whole review" aria-label="Comment" rows="2" value=${d.comment} onInput=${(e) => update({ comment: e.target.value })}></textarea>
-          <${ErrorLine} error=${err} onRetry=${err && err.code !== 'context_changed' ? () => save() : null} />
+          <${ErrorLine} error=${err} onRetry=${err && err.code !== 'checkout_changed' ? () => save() : null} />
           <div class="decide-f"><span class="scope-line">${effectLine(dec, parts, item.title)}</span>
             ${draft && html`<button class="btn ghost sm" onClick=${() => setDraft(null)}>Discard</button>`}
             <button class="btn primary sm" disabled=${!dec || busy} onClick=${() => save()}>Save</button></div>
         </section>
         <section class="block" aria-label="Verdicts">
-          <header class="block-h"><h3>Verdicts</h3><span class="badge">${sub.events.filter((e) => e.item === item.id).length}</span></header>
-          ${sub.events.filter(e => e.item === item.id && Object.keys(e.verdicts).some(id => parts.some(p => p.id === id))).map((e) => html`<div class="ritem" key=${e.id}><div class="ritem-h"><${Person} by=${e.by} /><span class="muted small">${ago(e.at)}</span><span class="scope">${e.scope === 'whole' ? 'Whole' : 'Parts'}</span></div>
+          <header class="block-h"><h3>Verdicts</h3><span class="badge">${sub.decisions.filter((e) => e.item === item.id).length}</span></header>
+          ${sub.decisions.filter(e => e.item === item.id && Object.keys(e.verdicts).some(id => parts.some(p => p.id === id))).map((e) => html`<div class="ritem" key=${e.id}><div class="ritem-h"><${Person} by=${e.by} /><span class="muted small">${ago(e.at)}</span><span class="scope">${e.covers === 'whole' ? 'Whole' : 'Parts'}</span></div>
             <div class="pvs">${Object.entries(e.verdicts).filter(([pid]) => parts.some(p => p.id === pid)).map(([pid, v]) => html`<span class=${`pv ${v}`}><${Icon} name=${v === 'approved' ? 'check' : v === 'changes' ? 'x' : 'stop'} size=${11} />${parts.find((x) => x.id === pid)?.label ?? pid}</span>`)}</div>
-            <${PartNotes} e=${{ ...e, verdicts: Object.fromEntries(Object.entries(e.verdicts).filter(([id]) => parts.some(p => p.id === id))) }} label=${(pid) => parts.find((x) => x.id === pid)?.label ?? pid} />${e.comment && html`<p class="ritem-c">${e.comment}</p>`}</div>`)}
+            <${PartComments} e=${{ ...e, verdicts: Object.fromEntries(Object.entries(e.verdicts).filter(([id]) => parts.some(p => p.id === id))) }} label=${(pid) => parts.find((x) => x.id === pid)?.label ?? pid} />${e.comment && html`<p class="ritem-c">${e.comment}</p>`}</div>`)}
         </section>
         <${NotesBlock} target=${{ kind: 'submission', id: sub.id, item: item.id }} notes=${sub.observations.filter((n) => n.target.item === item.id || !n.target.item)} parts=${parts} />
       </div>
@@ -381,17 +380,18 @@ function NewReview({ onClose }) {
   const [section, setSection] = useState(defaultScope);
   const [selected, setSelected] = useState([]);
   const [composing, setComposing] = useState(false);
-  const { data, error } = useQuery('catalog.search', { section: section === 'collections' ? 'collections' : 'units', scope: section === 'collections' ? undefined : section, q, pageSize: 100 });
+  const { data, error } = useQuery(section === 'collections' ? 'collection.search' : 'unit.search', { ...(section === 'collections' ? {} : { scope: section }), q, pageSize: 100 });
   const one = selected.length === 1 ? selected[0] : null;
   const detail = useQuery(one?.kind === 'collection' ? 'collection.get' : 'unit.get', { id: one?.id ?? '' }, !!one);
   const ref = useDialog(onClose);
   if (composing) return html`<${SubmitDialog} targets=${selected} parts=${one ? detail.data?.review.parts.filter(p => p.reviewable !== false) : undefined} detail=${one ? detail.data : null} onClose=${onClose} />`;
   const key = u => `${u.kind}:${u.id}`;
-  const targets = data?.items.map(u => ({ kind: section === 'collections' ? 'collection' : 'unit', id: u.id, name: u.name, label: u.typeLabel ?? 'Collection' })) ?? [];
+  const found = section === 'collections' ? data?.collections : data?.units;
+  const targets = found?.map(u => ({ kind: section === 'collections' ? 'collection' : 'unit', id: u.id, name: u.name, label: u.typeLabel ?? 'Collection' })) ?? [];
   return html`<div class="scrim"><div class="dialog composer" ref=${ref} role="dialog" aria-modal="true" aria-label="Choose items for review">
     <header class="dialog-h"><h2>Choose items</h2><button class="icon-btn" onClick=${onClose} aria-label="Close"><${Icon} name="x" /></button></header>
     <div class="submit-form"><label>From <select aria-label="Review source" value=${section} onChange=${e => setSection(e.target.value)}>${scopes().map((s) => html`<option value=${s.id}>${s.label}</option>`)}<option value="collections">Collections</option></select></label><input type="search" aria-label="Find items to review" placeholder="Search items" value=${q} onInput=${e => setQ(e.target.value)} />
-    <${ErrorLine} error=${error ?? detail.error} /><div class="picker-list tall">${targets.map(u => html`<label class="picker-item check"><input type="checkbox" checked=${selected.some(x => key(x) === key(u))} onChange=${() => setSelected(selected.some(x => key(x) === key(u)) ? selected.filter(x => key(x) !== key(u)) : [...selected, u])} />${u.name}<span class="count">${u.label}</span></label>`)}</div>${data?.total > data?.items.length && html`<p class="muted">Showing the first ${data.items.length} results. Search to find more.</p>`}</div>
+    <${ErrorLine} error=${error ?? detail.error} /><div class="picker-list tall">${targets.map(u => html`<label class="picker-item check"><input type="checkbox" checked=${selected.some(x => key(x) === key(u))} onChange=${() => setSelected(selected.some(x => key(x) === key(u)) ? selected.filter(x => key(x) !== key(u)) : [...selected, u])} />${u.name}<span class="count">${u.label}</span></label>`)}</div>${data?.total > found?.length && html`<p class="muted">Showing the first ${found.length} results. Search to find more.</p>`}</div>
     <footer class="dialog-f"><span class="muted">${selected.length} selected</span><button class="btn primary push" disabled=${!selected.length || (one && (!detail.data || detail.loading || detail.error))} onClick=${() => setComposing(true)}>Continue</button></footer>
   </div></div>`;
 }

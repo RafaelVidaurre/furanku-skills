@@ -1,6 +1,6 @@
 // Categories and tags. A source's own tags and category are project-owned and read-only here;
-// what people set in the catalog is stored separately in label records and layered on top.
-import type { Asset, Collection, LabelRecord, Unit } from "../model/types.ts"
+// what people set in the catalog is stored separately in organization records and layered on top.
+import type { Asset, Collection, OrganizationRecord, Unit } from "../model/types.ts"
 import type { Projection } from "../Projection.ts"
 import { unique } from "../support.ts"
 
@@ -12,7 +12,7 @@ export interface Organization {
   readonly projectTags: ReadonlyArray<string>
   readonly projectCategory: string | null
   readonly revision: number | null
-  readonly owner?: "adapter" | "catalog"
+  readonly owner?: "project" | "catalog"
 }
 
 const ofCollection = (collection: Collection): Organization => ({
@@ -24,13 +24,13 @@ const ofCollection = (collection: Collection): Organization => ({
   owner: collection.owner
 })
 
-/** The organization of an entity given its label record (or none). */
-export const organizationWith = (entity: Unit | Asset | undefined, label: Pick<LabelRecord, "category" | "tags" | "revision"> | undefined): Organization => ({
-  category: label?.category ?? entity?.adapterCategory ?? null,
-  tags: label?.tags ?? [],
+/** The organization of an entity given its organization record (or none). */
+export const organizationWith = (entity: Unit | Asset | undefined, record: Pick<OrganizationRecord, "category" | "tags" | "revision"> | undefined): Organization => ({
+  category: record?.category ?? entity?.adapterCategory ?? null,
+  tags: record?.tags ?? [],
   projectTags: entity?.adapterTags ?? [],
   projectCategory: entity?.adapterCategory ?? null,
-  revision: label?.revision ?? null
+  revision: record?.revision ?? null
 })
 
 export const organizationOf = (p: Projection, kind: OrganizedKind, id: string): Organization => {
@@ -39,7 +39,7 @@ export const organizationOf = (p: Projection, kind: OrganizedKind, id: string): 
     if (collection) return ofCollection(collection)
   }
   const entity = kind === "unit" ? p.snapshot.unitsById.get(id) : kind === "asset" ? p.snapshot.assetsById.get(id) : undefined
-  return organizationWith(entity, p.labels.get(`${kind}:${id}`))
+  return organizationWith(entity, p.organization.get(`${kind}:${id}`))
 }
 
 export const allTags = (p: Projection, kind: OrganizedKind, id: string): Array<string> => {

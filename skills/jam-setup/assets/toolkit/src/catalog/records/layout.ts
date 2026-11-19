@@ -1,10 +1,16 @@
-// Where each record kind lives under .catalog and what identifies a record. The layout is a
-// compatibility contract: projects carry these files in Git.
+// Where each record kind lives under .catalog and what identifies a record. Projects carry these
+// files in Git; `.catalog/format.json` names the layout, and `jam catalog migrate` moves an older
+// one to it.
 import { sha256 } from "../../kernel/hash.ts"
-import type { AnyRecord, CollectionRecord, LabelRecord, NoteRecord, RecordKind, SubmissionRecord, VerdictRecord } from "../model/types.ts"
+import type { AnyRecord, CollectionRecord, DecisionRecord, NoteRecord, OrganizationRecord, RecordKind, SubmissionRecord } from "../model/types.ts"
 
 export const RECORDS_DIR = ".catalog"
 export const LOCAL_DIR = ".catalog/.local"
+/** The tracked marker naming the layout of .catalog: `{ "format": 2 }`. */
+export const FORMAT_FILE = ".catalog/format.json"
+/** The layout this toolkit reads and writes. Format 1 (before the marker existed) had no marker. */
+export const FORMAT = 2
+export const FORMAT_TEXT = `${JSON.stringify({ format: FORMAT }, null, 2)}\n`
 export const GITIGNORE = "# Machine-local catalog state: locks, request journal, captures.\n.local/\n"
 /** Written inside .catalog/.local so the folder ignores itself without touching any tracked file. */
 export const LOCAL_GITIGNORE = "# Machine-local catalog state; never committed.\n*\n"
@@ -31,11 +37,11 @@ export const KINDS: { readonly [K in RecordKind]: KindLayout<Extract<AnyRecord, 
     mutable: true,
     key: (r) => (r as unknown as NoteRecord).id
   },
-  label: {
-    file: (r) => { const t = (r as unknown as LabelRecord).target; return `labels/${t.kind}/${fileKey(t.id)}.json` },
-    match: /^labels\/(unit|asset|collection)\/[^/]+\.json$/,
+  organization: {
+    file: (r) => { const t = (r as unknown as OrganizationRecord).target; return `organization/${t.kind}/${fileKey(t.id)}.json` },
+    match: /^organization\/(unit|asset|collection)\/[^/]+\.json$/,
     mutable: true,
-    key: (r) => { const t = (r as unknown as LabelRecord).target; return `${t.kind}:${t.id}` }
+    key: (r) => { const t = (r as unknown as OrganizationRecord).target; return `${t.kind}:${t.id}` }
   },
   collection: {
     file: (r) => `collections/${fileKey((r as unknown as CollectionRecord).id)}.json`,
@@ -50,17 +56,17 @@ export const KINDS: { readonly [K in RecordKind]: KindLayout<Extract<AnyRecord, 
     mutable: false,
     key: (r) => (r as unknown as SubmissionRecord).id
   },
-  verdict: {
-    file: (r) => { const v = r as unknown as VerdictRecord; return `reviews/${v.submission}/verdicts/${v.id}.json` },
-    match: /^reviews\/[^/]+\/verdicts\/[^/]+\.json$/,
+  decision: {
+    file: (r) => { const d = r as unknown as DecisionRecord; return `reviews/${d.submission}/decisions/${d.id}.json` },
+    match: /^reviews\/[^/]+\/decisions\/[^/]+\.json$/,
     mutable: false,
-    key: (r) => (r as unknown as VerdictRecord).id
+    key: (r) => (r as unknown as DecisionRecord).id
   }
 }
 
 export const RECORD_KINDS = Object.keys(KINDS) as ReadonlyArray<RecordKind>
-/** The folders under .catalog that hold records (categories.json sits beside them). */
-export const RECORD_FOLDERS = ["notes", "labels", "collections", "reviews"] as const
+/** The folders under .catalog that hold records (categories.json sits beside them), and format 1's `labels`. */
+export const RECORD_FOLDERS = ["notes", "organization", "collections", "reviews", "labels"] as const
 
 export const kindOfPath = (relative: string): RecordKind | null => RECORD_KINDS.find((kind) => KINDS[kind].match.test(relative)) ?? null
 export const recordPath = (kind: RecordKind, record: object): string => `${RECORDS_DIR}/${KINDS[kind].file(record as never)}`

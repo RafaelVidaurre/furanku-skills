@@ -4,13 +4,13 @@
 import * as Schema from "effect/Schema"
 import { isRecord } from "../../kernel/hash.ts"
 import type { RecordKind } from "../model/types.ts"
-import { CAPTURE_PART, DECISION_PART } from "../model/parts.ts"
+import { CAPTURE_PART, ITEM_PART } from "../model/parts.ts"
 import { VERDICTS } from "../model/verdicts.ts"
 import { EVIDENCE_PATH } from "./layout.ts"
 
 export const TAG = /^[a-z0-9][a-z0-9:._/+-]{0,63}$/u
 export const CATEGORY = /^[^/\s][^/]{0,63}(\/[^/\s][^/]{0,63}){0,7}$/u
-export const PART_NOTE_MAX = 5000
+export const PART_COMMENT_MAX = 5000
 export const isTag = (value: unknown): value is string => typeof value === "string" && TAG.test(value)
 export const isCategory = (value: unknown): value is string => typeof value === "string" && CATEGORY.test(value)
 
@@ -31,7 +31,7 @@ const Tags = Schema.Array(Schema.String.check(Schema.isPattern(TAG))).check(
   Schema.makeFilter((tags) => new Set(tags).size === tags.length || "a tag appears twice")
 )
 const Category = Schema.String.check(Schema.isPattern(CATEGORY))
-const Binding = Schema.Struct({ action: text(100), digest: Hex64, context: text(1000) })
+const Binding = Schema.Struct({ action: text(100), digest: Hex64, checkout: text(1000) })
 const VerdictValue = Schema.Literals(VERDICTS)
 
 /** A request id and its binding come together or not at all. */
@@ -150,12 +150,12 @@ export const NoteRecord = Schema.Struct({
   (requestPair(note.requestId, note.requestBinding) && requestPair(note.lastRequestId, note.lastRequestBinding)) || "request binding is invalid"
 )).annotate({ identifier: "NoteRecord", description: "A standalone note on a unit, collection, asset or submission" })
 
-export const LabelRecord = Schema.Struct({
+export const OrganizationRecord = Schema.Struct({
   target: Schema.Struct({ kind: Schema.Literals(["unit", "asset", "collection"]), id: text(500) }),
   category: nullable(Category),
   tags: Tags,
   revision: Revision
-}).annotate({ identifier: "LabelRecord", description: "Category and tags of one unit, asset or project collection" })
+}).annotate({ identifier: "OrganizationRecord", description: "Category and tags of one unit, asset or project-owned collection" })
 
 const MemberValue = Schema.Union([Schema.String, Schema.Number, Schema.Boolean])
 export const CollectionRecord = Schema.Struct({
@@ -193,8 +193,8 @@ const SubmissionItem = Schema.Struct({
 }).check(Schema.makeFilter((item) => {
   if (!validDefinition(item.definition)) return "item definition evidence is invalid"
   if (!item.parts.every(validPartEvidence)) return `item ${item.id} parts or evidence are invalid`
-  // Work holds only its own evidence: captures, or the one decision part of a text-only item.
-  if (item.target === null && !item.parts.every((part) => CAPTURE_PART.test(part.id) || part.id === DECISION_PART)) return `item ${item.id} has no target, so it holds only captures or a decision`
+  // Work holds only its own evidence: captures, or the one part `item` of a text-only item.
+  if (item.target === null && !item.parts.every((part) => CAPTURE_PART.test(part.id) || part.id === ITEM_PART)) return `item ${item.id} has no target, so it holds only captures or the part ${ITEM_PART}`
   if (new Set(item.parts.map((part) => part.id)).size !== item.parts.length) return "duplicate part ids"
   const viewsValid = item.views.every((view) =>
     /^vw_[a-z0-9]+$/.test(String(view["id"] ?? "")) && isText(view["caption"], 300) && item.parts.some((part) => part.id === view["part"]) &&
@@ -208,57 +208,57 @@ export const SubmissionRecord = Schema.Struct({
   title: text(300),
   by: Actor,
   at: Iso,
-  context: Schema.Struct({
+  checkout: Schema.Struct({
     branch: nullable(text(300)),
     head: nullable(Schema.String.check(Schema.isPattern(/^([0-9a-f]{40}|[0-9a-f]{64})$/u))),
     dirty: nullable(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)))
   }),
   supersedes: nullable(Schema.String.check(Schema.isPattern(/^sub_[a-z0-9]+$/u))),
-  note: nullable(text(5000)),
+  brief: nullable(text(5000)),
   items: Schema.NonEmptyArray(SubmissionItem),
   requestId: nullable(text(300)),
   requestBinding: nullable(Binding)
 }).check(Schema.makeFilter((submission) => requestPair(submission.requestId, submission.requestBinding) || "request binding is invalid"))
   .annotate({ identifier: "SubmissionRecord", description: "A review submission: items with frozen parts, evidence and views" })
 
-export const VerdictRecord = Schema.Struct({
-  id: Schema.String.check(Schema.isPattern(/^vd_[a-z0-9]+$/u)),
+export const DecisionRecord = Schema.Struct({
+  id: Schema.String.check(Schema.isPattern(/^dc_[a-z0-9]+$/u)),
   submission: Schema.String.check(Schema.isPattern(/^sub_[a-z0-9]+$/u)),
   item: Schema.String.check(Schema.isPattern(/^it_[a-z0-9]+$/u)),
   by: Actor,
   at: Iso,
   comment: nullable(Schema.String),
-  scope: Schema.Struct({ kind: Schema.Literals(["whole", "parts"]), parts: Schema.NonEmptyArray(text(600)) }),
+  covers: Schema.Struct({ kind: Schema.Literals(["whole", "parts"]), parts: Schema.NonEmptyArray(text(600)) }),
   verdict: Schema.optionalKey(VerdictValue),
   exceptions: Schema.optionalKey(Schema.Record(Schema.String, VerdictValue)),
   verdicts: Schema.optionalKey(Schema.Record(Schema.String, VerdictValue)),
-  partNotes: nullable(Schema.Record(Schema.String, text(PART_NOTE_MAX))),
+  partComments: nullable(Schema.Record(Schema.String, text(PART_COMMENT_MAX))),
   // An agent recording what a person decided elsewhere. The agent stays the actor; the person's
   // words are kept verbatim, so nobody mistakes the record for the person's own click.
-  relay: Schema.optionalKey(Schema.Struct({ by: text(200), channel: text(300), words: text(PART_NOTE_MAX) })),
+  relay: Schema.optionalKey(Schema.Struct({ by: text(200), channel: text(300), words: text(PART_COMMENT_MAX) })),
   requestId: nullable(text(300)),
   requestBinding: nullable(Binding)
-}).check(Schema.makeFilter((event) => {
-  if (!requestPair(event.requestId, event.requestBinding)) return "request binding is invalid"
-  if (event.relay !== undefined && event.by.kind !== "agent") return "only an agent relays a person's verdict"
-  const parts: ReadonlyArray<string> = event.scope.parts
+}).check(Schema.makeFilter((decision) => {
+  if (!requestPair(decision.requestId, decision.requestBinding)) return "request binding is invalid"
+  if (decision.relay !== undefined && decision.by.kind !== "agent") return "only an agent relays a person's verdict"
+  const parts: ReadonlyArray<string> = decision.covers.parts
   let decided = parts
-  if (event.scope.kind === "whole") {
-    if (event.verdict === undefined) return "whole verdict is invalid"
-    if (!event.exceptions || !Object.entries(event.exceptions).every(([part, verdict]) => parts.includes(part) && verdict !== event.verdict)) return "exceptions are invalid"
+  if (decision.covers.kind === "whole") {
+    if (decision.verdict === undefined) return "whole verdict is invalid"
+    if (!decision.exceptions || !Object.entries(decision.exceptions).every(([part, verdict]) => parts.includes(part) && verdict !== decision.verdict)) return "exceptions are invalid"
   } else {
-    if (!event.verdicts || Object.keys(event.verdicts).sort().join("\n") !== [...parts].sort().join("\n")) return "part verdicts are invalid"
-    decided = Object.keys(event.verdicts)
+    if (!decision.verdicts || Object.keys(decision.verdicts).sort().join("\n") !== [...parts].sort().join("\n")) return "part verdicts are invalid"
+    decided = Object.keys(decision.verdicts)
   }
-  // Part notes may only address parts this event decides.
-  return !event.partNotes || Object.keys(event.partNotes).every((part) => decided.includes(part)) || "part notes are invalid"
-})).annotate({ identifier: "VerdictRecord", description: "One verdict event on a submission item" })
+  // Part comments may only address parts this decision decides.
+  return !decision.partComments || Object.keys(decision.partComments).every((part) => decided.includes(part)) || "part comments are invalid"
+})).annotate({ identifier: "DecisionRecord", description: "One reviewer's verdicts on a submission item" })
 
 export const RECORD_SCHEMAS: Readonly<Record<RecordKind, Schema.Top>> = {
   note: NoteRecord,
-  label: LabelRecord,
+  organization: OrganizationRecord,
   collection: CollectionRecord,
   categories: CategoriesRecord,
   submission: SubmissionRecord,
-  verdict: VerdictRecord
+  decision: DecisionRecord
 }

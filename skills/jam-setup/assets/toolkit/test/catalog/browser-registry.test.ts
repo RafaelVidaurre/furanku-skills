@@ -3,12 +3,13 @@
 // the plugin (outside the project), is served only because the plugin declares it, and registers
 // through the same call as the four built-in kinds. Nothing in the page names "text".
 import assert from "node:assert/strict"
-import { existsSync, mkdirSync, readFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { test } from "node:test"
+import { pathToFileURL } from "node:url"
 import textKind from "../../examples/plugins/text-kind.ts"
-import { definePlugin } from "../../src/catalog/plugin.ts"
-import { cleanup, makeProject, png, TYPES, W, write } from "./helpers.ts"
+import { definePlugin } from "../../catalog-plugin.ts"
+import { cleanup, makeProject, png, tmp, TYPES, W, write } from "./helpers.ts"
 import { browserOrSkip, startServer } from "./server.ts"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -21,7 +22,7 @@ const SCRIPT = "INT. WORKSHOP - NIGHT\n\nThe smith turns the helm over in her ha
 const project = () =>
   makeProject({
     assets: { "art/helm.png": png(4, 4, [200, 0, 0, 255]), "art/scene.txt": SCRIPT, "art/binary.txt": Buffer.from([0x00, 0x01, 0x02, 0x03]) },
-    extra: { types: { ...TYPES, scene: { label: "Scene", thumb: "script", fields: [], roles: [{ key: "script", label: "Script", kinds: ["text"], expected: true }, { key: "still", label: "Still", kinds: ["image"] }] } } },
+    extra: { types: { ...TYPES, scene: { label: "Scene", thumb: "script", fields: [], roles: [{ key: "script", label: "Script", mediaKinds: ["text"], expected: true }, { key: "still", label: "Still", mediaKinds: ["image"] }] } } },
     units: [
       { id: "scene/workshop", type: "scene", name: "Workshop", attrs: {}, links: [{ role: "script", asset: "art/scene.txt" }, { role: "still", asset: "art/helm.png" }] },
       { id: "scene/broken", type: "scene", name: "Broken", attrs: {}, links: [{ role: "script", asset: "art/binary.txt" }] }
@@ -33,7 +34,7 @@ test("a plugin's media kind is recognised, served, shown, controlled, compared a
   if ("skip" in found) return t.skip(found.skip)
   const { browser } = found
   const dir = await project()
-  write(dir, "catalog.config.json", { version: 2, plugins: ["manifest", "text-kind"] })
+  write(dir, "catalog.config.json", { version: 3, plugins: ["manifest", "text-kind"] })
   const s = await startServer(dir, { plugins: { "text-kind": textKind } })
   mkdirSync(OUT, { recursive: true })
   try {
@@ -54,16 +55,16 @@ test("a plugin's media kind is recognised, served, shown, controlled, compared a
     page.on("request", (request) => requested.push(new URL(request.url()).pathname))
 
     // The page half: the module is fetched from its declared address and its viewer shows the file.
-    await page.goto(`${s.url}#/content/u/scene%2Fworkshop`)
+    await page.goto(`${s.url}#/main/u/scene%2Fworkshop`)
     await page.waitForFunction(() => (globalThis as Any).catalogViewer?.state().viewer?.status === "ready")
     assert.ok(requested.includes("/project/kind/text"), "the kind's module was loaded from the plugin's folder")
     const state = await page.evaluate(viewer).then(() => page.evaluate(() => (globalThis as Any).catalogViewer.state()))
     assert.deepEqual([state.viewer.kind, state.viewer.lines, state.viewer.controls, state.selection.part], ["text", SCRIPT.split("\n").length, ["text"], "script"])
-    assert.equal(state.viewer.source.sha256, detail.links[0].asset.sha256)
+    assert.equal(state.viewer.shows.sha256, detail.links[0].asset.sha256)
     assert.equal(await page.locator("[data-text-viewer]").textContent(), SCRIPT)
     // Its thumbnail and icon are the ones it registered; its label is the schema's.
     assert.equal(await page.locator(".strip .tile.on .thumb").textContent(), "Aa")
-    assert.match(await page.locator('section[aria-label="Files"] .mship').first().innerText(), /Script\s+scene\.txt/)
+    assert.match(await page.locator('section[aria-label="Assets"] .mship').first().innerText(), /Script\s+scene\.txt/)
     await page.screenshot({ path: `${OUT}/text-detail.png` })
     // Switching to a built-in kind and back swaps viewers through the same registry.
     await page.locator(".strip").getByRole("tab", { name: /Still/ }).click()
@@ -71,25 +72,25 @@ test("a plugin's media kind is recognised, served, shown, controlled, compared a
     await page.locator(".strip").getByRole("tab", { name: /Script/ }).click()
     await page.waitForFunction(() => (globalThis as Any).catalogViewer.state().viewer?.kind === "text" && (globalThis as Any).catalogViewer.state().viewer.status === "ready")
     // A control only this kind has, and one it does not have.
-    assert.deepEqual(await page.evaluate(() => (globalThis as Any).catalogViewer.control({ text: { wrap: false } })), { ok: true })
+    assert.deepEqual(await page.evaluate(() => (globalThis as Any).catalogViewer.control({ text: { wrap: false } })), { ok: true, result: true })
     await page.waitForFunction(() => (globalThis as Any).catalogViewer.state().viewer.wrap === false)
     assert.equal(await page.locator("[data-text-viewer]").evaluate((element) => getComputedStyle(element).whiteSpace), "pre")
     assert.equal((await page.evaluate(() => (globalThis as Any).catalogViewer.control({ text: { wrap: "yes" } }))).code, "invalid")
     assert.match((await page.evaluate(() => (globalThis as Any).catalogViewer.control({ mode: "clay" }))).error, /the current text viewer does not support this control/)
     assert.deepEqual(await page.evaluate(() => (globalThis as Any).catalogViewer.capture()), { renderer: "catalog text viewer", blocked: null })
 
-    // Lists: the files page shows it with its own thumbnail and label, and filters by its kind.
-    await page.goto(`${s.url}#/files`)
+    // Lists: the assets page shows it with its own thumbnail and label, and filters by its kind.
+    await page.goto(`${s.url}#/assets`)
     const card = page.getByRole("listitem").filter({ hasText: "scene.txt" })
     await card.waitFor()
     assert.equal(await card.locator(".card-media .thumb").first().textContent(), "Aa")
     assert.match(await card.locator(".card-sub").innerText(), /^Text · /)
-    await page.screenshot({ path: `${OUT}/files-with-text.png` })
-    await page.goto(`${s.url}#/files/a/art%2Fscene.txt`)
+    await page.screenshot({ path: `${OUT}/assets-with-text.png` })
+    await page.goto(`${s.url}#/assets/a/art%2Fscene.txt`)
     await page.waitForFunction(() => (globalThis as Any).catalogViewer?.state().viewer?.status === "ready")
     assert.match(await page.locator(".d-meta .type").innerText(), /Text/)
-    // A file of the kind that cannot be shown says why, as any kind's would.
-    await page.goto(`${s.url}#/content/u/scene%2Fbroken`)
+    // An asset of the kind that cannot be shown says why, as any kind's would.
+    await page.goto(`${s.url}#/main/u/scene%2Fbroken`)
     await page.waitForFunction(() => (globalThis as Any).catalogViewer?.state().viewer?.status === "error")
     assert.match((await page.evaluate(() => (globalThis as Any).catalogViewer.state())).viewer.error, /declared text but bytes are|not a supported media format/)
 
@@ -103,7 +104,7 @@ test("a plugin's media kind is recognised, served, shown, controlled, compared a
     assert.equal(await page.locator("[data-text-viewer]").textContent(), SCRIPT)
     await page.screenshot({ path: `${OUT}/text-review.png` })
     write(dir, "art/scene.txt", `${SCRIPT}\nShe sets it down.\n`)
-    await page.goto(`${s.url}#/content/u/scene%2Fworkshop?cmp=${review.id}~${review.items[0].id}~script`)
+    await page.goto(`${s.url}#/main/u/scene%2Fworkshop?cmp=${encodeURIComponent(JSON.stringify({ a: { submission: review.id, item: review.items[0].id, part: "script" } }))}`)
     await page.waitForFunction(() => { const v = (globalThis as Any).catalogViewer?.state().viewer; return v?.kind === "compare" && v.status === "ready" })
     const compared = await page.evaluate(() => (globalThis as Any).catalogViewer.state())
     assert.deepEqual(compared.viewer.sides.map((side: Any) => [side.side, side.kind, side.status]), [["a", "text", "ready"], ["b", "text", "ready"]])
@@ -143,19 +144,19 @@ test("a kind nothing registered a viewer for is listed and labelled, and says th
   // The same kind without its browser half, and one whose declared module is not there.
   const bare = definePlugin({ name: "bare", mediaKinds: [{ ...textKind.mediaKinds[0]!, web: undefined as never }] })
   const lost = definePlugin({ name: "lost", mediaKinds: [{ ...textKind.mediaKinds[0]!, web: new URL("./no-such-module.js", import.meta.url).href }] })
-  write(dir, "catalog.config.json", { version: 2, plugins: ["manifest", "bare"] })
+  write(dir, "catalog.config.json", { version: 3, plugins: ["manifest", "bare"] })
   const s = await startServer(dir, { plugins: { bare, lost } })
   try {
     const page = await browser.newPage()
     const errors: Array<string> = []
     page.on("pageerror", (error) => errors.push(String(error)))
-    await page.goto(`${s.url}#/content/u/scene%2Fworkshop`)
+    await page.goto(`${s.url}#/main/u/scene%2Fworkshop`)
     await page.waitForFunction(() => (globalThis as Any).catalogViewer?.state().viewer?.status === "error")
     const state = await page.evaluate(() => (globalThis as Any).catalogViewer.state())
     assert.deepEqual([state.viewer.kind, state.viewer.error], ["text", "No viewer is registered for text media"])
     assert.equal(await page.locator(".stage-view [role=alert]").innerText(), "No viewer is registered for text media")
-    // It is still a file of the catalog: listed, labelled from the schema, with a plain thumbnail.
-    await page.goto(`${s.url}#/files`)
+    // It is still an asset of the catalog: listed, labelled from the schema, with a plain thumbnail.
+    await page.goto(`${s.url}#/assets`)
     const card = page.getByRole("listitem").filter({ hasText: "scene.txt" })
     await card.waitFor()
     assert.match(await card.locator(".card-sub").innerText(), /^Text · /)
@@ -165,7 +166,7 @@ test("a kind nothing registered a viewer for is listed and labelled, and says th
     await assert.rejects(s.viewer("viewer.capture", {}), /viewer is not showing ready media \(error: No viewer is registered for text media\); nothing was captured/)
     await s.viewer("viewer.close", {})
     // A declared module that is missing: the schema says so and the page does not ask for it.
-    write(dir, "catalog.config.json", { version: 2, plugins: ["manifest", "lost"] })
+    write(dir, "catalog.config.json", { version: 3, plugins: ["manifest", "lost"] })
     const schema = await s.app.run("schema", {})
     assert.deepEqual([schema.mediaKinds.text.web, /missing/.test(schema.mediaKinds.text.webError)], [null, true])
     assert.deepEqual(errors, [])
@@ -174,6 +175,39 @@ test("a kind nothing registered a viewer for is listed and labelled, and says th
     await browser.close()
     await s.close()
     cleanup(dir)
+  }
+})
+
+test("a media kind listing a control the page reserves (session, select, inspector) is refused, and says why", async (t) => {
+  const found = await browserOrSkip()
+  if ("skip" in found) return t.skip(found.skip)
+  const { browser } = found
+  const dir = await project()
+  const beside = tmp("cc-reserved-")
+  writeFileSync(join(beside, "text.js"), `export default (catalog) => catalog.registerMediaKind('text', { viewer: () => null, controls: ['text', 'select'] })\n`)
+  const reserved = definePlugin({ name: "reserved", mediaKinds: [{ ...textKind.mediaKinds[0]!, web: pathToFileURL(join(beside, "text.js")).href }] })
+  write(dir, "catalog.config.json", { version: 3, plugins: ["manifest", "reserved"] })
+  const s = await startServer(dir, { plugins: { reserved } })
+  try {
+    const page = await browser.newPage()
+    await page.goto(`${s.url}#/main/u/scene%2Fworkshop`)
+    await page.waitForFunction(() => (globalThis as Any).catalogViewer?.state().viewer?.status === "error")
+    assert.equal((await page.evaluate(() => (globalThis as Any).catalogViewer.state())).viewer.error, "No viewer is registered for text media")
+    // The registry is the same module the page loaded: it says which name was refused.
+    const problems = await page.evaluate(async () => (await import("/media-kinds.js" as string)).kindProblems())
+    assert.deepEqual(problems.map((p: Any) => p.kind), ["text"])
+    assert.match(problems[0].error, /media kind text lists the control select, a name the catalog reserves \(session, select, inspector\)/)
+    for (const name of ["session", "inspector"]) {
+      const thrown = await page.evaluate(async (control) => {
+        try { (await import("/media-kinds.js" as string)).registerMediaKind("other", { viewer: () => null, controls: [control] }); return null } catch (e) { return (e as Error).message }
+      }, name)
+      assert.match(thrown ?? "", new RegExp(`lists the control ${name}`))
+    }
+    await page.close()
+  } finally {
+    await browser.close()
+    await s.close()
+    cleanup(dir, beside)
   }
 })
 

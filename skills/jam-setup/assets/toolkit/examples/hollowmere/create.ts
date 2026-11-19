@@ -88,13 +88,12 @@ const build = (art: Art, browser: Browser, videos: boolean): Effect.Effect<Sampl
 
     // ---- Project files (what a real project would already version)
     yield* files.writeJson("catalog.config.json", {
-      version: 2,
-      plugins: ["manifest"],
-      options: { manifest: { file: "catalog.manifest.json" } },
+      version: 3,
+      plugins: [{ plugin: "manifest", options: { file: "catalog.manifest.json" } }],
       review: { resolver: "latest" }
     })
     yield* files.writeJson("catalog.manifest.json", {
-      version: 1,
+      version: 2,
       project: schema.project,
       assetRoots: ["art"],
       types: schema.types,
@@ -146,7 +145,7 @@ const build = (art: Art, browser: Browser, videos: boolean): Effect.Effect<Sampl
       })
     }
     yield* act(mika, "category.create", { path: "Milestones/Beta" })
-    yield* act(ana, "organize.bulk", { targets: ["gear/ironclad-greaves", "gear/ashen-sabatons", "creature/stone-warden"].map(unit), addTags: ["needs-art"] })
+    yield* act(ana, "organization.setMany", { targets: ["gear/ironclad-greaves", "gear/ashen-sabatons", "creature/stone-warden"].map(unit), addTags: ["needs-art"] })
 
     const helm = yield* submit(mika, { title: "Ironclad Helm first pass", items: [{ target: unit("gear/ironclad-helm") }] })
     yield* decide(mika, helm, { whole: "approved" })
@@ -207,7 +206,7 @@ const build = (art: Art, browser: Browser, videos: boolean): Effect.Effect<Sampl
     yield* act(jules, "review.submit", { title: "Frost Lance balance", items: [{ target: unit("ability/frost-lance") }] })
     yield* note(jules, unit("ability/frost-lance"), "Damage bump needs a matching effect pass.")
 
-    const { counts } = (yield* catalog.run("context", {})) as { readonly counts: Omit<SampleSummary, "created" | "videos"> }
+    const { counts } = yield* catalog.run("summary")
     return { created: root, units: counts.units, collections: counts.collections, assets: counts.assets, submissions: counts.submissions, openNotes: counts.openNotes, videos }
   })
 

@@ -70,7 +70,7 @@ export const Recipe = Schema.Struct({
   style: opt(Schema.Boolean.pipe(Schema.annotate({ description: "Runs need the project's style document to be set" }))),
   deliverable: opt(Schema.Boolean.pipe(Schema.annotate({ description: "false for exploration and tests: results are never delivered or reused as paid results" }))),
   catalog: opt(Schema.Struct({
-    scope: opt(Id.pipe(Schema.annotate({ description: "Catalog scope the subjects are listed under (default: assets)" })))
+    scope: opt(Id.pipe(Schema.annotate({ description: "Catalog scope the subjects are listed under (default: material)" })))
   }).pipe(Schema.annotate({ description: "How subjects made with this recipe appear in the content catalog" }))),
   steps: Schema.Array(Step)
 }).pipe(Schema.annotate({ identifier: "Recipe", title: "Recipe (jam/recipes/<id>.json)" }))

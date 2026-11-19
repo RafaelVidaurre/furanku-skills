@@ -10,12 +10,15 @@ import { join } from "node:path"
 import { after, before, describe, it } from "node:test"
 import { fileURLToPath } from "node:url"
 import type { Browser } from "playwright"
+import { definePlugin } from "../../src/catalog/plugin.ts"
 import { type App, cleanup, git, glb, human, makeProject, W, write } from "./helpers.ts"
 import { browserOrSkip, newPage, screenshots, startServer, type TestServer } from "./server.ts"
 
 type Any = any // eslint-disable-line @typescript-eslint/no-explicit-any
 const { shot } = screenshots(import.meta.url)
 const LINEUP = fileURLToPath(new URL("../../examples/previews/lineup.mjs", import.meta.url))
+// The project's preview module, declared by a plugin of the project.
+const lineup = definePlugin({ name: "lineup", browserModules: { lineup: "previews/lineup.mjs" } })
 let dir: string
 let app: App
 let server: TestServer
@@ -67,10 +70,10 @@ before(async () => {
   })
   mkdirSync(join(dir, "previews"), { recursive: true })
   copyFileSync(LINEUP, join(dir, "previews/lineup.mjs"))
-  write(dir, "catalog.config.json", { version: 1, adapter: "manifest", previewModules: { lineup: "./previews/lineup.mjs" } })
+  write(dir, "catalog.config.json", { version: 3, plugins: ["manifest", "lineup"] })
   git(dir, "add", "-A")
   git(dir, "commit", "-q", "-m", "initial")
-  server = await startServer(dir)
+  server = await startServer(dir, { plugins: { lineup } })
   app = server.app
   base = server.url
 })
@@ -124,13 +127,13 @@ describe("preview dependency integrity", () => {
     assert.match(pinned, /\?v=[0-9a-f]{16}$/)
     let v = await viewState(`#/reviews/s/${rv.id}/${item.id}`, "frozen-lineup-preview")
     assert.equal(v.st.viewer.status, "ready")
-    assert.equal(v.st.viewer.source.spacing, 2)
+    assert.equal(v.st.viewer.shows.spacing, 2)
     let proj = (await app.run("collection.get", { id: "row/ab" })).review.parts.find((p: Any) => p.id === "preview")
     assert.equal(proj.verdict, "approved")
     assert.equal(proj.changed, false)
     // Edit the module source (v2).
     const src = readFileSync(join(dir, "previews/lineup.mjs"), "utf8")
-    writeFileSync(join(dir, "previews/lineup.mjs"), src.replace("source=${{ ...ctx.source, spacing }}", "source=${{ ...ctx.source, spacing, revision: 2 }}"))
+    writeFileSync(join(dir, "previews/lineup.mjs"), src.replace("shows=${{ ...ctx.shows, spacing }}", "shows=${{ ...ctx.shows, spacing, revision: 2 }}"))
     const r = await fetch(`${base}${pinned.slice(1)}`)
     assert.equal(r.status, 409, "the server refuses to serve another revision for a pinned request")
     const changed = await app.run("review.get", { submission: rv.id })
@@ -143,7 +146,7 @@ describe("preview dependency integrity", () => {
     // The current collection runs the new revision; the verdict stays, marked changed.
     v = await viewState("#/collections/c/row%2Fab", "collection-lineup-preview")
     assert.equal(v.st.viewer.status, "ready")
-    assert.equal(v.st.viewer.source.revision, 2)
+    assert.equal(v.st.viewer.shows.revision, 2)
     proj = (await app.run("collection.get", { id: "row/ab" })).review.parts.find((p: Any) => p.id === "preview")
     assert.equal(proj.verdict, "approved")
     assert.equal(proj.changed, true, "module change shows as changed evidence")
@@ -151,7 +154,7 @@ describe("preview dependency integrity", () => {
     writeFileSync(join(dir, "previews/lineup.mjs"), src)
     v = await viewState(`#/reviews/s/${rv.id}/${item.id}`)
     assert.equal(v.st.viewer.status, "ready")
-    assert.equal(v.st.viewer.source.revision, undefined)
+    assert.equal(v.st.viewer.shows.revision, undefined)
   })
 
   it("a removed project module file is unavailable for current and frozen previews", async (t) => {

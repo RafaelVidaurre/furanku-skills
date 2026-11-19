@@ -3,11 +3,14 @@
 //
 //   registerMediaKind('image', {
 //     icon,       // SVG path data for a 20×20 glyph (optional)
-//     viewer,     // component: ({ media, viewerId, source, label, onStatus, context, ... }) => markup
+//     viewer,     // component: ({ media, viewerId, shows, label, onStatus, context, ... }) => markup
+//     controls,   // the control names its viewer's state lists (optional)
 //     thumbnail,  // component: ({ asset, size }) => markup shown inside a square thumbnail
 //     compare,    // component: ({ a, b, labels, mark, control, camera, state, apiRef }) => markup
 //     capture,    // { renderer: string | (state) => string, blocked?: (state) => string | null }
 //   });
+//
+// Types for plugin modules: catalog-plugin-web.d.ts (`MediaKindDefinition`).
 //
 // The built-in kinds (kinds/*.js) and a plugin's browser module make the same call. Everything
 // that shows media (viewers, thumbnails, comparisons, captures, labels) asks this registry and
@@ -22,9 +25,14 @@ let problems = [];
 
 const changed = () => subscribers.forEach((f) => f());
 
+/** Control names the page keeps for itself (`viewer.control { session, select, inspector }`). */
+export const RESERVED_CONTROLS = ['session', 'select', 'inspector'];
+
 export function registerMediaKind(id, definition) {
   if (typeof id !== 'string' || !id) throw new Error('registerMediaKind needs the kind id');
   if (!definition || typeof definition.viewer !== 'function') throw new Error(`media kind ${id} needs a viewer component`);
+  const reserved = (definition.controls ?? []).filter((name) => RESERVED_CONTROLS.includes(name));
+  if (reserved.length) throw new Error(`media kind ${id} lists the control ${reserved.join(', ')}, a name the catalog reserves (${RESERVED_CONTROLS.join(', ')}); give the control another name`);
   kinds.set(id, { ...definition, id });
   changed();
 }

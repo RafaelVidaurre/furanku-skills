@@ -1,6 +1,6 @@
 import { render } from 'preact';
 import { useErrorBoundary } from 'preact/hooks';
-import { html, boot, onSchema, useSession, useRoute, useQuery, href, entityHref, listParams, Icon, Thumb, Toasts, isTyping, useState, useEffect, useRef, enc, Popover, call, otherContextDrafts, shortHash, ErrorLine, scopes, scopeOf, defaultScope, isListSection, sectionLabel } from './core.js';
+import { html, boot, onSchema, useSession, useRoute, useQuery, href, entityHref, listParams, Icon, Thumb, Toasts, isTyping, useState, useEffect, useRef, enc, Popover, call, otherCheckoutDrafts, shortHash, ErrorLine, scopes, scopeOf, defaultScope, isListSection, sectionLabel } from './core.js';
 // The built-in media kinds register themselves like a plugin's would.
 import './kinds/image.js';
 import './kinds/video.js';
@@ -13,7 +13,7 @@ import { ListPane, currentList, selectedFacets } from './lists.js';
 import { UnitDetail, CollectionDetail, AssetDetail } from './detail.js';
 import { ReviewsView, SubmissionView } from './review.js';
 import { NotesView } from './notes.js';
-import { OrganizeView } from './organize.js';
+import { OrganizationView } from './organize.js';
 import { CompareOverlay } from './compare.js';
 import { markRendered } from './controller.js';
 
@@ -31,7 +31,7 @@ function App() {
     <${Top} s=${s} onMenu=${() => setNav(!nav)} />
     <${Side} route=${route} />
     <main class=${`main${detail ? ' has-detail' : ''}`}><${Boundary} key=${location.hash.split('?')[0]}>
-      ${s.changed && html`<div class="banner" role="alert">This checkout is now on <b>${s.changed.branch ?? `detached ${shortHash(s.changed.head)}`}</b>. Saving is paused and drafts are kept for ${s.boot.context.branch ?? 'the previous checkout'}. <button class="btn xs" onClick=${() => location.reload()}>Reload</button></div>`}
+      ${s.changed && html`<div class="banner" role="alert">This checkout is now on <b>${s.changed.branch ?? `detached ${shortHash(s.changed.head)}`}</b>. Saving is paused and drafts are kept for ${s.boot.checkout.branch ?? 'the previous checkout'}. <button class="btn xs" onClick=${() => location.reload()}>Reload</button></div>`}
       ${s.offline && html`<div class="banner" role="alert">The catalog server is not responding. Unsaved text stays in this page.</div>`}
       ${listSection && !detail && html`<${ListPane} route=${route} />`}
       ${detail && html`<div class="detail-pane">
@@ -40,9 +40,9 @@ function App() {
       </div>`}
       ${route.section === 'notes' && html`<${NotesView} route=${route} />`}
       ${route.section === 'reviews' && (route.kind === 's' ? html`<div class="detail-pane full"><a class="close-detail always" href=${href({ section: 'reviews', query: new URLSearchParams([...route.query].filter(([k]) => ['state', 'q'].includes(k))) })}><${Icon} name="back" size=${14} /><span>Reviews</span></a><${SubmissionView} key=${route.id} route=${route} /></div>` : html`<${ReviewsView} route=${route} />`)}
-      ${route.section === 'organize' && html`<${OrganizeView} />`}
+      ${route.section === 'organization' && html`<${OrganizationView} />`}
       ${route.section === 'inbox' && html`<${InboxView} />`}
-      ${!listSection && !['notes', 'reviews', 'organize', 'inbox'].includes(route.section) && html`<div class="page"><div class="errline" role="alert"><${Icon} name="warn" size=${13} /><span>There is no page "${route.section}" in this catalog.</span><a class="btn xs" href=${`#/${defaultScope()}`}>Open the catalog</a></div></div>`}
+      ${!listSection && !['notes', 'reviews', 'organization', 'inbox'].includes(route.section) && html`<div class="page"><div class="errline" role="alert"><${Icon} name="warn" size=${13} /><span>There is no page "${route.section}" in this catalog.</span><a class="btn xs" href=${`#/${defaultScope()}`}>Open the catalog</a></div></div>`}
     <//></main>
     <${CompareOverlay} route=${route} />
     <${Toasts} />
@@ -82,7 +82,7 @@ function useKeys(route) {
   }, [route]);
 }
 
-// The scope the person is browsing. Collections and files belong to no scope, so the last one
+// The scope the person is browsing. Collections and assets belong to no scope, so the last one
 // visited stays the frame around them.
 let lastScope = null;
 function currentScope(section) {
@@ -92,17 +92,17 @@ function currentScope(section) {
 
 function Top({ s, onMenu }) {
   useMediaKinds();
-  const c = s.ctx.context;
-  const me = s.ctx.actor;
-  const others = otherContextDrafts();
+  const c = s.summary.checkout;
+  const me = s.summary.actor;
+  const others = otherCheckoutDrafts();
   const r = useRoute();
   const all = scopes();
   const attention = useQuery('inbox', { limit: 1 }).data?.counts;
   const waiting = attention ? attention.waiting + attention.notes + attention.changed + attention.problems : 0;
-  const problems = s.ctx.problems + kindProblems().length;
+  const problems = s.summary.problems + kindProblems().length;
   return html`<header class="top">
     <button class="icon-btn menu" onClick=${onMenu} aria-label="Navigation"><${Icon} name="rows" /></button>
-    <span class="proj">${s.ctx.project}</span>
+    <span class="proj">${s.summary.project}</span>
     ${all.length > 1 && html`<nav class="primary-nav" aria-label="Library">${all.map((scope) => html`<a href=${`#/${enc(scope.id)}`} title=${scope.description} aria-current=${r.section === scope.id ? 'page' : undefined}>${scope.label}</a>`)}</nav>`}
     <${Popover} label="Workspace details" trigger=${() => html`<button class="icon-btn" aria-label="Workspace details"><${Icon} name="branch" size=${14} /></button>`}>
       <div class="picker workspace-details"><strong>${c.branch ?? 'Local workspace'}</strong><span class="mono">${c.head ?? ''}</span><span class="mono">${c.root}</span><${Uncommitted} />${others.length > 0 && html`<details><summary>Recover unsent text from other workspaces</summary><${OtherDrafts} keys=${others} /></details>`}</div>
@@ -116,17 +116,17 @@ function Top({ s, onMenu }) {
 }
 // Asked for when the details are opened: counting uncommitted files runs Git, so it is not polled.
 function Uncommitted() {
-  const dirty = useQuery('checkout', {}).data?.context.dirty;
+  const dirty = useQuery('checkout', {}).data?.checkout.dirty;
   return dirty > 0 ? html`<span>${dirty} uncommitted change${dirty === 1 ? '' : 's'}</span>` : null;
 }
 function Problems() {
   const { data, error } = useQuery('problems', {});
-  return html`<div class="problems"><${ErrorLine} error=${error} />${kindProblems().map((p) => html`<div class="problem"><div class="mono small">media kind ${p.kind}</div><div>${p.error}</div></div>`)}${(data?.problems ?? []).map((p) => html`<div class="problem"><div class="mono small">${p.source}</div><div>${p.error}</div>${p.recovery && html`<div class="muted small">${p.recovery}</div>`}</div>`)}</div>`;
+  return html`<div class="problems"><${ErrorLine} error=${error} />${kindProblems().map((p) => html`<div class="problem"><div class="mono small">media kind ${p.kind}</div><div>${p.error}</div></div>`)}${(data?.problems ?? []).map((p) => html`<div class="problem"><div class="mono small">${p.subject}</div><div>${p.error}</div>${p.recovery && html`<div class="muted small">${p.recovery}</div>`}</div>`)}</div>`;
 }
 function OtherDrafts({ keys }) {
   const [, force] = useState(0);
-  return html`<div class="problems">${keys.map((k) => { let v = null; try { v = JSON.parse(localStorage.getItem(k)); } catch {} const [, ctx, ...rest] = k.split(':'); return html`<div class="problem">
-    <div class="mono small">${ctx} · ${rest.join(':')}</div><div class="draft-text">${v?.body ?? v?.comment ?? ''}</div>
+  return html`<div class="problems">${keys.map((k) => { let v = null; try { v = JSON.parse(localStorage.getItem(k)); } catch {} const [, checkoutKey, ...rest] = k.split(':'); return html`<div class="problem">
+    <div class="mono small">${checkoutKey} · ${rest.join(':')}</div><div class="draft-text">${v?.body ?? v?.comment ?? ''}</div>
     <button class="btn xs" onClick=${() => navigator.clipboard?.writeText(v?.body ?? v?.comment ?? '')}>Copy text</button>
     <button class="btn xs ghost" onClick=${() => { localStorage.removeItem(k); force((n) => n + 1); }}>Discard</button></div>`; })}</div>`;
 }
@@ -142,12 +142,16 @@ function GlobalSearch() {
     if (!t) { setRes([]); return; }
     let live = true;
     const h = setTimeout(async () => {
-      const [u, c, a] = await Promise.all(['units', 'collections', 'assets'].map((section) => call('catalog.search', { section, q: t, pageSize: 5 }).catch(() => ({ items: [] }))));
+      const [u, c, a] = await Promise.all([
+        call('unit.search', { q: t, pageSize: 5 }).catch(() => ({ units: [] })),
+        call('collection.search', { q: t, pageSize: 5 }).catch(() => ({ collections: [] })),
+        call('asset.search', { q: t, pageSize: 5 }).catch(() => ({ assets: [] })),
+      ]);
       if (!live) return;
       setRes([
-        ...u.items.map((x) => ({ k: scopeOf(x.scope)?.label ?? 'Entry', label: x.name, sub: x.typeLabel, href: entityHref('unit', x.id), thumb: x.thumb })),
-        ...c.items.map((x) => ({ k: 'Collection', label: x.name, sub: x.match?.member ? `Includes ${x.match.member.name}` : x.category ?? '', href: x.match?.member ? href({ section: 'collections', kind: 'c', id: x.id, member: x.match.member.id }) : entityHref('collection', x.id) })),
-        ...a.items.map((x) => ({ k: 'File', label: x.path.split('/').pop(), sub: x.path.split('/').slice(0, -1).join('/'), href: entityHref('asset', x.id), thumb: x })),
+        ...u.units.map((x) => ({ k: scopeOf(x.scope)?.label ?? 'Unit', label: x.name, sub: x.typeLabel, href: entityHref('unit', x.id), thumb: x.thumb })),
+        ...c.collections.map((x) => ({ k: 'Collection', label: x.name, sub: x.match?.member ? `Includes ${x.match.member.name}` : x.category ?? '', href: x.match?.member ? href({ section: 'collections', kind: 'c', id: x.id, member: x.match.member.id }) : entityHref('collection', x.id) })),
+        ...a.assets.map((x) => ({ k: 'Asset', label: x.path.split('/').pop(), sub: x.path.split('/').slice(0, -1).join('/'), href: entityHref('asset', x.id), thumb: x })),
       ]);
     }, 120);
     return () => { live = false; clearTimeout(h); };
@@ -175,9 +179,9 @@ function Side({ route }) {
   const s = useSession();
   const scope = currentScope(route.section);
   const area = scope?.id;
-  const units = useQuery('catalog.search', { section: 'units', scope: area, pageSize: 1 }, !!area).data;
-  const cols = useQuery('catalog.search', { section: 'collections', pageSize: 1 }).data;
-  const assets = useQuery('catalog.search', { section: 'assets', pageSize: 1 }).data;
+  const units = useQuery('unit.search', { scope: area, pageSize: 1 }, !!area).data;
+  const cols = useQuery('collection.search', { pageSize: 1 }).data;
+  const assets = useQuery('asset.search', { pageSize: 1 }).data;
   const sel = selectedFacets(route);
   const only = (k, v) => sel[k]?.length === 1 && sel[k][0] === v && Object.keys(sel).length === 1;
   const none = Object.keys(sel).length === 0;
@@ -191,11 +195,11 @@ function Side({ route }) {
     ${(mine?.facets.cat.values.filter(c => !c.value.includes('/')) ?? []).map(c => html`<${Item} to=${link(area, 'cat', c.value)} active=${route.section === area && only('cat', c.value)} label=${c.label} n=${c.count} depth=${1} />`)}
     <div class="nav-sep"></div>`}
     <${Item} to=${link('collections')} active=${route.section === 'collections' && none} label="Collections" n=${cols?.all} />
-    <${Item} to=${link('files')} active=${route.section === 'files' && none} label="Files" n=${assets?.all} />
+    <${Item} to=${link('assets')} active=${route.section === 'assets' && none} label="Assets" n=${assets?.all} />
     <div class="nav-sep"></div>
-    <${Item} strong to="#/notes" active=${route.section === 'notes'} label="Notes" n=${s.ctx.counts.openNotes} />
-    <${Item} strong to="#/reviews" active=${route.section === 'reviews'} label="Reviews" n=${s.ctx.counts.waiting || null} />
-    <${Item} strong to="#/organize" active=${route.section === 'organize'} label="Categories & tags" />
+    <${Item} strong to="#/notes" active=${route.section === 'notes'} label="Notes" n=${s.summary.counts.openNotes} />
+    <${Item} strong to="#/reviews" active=${route.section === 'reviews'} label="Reviews" n=${s.summary.counts.waiting || null} />
+    <${Item} strong to="#/organization" active=${route.section === 'organization'} label="Categories & tags" />
   </nav>`;
 }
 

@@ -23,7 +23,7 @@ test("one open catalog follows authored bytes even when size and mtime are prese
   assert.equal((await app.run("unit.get", { id: "table" })).unit.attrs.armor, 20)
 
   rmSync(file)
-  assert.equal((await app.run("catalog.search", { section: "units" })).items.length, 0)
+  assert.equal((await app.run("unit.search", {})).units.length, 0)
   writeFileSync(file, original)
   utimesSync(file, timestamp, timestamp)
   assert.equal((await app.run("unit.get", { id: "table" })).unit.attrs.armor, 10)

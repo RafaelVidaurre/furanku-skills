@@ -20,7 +20,7 @@ const soundType = {
   label: "Sound",
   thumb: "audio",
   fields: [{ key: "speaker", label: "Speaker" }, { key: "duration", label: "Duration", derived: true }],
-  roles: [{ key: "audio", label: "Take", kinds: ["audio"], many: true }]
+  roles: [{ key: "audio", label: "Take", mediaKinds: ["audio"], many: true }]
 }
 // Was `sniff(bytes)` and `KIND_BY_EXT[ext]`: the kinds are now those the media-core plugin registers.
 const kinds = mediaCore.mediaKinds ?? []

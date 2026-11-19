@@ -95,7 +95,7 @@ const rolesOf = (recipe: ResolvedRecipe): ReadonlyArray<RoleInput> => {
   return [...roles].map(([key, role]): RoleInput => ({
     key,
     label: words(key),
-    kinds: CATALOG_KINDS.filter((kind) => role.kinds.has(kind)),
+    mediaKinds: CATALOG_KINDS.filter((kind) => role.kinds.has(kind)),
     many: role.many,
     ...(key === EVIDENCE_ROLE ? { help: "What each step's reviewer looks at: renders, captures, recordings." } : {})
   }))
@@ -127,10 +127,10 @@ const typeOf = (recipe: ResolvedRecipe): TypeInput => {
   const help = recipe.when ?? recipe.description
   return {
     label: recipe.title,
-    scope: recipe.catalog.scope ?? "assets",
+    scope: recipe.catalog.scope ?? "material",
     ...(help === undefined ? {} : { help }),
     roles,
-    thumb: (roles.find((role) => role.key !== EVIDENCE_ROLE && role.kinds.includes("image")) ?? roles[0])?.key ?? null,
+    thumb: (roles.find((role) => role.key !== EVIDENCE_ROLE && role.mediaKinds.includes("image")) ?? roles[0])?.key ?? null,
     // Every field is a fact of the workflow, so none is reviewed: a gate that opens or a job that
     // settles must not mark an approved model as changed.
     fields: [

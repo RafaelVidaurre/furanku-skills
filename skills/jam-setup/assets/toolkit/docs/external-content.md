@@ -20,7 +20,7 @@ Keep the original download unchanged next to any converted file. When the person
 
 ## Declare it in the catalog
 
-The catalog's `manifest` plugin reads hand-declared content. `catalog.config.json` names the manifest file (`options.manifest.file`, `Art/catalog.json` by default). The manifest's `unitFiles` names a folder (`Art/Catalog` in the starter); put one JSON file per unit there, named after the unit (`chair.json`), or one file per pack holding a `units` array. Create the folder if it is missing.
+The catalog's `manifest` plugin reads hand-declared content. `catalog.config.json` names the manifest file (option `file` of its `manifest` entry, `Art/catalog.json` by default). The manifest's `unitFiles` names a folder (`Art/Catalog` in the starter); put one JSON file per unit there, named after the unit (`chair.json`), or one file per pack holding a `units` array. Create the folder if it is missing.
 
 ```json
 {
@@ -42,7 +42,7 @@ The catalog's `manifest` plugin reads hand-declared content. `catalog.config.jso
 - Confirm with `jam catalog run unit.get --input '{"id":"<id>"}'` and `jam catalog run problems`.
 - File it where a person will look for it: the `jam-catalog` skill covers categories, collections and tags.
 
-**Placeholders.** The `placeholder` tag is what marks stand-in content: `jam catalog run organize.set --actor-kind agent --actor-name <you> --request-id <id> --input '{"target":{"kind":"unit","id":"<id>"},"tags":["placeholder"]}'` (it sets the unit's whole tag list, so include tags it already has; `organize.bulk` adds and removes across many). Find it with `jam catalog run catalog.search --input '{"filters":{"tag":["placeholder"]}}'`. When the real asset arrives, keep the unit id, point its link at the new file, update the origin, and remove the tag.
+**Placeholders.** The `placeholder` tag is what marks stand-in content: `jam catalog run organization.set --actor-kind agent --actor-name <you> --request-id <id> --input '{"target":{"kind":"unit","id":"<id>"},"tags":["placeholder"]}'` (it sets the unit's whole tag list, so include tags it already has; `organization.setMany` adds and removes across many). Find it with `jam catalog run unit.search --input '{"filters":{"tag":["placeholder"]}}'`. When the real asset arrives, keep the unit id, point its link at the new file, update the origin, and remove the tag.
 
 ## Enter a recipe part-way
 

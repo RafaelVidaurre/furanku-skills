@@ -6,12 +6,12 @@ TypeScript run directly by Node (type stripping, Node ≥ 22.20). No build step,
 
 ```
 kernel/   errors, project files, Git, ids, processes, schema decoding, CLI conventions
-catalog/  content catalog engine; its public entry for plugin authors is catalog/plugin.ts
+catalog/  content catalog engine; its public entry for plugin authors is catalog/plugin.ts (projects import it as the toolkit root's catalog-plugin.ts)
 jam/      config, recipes, runs, ledger, providers, engine host, audio; jam/catalog is the catalog's `jam` plugin and the review desk
 cli/      main.ts runs the command groups; compose.ts connects the catalog and the ledger
 ```
 
-`kernel` imports nothing from the others. `catalog` imports only `kernel`. `jam` imports `kernel` and the catalog's public entry (`catalog/plugin.ts`, `catalog/Catalog.ts`); the catalog never imports `jam`. `cli/compose.ts` is the one place both meet: it registers the `jam` plugin with the catalog and gives the run commands the catalog as their review desk, each loaded when first used.
+`kernel` imports nothing from the others. `catalog` imports only `kernel`. `jam` imports `kernel` and the catalog's public entries (`catalog/plugin.ts`, `catalog/Catalog.ts`, and `catalog/published.ts`, the catalog schemas `jam schemas write` publishes); the catalog never imports `jam`. `cli/compose.ts` is the one place both meet: it registers the `jam` plugin with the catalog and gives the run commands the catalog as their review desk, each loaded when first used.
 
 ## Rules
 

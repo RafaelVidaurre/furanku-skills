@@ -1,0 +1,11 @@
+{
+  "target": {
+    "kind": "asset",
+    "id": "art/sheet.png"
+  },
+  "category": null,
+  "tags": [
+    "concept-sheet"
+  ],
+  "revision": 1
+}

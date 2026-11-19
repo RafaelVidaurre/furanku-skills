@@ -55,7 +55,7 @@ const RunBody = Schema.Struct({
   input: Schema.optionalKey(Schema.Unknown),
   actor: Schema.optionalKey(Schema.NullOr(Schema.Struct({ name: Schema.optionalKey(Schema.Unknown), kind: Schema.optionalKey(Schema.Unknown) }))),
   requestId: Schema.optionalKey(Schema.NullOr(Schema.String)),
-  context: Schema.optionalKey(Schema.NullOr(Schema.String))
+  checkoutKey: Schema.optionalKey(Schema.NullOr(Schema.String))
 })
 
 const decoded = (text: string): Effect.Effect<string, ToolError> =>
@@ -79,7 +79,7 @@ export const makeHandler = (catalog: Catalog["Service"], renderer: Renderer["Ser
       if (isViewerAction(name)) return json(200, yield* renderer.run(name, body.input ?? {}))
       // The page acts as the local Git user, a person. Every other client declares who it is.
       const actor = body.actor ?? (request.header("x-catalog-client") === "web" ? yield* catalog.defaultActor : undefined)
-      return json(200, yield* catalog.run(name, body.input ?? {}, { actor, requestId: body.requestId ?? undefined, context: body.context ?? undefined }))
+      return json(200, yield* catalog.run(name, body.input ?? {}, { actor, requestId: body.requestId ?? undefined, checkoutKey: body.checkoutKey ?? undefined }))
     })
 
   const script = (request: Request, module: { readonly bytes: Uint8Array; readonly sha256: string }): Response => {
@@ -140,12 +140,10 @@ export const makeHandler = (catalog: Catalog["Service"], renderer: Renderer["Ser
         return ids === null ? NOT_FOUND : frozen(request, yield* catalog.beforeMedia(ids[0], ids[1], ids[2]))
       }
       // Trusted project code for the page, by declared name only: no path is ever taken from the address.
-      const preview = under("/project/preview/")
-      if (preview !== null) return script(request, yield* catalog.previewModule(yield* decoded(preview)))
+      const module = under("/project/module/")
+      if (module !== null) return script(request, yield* catalog.browserModule(yield* decoded(module)))
       const kind = under("/project/kind/")
       if (kind !== null) return script(request, yield* catalog.kindModule(yield* decoded(kind)))
-      const view = under("/project/view/")
-      if (view !== null) return script(request, yield* catalog.viewModule(yield* decoded(view)))
 
       if (path.startsWith("/vendor/")) {
         const rest = path.slice("/vendor/".length)

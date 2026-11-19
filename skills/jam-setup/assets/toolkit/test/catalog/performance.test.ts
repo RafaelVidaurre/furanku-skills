@@ -8,6 +8,7 @@ import assert from "node:assert/strict"
 import { utimesSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { test } from "node:test"
+import { Catalog, CatalogDiagnostics } from "../../src/catalog/Catalog.ts"
 import { definePlugin } from "../../src/catalog/plugin.ts"
 import { Ids } from "../../src/kernel/Ids.ts"
 import { Process } from "../../src/kernel/Process.ts"
@@ -24,41 +25,53 @@ const recordingProcess = (calls: Array<string>): Layer.Layer<Process> =>
     text: (command, args, options) => (calls.push([command, ...args].join(" ")), real.text(command, args, options))
   }))).pipe(Layer.provide(Process.layer))
 
+/** The catalog's counters, which `CatalogDiagnostics` keeps beside the facade. */
+const stats = (app: App) => app.effect(Effect.flatMap(CatalogDiagnostics, (diagnostics) => diagnostics.stats))
+
 /** What one action cost, as the difference of the catalog's counters around it. */
 const cost = async (app: App, action: () => Promise<unknown>) => {
-  const before = await app.stats()
+  const before = await stats(app)
   await action()
-  const after = await app.stats()
+  const after = await stats(app)
   const loads = Object.fromEntries(Object.entries(after.sourceLoads).map(([source, count]) => [source, count - (before.sourceLoads[source] ?? 0)]).filter(([, count]) => count !== 0))
   return { projections: after.projections - before.projections, scans: after.recordScans - before.recordScans, parsed: after.recordsParsed - before.recordsParsed, hashed: after.filesHashed - before.filesHashed, loads }
 }
 
-test("the context poll starts no program and returns no schema", async () => {
+test("the counters are diagnostics beside the catalog, not part of its facade", async () => {
+  const dir = await standardProject()
+  const app = await open(dir)
+  assert.equal(await app.effect(Effect.map(Catalog, (catalog) => "stats" in catalog)), false)
+  const counted = await cost(app, () => app.run("summary", {}))
+  assert.equal(counted.projections, 1)
+  cleanup(dir)
+})
+
+test("the summary poll starts no program and returns no schema", async () => {
   const dir = await standardProject()
   const calls: Array<string> = []
   const app = await open(dir, { process: recordingProcess(calls) })
-  await app.run("context", {})
+  await app.run("summary", {})
   calls.length = 0
-  const context = await app.run("context", {})
+  const summary = await app.run("summary", {})
   assert.deepEqual(calls, [], "the poll starts no program: the checkout is read from Git's own files")
-  assert.equal(context.context.branch, "main")
-  assert.equal("schema" in context, false)
-  assert.equal("unitScopes" in context, false)
-  assert.equal(context.context.dirty, undefined)
-  assert.ok(JSON.stringify(context).length < 1500, "the poll answer stays small whatever the project holds")
+  assert.equal(summary.checkout.branch, "main")
+  assert.equal("schema" in summary, false)
+  assert.equal("unitScopes" in summary, false)
+  assert.equal(summary.checkout.dirty, undefined)
+  assert.ok(JSON.stringify(summary).length < 1500, "the poll answer stays small whatever the project holds")
   // What moved out is still available, on request: the schema by version, the dirty count by `checkout`.
   const schema = await app.run("schema", {})
-  assert.equal(schema.version, context.version)
+  assert.equal(schema.version, summary.version)
   assert.ok(schema.schema.types.armor)
   calls.length = 0
   write(dir, "untracked.txt", "x")
-  assert.equal((await app.run("checkout", {})).context.dirty, 1)
+  assert.equal((await app.run("checkout", {})).checkout.dirty, 1)
   assert.equal(calls.filter((call) => /\bstatus\b/.test(call)).length, 1)
   // No read of content starts a program at all.
   calls.length = 0
-  await app.run("catalog.search", { q: "helm" })
+  await app.run("unit.search", { q: "helm" })
   await app.run("unit.get", { id: "armor/helm" })
-  await app.run("notes.list", {})
+  await app.run("note.list", {})
   assert.deepEqual(calls, [])
   cleanup(dir)
 })
@@ -68,20 +81,20 @@ test("an action builds at most one projection and scans the record folders once"
   const dir = await makeProject({ units })
   const app = await open(dir)
   const run = W(app)
-  await run("organize.bulk", { targets: units.map((u) => unit(u.id)), addTags: ["batch"] })
+  await run("organization.setMany", { targets: units.map((u) => unit(u.id)), addTags: ["batch"] })
   const submitted = await run("review.submit", { items: units.slice(0, 10).map((u) => ({ target: unit(u.id) })) })
   const review = await app.run("review.get", { submission: submitted.submission.id })
   // Reads over many rows, facets and review states: one projection each, reused when nothing changed.
-  const first = await cost(app, () => app.run("catalog.search", { filters: { tag: ["batch"], review: ["undecided"] } }))
+  const first = await cost(app, () => app.run("unit.search", { filters: { tag: ["batch"], review: ["undecided"] } }))
   assert.deepEqual([first.projections <= 1, first.scans], [true, 1])
-  for (const action of [() => app.run("catalog.search", { q: "lore" }), () => app.run("context", {}), () => app.run("reviews.list", {}), () => app.run("organization.list", {}), () => app.run("inbox", {})]) {
+  for (const action of [() => app.run("unit.search", { q: "lore" }), () => app.run("summary", {}), () => app.run("review.list", {}), () => app.run("organization.list", {}), () => app.run("inbox", {})]) {
     assert.deepEqual(await cost(app, action), { projections: 0, scans: 1, parsed: 0, hashed: 0, loads: {} }, "an unchanged project is not projected again")
   }
   // Writes: the projection is read once, under the lock; the answer comes from what was written.
   for (const action of [
     () => run("note.create", { target: unit("lore/1"), body: "n" }),
     () => run("review.decide", { submission: review.id, item: review.items[0].id, whole: "approved" }),
-    () => run("organize.set", { target: unit("lore/2"), tags: ["x"] }),
+    () => run("organization.set", { target: unit("lore/2"), tags: ["x"] }),
     () => run("review.decideCurrent", { target: unit("lore/30"), whole: "approved" }),
     () => run("category.rename", { from: "Nothing", to: "Else" })
   ]) {
@@ -102,15 +115,15 @@ test("sources invalidate through their declared inputs: an unchanged source is n
     name,
     inputs: () => [`data/${name}.json`],
     load: async (context: { files: { readJson(path: string): Promise<unknown> } }) => ({
-      types: { [name]: { label: name, roles: [{ key: "pic", label: "Pic", kinds: ["image"] }] } },
+      types: { [name]: { label: name, roles: [{ key: "pic", label: "Pic", mediaKinds: ["image"] }] } },
       assetRoots: ["media"],
       units: ((await context.files.readJson(`data/${name}.json`)) as Array<{ id: string }>).map((entry) => ({ id: entry.id, type: name, links: [{ role: "pic", asset: "media/pic.png" }] }))
     })
   })
   const two = definePlugin({ name: "two", sources: [source("a"), source("b")] })
-  write(dir, "catalog.config.json", { version: 2, plugins: ["two"] })
+  write(dir, "catalog.config.json", { version: 3, plugins: ["two"] })
   const app = await open(dir, { plugins: { two } })
-  const search = () => app.run("catalog.search", {})
+  const search = () => app.run("unit.search", {})
   assert.deepEqual((await cost(app, search)).loads, { "two/a": 1, "two/b": 1 })
   assert.deepEqual((await cost(app, search)).loads, {}, "nothing changed: nothing is loaded")
   // A file no source declared is not an input.
@@ -159,22 +172,22 @@ test("requests arriving together share a check of the sources that began after t
       name: "list",
       inputs: () => (checks++, ["data/list.json", "media"]),
       load: async (context) => ({
-        types: { pic: { label: "Pic", roles: [{ key: "pic", label: "Pic", kinds: ["image"], many: true }] } },
+        types: { pic: { label: "Pic", roles: [{ key: "pic", label: "Pic", mediaKinds: ["image"], many: true }] } },
         assetRoots: ["media"],
         units: ((await context.files.readJson("data/list.json")) as Array<{ id: string }>).map((entry) => ({ id: entry.id, type: "pic", links: Array.from({ length: 20 }, (_, i) => ({ role: "pic", asset: `media/${i}.png` })) }))
       })
     }]
   })
-  write(dir, "catalog.config.json", { version: 2, plugins: ["counted"] })
+  write(dir, "catalog.config.json", { version: 3, plugins: ["counted"] })
   const app = await open(dir, { plugins: { counted } })
-  await app.run("context", {})
+  await app.run("summary", {})
   checks = 0
   const files = await Promise.all(Array.from({ length: 20 }, (_, i) => app.assetFile(`media/${i}.png`)))
   assert.equal(files.length, 20)
   assert.ok(checks <= 2, `20 requests at once checked the sources ${checks} times`)
   // Each answer still reflects the files as they were when it was asked for.
   write(dir, "data/list.json", [{ id: "p/1" }, { id: "p/2" }])
-  assert.equal((await app.run("catalog.search", {})).total, 2)
+  assert.equal((await app.run("unit.search", {})).total, 2)
   cleanup(dir)
 })
 
@@ -184,7 +197,7 @@ test("record scans are incremental: only files that changed are read again", asy
   const run = W(app)
   const notes: Array<Any> = []
   for (let i = 0; i < 25; i++) notes.push((await run("note.create", { target: unit("armor/helm"), body: `Note ${i}` })).note)
-  const list = () => app.run("notes.list", { pageSize: 100 })
+  const list = () => app.run("note.list", { pageSize: 100 })
   await list()
   assert.equal((await cost(app, list)).parsed, 0, "an action over unchanged records reads no record file")
   // One file edited outside the catalog (a merge, an editor): exactly that file is read.
@@ -217,12 +230,12 @@ test("time and ids come from injected services: records are reproducible under a
   const submitted = await W(app)("review.submit", { items: [{ target: unit("lore/origin") }] })
   const review = await app.run("review.get", { submission: submitted.submission.id })
   assert.deepEqual([review.id, review.items[0].id, review.at], ["sub_0003", "it_0002", "2030-01-02T04:34:05.000Z"])
-  // Verdict order is recorded time, then identity: both are under the test's control.
+  // Decision order is recorded time, then identity: both are under the test's control.
   await app.effect(TestClock.adjust("1 second"))
   await W(app)("review.decide", { submission: review.id, item: review.items[0].id, whole: "changes" })
   await W(app)("review.decide", { submission: review.id, item: review.items[0].id, whole: "approved" })
   const history = (await app.run("unit.get", { id: "lore/origin" })).history
-  assert.deepEqual(history.map((event: Any) => [event.id, event.at, event.verdicts.attributes]), [["vd_0005", "2030-01-02T04:34:06.000Z", "approved"], ["vd_0004", "2030-01-02T04:34:06.000Z", "changes"]])
+  assert.deepEqual(history.map((decision: Any) => [decision.id, decision.at, decision.verdicts.attributes]), [["dc_0005", "2030-01-02T04:34:06.000Z", "approved"], ["dc_0004", "2030-01-02T04:34:06.000Z", "changes"]])
   assert.equal((await app.run("unit.get", { id: "lore/origin" })).review.summary.state, "approved", "a tie on time is decided by id")
   cleanup(dir)
 })

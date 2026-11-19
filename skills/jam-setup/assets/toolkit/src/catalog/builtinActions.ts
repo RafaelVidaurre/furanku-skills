@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { fail } from "../kernel/errors.ts"
 import { digest } from "../kernel/hash.ts"
-import { type ActionDef, dirtyCount, Empty, optional, Page, read, targetOf, Text, UnitOrCollection, write } from "./action.ts"
+import { dirtyCount, Empty, optional, Page, read, refOf, Text, write } from "./action.ts"
 import { collectionActions } from "./commands/collections.ts"
 import { decideActions } from "./commands/decide.ts"
 import { removeAction } from "./commands/remove.ts"
@@ -18,14 +18,37 @@ import type { Projection } from "./Projection.ts"
 import { compare } from "./queries/compare.ts"
 import { assetGet, collectionGet, unitGet } from "./queries/detail.ts"
 import { inbox, problemsOf } from "./queries/inbox.ts"
-import { notesList } from "./queries/notes.ts"
+import { noteList } from "./queries/notes.ts"
 import { organizationList } from "./queries/organization.ts"
-import { reviewGet, reviewsList, submissionView } from "./queries/reviews.ts"
-import { search } from "./queries/search.ts"
-import { viewModuleOf } from "./queries/summaries.ts"
+import { reviewGet, reviewList, submissionView } from "./queries/reviews.ts"
+import { assetSearch, collectionSearch, unitSearch } from "./queries/search.ts"
+import { moduleUrl } from "./queries/summaries.ts"
+import { Comparison, FrozenRef } from "./viewerActions.ts"
+import { NoteRecord } from "./records/schemas.ts"
 import { Records } from "./Records.ts"
+import {
+  Actor,
+  AssetDetail,
+  AssetHit,
+  Checkout,
+  CollectionDetail,
+  CollectionHit,
+  DecisionSummary,
+  Linked,
+  MaybeRoute,
+  NoteView,
+  Paging,
+  Problem,
+  ProjectSchema,
+  Route,
+  SearchFields,
+  SubmissionDetailFields,
+  SubmissionView,
+  UnitDetail,
+  UnitHit,
+  Written
+} from "./results.ts"
 
-const FrozenRef = Schema.Struct({ submission: Text, item: Text, part: Text })
 
 const counts = (p: Projection) => ({
   units: p.snapshot.units.length,
@@ -53,9 +76,9 @@ const kindModuleOf = (p: Projection, kind: string): { web: string | null; webErr
  * modules plugins declare (their addresses are part of the schema).
  */
 const versionOf = (p: Projection): string =>
-  p.kindModules.size + p.previewModules.size + p.viewModules.size === 0 && !p.plugins.config.display.pixelArt
+  p.kindModules.size + p.browserModules.size === 0 && !p.plugins.config.display.pixelArt
     ? p.snapshot.version
-    : `${p.snapshot.version}${digest([[...p.kindModules], [...p.previewModules], [...p.viewModules], p.plugins.config.display]).slice(0, 4)}`
+    : `${p.snapshot.version}${digest([[...p.kindModules], [...p.browserModules], p.plugins.config.display]).slice(0, 4)}`
 
 /** What rarely changes and is large: clients fetch it once per `version`, not with every poll. */
 const describeProject = (p: Projection) => ({
@@ -65,24 +88,153 @@ const describeProject = (p: Projection) => ({
   scopes: p.plugins.scopes,
   mediaKinds: Object.fromEntries(p.plugins.mediaKinds.map((kind) => [kind.id, { label: kind.label, extensions: kind.extensions, ...kindModuleOf(p, kind.id) }])),
   relations: p.plugins.relations.map((relation) => ({ name: relation.name, label: relation.label, inverseLabel: relation.inverseLabel })),
-  probes: p.plugins.probes.map(({ plugin, value }) => ({ name: value.name, plugin, version: value.version, kinds: value.kinds, fields: value.fields ?? [] })),
-  previews: Object.keys(p.plugins.previews),
-  // Where each declared module of type views and panels loads from (see a type's `views` and `panels`).
-  views: Object.fromEntries([...p.viewModules.keys()].map((name) => [name, viewModuleOf(p, name)])),
+  probes: p.plugins.probes.map(({ plugin, value }) => ({ name: value.name, plugin, version: value.version, mediaKinds: value.mediaKinds, fields: value.fields ?? [] })),
+  // Where each declared browser module (inspectors, panels, previews) loads from; null when its file is missing.
+  browserModules: Object.fromEntries([...p.browserModules].map(([name, sha256]) => [name, sha256 === null ? null : moduleUrl(name, sha256)])),
   // For types without a display of their own.
   display: p.plugins.config.display,
   unitScopes: Object.fromEntries(p.snapshot.units.map((unit) => [unit.id, unit.scope]))
 })
 
-const reads: ReadonlyArray<ActionDef> = [
-  read("context", "Project, checkout, counts and problem count. Cheap enough to poll: no file status, no schema", Empty, (_input, env) =>
+// ---- Inputs and outputs (exported for the typed action map, `actionMap.ts`)
+
+const Counts = Schema.Struct({ units: Schema.Number, collections: Schema.Number, assets: Schema.Number, openNotes: Schema.Number, submissions: Schema.Number, waiting: Schema.Number })
+export const SummaryOutput = Schema.Struct({
+  project: Schema.String,
+  plugins: Schema.Array(Schema.String),
+  actor: Schema.String,
+  checkout: Checkout,
+  version: Schema.String,
+  records: Schema.String,
+  counts: Counts,
+  problems: Schema.Number,
+  resolver: Schema.String,
+  verdicts: Schema.Array(Schema.String)
+})
+export const CheckoutOutput = Schema.Struct({ checkout: Schema.Struct({ ...Checkout.fields, dirty: Schema.Number }) })
+export const ProblemsOutput = Schema.Struct({ problems: Schema.Array(Problem) })
+export const InboxInput = Schema.Struct({ limit: optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 500 }))).annotate({ description: "Most entries per list (default 50)" }) })
+export const InboxOutput = Linked({
+  counts: Schema.Struct({ waiting: Schema.Number, notes: Schema.Number, changed: Schema.Number, problems: Schema.Number }),
+  waiting: Schema.Array(Schema.Struct({ submission: Schema.String, ref: Schema.String, title: Schema.String, by: Actor, at: Schema.String, waiting: Schema.Number, items: Schema.Number, ...Route })),
+  notes: Schema.Array(Schema.Struct({
+    id: Schema.String,
+    target: NoteRecord.fields.target,
+    targetName: Schema.String,
+    targetExists: Schema.Boolean,
+    partLabel: Schema.NullOr(Schema.String),
+    body: Schema.String,
+    by: Actor,
+    at: Schema.String,
+    ...MaybeRoute
+  })),
+  changed: Schema.Array(Schema.Struct({
+    target: Schema.Struct({ kind: Schema.String, id: Schema.String }),
+    ...MaybeRoute,
+    name: Schema.String,
+    parts: Schema.Array(Schema.Struct({ id: Schema.String, label: Schema.String, verdict: Schema.NullOr(Schema.String), submission: Schema.NullOr(Schema.String), ref: Schema.NullOr(Schema.String) }))
+  })),
+  problems: Schema.Array(Problem)
+})
+export const DoctorInput = Schema.Struct({ fix: optional(Schema.Boolean).annotate({ description: "Refused when true: a read cannot repair. Use doctor.fix" }) })
+const DoctorFields = {
+  ok: Schema.Boolean,
+  summary: Schema.Struct({ problems: Schema.Number, info: Schema.Number, fixable: Schema.Number, fixed: Schema.Number }),
+  checks: Schema.Array(Schema.Struct({
+    name: Schema.String,
+    label: Schema.String,
+    plugin: Schema.String,
+    problems: Schema.Array(Schema.Struct({ message: Schema.String, subject: Schema.NullOr(Schema.String), severity: Schema.Literals(["problem", "info"]), fix: Schema.NullOr(Schema.String), fixable: Schema.Boolean }))
+  })),
+  fixed: Schema.Array(Schema.Struct({ check: Schema.String, subject: Schema.NullOr(Schema.String), fix: Schema.String, error: Schema.NullOr(Schema.String) }))
+}
+export const DoctorOutput = Schema.Struct(DoctorFields)
+export const DoctorFixOutput = Written(DoctorFields)
+
+const SearchText = { q: optional(Schema.String), filters: optional(Schema.Record(Schema.String, Schema.Array(Schema.String))).annotate({ description: "Facet key to selected values" }), ...Page }
+export const UnitSearchInput = Schema.Struct({ scope: optional(Schema.String).annotate({ description: "A scope id (see schema)" }), ...SearchText })
+export const UnitSearchOutput = Schema.Struct({ units: Schema.Array(UnitHit), scope: Schema.NullOr(Schema.String), ...SearchFields })
+export const CollectionSearchInput = Schema.Struct({ scope: optional(Schema.String).annotate({ description: "A scope id (see schema): collections with a member in it" }), ...SearchText })
+export const CollectionSearchOutput = Schema.Struct({ collections: Schema.Array(CollectionHit), scope: Schema.NullOr(Schema.String), ...SearchFields })
+export const AssetSearchInput = Schema.Struct(SearchText)
+export const AssetSearchOutput = Schema.Struct({ assets: Schema.Array(AssetHit), ...SearchFields })
+
+export const IdInput = Schema.Struct({ id: Text })
+export const OrganizationListOutput = Schema.Struct({
+  categories: Schema.Array(Schema.Struct({ path: Schema.String, units: Schema.Number, collections: Schema.Number, assets: Schema.Number })),
+  tags: Schema.Array(Schema.Struct({ tag: Schema.String, projectOwned: Schema.Boolean, units: Schema.Number, collections: Schema.Number, assets: Schema.Number }))
+})
+export const NoteListInput = Schema.Struct({
+  state: optional(Schema.Literals(["open", "resolved", "all"])),
+  targetKind: optional(Schema.String),
+  target: optional(refOf(["unit", "collection", "asset", "submission"], { item: true, part: true })),
+  by: optional(Schema.String),
+  q: optional(Schema.String),
+  ...Page
+})
+export const NoteListOutput = Linked({
+  notes: Schema.Array(NoteView),
+  ...Paging,
+  counts: Schema.Struct({ open: Schema.Number, resolved: Schema.Number, all: Schema.Number }),
+  authors: Schema.Array(Schema.String)
+})
+export const ReviewListInput = Schema.Struct({ state: optional(Schema.Literals(["all", "waiting", "changes", "rejected", "approved"])), q: optional(Schema.String), ...Page, target: optional(refOf(["unit", "collection"])) })
+export const ReviewListOutput = Linked({
+  submissions: Schema.Array(SubmissionView),
+  ...Paging,
+  counts: Schema.Struct({ all: Schema.Number, waiting: Schema.Number, changes: Schema.Number, rejected: Schema.Number, approved: Schema.Number })
+})
+export const ReviewGetInput = Schema.Struct({ submission: Text })
+export const ReviewGetOutput = Linked({
+  ...SubmissionDetailFields,
+  decisions: Schema.Array(DecisionSummary),
+  observations: Schema.Array(NoteView),
+  supersededBy: Schema.Array(Schema.Struct({ id: Schema.String, ref: Schema.String }))
+})
+export const EvidenceCompareInput = Comparison
+const Side = Schema.Struct({
+  status: Schema.String,
+  error: Schema.optional(Schema.NullOr(Schema.String)),
+  kind: Schema.optional(Schema.NullOr(Schema.String)),
+  sha256: Schema.optional(Schema.NullOr(Schema.String)),
+  digest: Schema.optional(Schema.String),
+  mime: Schema.optional(Schema.NullOr(Schema.String)),
+  size: Schema.optional(Schema.NullOr(Schema.Number)),
+  asset: Schema.optional(Schema.NullOr(Schema.String)),
+  path: Schema.optional(Schema.NullOr(Schema.String)),
+  url: Schema.optional(Schema.NullOr(Schema.String)),
+  attrs: Schema.optional(Schema.Unknown)
+})
+const ComparedPart = Schema.Struct({ ...FrozenRef.fields, label: Schema.String })
+export const EvidenceCompareOutput = Schema.Struct({
+  title: Schema.String,
+  a: ComparedPart,
+  b: Schema.Union([Schema.Literal("current"), ComparedPart]),
+  rows: Schema.Array(Schema.Struct({ key: Schema.String, label: Schema.String, a: Side, b: Side, identical: Schema.Boolean })),
+  identical: Schema.Boolean
+})
+export const LockListOutput = Schema.Struct({
+  locks: Schema.Array(Schema.Struct({
+    file: Schema.String,
+    name: Schema.optional(Schema.String),
+    pid: Schema.optional(Schema.Number),
+    host: Schema.optional(Schema.String),
+    at: Schema.optional(Schema.String),
+    alive: Schema.NullOr(Schema.Boolean)
+  }))
+})
+export const LockRemoveInput = Schema.Struct({ lock: Text })
+export const LockRemoveOutput = Written({ removed: Schema.String })
+
+const reads = [
+  read("summary", "Project, checkout, counts and problem count. Cheap enough to poll: no file status, no schema", Empty, SummaryOutput, (_input, env) =>
     Effect.map(env.currentCheckout, (checkout) => {
       const p = env.projection
       return {
         project: p.snapshot.project ?? checkout.name,
         plugins: p.plugins.names,
         actor: env.defaultActor.name,
-        context: checkout,
+        checkout,
         version: versionOf(p),
         records: p.records.signature.slice(0, 12),
         counts: counts(p),
@@ -91,80 +243,64 @@ const reads: ReadonlyArray<ActionDef> = [
         verdicts: p.policy.verdicts
       }
     })),
-  read("schema", "Types, collection kinds, scopes, media kinds, relations, probes, view modules and display policy of this project; changes only when `version` does", Empty, (_input, env) =>
+  read("schema", "Types, collection kinds, scopes, media kinds, relations, probes, view modules and display policy of this project; changes only when `version` does", Empty, ProjectSchema, (_input, env) =>
     Effect.succeed(describeProject(env.projection))),
-  read("checkout", "The checkout with its count of uncommitted changes outside .catalog (runs git status)", Empty, (_input, env) =>
+  read("checkout", "The checkout with its count of uncommitted changes outside .catalog (runs git status)", Empty, CheckoutOutput, (_input, env) =>
     Effect.gen(function*() {
-      return { context: { ...(yield* env.currentCheckout), dirty: yield* dirtyCount } }
+      return { checkout: { ...(yield* env.currentCheckout), dirty: yield* dirtyCount } }
     })),
-  read("problems", "Unreadable sources, plugin failures and malformed or conflicted records", Empty, (_input, env) => Effect.succeed({ problems: problemsOf(env.projection) })),
+  read("problems", "Unreadable sources, plugin failures and malformed or conflicted records", Empty, ProblemsOutput, (_input, env) => Effect.succeed({ problems: problemsOf(env.projection) })),
   read(
     "inbox",
     "What is waiting on someone: reviews with undecided parts, open notes, parts changed since their verdict, problems",
-    Schema.Struct({ limit: optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 500 }))).annotate({ description: "Most entries per list (default 50)" }) }),
+    InboxInput,
+    InboxOutput,
     (input, env) => Effect.succeed(inbox(env.projection, input.limit ?? 50))
   ),
   read(
     "doctor",
     "Run every check (media, Git LFS pointers, unlinked files, waiting reviews, plugin checks) and report; changes nothing. Repairs are applied by doctor.fix",
-    Schema.Struct({ fix: optional(Schema.Boolean).annotate({ description: "Refused when true: a read cannot repair. Use doctor.fix" }) }),
+    DoctorInput,
+    DoctorOutput,
     (input, env) =>
       input.fix === true
         ? fail("invalid", "doctor only reads and cannot fix; repairs are applied by the write action doctor.fix", { fix: "run `jam catalog doctor --fix`, or the action doctor.fix with an actor" })
         : doctor(env)
   ),
-  read(
-    "catalog.search",
-    "Search and filter units, collections or assets with facet counts and bounded pages",
-    Schema.Struct({
-      section: optional(Schema.Literals(["units", "collections", "assets"])),
-      scope: optional(Schema.String).annotate({ description: "A scope id (see schema); units only" }),
-      q: optional(Schema.String),
-      filters: optional(Schema.Record(Schema.String, Schema.Array(Schema.String))).annotate({ description: "Facet key to selected values" }),
-      ...Page
-    }),
-    (input, env) => search(env.projection, input)
-  ),
-  read("unit.get", "Inspect one catalog entry: attributes, visuals, relations, review projection, notes, memberships", Schema.Struct({ id: Text }), (input, env) =>
+  read("unit.search", "Search and filter units with facet counts and bounded pages", UnitSearchInput, UnitSearchOutput, (input, env) => unitSearch(env.projection, input)),
+  read("collection.search", "Search and filter collections with facet counts and bounded pages", CollectionSearchInput, CollectionSearchOutput, (input, env) => collectionSearch(env.projection, input)),
+  read("asset.search", "Search and filter media assets with facet counts and bounded pages", AssetSearchInput, AssetSearchOutput, (input, env) => assetSearch(env.projection, input)),
+  read("unit.get", "Inspect one unit: attributes, linked assets, relations, review projection, notes, memberships, inspectors", IdInput, UnitDetail, (input, env) =>
     Effect.flatMap(Facts, (facts) => unitGet(env.projection, facts, input.id))),
-  read("collection.get", "Inspect one collection: members, preview, review projection, notes", Schema.Struct({ id: Text }), (input, env) => collectionGet(env.projection, input.id)),
-  read("asset.get", "Inspect one media asset: usage, versions, verdicts referencing it, measured facts, notes", Schema.Struct({ id: Text }), (input, env) =>
+  read("collection.get", "Inspect one collection: members, preview, review projection, notes", IdInput, CollectionDetail, (input, env) => collectionGet(env.projection, input.id)),
+  read("asset.get", "Inspect one media asset: usage, versions, verdicts referencing it, measured facts, notes", IdInput, AssetDetail, (input, env) =>
     Effect.flatMap(Facts, (facts) => assetGet(env.projection, facts, input.id))),
-  read("organization.list", "Categories and tags with usage counts", Empty, (_input, env) => Effect.succeed(organizationList(env.projection))),
+  read("organization.list", "Categories and tags with usage counts", Empty, OrganizationListOutput, (_input, env) => Effect.succeed(organizationList(env.projection))),
+  read("note.list", "List notes; state open (default), resolved or all; optional target filter", NoteListInput, NoteListOutput, (input, env) => Effect.succeed(noteList(env.projection, input))),
   read(
-    "notes.list",
-    "List notes; state open (default), resolved or all; optional target filter",
-    Schema.Struct({
-      state: optional(Schema.Literals(["open", "resolved", "all"])),
-      targetKind: optional(Schema.String),
-      target: optional(targetOf(["unit", "collection", "asset", "submission"])),
-      by: optional(Schema.String),
-      q: optional(Schema.String),
-      ...Page
-    }),
-    (input, env) => Effect.succeed(notesList(env.projection, input))
-  ),
-  read(
-    "reviews.list",
+    "review.list",
     "Review submissions with item counts (waiting, approved, changes, rejected); optional target filter",
-    Schema.Struct({ state: optional(Schema.Literals(["all", "waiting", "changes", "rejected", "approved"])), q: optional(Schema.String), ...Page, target: optional(UnitOrCollection) }),
-    (input, env) => Effect.succeed(reviewsList(env.projection, input))
+    ReviewListInput,
+    ReviewListOutput,
+    (input, env) => Effect.succeed(reviewList(env.projection, input))
   ),
-  read("review.get", "One submission by id or short reference: items, parts, views, verdict projection, events, observations", Schema.Struct({ submission: Text }), (input, env) =>
+  read("review.get", "One submission by id or short reference: items, parts, views, verdict projection, decisions, observations", ReviewGetInput, ReviewGetOutput, (input, env) =>
     Effect.flatMap(Evidence, (evidence) => reviewGet(env.projection, evidence, input.submission))),
   read(
     "evidence.compare",
     "Compare frozen evidence of a part with current content or another frozen part; each side resolves independently",
-    Schema.Struct({ a: FrozenRef, b: optional(Schema.Union([Schema.Literal("current"), FrozenRef])) }),
+    EvidenceCompareInput,
+    EvidenceCompareOutput,
     (input, env) => Effect.flatMap(Evidence, (evidence) => compare(env.projection, evidence, input.a, input.b))
   ),
-  read("locks.list", "Record locks held on this machine", Empty, () => Effect.map(Effect.flatMap(Records, (records) => records.locks), (locks) => ({ locks })))
+  read("lock.list", "Record locks held on this machine", Empty, LockListOutput, () => Effect.map(Effect.flatMap(Records, (records) => records.locks), (locks) => ({ locks })))
 ]
 
-const unlock = write("unlock", "Remove a lock whose owning process has exited on this machine", Schema.Struct({ lock: Text }), null, (input) =>
+const lockRemove = write("lock.remove", "Remove a lock whose owning process has exited on this machine", LockRemoveInput, LockRemoveOutput, null, (input) =>
   Effect.flatMap(Records, (records) => records.unlock(input.lock)))
 
 // One repair run at a time: fixes act on project files, outside the record locks.
-const doctorFixAction = write("doctor.fix", "Apply the repairs that checks declare (for example fetching Git LFS files), then check again and report what is still wrong", Empty, "doctor", (_input, env) => doctorFix(env))
+const doctorFixAction = write("doctor.fix", "Apply the repairs that checks declare (for example fetching Git LFS files), then check again and report what is still wrong", Empty, DoctorFixOutput, "doctor", (_input, env) => doctorFix(env))
 
-export const builtinActions: ReadonlyArray<ActionDef> = [...reads, ...collectionActions, ...noteActions, ...organizationActions, submitAction, ...decideActions, removeAction, unlock, doctorFixAction]
+/** Every built-in action. Not annotated, so each keeps its name and schemas for `actionMap.ts`. */
+export const builtinActions = [...reads, ...collectionActions, ...noteActions, ...organizationActions, submitAction, ...decideActions, removeAction, lockRemove, doctorFixAction]

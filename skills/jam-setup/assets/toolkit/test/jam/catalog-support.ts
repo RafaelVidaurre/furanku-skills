@@ -27,7 +27,7 @@ export const catalogProject = (options: JamProject & { readonly plugins?: Readon
   jamProject({
     git: true,
     ...options,
-    files: { "catalog.config.json": JSON.stringify({ version: 2, plugins: options.plugins ?? ["jam"], ...options.catalog }), ...options.files }
+    files: { "catalog.config.json": JSON.stringify({ version: 3, plugins: options.plugins ?? ["jam"], ...options.catalog }), ...options.files }
   })
 
 /** The catalog of a project with the `jam` plugin registered: a fresh engine, as each command or a restarted server has. */

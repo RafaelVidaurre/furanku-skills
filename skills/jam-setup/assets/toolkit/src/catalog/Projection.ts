@@ -5,7 +5,8 @@ import type { SnapshotData } from "./Snapshot.ts"
 import type { PluginSet } from "./Plugins.ts"
 import type { RecordsView } from "./Records.ts"
 import type { Policy } from "./ReviewPolicy.ts"
-import type { Collection, LabelRecord, MediaFacts, NoteRecord, SubmissionItem, SubmissionRecord, Target, TypeDef, Unit, VerdictRecord } from "./model/types.ts"
+import type { Collection, CollectionRecord, OrganizationRecord, MediaFacts, NoteRecord, Problem, SubmissionItem, SubmissionRecord, Target, TypeDef, Unit, DecisionRecord } from "./model/types.ts"
+import { KINDS, RECORDS_DIR } from "./records/layout.ts"
 import type { Rollup } from "./model/verdicts.ts"
 import { groupBy } from "./support.ts"
 
@@ -14,17 +15,17 @@ export interface ItemRef {
   readonly item: SubmissionItem
 }
 
-export interface EventSummary {
+export interface DecisionSummary {
   readonly id: string
   readonly submission: string
   readonly ref: string | null
   readonly item: string
-  readonly by: VerdictRecord["by"]
+  readonly by: DecisionRecord["by"]
   readonly at: string
-  readonly scope: "whole" | "parts"
+  readonly covers: "whole" | "parts"
   readonly verdicts: Record<string, string>
   readonly comment: string
-  readonly partNotes: Readonly<Record<string, string>>
+  readonly partComments: Readonly<Record<string, string>>
   /** Recorded by an agent from a person's words given elsewhere. */
   readonly relay?: { readonly by: string; readonly channel: string; readonly words: string }
 }
@@ -37,8 +38,8 @@ export interface PartReview {
   readonly member?: string
   readonly reviewable: boolean
   readonly verdict: string | null
-  readonly event: EventSummary | null
-  /** The frozen evidence the verdict saw differs from the current content. */
+  readonly decision: DecisionSummary | null
+  /** The frozen evidence the deciding decision saw differs from the current content. */
   readonly changed: boolean
 }
 
@@ -53,13 +54,12 @@ export interface Projection {
   readonly records: RecordsView
   readonly policy: Policy
   readonly plugins: PluginSet
-  /** Declared preview modules: the SHA-256 of the file, or null when the file is missing. */
-  readonly previewModules: ReadonlyMap<string, string | null>
-  /** Declared media kind browser modules, by kind id: the SHA-256 of the file, or null when it is missing. */
+  /** Declared browser modules (inspectors, panels, previews) by name: the SHA-256 of the file, or null when the file is missing. */
+  readonly browserModules: ReadonlyMap<string, string | null>
+  /** Declared media kind browser modules, by kind id, likewise. */
   readonly kindModules: ReadonlyMap<string, string | null>
-  /** Declared modules of type views and panels, by name, likewise. */
-  readonly viewModules: ReadonlyMap<string, string | null>
-  readonly labels: ReadonlyMap<string, LabelRecord>
+  /** Organization records by target key. */
+  readonly organization: ReadonlyMap<string, OrganizationRecord>
   readonly collections: ReadonlyArray<Collection>
   readonly collectionsById: ReadonlyMap<string, Collection>
   /** Asset id to the units and roles that link it. */
@@ -69,11 +69,16 @@ export interface Projection {
   readonly notesByTarget: ReadonlyMap<string, ReadonlyArray<NoteRecord>>
   readonly items: ReadonlyMap<string, ItemRef>
   readonly itemsByTarget: ReadonlyMap<string, ReadonlyArray<ItemRef>>
-  /** Verdict events whose submission and item agree; any other event decides nothing. */
-  readonly events: ReadonlyArray<VerdictRecord>
-  readonly eventsByTarget: ReadonlyMap<string, ReadonlyArray<VerdictRecord>>
-  readonly eventsByItem: ReadonlyMap<string, ReadonlyArray<VerdictRecord>>
+  /** Decisions whose submission and item agree; any other decision decides nothing. */
+  readonly decisions: ReadonlyArray<DecisionRecord>
+  readonly decisionsByTarget: ReadonlyMap<string, ReadonlyArray<DecisionRecord>>
+  readonly decisionsByItem: ReadonlyMap<string, ReadonlyArray<DecisionRecord>>
   readonly categories: ReadonlySet<string>
+  /**
+   * Records that are valid on their own but cannot be used beside the others: a decision whose
+   * submission or item does not exist, a catalog-owned collection hidden by a project-owned one.
+   */
+  readonly recordProblems: ReadonlyArray<Problem>
   /** Review projections computed so far, by target. A cache of a pure function of the rest. */
   readonly reviews: Map<string, TargetReview>
 }
@@ -89,9 +94,8 @@ export const factsOf = (projection: Projection, assetId: string | null | undefin
 
 /** The digests of the declared browser modules, by kind of module. */
 export interface ModuleDigests {
-  readonly previews: ReadonlyMap<string, string | null>
+  readonly modules: ReadonlyMap<string, string | null>
   readonly kinds: ReadonlyMap<string, string | null>
-  readonly views: ReadonlyMap<string, string | null>
 }
 
 export const buildProjection = (
@@ -101,14 +105,14 @@ export const buildProjection = (
   plugins: PluginSet,
   modules: ModuleDigests
 ): Projection => {
-  const labels = new Map(records.label.map((label) => [targetKey(label.target), label]))
+  const organization = new Map(records.organization.map((record) => [targetKey(record.target), record]))
   const sourceIds = new Set(snapshot.collections.map((collection) => collection.id))
   const collections: Array<Collection> = [
     ...snapshot.collections.map((collection): Collection => {
-      const label = labels.get(`collection:${collection.id}`)
-      return { ...collection, owner: "adapter", category: label?.category ?? collection.adapterCategory, tags: label?.tags ?? [], revision: label?.revision ?? null }
+      const own = organization.get(`collection:${collection.id}`)
+      return { ...collection, owner: "project", category: own?.category ?? collection.adapterCategory, tags: own?.tags ?? [], revision: own?.revision ?? null }
     }),
-    // A source collection shadows a catalog record with the same id.
+    // A source collection shadows a catalog record with the same id (reported below).
     ...records.collection.filter((record) => !sourceIds.has(record.id)).map((record): Collection => ({
       id: record.id,
       name: record.name,
@@ -142,10 +146,26 @@ export const buildProjection = (
       itemsByTarget.set(key, [...(itemsByTarget.get(key) ?? []), { submission, item }])
     }
   }
-  const events = records.verdict.filter((event) => items.get(event.item)?.submission.id === event.submission)
+  const decisions = records.decision.filter((decision) => items.get(decision.item)?.submission.id === decision.submission)
+  const fileOf = (kind: "decision" | "collection", record: DecisionRecord | CollectionRecord): string => `${RECORDS_DIR}/${KINDS[kind].file(record as never)}`
+  const submissionIds = new Set(records.submission.map((submission) => submission.id))
+  const recordProblems: Array<Problem> = [
+    ...records.decision.filter((decision) => items.get(decision.item)?.submission.id !== decision.submission).map((decision): Problem => ({
+      subject: fileOf("decision", decision),
+      error: submissionIds.has(decision.submission)
+        ? `decision names item ${decision.item}, which submission ${decision.submission} does not have`
+        : `decision belongs to submission ${decision.submission}, which does not exist`,
+      recovery: "remove this file, or restore the submission it belongs to"
+    })),
+    ...records.collection.filter((record) => sourceIds.has(record.id)).map((record): Problem => ({
+      subject: fileOf("collection", record),
+      error: `collection ${record.id} is also defined by the project's sources; this catalog-owned record is hidden`,
+      recovery: "create it again under another id with collection.create and delete this one with collection.delete, or remove the collection from the project's sources"
+    }))
+  ]
   const categories = new Set([
     ...(records.categories[0]?.categories ?? []),
-    ...records.label.map((label) => label.category),
+    ...records.organization.map((record) => record.category),
     ...collections.map((collection) => collection.category),
     ...snapshot.units.map((unit) => unit.adapterCategory),
     ...snapshot.assets.map((asset) => asset.adapterCategory)
@@ -156,10 +176,9 @@ export const buildProjection = (
     records,
     policy,
     plugins,
-    previewModules: modules.previews,
+    browserModules: modules.modules,
     kindModules: modules.kinds,
-    viewModules: modules.views,
-    labels,
+    organization,
     collections,
     collectionsById: new Map(collections.map((collection) => [collection.id, collection])),
     usage,
@@ -167,10 +186,11 @@ export const buildProjection = (
     notesByTarget: groupBy(records.note, (note) => targetKey(note.target)),
     items,
     itemsByTarget,
-    events,
-    eventsByTarget: groupBy(events.filter((event) => items.get(event.item)!.item.target !== null), (event) => targetKey(items.get(event.item)!.item.target!)),
-    eventsByItem: groupBy(events, (event) => event.item),
+    decisions,
+    decisionsByTarget: groupBy(decisions.filter((decision) => items.get(decision.item)!.item.target !== null), (decision) => targetKey(items.get(decision.item)!.item.target!)),
+    decisionsByItem: groupBy(decisions, (decision) => decision.item),
     categories,
+    recordProblems,
     reviews: new Map()
   }
 }

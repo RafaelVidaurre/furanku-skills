@@ -12,8 +12,8 @@ import { digest, isRecord, sha256 } from "../kernel/hash.ts"
 import { nowIso } from "../kernel/Ids.ts"
 import { ProjectFiles } from "../kernel/ProjectFiles.ts"
 import type { AnyRecord, RecordKind, RecordsByKind } from "./model/types.ts"
-import { commit, discard, ensureBase, type RecordProblem, scanRecords, stage, type Staged } from "./records/files.ts"
-import { blobPath, EVIDENCE_PATH, fileKey, kindOfPath, KINDS, LOCAL_DIR, recordKey, recordPath, RECORDS_DIR } from "./records/layout.ts"
+import { commit, discard, ensureBase, ensureFormat, hasConflictMarkers, type RecordProblem, scanRecords, stage, type Staged } from "./records/files.ts"
+import { blobPath, EVIDENCE_PATH, fileKey, FORMAT, kindOfPath, KINDS, LOCAL_DIR, recordKey, recordPath, RECORDS_DIR } from "./records/layout.ts"
 import { RECORD_SCHEMAS } from "./records/schemas.ts"
 import { message } from "./support.ts"
 
@@ -45,7 +45,7 @@ export interface RecordStats {
   readonly parsed: number
 }
 
-type Parsed = { readonly kind: RecordKind; readonly record: AnyRecord } | { readonly problem: RecordProblem }
+type Parsed = { readonly kind: RecordKind; readonly record: AnyRecord } | { readonly problem: RecordProblem } | { readonly format: number | null }
 interface Remembered {
   readonly size: number
   readonly mtimeMs: number
@@ -53,6 +53,29 @@ interface Remembered {
 }
 
 const LOCK_ATTEMPTS = 40
+const MIGRATE = "run: jam catalog migrate"
+/** Record files of format 1, recognised so they can be named rather than ignored. */
+const FORMAT_1_PATH = /^(labels\/(unit|asset|collection)\/[^/]+\.json|reviews\/[^/]+\/verdicts\/[^/]+\.json)$/
+
+/** The layout named by `.catalog/format.json`: its number, or null when the file is not a marker. */
+const formatOf = (text: string): number | null => {
+  try {
+    const value = JSON.parse(text) as unknown
+    return isRecord(value) && Number.isSafeInteger(value["format"]) && (value["format"] as number) >= 1 ? value["format"] as number : null
+  } catch {
+    return null
+  }
+}
+
+/** Whether this toolkit reads the records: a tree in another format is refused as a whole. */
+const checkFormat = (marker: Parsed | null | undefined, holdsRecords: boolean): Effect.Effect<void, ToolError> => {
+  if (marker === undefined) return holdsRecords ? fail("unsupported", ".catalog/ was written by an older toolkit (format 1)", { fix: MIGRATE }) : Effect.void
+  const format = marker !== null && "format" in marker ? marker.format : null
+  if (format === null) return fail("malformed", `${RECORDS_DIR}/format.json must be { "format": ${FORMAT} }`, { fix: "restore it from Git" })
+  if (format < FORMAT) return fail("unsupported", `.catalog/ was written by an older toolkit (format ${format})`, { fix: MIGRATE })
+  if (format > FORMAT) return fail("unsupported", `.catalog/ was written by a newer toolkit (format ${format}); this one reads format ${FORMAT}`, { fix: "update the toolkit" })
+  return Effect.void
+}
 const serialize = (record: unknown): string => `${JSON.stringify(record, null, 2)}\n`
 
 const processAlive = (pid: number): boolean => {
@@ -80,8 +103,8 @@ export class Records extends Context.Service<Records, {
   /** Remove a lock whose owner has verifiably exited on this machine. */
   unlock(name: string): Effect.Effect<{ readonly removed: string }, ToolError>
   /** The stored result of an earlier request with this id, bound to its action, input and checkout. */
-  replay(requestId: string, action: string, input: unknown, contextKey: string): Effect.Effect<{ readonly result: unknown } | null, ToolError>
-  remember(requestId: string, action: string, input: unknown, contextKey: string, result: unknown): Effect.Effect<void, ToolError>
+  replay(requestId: string, action: string, input: unknown, checkoutKey: string): Effect.Effect<{ readonly result: unknown } | null, ToolError>
+  remember(requestId: string, action: string, input: unknown, checkoutKey: string, result: unknown): Effect.Effect<void, ToolError>
   /** Store bytes under their SHA-256 in .catalog/evidence. */
   putBlob(bytes: Uint8Array, extension: string): Effect.Effect<{ readonly sha256: string; readonly path: string }, ToolError>
   /** A stored evidence blob by its structurally valid path; null when missing. */
@@ -112,7 +135,7 @@ export class Records extends Context.Service<Records, {
         Effect.gen(function*() {
           const file = `${RECORDS_DIR}/${relative}`
           const problem = (error: string, recovery: string): Parsed => ({ problem: { file, kind, error, recovery } })
-          if (/^(<{7}|={7}|>{7})( |$)/m.test(text)) return problem("unresolved Git merge conflict", "resolve the conflict markers in this file and commit the result")
+          if (hasConflictMarkers(text)) return problem("unresolved Git merge conflict", "resolve the conflict markers in this file and commit the result")
           let value: unknown
           try {
             value = JSON.parse(text)
@@ -147,20 +170,29 @@ export class Records extends Context.Service<Records, {
           if (known && known.size === file.size && known.mtimeMs === file.mtimeMs) continue
           changed = true
           const kind = kindOfPath(file.relative)
-          remembered.set(file.relative, { size: file.size, mtimeMs: file.mtimeMs, parsed: kind === null ? null : yield* readParsed(kind, file.relative, file.full) })
+          const parsed = file.relative === "format.json"
+            ? { format: formatOf(yield* Effect.promise(() => fsp.readFile(file.full, "utf8").catch(() => ""))) }
+            : kind === null ? null : yield* readParsed(kind, file.relative, file.full)
+          remembered.set(file.relative, { size: file.size, mtimeMs: file.mtimeMs, parsed })
         }
         for (const relative of [...remembered.keys()]) if (!seen.has(relative)) remembered.delete(relative)
+        yield* checkFormat(remembered.has("format.json") ? remembered.get("format.json")!.parsed : undefined, scan.files.some((file) => file.relative !== "format.json"))
         const scanSignature = sha256(JSON.stringify(scan.problems))
         if (!changed && current !== null && current.signature.endsWith(scanSignature)) return current
 
-        const lists: { [K in RecordKind]: Array<RecordsByKind[K]> } = { note: [], label: [], collection: [], categories: [], submission: [], verdict: [] }
+        const lists: { [K in RecordKind]: Array<RecordsByKind[K]> } = { note: [], organization: [], collection: [], categories: [], submission: [], decision: [] }
         const problems: Array<RecordProblem> = [...scan.problems]
         const keys = new Set<string>()
         const stamp: Array<string> = []
         for (const relative of [...remembered.keys()].sort()) {
           const entry = remembered.get(relative)!
           stamp.push(`${relative}:${entry.mtimeMs}:${entry.size}`)
-          if (entry.parsed === null) continue
+          // A format-1 file beside a format-2 marker: a branch merged after its migration.
+          if (FORMAT_1_PATH.test(relative)) {
+            problems.push({ file: `${RECORDS_DIR}/${relative}`, kind: "records", error: ".catalog/ was written by an older toolkit (format 1)", recovery: MIGRATE })
+            continue
+          }
+          if (entry.parsed === null || "format" in entry.parsed) continue
           if ("problem" in entry.parsed) {
             problems.push(entry.parsed.problem)
             continue
@@ -184,6 +216,7 @@ export class Records extends Context.Service<Records, {
           if ((yield* files.stat(path, { noFollow: true })) === null) return null
           const text = yield* files.readText(path, { noFollow: true })
           const result = yield* parse(kind, path.slice(RECORDS_DIR.length + 1), text)
+          if ("format" in result) return null
           if ("problem" in result) return yield* fail("malformed", `${result.problem.file}: ${result.problem.error}`, { details: result.problem })
           return result.record as RecordsByKind[K]
         })
@@ -224,6 +257,7 @@ export class Records extends Context.Service<Records, {
           }
           if (new Set(planned.map((p) => p.path)).size !== planned.length) return yield* fail("invalid", "one operation touched the same record twice")
           yield* ensureBase(files)
+          yield* ensureFormat(files)
           // Every new file is fully written before the first one replaces its target, so a
           // failure part-way leaves the records as they were.
           const staged: Array<Staged> = []
@@ -302,23 +336,23 @@ export class Records extends Context.Service<Records, {
           return { removed: lock.name ?? lock.file }
         })
 
-      // ---- Durable request identity: a machine-local journal bound to the checkout context.
+      // ---- Durable request identity: a machine-local journal bound to the checkout.
       const journalPath = (requestId: string): string => `${LOCAL_DIR}/requests/${sha256(requestId).slice(0, 32)}.json`
-      const replay = (requestId: string, action: string, input: unknown, contextKey: string) =>
+      const replay = (requestId: string, action: string, input: unknown, checkoutKey: string) =>
         Effect.gen(function*() {
           const path = journalPath(requestId)
           if ((yield* files.stat(path, { noFollow: true })) === null) return null
           const entry = yield* files.readJson(path, { noFollow: true }).pipe(
             Effect.catch(() => fail("conflict", "request journal entry is unreadable; use a new request id"))
-          ) as Effect.Effect<{ action?: string; input?: string; context?: string; result?: unknown }, ToolError>
+          ) as Effect.Effect<{ action?: string; input?: string; checkout?: string; result?: unknown }, ToolError>
           if (entry.action !== action || entry.input !== digest(input)) return yield* fail("conflict", "request id was already used for a different action or input")
-          if (entry.context !== contextKey) return yield* fail("conflict", "request id was already used in another branch or worktree context")
+          if (entry.checkout !== checkoutKey) return yield* fail("conflict", "request id was already used in another branch or worktree")
           return { result: entry.result }
         })
-      const remember = (requestId: string, action: string, input: unknown, contextKey: string, result: unknown) =>
+      const remember = (requestId: string, action: string, input: unknown, checkoutKey: string, result: unknown) =>
         Effect.gen(function*() {
           yield* ensureBase(files)
-          const entry = { requestId, action, input: digest(input), context: contextKey, result, at: yield* nowIso }
+          const entry = { requestId, action, input: digest(input), checkout: checkoutKey, result, at: yield* nowIso }
           yield* files.writeText(journalPath(requestId), JSON.stringify(entry), { noFollow: true })
         })
 

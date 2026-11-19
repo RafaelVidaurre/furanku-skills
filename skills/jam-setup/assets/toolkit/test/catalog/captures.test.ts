@@ -81,7 +81,7 @@ test("a unit item carries a pair, a file and a committed model as captures of th
   cleanup(dir)
 })
 
-test("work items hold captures or a decision text; every input is checked before anything is written", async () => {
+test("work items hold captures or a text to decide; every input is checked before anything is written", async () => {
   const { dir, v1 } = await project()
   const app = await open(dir)
   const run = W(app)
@@ -102,7 +102,7 @@ test("work items hold captures or a decision text; every input is checked before
     [{ title: "x", text: "y", parts: ["icon"] }, "invalid"]
   ]
   for (const [item, code] of refused) await rejects(run("review.submit", { items: [{ title: "ok", text: "fine" }, item] }), code)
-  assert.equal((await app.run("reviews.list", {})).total, 0, "a refused submission writes nothing")
+  assert.equal((await app.run("review.list", {})).total, 0, "a refused submission writes nothing")
 
   // What the catalog's own viewer captured is a capture too; it lives under .catalog/.local.
   write(dir, ".catalog/.local/captures/shot.png", png(5, 5, [9, 99, 9, 255]))
@@ -115,14 +115,14 @@ test("work items hold captures or a decision text; every input is checked before
   })
   const review = await app.run("review.get", { submission: submission.id })
   assert.deepEqual(review.items.map((item: Any) => [item.target, item.targetExists, item.text, item.parts.map((part: Any) => part.id)]), [
-    [null, null, "Halve the pulse.", ["decision"]],
+    [null, null, "Halve the pulse.", ["item"]],
     [null, null, "Warm floors return.", ["capture:1"]]
   ])
-  assert.deepEqual(review.items[0].views, [], "a decision has nothing to show but its text")
-  await run("review.decide", { submission: submission.id, item: review.items[0].id, whole: "rejected", partNotes: { decision: "Keep the pulse" } })
-  assert.equal((await app.run("reviews.list", { state: "rejected" })).total, 1)
+  assert.deepEqual(review.items[0].views, [], "a text to decide has nothing to show but its text")
+  await run("review.decide", { submission: submission.id, item: review.items[0].id, whole: "rejected", partComments: { item: "Keep the pulse" } })
+  assert.equal((await app.run("review.list", { state: "rejected" })).total, 1)
   assert.equal((await app.run("problems", {})).problems.length, 0)
-  await rejects(app.run("evidence.compare", { a: { submission: submission.id, item: review.items[0].id, part: "decision" } }), "invalid")
+  await rejects(app.run("evidence.compare", { a: { submission: submission.id, item: review.items[0].id, part: "item" } }), "invalid")
   // Frozen capture bytes are evidence: when they are removed, that is reported and never replaced.
   const record = read(dir, `.catalog/reviews/${submission.id}/submission.json`)
   unlinkSync(join(dir, record.items[1].parts[0].evidence.pair.after.ref.store))
@@ -131,10 +131,11 @@ test("work items hold captures or a decision text; every input is checked before
   cleanup(dir)
 })
 
-// An earlier catalog wrote these records (items without a target, captures with a
-// renderer, a decision part); they travel in Git and must keep reading as they were written.
-test("records written by the trial catalog decode: work items, capture pairs and a decision", async () => {
+// Records as another checkout writes them (items without a target, captures with a renderer, an
+// `item` part, a decision); they travel in Git and must read as they were written.
+test("hand-written format 2 records decode: work items, capture pairs and a decision", async () => {
   const dir = await standardProject()
+  write(dir, ".catalog/format.json", { format: 2 })
   const sha = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex")
   const store = (bytes: Uint8Array, extension: string) => {
     const digest = sha(bytes)
@@ -158,9 +159,9 @@ test("records written by the trial catalog decode: work items, capture pairs and
     title: "Night pass",
     by: { name: "trial agent", kind: "agent" },
     at: "2026-11-10T12:00:00.000Z",
-    context: { branch: "main", head: "a".repeat(40), dirty: 2 },
+    checkout: { branch: "main", head: "a".repeat(40), dirty: 2 },
     supersedes: null,
-    note: null,
+    brief: null,
     items: [
       {
         id: "it_0trial0001",
@@ -184,7 +185,7 @@ test("records written by the trial catalog decode: work items, capture pairs and
         text: "Halve the pulse.",
         kind: "work",
         definition: definition({ title: "Torches flicker less?", ...text, captures: [] }),
-        parts: [{ id: "decision", label: "Decision", evidence: { kind: "attributes", attrs: text, digest: createHash("sha256").update(JSON.stringify(text)).digest("hex") } }],
+        parts: [{ id: "item", label: "Decision", evidence: { kind: "attributes", attrs: text, digest: createHash("sha256").update(JSON.stringify(text)).digest("hex") } }],
         views: []
       },
       {
@@ -198,16 +199,16 @@ test("records written by the trial catalog decode: work items, capture pairs and
       }
     ]
   })
-  write(dir, ".catalog/reviews/sub_0trial0001/verdicts/vd_0trial0001.json", {
-    id: "vd_0trial0001", submission: "sub_0trial0001", item: "it_0trial0002", by: human, at: "2026-11-10T13:00:00.000Z",
-    scope: { kind: "whole", parts: ["decision"] }, verdict: "rejected", exceptions: {}
+  write(dir, ".catalog/reviews/sub_0trial0001/decisions/dc_0trial0001.json", {
+    id: "dc_0trial0001", submission: "sub_0trial0001", item: "it_0trial0002", by: human, at: "2026-11-10T13:00:00.000Z",
+    covers: { kind: "whole", parts: ["item"] }, verdict: "rejected", exceptions: {}
   })
   const app = await open(dir)
   assert.deepEqual((await app.run("problems", {})).problems, [])
   const review = await app.run("review.get", { submission: "sub_0trial0001" })
   assert.deepEqual(review.items.map((item: Any) => [item.target?.id ?? null, item.text, item.state, item.parts.map((part: Any) => `${part.id}:${part.leaves.map((l: Any) => l.status).join("/")}`)]), [
     [null, "Warm floors return.", "undecided", ["capture:1:ok/ok"]],
-    [null, "Halve the pulse.", "rejected", ["decision:ok"]],
+    [null, "Halve the pulse.", "rejected", ["item:ok"]],
     ["armor/helm", null, "undecided", ["capture:1:ok"]]
   ])
   assert.deepEqual(review.items[0].parts[0].pairLabels, ["Before", "After"])

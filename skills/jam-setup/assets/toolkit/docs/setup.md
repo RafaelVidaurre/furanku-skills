@@ -1,6 +1,6 @@
 # Setup reference
 
-Depth for the `jam-setup` skill: reading the installer's summary, this machine's tools, handing a sign-in to the person, and what an upgrade from version 1 changes. `jam doctor` is the one command that says what is missing; each of its lines has a status and a fix.
+Depth for the `jam-setup` skill: reading the installer's summary, this machine's tools, handing a sign-in to the person, and what an upgrade changes. `jam doctor` is the one command that says what is missing; each of its lines has a status and a fix.
 
 ## Installer summary
 
@@ -13,7 +13,8 @@ The installer prints one JSON object and exits 2 when the toolkit's npm packages
 | `dependencies.imaging` | `available`, `installed in private venv`, or `missing: <reason>`. Needed only for cropping turnarounds |
 | `configuration` | `missing` (run `jam setup`), `version 2`, or the result of migrating a version 1 file |
 | `roots` | The content folders `.gitignore` and Git LFS rules were written for. After choosing other folders in `jam setup`, run the installer again |
-| `catalogConfig`, `catalogManifest` | What was created or migrated for the catalog |
+| `catalogConfig`, `catalogManifest` | What was created for the catalog: `created`, `present`, `added the jam plugin`, or `left as it is` for a `catalog.config.json` that is not version 3 |
+| `catalogMigration` | What the toolkit's own `jam catalog migrate --dry-run` answered: `current`; `needs migration: run jam catalog migrate` for files an older toolkit wrote, which the catalog refuses until they are migrated with [catalog-migration.md](catalog-migration.md); `dry run refused: <why>` naming files to repair; or `not checked` while the toolkit's packages are not installed |
 | `lfs` | Whether content binaries are tracked in Git LFS, or why not |
 | `dcc.blender` | The Blender found, or `null`: needed only for local Blender steps |
 | `doctor` | `jam doctor`'s report |
@@ -63,7 +64,7 @@ Running the installer in a version 1 project:
 
 - replaces the toolkit folder with version 2 (files it installed before; anything edited there stops the upgrade as described above);
 - runs `jam config migrate` once the packages are installed. Preview it with `jam config migrate --dry-run`. It prints a note for everything it could not carry over exactly;
-- rewrites `catalog.config.json` from one adapter to a list of plugins when nothing would be lost; a project's own adapter module keeps working as a plugin beside `jam`. A file holding what version 2 cannot (preview modules, a resolver module, settings the installer does not know) stays at version 1, which still loads; the summary names what kept it there.
+- leaves `catalog.config.json`, the manifest and `.catalog/` to `jam catalog migrate` ([catalog-migration.md](catalog-migration.md)).
 
 What migration does to `jam.config.json`:
 

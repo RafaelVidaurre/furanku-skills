@@ -1,23 +1,25 @@
-// Type views and panels: browser modules a plugin declares (`views`), mounted for one unit. A view
-// is an inspector in the unit's visual strip (selected as part `view:<key>`); a panel is a section
+// Inspectors and panels: browser modules a plugin declares, mounted for one unit. An inspector
+// is shown in the unit's media strip (selected as part `inspector:<key>`); a panel is a section
 // of its sidebar. A module export is framework-free:
 //
 //   export function inspector(host, ctx) { …; return { dispose(), state?(), control?(command) } }
 //
 //   ctx.unit             { id, name, type, attrs } of the unit shown
-//   ctx.key              the view's or panel's key
+//   ctx.key              the inspector's or panel's key
 //   ctx.call(a, input)   run a catalog action (a plugin's own included); a write acts as this page's person
 //   ctx.assetUrl(id)     address of a current asset's bytes
-//   ctx.state            a view's own state, kept in the page address so a link reopens it
+//   ctx.state            an inspector's own state, kept in the page address so a link reopens it
 //   ctx.setState(object) replace that state
-//   ctx.markStage(el)    a view's element that captures photograph (default: the whole view)
+//   ctx.markStage(el)    an inspector's element that captures photograph (default: the whole inspector)
 //
-// A view's controller reports `state()`: `status` ('loading' | 'ready' | 'error'), `error`,
+// An inspector's controller reports `state()`: `status` ('loading' | 'ready' | 'error'), `error`,
 // `renderer` (what draws it, named in captures) and anything else it wants an agent to read;
-// `control(command)` answers `viewer.control { view: command }` with a result, or false when
-// the view has no such control. Its own `source` is merged into what the viewer reports.
+// `control(command)` answers `viewer.control { inspector: command }`: any value but false when it
+// handled the command, false when it has no such control, and a thrown Error when the command is
+// wrong (its `code`, else `invalid`). Its own `shows` is merged into what the viewer reports.
+// Types: catalog-plugin-web.d.ts (`MountFunction`, `InspectorContext`, `Controller`).
 import { html, useEffect, useRef, useState, call, write, ErrorLine } from './core.js';
-import { registerViewer } from './controller.js';
+import { refusal, useViewer } from './controller.js';
 
 const loaded = new Map();
 async function mountFunction(m) {
@@ -52,26 +54,25 @@ function useMounted(m, identity, makeContext, onError) {
   return { host, controller };
 }
 
-/** A view on the unit's stage: people and agents reach the same mounted instance. */
-export function ViewHost({ unit, view, source, viewState, onState }) {
+/** An inspector on the unit's stage: people and agents reach the same mounted instance. */
+export function InspectorHost({ unit, inspector, shows, inspectorState, onState }) {
   const [error, setError] = useState(null);
-  const { host, controller } = useMounted(view, `${view.url}#${unit.id}#${view.key}`, () => contextOf(unit, view, {
-    state: viewState ?? {},
+  const { host, controller } = useMounted(inspector, `${inspector.url}#${unit.id}#${inspector.key}`, () => contextOf(unit, inspector, {
+    state: inspectorState ?? {},
     setState: (next) => onState?.(next),
     // A capture photographs the last active viewer root in the page: the marked element, inside the stage.
     markStage: (el) => { el.setAttribute('data-viewer-root', ''); el.dataset.active = 'true'; },
   }), setError);
-  registerViewer('stage', () => {
-    if (error) return { kind: 'view', view: view.key, status: 'error', error: error.message, source, controls: [] };
+  useViewer('stage', () => {
+    if (error) return { kind: 'inspector', inspector: inspector.key, status: 'error', error: error.message, shows, controls: [] };
     const state = controller.current?.state?.() ?? { status: controller.current ? 'ready' : 'loading' };
-    return { kind: 'view', view: view.key, error: null, controls: controller.current?.control ? ['view'] : [], ...state, source: { ...source, ...(state.source ?? {}) } };
-  }, (command) => {
-    if (!command.view) return false;
-    if (!controller.current?.control) return { error: `view ${view.key} takes no controls`, code: 'unsupported' };
-    const mounted = controller.current;
-    return Promise.resolve().then(() => mounted.control(command.view)).then(
-      (result) => (result === false ? { error: `view ${view.key} does not support this control`, code: 'unsupported' } : result ?? { ok: true }),
-      (e) => ({ error: e.message, code: 'invalid' }));
+    return { kind: 'inspector', inspector: inspector.key, status: 'ready', error: null, controls: controller.current?.control ? ['inspector'] : [], ...state, shows: { ...shows, ...(state.shows ?? {}) } };
+  }, async (command) => {
+    if (!command.inspector) return false;
+    if (!controller.current?.control) throw refusal('unsupported', `inspector ${inspector.key} takes no controls`);
+    const result = await controller.current.control(command.inspector);
+    if (result === false) throw refusal('unsupported', `inspector ${inspector.key} does not support this control`);
+    return result;
   });
   if (error) return html`<div class="view-host"><${ErrorLine} error=${error} /></div>`;
   return html`<div class="view-host" ref=${host}></div>`;

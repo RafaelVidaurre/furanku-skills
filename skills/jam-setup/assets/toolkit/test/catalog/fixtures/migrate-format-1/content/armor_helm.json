@@ -1,0 +1,26 @@
+{
+  "id": "armor/helm",
+  "type": "armor",
+  "name": "Iron Helm",
+  "attrs": {
+    "slot": "Head",
+    "armor": 10
+  },
+  "links": [
+    {
+      "role": "icon",
+      "asset": "art/helm.png"
+    },
+    {
+      "role": "model",
+      "asset": "art/helm.glb"
+    },
+    {
+      "role": "concept",
+      "asset": "art/sheet.png"
+    }
+  ],
+  "views": [
+    "turntable"
+  ]
+}

@@ -6,9 +6,9 @@ export interface Actor {
   readonly kind: "human" | "agent"
 }
 
-/** Something that could not be used, scoped to the file or source it came from. */
+/** Something that could not be used, with what it is about (a path or a unit id). */
 export interface Problem {
-  readonly source: string
+  readonly subject: string
   readonly error: string
   readonly recovery: string | null
 }
@@ -17,7 +17,7 @@ export interface RoleDef {
   readonly key: string
   readonly label: string
   /** Media kind ids this role accepts. */
-  readonly kinds: ReadonlyArray<string>
+  readonly mediaKinds: ReadonlyArray<string>
   readonly many: boolean
   readonly expected: boolean
   readonly help: string | null
@@ -36,7 +36,7 @@ export interface FieldDef {
   readonly summary: boolean
 }
 
-/** A browser module mounted for a unit of a type: an inspector in its visual strip, or a sidebar panel. */
+/** A browser module mounted for a unit of a type: an inspector in its media strip, or a sidebar panel. */
 export interface MountDef {
   readonly key: string
   readonly label: string
@@ -47,7 +47,7 @@ export interface MountDef {
   readonly help: string | null
 }
 
-export interface ViewDef extends MountDef {
+export interface InspectorDef extends MountDef {
   /** Opens first, before any media of the unit. */
   readonly default: boolean
 }
@@ -68,7 +68,7 @@ export interface TypeDef {
   readonly audioTranscript: unknown
   /** False when the fields are provenance and reviewers judge only the media. */
   readonly reviewAttributes: boolean
-  readonly views: ReadonlyArray<ViewDef>
+  readonly inspectors: ReadonlyArray<InspectorDef>
   readonly panels: ReadonlyArray<MountDef>
   /** The type's own display policy, or null to follow the project's. */
   readonly display: DisplayDef | null
@@ -117,8 +117,8 @@ export interface Unit {
   readonly adapterTags: ReadonlyArray<string>
   readonly adapterCategory: string | null
   readonly explain: Record<string, unknown>
-  /** Keys of the type's views this unit shows; null for all of them. */
-  readonly views: ReadonlyArray<string> | null
+  /** Keys of the type's inspectors this unit shows; null for all of them. */
+  readonly inspectors: ReadonlyArray<string> | null
 }
 
 export interface Asset {
@@ -136,13 +136,13 @@ export interface Member {
   readonly [extra: string]: unknown
 }
 
-/** A collection as the catalog shows it: defined by a source ("adapter") or by a record ("catalog"). */
+/** A collection as the catalog shows it: project-owned (defined by a source) or catalog-owned (a record). */
 export interface Collection {
   readonly id: string
   readonly name: string
   readonly kind: string | null
   readonly members: ReadonlyArray<Member>
-  readonly owner: "adapter" | "catalog"
+  readonly owner: "project" | "catalog"
   readonly adapterTags: ReadonlyArray<string>
   readonly adapterCategory: string | null
   readonly category: string | null
@@ -185,7 +185,7 @@ export interface Part {
 export interface RequestBinding {
   readonly action: string
   readonly digest: string
-  readonly context: string
+  readonly checkout: string
 }
 
 export interface NoteTarget extends Target {
@@ -208,7 +208,7 @@ export interface NoteRecord {
   readonly lastRequestBinding?: RequestBinding
 }
 
-export interface LabelRecord {
+export interface OrganizationRecord {
   readonly target: Target
   readonly category: string | null
   readonly tags: ReadonlyArray<string>
@@ -323,15 +323,16 @@ export interface SubmissionRecord {
   readonly title: string
   readonly by: Actor
   readonly at: string
-  readonly context: { readonly branch: string | null; readonly head: string | null; readonly dirty: number }
+  readonly checkout: { readonly branch: string | null; readonly head: string | null; readonly dirty: number }
   readonly supersedes: string | null
-  readonly note: string | null
+  readonly brief: string | null
   readonly items: ReadonlyArray<SubmissionItem>
   readonly requestId?: string
   readonly requestBinding?: RequestBinding
 }
 
-export interface VerdictRecord {
+/** One reviewer's verdicts on one submission item: immutable. */
+export interface DecisionRecord {
   readonly id: string
   readonly submission: string
   readonly item: string
@@ -340,22 +341,22 @@ export interface VerdictRecord {
   readonly comment?: string
   readonly requestId?: string
   readonly requestBinding?: RequestBinding
-  readonly scope: { readonly kind: "whole" | "parts"; readonly parts: ReadonlyArray<string> }
+  readonly covers: { readonly kind: "whole" | "parts"; readonly parts: ReadonlyArray<string> }
   readonly verdict?: string
   readonly exceptions?: Readonly<Record<string, string>>
   readonly verdicts?: Readonly<Record<string, string>>
-  readonly partNotes?: Readonly<Record<string, string>>
+  readonly partComments?: Readonly<Record<string, string>>
   /** An agent recording a person's decision given outside the catalog, in their words. */
   readonly relay?: { readonly by: string; readonly channel: string; readonly words: string }
 }
 
 export interface RecordsByKind {
   readonly note: NoteRecord
-  readonly label: LabelRecord
+  readonly organization: OrganizationRecord
   readonly collection: CollectionRecord
   readonly categories: CategoriesRecord
   readonly submission: SubmissionRecord
-  readonly verdict: VerdictRecord
+  readonly decision: DecisionRecord
 }
 export type RecordKind = keyof RecordsByKind
 export type AnyRecord = RecordsByKind[RecordKind]

@@ -1,0 +1,12 @@
+{
+  "target": {
+    "kind": "unit",
+    "id": "armor/helm"
+  },
+  "category": "Gear/Heavy",
+  "tags": [
+    "tier:1",
+    "metal"
+  ],
+  "revision": 1
+}

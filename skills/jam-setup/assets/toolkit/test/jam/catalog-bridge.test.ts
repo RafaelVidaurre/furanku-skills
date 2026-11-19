@@ -9,7 +9,7 @@ import { requestReview } from "../../src/jam/runs/review.ts"
 import { Git } from "../../src/kernel/Git.ts"
 import { agent, bridge, bridgedStep, bridgeFailure, catalogProject, human, openCatalog, WORKER } from "./catalog-support.ts"
 import { setRun } from "../../src/jam/runs/start.ts"
-import { cli, jam, png, write } from "./fixtures.ts"
+import { cli, jam, jamProject, png, write } from "./fixtures.ts"
 import { makeFiles, record, review, runFile, start } from "./flow.ts"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -58,7 +58,7 @@ describe("asking a person", () => {
       ["concept:2", "Concept image: Concept · b"],
       ["evidence:concept-side-by-side", "Evidence: Side by side"]
     ])
-    assert.equal(submission.note, [
+    assert.equal(submission.brief, [
       "**Concept image** of `barrel`, 3D asset.",
       "",
       "**Asked for**",
@@ -74,12 +74,12 @@ describe("asking a person", () => {
       "",
       "**To decide:** Concept · a, Concept · b. Supporting evidence: Side by side."
     ].join("\n"))
-    assert.ok(!/rec_|sha256|\.scratch/.test(submission.note), "no record ids, hashes or paths")
+    assert.ok(!/rec_|sha256|\.scratch/.test(submission.brief), "no record ids, hashes or paths")
 
     // Asking again is the same request: one submission, in the run and in the catalog.
     const again = await bridge(root, requestReview({ run: "barrel", step: "concept" }))
     assert.deepEqual(again, asked)
-    assert.equal((await app.run("reviews.list", {})).total, 1)
+    assert.equal((await app.run("review.list", {})).total, 1)
     assert.deepEqual(runFile(root, "barrel").steps["concept"]!.records[0]!.submission?.route, asked.route)
     // Even when the run lost its note of the submission, the record's id finds it again.
     const direct = await app.run("review.submit", { items: [{ target: { kind: "unit", id: "barrel" } }] }, { actor: { name: WORKER, kind: "agent" }, requestId: `jam:${recordId}` }).catch((error: Any) => error)
@@ -96,9 +96,9 @@ describe("asking a person", () => {
     assert.deepEqual([step.state, step.decided], ["accepted", { decision: "accept", actor: "human", via: "relay", by: "Rae Tester", channel: "chat" }])
     const stored = runFile(root, "barrel").steps["concept"]!.records[0]!.reviews[0]!
     assert.deepEqual([stored.via, stored.channel, stored.words], ["relay", "chat", "barrel looks great"])
-    const events = (await app.run("review.get", { submission: review.submission })) as Any
-    const event = events.items[0].parts.find((part: Any) => part.event !== null).event
-    assert.deepEqual([event.by.kind, event.relay.by], ["agent", "Rae Tester"], "the catalog keeps the agent as the actor")
+    const read = (await app.run("review.get", { submission: review.submission })) as Any
+    const decision = read.items[0].parts.find((part: Any) => part.decision !== null).decision
+    assert.deepEqual([decision.by.kind, decision.relay.by], ["agent", "Rae Tester"], "the catalog keeps the agent as the actor")
   })
 
   it("a person's approval of every part accepts the step, with their name and the channel on record; an agent's approval does not", async () => {
@@ -131,10 +131,10 @@ describe("asking a person", () => {
     assert.deepEqual(json.steps[0], { ...json.steps[0]!, step: "concept", state: "accepted", decided: { decision: "accept", actor: "human", via: "catalog", by: "Rae Tester" } })
   })
 
-  it("changes return the step with the reviewer's comment and part notes; a rejection rejects it; a new record is a new request", async () => {
+  it("changes return the step with the reviewer's comment and part comments; a rejection rejects it; a new record is a new request", async () => {
     const { dir, root } = await waitingConcept()
     const first = await ask(root)
-    await decide(first.app, first.review, { whole: "approved", exceptions: { "concept:2": "changes" }, comment: "Hoops yes.", partNotes: { "concept:2": "the rope reads as a belt" } })
+    await decide(first.app, first.review, { whole: "approved", exceptions: { "concept:2": "changes" }, comment: "Hoops yes.", partComments: { "concept:2": "the rope reads as a belt" } })
     let step = await bridgedStep(root, "barrel", "concept")
     assert.deepEqual([step.state, step.reason, step.decided], ["revise", "Hoops yes. Concept · b: the rope reads as a belt", { decision: "revise", actor: "human", via: "catalog", by: "Rae Tester" }])
     assert.equal((await bridgeFailure(root, requestReview({ run: "barrel", step: "concept" }))).code, "conflict", "a returned step is reworked, not asked about again")
@@ -143,7 +143,7 @@ describe("asking a person", () => {
     await record(root, "barrel", "concept", { files: [`${dir}/a.png`, `${dir}/b.png`], evidence: [`side-by-side=${dir}/lineup.png`], note: "Rope replaced by a second hoop." })
     const second = await ask(root)
     assert.notEqual(second.asked.submission, first.asked.submission)
-    assert.equal((await second.app.run("reviews.list", {})).total, 2)
+    assert.equal((await second.app.run("review.list", {})).total, 2)
     await decide(second.app, second.review, { whole: "rejected", comment: "Wrong object entirely" })
     step = await bridgedStep(root, "barrel", "concept")
     assert.deepEqual([step.state, step.reason, step.decided?.decision], ["rejected", "Wrong object entirely", "reject"])
@@ -151,10 +151,10 @@ describe("asking a person", () => {
 
   it("a project that keeps evidence as reference material is asked about the produced parts only", async () => {
     const { root } = await waitingConcept()
-    write(root, "catalog.config.json", JSON.stringify({ version: 2, plugins: ["jam"], review: { referenceRoles: ["evidence"] } }))
+    write(root, "catalog.config.json", JSON.stringify({ version: 3, plugins: ["jam"], review: { referenceRoles: ["evidence"] } }))
     const { app, review, submission } = await ask(root)
     assert.deepEqual(submission.items[0].parts.map((part: Any) => part.id), ["concept:1", "concept:2"])
-    assert.match(submission.note, /\*\*To decide:\*\* Concept · a, Concept · b\.$/)
+    assert.match(submission.brief, /\*\*To decide:\*\* Concept · a, Concept · b\.$/)
     await decide(app, review, { whole: "approved" })
     assert.equal((await bridgedStep(root, "barrel", "concept")).state, "accepted")
   })
@@ -199,7 +199,7 @@ describe("what is never submitted", () => {
       const refused = await bridgeFailure(root, requestReview({ run: "barrel", step: "concept" }))
       assert.equal(refused.code, "conflict", mode)
       assert.match(refused.message, mode === "agent" ? /concept does not wait for a person: its gate is agent \(review\.mode is "agent" in jam\.config\.json\)/ : /concept is not waiting for review: it is accepted/)
-      assert.equal((await openCatalog(root).run("reviews.list", {})).total, 0, mode)
+      assert.equal((await openCatalog(root).run("review.list", {})).total, 0, mode)
       assert.equal(runFile(root, "barrel").steps["concept"]!.records[0]!.submission, undefined)
     }
   })
@@ -228,7 +228,7 @@ describe("what is never submitted", () => {
     assert.equal(nothing.code, "unsupported")
     assert.match(nothing.message, /^nothing of step write can be shown in the catalog/)
     assert.match(nothing.fix!, /--evidence <path>.*--relay/)
-    assert.equal((await app.run("reviews.list", {})).total, 1, "only the mesh was submitted")
+    assert.equal((await app.run("review.list", {})).total, 1, "only the mesh was submitted")
   })
 })
 
@@ -247,7 +247,7 @@ describe("what the subject's unit cannot show", () => {
     assert.deepEqual([item.target, item.title], [null, "moodboard · Concept image"])
     assert.deepEqual(item.parts.map((part: Any) => [part.id, part.label]), [["capture:1", "Concept · a"], ["capture:2", "Board"]])
     assert.deepEqual(item.views.map((view: Any) => view.caption), ["Concept image: Concept · a", "Evidence: Board"])
-    assert.match(submission.note, /\*\*To decide:\*\* Concept · a\. Supporting evidence: Board\.$/)
+    assert.match(submission.brief, /\*\*To decide:\*\* Concept · a\. Supporting evidence: Board\.$/)
     // A person decides there, and the run reads it like any other review.
     await app.run("review.decide", { submission: asked.submission, item: item.id, whole: "approved" }, { actor: human })
     assert.equal((await bridgedStep(root, "moodboard", "concept")).state, "accepted")
@@ -290,7 +290,7 @@ describe("a later step of the same role", () => {
     const app = openCatalog(root)
     const submission = await app.run("review.get", { submission: asked.submission })
     assert.deepEqual(submission.items[0].parts.map((part: Any) => part.id), ["model:1", "evidence:delivery-turntable"], "the delivery's model and its evidence, not the concept or the views")
-    assert.match(submission.note, /- Measured: 1,000 triangles, 1 material, 0\.00 MiB of textures\. Budget prop allows 2,000 triangles, 1 material and 8 MiB\./)
+    assert.match(submission.brief, /- Measured: 1,000 triangles, 1 material, 0\.00 MiB of textures\. Budget prop allows 2,000 triangles, 1 material and 8 MiB\./)
     await app.run("review.decide", { submission: asked.submission, item: submission.items[0].id, whole: "approved" }, { actor: human })
     const delivered = cli(root, "run", "deliver", "barrel", "--json")
     assert.equal(delivered.status, 0, delivered.stderr)
@@ -300,5 +300,19 @@ describe("a later step of the same role", () => {
     const detail = await app.run("unit.get", { id: "barrel" })
     assert.deepEqual(detail.review.parts.filter((part: Any) => part.verdict !== null).map((part: Any) => [part.id, part.verdict, part.changed]), [["model:1", "approved", false], ["evidence:delivery-turntable", "approved", false]])
     assert.equal(detail.unit.attrs.state, "delivered")
+  })
+})
+
+describe("a jam project without catalog.config.json", () => {
+  it("is read with the jam plugin beside the manifest, as the command line reads it", async () => {
+    const root = jamProject({ git: true })
+    await start(root, "asset", "barrel", { budget: "prop" })
+    write(root, "work/.scratch/barrel/1/concept.png", png(16, 16, [120, 80, 40]))
+    await record(root, "barrel", "concept", { files: ["work/.scratch/barrel/1/concept.png"], accept: "a direction" })
+    const app = openCatalog(root)
+    const summary = await app.run("summary", {})
+    assert.ok(summary.plugins.includes("manifest") && summary.plugins.includes("jam"), JSON.stringify(summary.plugins))
+    const found = await app.run("unit.search", {})
+    assert.deepEqual(found.units.map((item: Any) => item.id), ["barrel"])
   })
 })

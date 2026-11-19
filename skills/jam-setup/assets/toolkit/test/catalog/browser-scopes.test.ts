@@ -16,13 +16,13 @@ const settled = () => (globalThis as Any).catalogViewer?.settled(15000)
 const units = [
   { id: "scene/opening", type: "scene", name: "Opening", category: "Act one", attrs: {}, links: [{ role: "still", asset: "art/opening.png" }] },
   { id: "scene/chase", type: "scene", name: "Chase", category: "Act two", attrs: {}, links: [] },
-  // An entry with neither media nor attributes has nothing to review; these two are submitted.
+  // A unit with neither media nor attributes has nothing to review; these two are submitted.
   { id: "prop/lantern", type: "prop", name: "Lantern", category: "Hand props", attrs: { material: "Brass" }, links: [] },
   { id: "music/theme", type: "cue", name: "Main theme", attrs: { tempo: 90 }, links: [] }
 ]
 const types = (scopes: Readonly<Record<string, string | undefined>>) => ({
   ...TYPES,
-  scene: { label: "Scene", ...(scopes["scene"] ? { scope: scopes["scene"] } : {}), thumb: "still", fields: [], roles: [{ key: "still", label: "Still", kinds: ["image"] }] },
+  scene: { label: "Scene", ...(scopes["scene"] ? { scope: scopes["scene"] } : {}), thumb: "still", fields: [], roles: [{ key: "still", label: "Still", mediaKinds: ["image"] }] },
   prop: { label: "Prop", ...(scopes["prop"] ? { scope: scopes["prop"] } : {}), fields: [{ key: "material", label: "Material" }], roles: [] },
   cue: { label: "Cue", ...(scopes["cue"] ? { scope: scopes["cue"] } : {}), fields: [{ key: "tempo", label: "Tempo", kind: "number" }], roles: [] }
 })
@@ -32,7 +32,7 @@ test("one scope: no split, its label names the library, and every unit address i
   if ("skip" in found) return t.skip(found.skip)
   const { browser } = found
   const dir = await makeProject({ assets: { "art/opening.png": png(8, 8, [20, 90, 200, 255]) }, extra: { types: types({}) }, units })
-  write(dir, "catalog.config.json", { version: 2, plugins: ["manifest", "single"] })
+  write(dir, "catalog.config.json", { version: 3, plugins: ["manifest", "single"] })
   const single = definePlugin({ name: "single", scopes: [{ id: "story", label: "Story", description: "Everything that is on the page of the script" }] })
   const s = await startServer(dir, { plugins: { single } })
   mkdirSync(OUT, { recursive: true })
@@ -50,15 +50,16 @@ test("one scope: no split, its label names the library, and every unit address i
     assert.equal(await page.locator(".primary-nav").count(), 0, "with one scope there is nothing to switch between")
     assert.equal(await page.locator(".nav-caption").innerText(), "STORY")
     await page.locator(".side").getByRole("link", { name: "All story 4", exact: true }).waitFor()
-    assert.deepEqual(await page.locator(".side .nav-i").allInnerTexts().then((texts) => texts.map((text) => text.replace(/\s+/g, " "))), ["All story 4", "Act one 1", "Act two 1", "Hand props 1", "Collections 0", "Files 1", "Notes 0", "Reviews", "Categories & tags"])
+    assert.deepEqual(await page.locator(".side .nav-i").allInnerTexts().then((texts) => texts.map((text) => text.replace(/\s+/g, " "))), ["All story 4", "Act one 1", "Act two 1", "Hand props 1", "Collections 0", "Assets 1", "Notes 0", "Reviews", "Categories & tags"])
     await page.screenshot({ path: `${OUT}/one-scope.png` })
     // A unit opens under the scope; an address under any other name is corrected or refused.
     await page.getByRole("listitem").filter({ hasText: "Opening" }).click()
     await page.locator("h1").filter({ hasText: "Opening" }).waitFor()
     assert.match(page.url(), /#\/story\/u\/scene%2Fopening$/)
     assert.equal(await page.getByRole("link", { name: "Back to list" }).innerText(), "Story")
-    await page.goto(`${s.url}#/content`)
-    await page.getByText('There is no page "content" in this catalog.').waitFor()
+    // The default scopes are not pages when a plugin registers its own.
+    await page.goto(`${s.url}#/main`)
+    await page.getByText('There is no page "main" in this catalog.').waitFor()
     await page.getByRole("link", { name: "Open the catalog" }).click()
     await page.getByRole("listitem").filter({ hasText: "Chase" }).waitFor()
     assert.match(page.url(), /#\/story$/)
@@ -87,12 +88,67 @@ test("one scope: no split, its label names the library, and every unit address i
   }
 })
 
+test("no plugin registers scopes: Main and Material split the units, and assets and organization are sections of their own", async (t) => {
+  const found = await browserOrSkip()
+  if ("skip" in found) return t.skip(found.skip)
+  const { browser } = found
+  const dir = await makeProject({ assets: { "art/opening.png": png(8, 8, [20, 90, 200, 255]) }, extra: { types: types({ prop: "material" }) }, units })
+  const s = await startServer(dir)
+  mkdirSync(OUT, { recursive: true })
+  try {
+    assert.deepEqual((await s.app.run("schema", {})).scopes.map((scope: Any) => [scope.id, scope.label]), [["main", "Main"], ["material", "Material"]])
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+    const errors: Array<string> = []
+    page.on("pageerror", (error) => errors.push(String(error)))
+    await page.goto(s.url)
+    await page.getByRole("listitem").filter({ hasText: "Opening" }).waitFor()
+    assert.deepEqual(await page.locator(".primary-nav a").evaluateAll((links) => links.map((link) => [link.textContent, link.getAttribute("href")])), [["Main", "#/main"], ["Material", "#/material"]])
+    assert.match(page.url(), /#\/main$|\/$/)
+    await page.locator(".primary-nav").getByRole("link", { name: "Material", exact: true }).click()
+    await page.getByRole("listitem").filter({ hasText: "Lantern" }).click()
+    await page.locator("h1").filter({ hasText: "Lantern" }).waitFor()
+    assert.match(page.url(), /#\/material\/u\/prop%2Flantern$/)
+    // Assets are a section of their own, labelled Assets, at #/assets.
+    await page.locator(".side").getByRole("link", { name: "Assets 1", exact: true }).click()
+    assert.match(page.url(), /#\/assets$/)
+    assert.equal(await page.locator(".browse-head h1").innerText(), "Assets")
+    await page.getByRole("listitem").filter({ hasText: "opening.png" }).click()
+    await page.locator("h1").filter({ hasText: "opening.png" }).waitFor()
+    assert.match(page.url(), /#\/assets\/a\/[^/?]+$/)
+    assert.equal(await page.getByRole("link", { name: "Back to list" }).innerText(), "Assets")
+    // A unit's asset link and an agent's viewer session use the same address.
+    await page.goto(`${s.url}#/main/u/scene%2Fopening`)
+    const openAsset = page.getByRole("link", { name: "Open asset" })
+    await openAsset.waitFor()
+    assert.match((await openAsset.getAttribute("href"))!, /^#\/assets\/a\//)
+    const asset = (await s.app.run("asset.search", {})).assets[0]
+    const opened = await s.viewer("viewer.open", { target: { kind: "asset", id: asset.id } })
+    assert.equal(opened.state.route, `#/assets/a/${encodeURIComponent(asset.id)}`)
+    await s.viewer("viewer.close", {})
+    // Categories and tags live at #/organization.
+    await page.locator(".side").getByRole("link", { name: "Categories & tags", exact: true }).click()
+    assert.match(page.url(), /#\/organization$/)
+    await page.locator(".organize h3").filter({ hasText: "Categories" }).waitFor()
+    await page.goto(`${s.url}#/files`)
+    await page.getByText('There is no page "files" in this catalog.').waitFor()
+    await page.goto(`${s.url}#/organize`)
+    await page.getByText('There is no page "organize" in this catalog.').waitFor()
+    await page.evaluate(settled)
+    assert.deepEqual(errors, [])
+    await page.close()
+  } finally {
+    await browser.close()
+    await s.close()
+    cleanup(dir)
+  }
+})
+
 test("several scopes: the split, its order, labels and descriptions are the project's", async (t) => {
   const found = await browserOrSkip()
   if ("skip" in found) return t.skip(found.skip)
   const { browser } = found
   const dir = await makeProject({ assets: { "art/opening.png": png(8, 8, [20, 90, 200, 255]) }, extra: { types: types({ prop: "workshop", cue: "score" }) }, units })
-  write(dir, "catalog.config.json", { version: 2, plugins: ["manifest", "departments"] })
+  write(dir, "catalog.config.json", { version: 3, plugins: ["manifest", "departments"] })
   const departments = definePlugin({
     name: "departments",
     scopes: [
@@ -154,6 +210,6 @@ test("the page's own words are about a catalog, not about any one kind of projec
     const text = readFileSync(new URL(name, web), "utf8")
     assert.doesNotMatch(text, /\b(game|games|gameplay|unreal|blueprints?|UE[45]?|level design|characters?, props)\b/i, `${name} speaks of a game`)
     // The default scopes are data from the engine; the page never spells their ids or labels.
-    assert.doesNotMatch(text, /['"`]#\/(content|assets)\b|['"`](content|assets)['"`]\s*[=!]==|===\s*['"`](content|assets)['"`]|>Content<|>Assets</, `${name} names a scope`)
+    assert.doesNotMatch(text, /['"`]#\/(main|material)\b|['"`](main|material)['"`]\s*[=!]==|===\s*['"`](main|material)['"`]|>Main<|>Material</, `${name} names a scope`)
   }
 })

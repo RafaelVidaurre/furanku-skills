@@ -8,6 +8,11 @@ export interface Published {
   /** File name under the toolkit's `schemas/` folder. */
   readonly file: string
   readonly schema: Schema.Top
+  /**
+   * Given by schemas that render their own strictness (the catalog's): closed when true, open when
+   * false. Absent: every object with properties is closed after rendering.
+   */
+  readonly strict?: boolean
 }
 
 // Authored files are decoded strictly, so the published schema refuses unknown fields too.
@@ -21,6 +26,6 @@ const closed = (node: unknown): unknown => {
 }
 
 export const renderSchema = (entry: Published): string => {
-  const document = closed(jsonSchemaOf(entry.schema, entry.file))
+  const document = entry.strict === undefined ? closed(jsonSchemaOf(entry.schema, entry.file)) : jsonSchemaOf(entry.schema, entry.file, { strict: entry.strict })
   return `${JSON.stringify(document, null, 2)}\n`
 }

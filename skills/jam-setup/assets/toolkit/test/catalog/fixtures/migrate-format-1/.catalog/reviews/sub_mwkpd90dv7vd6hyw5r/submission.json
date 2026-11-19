@@ -1,0 +1,350 @@
+{
+  "id": "sub_mwkpd90dv7vd6hyw5r",
+  "title": "Iron Outfit and 2 more",
+  "by": {
+    "name": "Rae Tester",
+    "kind": "human"
+  },
+  "at": "2026-11-17T13:02:56.989Z",
+  "context": {
+    "branch": "main",
+    "head": "d32763bad98949efac41f89397dfd3e4e1360f28",
+    "dirty": 1
+  },
+  "supersedes": null,
+  "note": null,
+  "items": [
+    {
+      "id": "it_mwkpd8vlgmjdzqcy3w",
+      "target": {
+        "kind": "collection",
+        "id": "outfit/iron"
+      },
+      "title": "Iron Outfit",
+      "kind": "collection",
+      "definition": {
+        "sha256": "452610508b8ccbc85864c78b0e9ee3b2bb82a607b7fff38d67ccae8139ccd8ea",
+        "ref": {
+          "store": ".catalog/evidence/45/452610508b8ccbc85864c78b0e9ee3b2bb82a607b7fff38d67ccae8139ccd8ea.json"
+        }
+      },
+      "parts": [
+        {
+          "id": "member:armor/helm",
+          "label": "Iron Helm",
+          "member": "armor/helm",
+          "evidence": {
+            "digest": "fbd85c2d36296e09c73f1e99bd1de14ec8e619e90e1483c1222050e0c9e2e9b8",
+            "unit": "armor/helm",
+            "definition": {
+              "sha256": "db74109aa7cd23aa545690d7440e9104beda4746d528d4e77c8f98555d95a30d",
+              "ref": {
+                "store": ".catalog/evidence/db/db74109aa7cd23aa545690d7440e9104beda4746d528d4e77c8f98555d95a30d.json"
+              }
+            },
+            "parts": {
+              "icon": {
+                "digest": "32290f29e74c9664b416aae2adaad86e2fc460e717a6deaf7d9ccc22859cf9ea",
+                "asset": "art/helm.png",
+                "path": "art/helm.png",
+                "kind": "image",
+                "mime": "image/png",
+                "size": 75,
+                "sha256": "32290f29e74c9664b416aae2adaad86e2fc460e717a6deaf7d9ccc22859cf9ea",
+                "ref": {
+                  "git": {
+                    "commit": "d32763bad98949efac41f89397dfd3e4e1360f28",
+                    "path": "art/helm.png",
+                    "blob": "fb4d2b99b3c706298fdd0269e89ced227c6dea22"
+                  }
+                }
+              },
+              "model": {
+                "digest": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+                "asset": "art/helm.glb",
+                "path": "art/helm.glb",
+                "kind": "model",
+                "mime": "model/gltf-binary",
+                "size": 1392,
+                "sha256": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+                "ref": {
+                  "git": {
+                    "commit": "d32763bad98949efac41f89397dfd3e4e1360f28",
+                    "path": "art/helm.glb",
+                    "blob": "8f833c8d5af32ba71ac9a87e9ba7008f89e6da71"
+                  }
+                }
+              },
+              "concept:art/sheet.png": {
+                "digest": "c1c7b6a0355cd9caec81b5ff9062c5e9729ea03f4d5eb9c81fd79882e2775f65",
+                "asset": "art/sheet.png",
+                "path": "art/sheet.png",
+                "kind": "image",
+                "mime": "image/png",
+                "size": 74,
+                "sha256": "c1c7b6a0355cd9caec81b5ff9062c5e9729ea03f4d5eb9c81fd79882e2775f65",
+                "ref": {
+                  "git": {
+                    "commit": "d32763bad98949efac41f89397dfd3e4e1360f28",
+                    "path": "art/sheet.png",
+                    "blob": "62a52454d35ad1ef1da0d5aa640192be495d9612"
+                  }
+                }
+              },
+              "attributes": {
+                "kind": "attributes",
+                "attrs": {
+                  "slot": "Head",
+                  "armor": 10
+                },
+                "digest": "39240358c49c0c900dca7719c1dae401095c02ec5fe8fb183e7cc92ba0747d03"
+              }
+            }
+          }
+        },
+        {
+          "id": "member:armor/boots",
+          "label": "Iron Boots",
+          "member": "armor/boots",
+          "evidence": {
+            "digest": "4d2457d3f4125f6993593827a03d90ee479f06392c8731267a3b281ab1b952e6",
+            "unit": "armor/boots",
+            "definition": {
+              "sha256": "bfb3bcad248c77a837eee4910d266eae8a793bfa95c394a8efa316ed7f3594d8",
+              "ref": {
+                "store": ".catalog/evidence/bf/bfb3bcad248c77a837eee4910d266eae8a793bfa95c394a8efa316ed7f3594d8.json"
+              }
+            },
+            "parts": {
+              "icon": {
+                "digest": "51758870c205dea33877c669b53240eeae2953f327885ecd950625128dd5ca1c",
+                "asset": "art/boots.png",
+                "path": "art/boots.png",
+                "kind": "image",
+                "mime": "image/png",
+                "size": 74,
+                "sha256": "51758870c205dea33877c669b53240eeae2953f327885ecd950625128dd5ca1c",
+                "ref": {
+                  "store": ".catalog/evidence/51/51758870c205dea33877c669b53240eeae2953f327885ecd950625128dd5ca1c.png"
+                }
+              },
+              "model": {
+                "digest": "387f2593fee7616675f62a1019c3e560c0c969668139d1ff8808023a1d53f1df",
+                "asset": "art/boots.glb",
+                "path": "art/boots.glb",
+                "kind": "model",
+                "mime": "model/gltf-binary",
+                "size": 976,
+                "sha256": "387f2593fee7616675f62a1019c3e560c0c969668139d1ff8808023a1d53f1df",
+                "ref": {
+                  "git": {
+                    "commit": "d32763bad98949efac41f89397dfd3e4e1360f28",
+                    "path": "art/boots.glb",
+                    "blob": "ba7f27be70b50f051ca684e4459f7232d69579fa"
+                  }
+                }
+              },
+              "attributes": {
+                "kind": "attributes",
+                "attrs": {
+                  "slot": "Feet",
+                  "armor": 6
+                },
+                "digest": "16193dbae8a0605d9e1e13418a1ad501de229857924c3e204b012960138d9436"
+              }
+            }
+          }
+        },
+        {
+          "id": "preview",
+          "label": "Assembled",
+          "evidence": {
+            "digest": "920919d626ac88abdc32514ded85188c44b21f5a84c1f125cbff4425872de3b3",
+            "module": "assembled-mesh",
+            "config": {},
+            "roles": [
+              "model"
+            ],
+            "base": null,
+            "members": {
+              "armor/helm": {
+                "model": {
+                  "digest": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+                  "asset": "art/helm.glb",
+                  "path": "art/helm.glb",
+                  "kind": "model",
+                  "mime": "model/gltf-binary",
+                  "size": 1392,
+                  "sha256": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+                  "ref": {
+                    "git": {
+                      "commit": "d32763bad98949efac41f89397dfd3e4e1360f28",
+                      "path": "art/helm.glb",
+                      "blob": "8f833c8d5af32ba71ac9a87e9ba7008f89e6da71"
+                    }
+                  }
+                }
+              },
+              "armor/boots": {
+                "model": {
+                  "digest": "387f2593fee7616675f62a1019c3e560c0c969668139d1ff8808023a1d53f1df",
+                  "asset": "art/boots.glb",
+                  "path": "art/boots.glb",
+                  "kind": "model",
+                  "mime": "model/gltf-binary",
+                  "size": 976,
+                  "sha256": "387f2593fee7616675f62a1019c3e560c0c969668139d1ff8808023a1d53f1df",
+                  "ref": {
+                    "git": {
+                      "commit": "d32763bad98949efac41f89397dfd3e4e1360f28",
+                      "path": "art/boots.glb",
+                      "blob": "ba7f27be70b50f051ca684e4459f7232d69579fa"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "views": [
+        {
+          "id": "vw_mwkpd8zoxy3xnkhm5h",
+          "part": "member:armor/helm",
+          "leaf": "armor/helm/icon",
+          "caption": "Iron Helm · Icon",
+          "camera": null,
+          "state": null
+        },
+        {
+          "id": "vw_mwkpd8zo8ygtqmtkem",
+          "part": "member:armor/boots",
+          "leaf": "armor/boots/icon",
+          "caption": "Iron Boots · Icon",
+          "camera": null,
+          "state": null
+        },
+        {
+          "id": "vw_mwkpd8zo7uu2gju47b",
+          "part": "preview",
+          "leaf": null,
+          "caption": "Iron Outfit · Assembled",
+          "camera": null,
+          "state": null
+        }
+      ],
+      "preview": {
+        "module": "assembled-mesh",
+        "label": "Assembled",
+        "represents": "complete"
+      }
+    },
+    {
+      "id": "it_mwkpd8zop7atz8m5qt",
+      "target": null,
+      "title": "Torches flicker less?",
+      "text": "Halve the pulse of every torch in the mines.",
+      "kind": "work",
+      "definition": {
+        "sha256": "143363d554a8831628d0885355f5ad30072e0f64ebe7f43c48e9b1863ef44dfe",
+        "ref": {
+          "store": ".catalog/evidence/14/143363d554a8831628d0885355f5ad30072e0f64ebe7f43c48e9b1863ef44dfe.json"
+        }
+      },
+      "parts": [
+        {
+          "id": "decision",
+          "label": "Decision",
+          "evidence": {
+            "kind": "attributes",
+            "attrs": {
+              "text": "Halve the pulse of every torch in the mines."
+            },
+            "digest": "5e136d44d1c7b04ec72c0d00876a2b02fe3e35cf3ff534bb0393404f0e3352a0"
+          }
+        }
+      ],
+      "views": []
+    },
+    {
+      "id": "it_mwkpd8zp6v2vtg6ek8",
+      "target": {
+        "kind": "unit",
+        "id": "armor/helm"
+      },
+      "title": "Iron Helm",
+      "kind": "unit",
+      "definition": {
+        "sha256": "db74109aa7cd23aa545690d7440e9104beda4746d528d4e77c8f98555d95a30d",
+        "ref": {
+          "store": ".catalog/evidence/db/db74109aa7cd23aa545690d7440e9104beda4746d528d4e77c8f98555d95a30d.json"
+        }
+      },
+      "parts": [
+        {
+          "id": "model",
+          "label": "Model",
+          "role": "model",
+          "asset": "art/helm.glb",
+          "evidence": {
+            "digest": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+            "asset": "art/helm.glb",
+            "path": "art/helm.glb",
+            "kind": "model",
+            "mime": "model/gltf-binary",
+            "size": 1392,
+            "sha256": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+            "ref": {
+              "git": {
+                "commit": "d32763bad98949efac41f89397dfd3e4e1360f28",
+                "path": "art/helm.glb",
+                "blob": "8f833c8d5af32ba71ac9a87e9ba7008f89e6da71"
+              }
+            }
+          }
+        }
+      ],
+      "views": [
+        {
+          "id": "vw_mwkpd90dazdd7sb6bd",
+          "part": "model",
+          "leaf": null,
+          "caption": "Model against the last pass",
+          "camera": null,
+          "state": null,
+          "before": {
+            "label": "Before",
+            "evidence": {
+              "digest": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+              "asset": "art/helm.glb",
+              "path": "art/helm.glb",
+              "kind": "model",
+              "mime": "model/gltf-binary",
+              "size": 1392,
+              "sha256": "426d2076baffd3f4fddce34995cdc862f70b0cf56fe981344a9e658ea32e4764",
+              "ref": {
+                "git": {
+                  "commit": "d32763bad98949efac41f89397dfd3e4e1360f28",
+                  "path": "art/helm.glb",
+                  "blob": "8f833c8d5af32ba71ac9a87e9ba7008f89e6da71"
+                }
+              }
+            },
+            "from": {
+              "submission": "sub_mwkpd8ux8bkmc238mk",
+              "item": "it_mwkpd8peav4b783fn3",
+              "part": "model"
+            }
+          },
+          "afterLabel": "After"
+        }
+      ]
+    }
+  ],
+  "requestId": "rq-submit-2",
+  "requestBinding": {
+    "action": "review.submit",
+    "digest": "6e7d95fd01c8387b76b742e8e843a5ca486b9581aefa00069025c5e771a1731d",
+    "context": "ff52585e9d24:main"
+  }
+}

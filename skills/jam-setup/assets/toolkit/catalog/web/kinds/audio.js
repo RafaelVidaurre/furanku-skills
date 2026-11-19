@@ -1,21 +1,21 @@
 // The audio kind: one transport with a waveform, optional word-by-word transcript highlighting,
 // waveform thumbnails, and an A/B comparison that switches sides on one shared clock.
 import { html, useEffect, useRef, useState } from '../core.js';
-import { registerViewer } from '../controller.js';
+import { refusal, useViewer } from '../controller.js';
 import { registerMediaKind } from '../media-kinds.js';
 import { decodeAudio, drawWaveform, AudioTransport } from './audio-transport.js';
 
 // Multiple tracks here are A/B sides: one clock and one sounding source, never parallel players.
-export function AudioViewer({ src, source, tracks: givenTracks, labels, viewerId, onStatus, apiRef, transcript }) {
-  const tracks = givenTracks ?? [{ url: src, source }];
-  const key = JSON.stringify(tracks.map(t => [t.url, t.source?.sha256]));
+export function AudioViewer({ src, shows, tracks: givenTracks, labels, viewerId, onStatus, apiRef, transcript }) {
+  const tracks = givenTracks ?? [{ url: src, shows }];
+  const key = JSON.stringify(tracks.map(t => [t.url, t.shows?.sha256]));
   const canvas = useRef(), transport = useRef();
   const [loaded, setLoaded] = useState(null), [failure, setFailure] = useState(null), [, refresh] = useState(0);
   const ready = loaded?.key === key, error = failure?.key === key ? failure.message : null;
   const status = error ? 'error' : ready ? 'ready' : 'loading';
   useEffect(() => {
     const ctrl = new AbortController(); let disposed = false;
-    Promise.all(tracks.map(t => decodeAudio(t.url, t.source?.sha256, ctrl.signal))).then(decoded => {
+    Promise.all(tracks.map(t => decodeAudio(t.url, t.shows?.sha256, ctrl.signal))).then(decoded => {
       if (disposed) return;
       transport.current = new AudioTransport(decoded, () => refresh(n => n + 1));
       setLoaded({ key, decoded });
@@ -36,32 +36,32 @@ export function AudioViewer({ src, source, tracks: givenTracks, labels, viewerId
   };
   const getState = () => {
     const p = ready ? transport.current : null, track = p && loaded.decoded[p.side], buffer = track?.buffer;
-    return { kind: 'audio', status, error, source: { ...tracks[p?.side ?? 0].source, ...(track ? { sha256: track.sha256 } : {}) },
+    return { kind: 'audio', status, error, shows: { ...tracks[p?.side ?? 0].shows, ...(track ? { sha256: track.sha256 } : {}) },
       duration: p?.duration ?? null, channels: buffer?.numberOfChannels ?? null, sampleRate: buffer?.sampleRate ?? null,
       playing: p?.playing ?? false, currentTime: p?.time() ?? 0, loop: p?.loop ?? false,
-      ...(labels ? { side: p?.side === 0 ? 'a' : 'b', sides: tracks.map((t, i) => ({ side: i ? 'b' : 'a', status, sha256: loaded?.decoded?.[i]?.sha256 ?? t.source?.sha256, kind: 'audio' })) } : {}),
+      ...(labels ? { side: p?.side === 0 ? 'a' : 'b', sides: tracks.map((t, i) => ({ side: i ? 'b' : 'a', status, sha256: loaded?.decoded?.[i]?.sha256 ?? t.shows?.sha256, kind: 'audio' })) } : {}),
       ...(transcript ? { transcript: transcript.text, currentWord: wordAt(p?.time() ?? 0), alignment: transcript.words?.length ? 'aligned' : 'unavailable' } : {}),
       controls: ['audio', ...(labels ? ['compare'] : [])] };
   };
   const control = async c => {
     const p = ready && transport.current;
-    if (!p) return { error: error ?? 'Audio is not ready', code: 'unavailable' };
+    if (!p) throw refusal('unavailable', error ?? 'Audio is not ready');
     const a = c.audio;
     if (!a && !c.compare) return false;
-    if (a && (typeof a !== 'object' || Array.isArray(a) || (a.time != null && (!Number.isFinite(a.time) || a.time < 0)) || (a.loop != null && typeof a.loop !== 'boolean') || (a.playing != null && typeof a.playing !== 'boolean'))) return { error: 'audio needs a nonnegative time and boolean playing/loop', code: 'invalid' };
-    if (c.compare && (!labels || !['a', 'b'].includes(c.compare.side))) return { error: 'Audio comparison needs side a or b', code: 'invalid' };
+    if (a && (typeof a !== 'object' || Array.isArray(a) || (a.time != null && (!Number.isFinite(a.time) || a.time < 0)) || (a.loop != null && typeof a.loop !== 'boolean') || (a.playing != null && typeof a.playing !== 'boolean'))) throw refusal('invalid', 'audio needs a nonnegative time and boolean playing/loop');
+    if (c.compare && (!labels || !['a', 'b'].includes(c.compare.side))) throw refusal('invalid', 'Audio comparison needs side a or b');
     if (a?.playing === false) p.pause();
     if (a?.loop != null) p.loop = a.loop;
     if (a?.time != null) p.seek(a.time);
     if (c.compare) p.switch(c.compare.side === 'a' ? 0 : 1);
     if (a?.playing === true) {
-      try { await p.play(); } catch (e) { return { error: `Audio could not start: ${e.message}`, code: 'unavailable' }; }
+      try { await p.play(); } catch (e) { throw refusal('unavailable', `Audio could not start: ${e.message}`); }
     }
     refresh(n => n + 1); return true;
   };
-  registerViewer(viewerId, getState, control);
+  useViewer(viewerId, getState, control);
   if (apiRef) apiRef.current = { getState, control };
-  const act = async c => { const r = await control(c); if (r?.error) setFailure({ key, message: r.error }); };
+  const act = async c => { try { await control(c); } catch (e) { setFailure({ key, message: e.message }); } };
   return html`<div class="viewer viewer-audio" data-viewer-input>
     ${status === 'loading' && html`<div class="viewer-msg"><span class="spin" aria-label="Loading audio"></span></div>`}
     ${error && html`<div class="viewer-msg err" role="alert">${error}</div>`}
@@ -91,7 +91,7 @@ function transcriptOf(context, media) {
 
 // Both sides play on one transport, so the comparison is one viewer and needs both to be there.
 function AudioCompare({ a, b, labels, mark, apiRef }) {
-  return html`<div class="cmp-one"><${AudioViewer} tracks=${[a, b].map((s) => ({ url: s.url, source: { path: s.path, sha256: s.sha256 } }))} labels=${labels} apiRef=${apiRef} onStatus=${(s) => { mark('a')(s); mark('b')(s); }} /></div>`;
+  return html`<div class="cmp-one"><${AudioViewer} tracks=${[a, b].map((s) => ({ url: s.url, shows: { path: s.path, sha256: s.sha256 } }))} labels=${labels} apiRef=${apiRef} onStatus=${(s) => { mark('a')(s); mark('b')(s); }} /></div>`;
 }
 
 // ---------- Thumbnails: <audio-thumb src sha> ----------
@@ -125,7 +125,8 @@ customElements.define('audio-thumb', AudioThumb);
 
 registerMediaKind('audio', {
   icon: 'M3 8v4 M6 5v10 M10 2v16 M14 5v10 M17 8v4',
-  viewer: ({ media, source, context, ...rest }) => html`<${AudioViewer} src=${media.url} source=${{ asset: media.id, path: media.path, sha256: media.sha256, ...source }} transcript=${transcriptOf(context, media)} ...${rest} />`,
+  controls: ['audio', 'compare'],
+  viewer: ({ media, shows, context, ...rest }) => html`<${AudioViewer} src=${media.url} shows=${{ asset: media.id, path: media.path, sha256: media.sha256, ...shows }} transcript=${transcriptOf(context, media)} ...${rest} />`,
   thumbnail: ({ asset }) => html`<audio-thumb src=${asset.url} sha=${asset.sha256} version=${asset.version}></audio-thumb>`,
   compare: AudioCompare,
   compareTogether: true,
