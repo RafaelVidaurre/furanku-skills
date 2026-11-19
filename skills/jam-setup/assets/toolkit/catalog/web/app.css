@@ -546,6 +546,8 @@ model-thumb.failed { background: repeating-linear-gradient(-45deg, #1a1212 0 4px
 .attrs dd { overflow-wrap: anywhere; font-size: 13px; }
 .block { border-radius: 10px; }
 .block-h { padding: 14px 16px; }
+.related-list { padding: 0 16px 14px; gap: 10px; }
+.related .attr-group { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
 .reference-links { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px; }
 .versions { padding: 12px; }
 @media (max-width: 1100px) {

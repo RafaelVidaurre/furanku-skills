@@ -33,7 +33,9 @@ const ADAPTER = {
       "fit-collision": { run: ["node", "commands/echo.mjs", "own"], description: "Fit collision hulls to a mesh" },
       broken: { run: ["node", "commands/broken.mjs"] },
       refused: { run: ["node", "commands/refused.mjs"] },
-      chatty: { run: ["node", "commands/chatty.mjs"] }
+      chatty: { run: ["node", "commands/chatty.mjs"] },
+      inventory: { run: ["node", "commands/inventory.mjs"] },
+      previews: { run: ["node", "commands/previews.mjs"] }
     },
     docs: { capture: "docs/capture.md", import: "docs/import.md" },
     sources: [{ fact: "unitsPerMeter", url: "https://example.invalid/units", says: "one unit is a centimeter" }]
@@ -52,6 +54,31 @@ const ADAPTER = {
       assets: files.map((file) => ({ id: "/Game/" + basename(file).replace(/\\.[^.]+$/, ""), kind, source: file, sha256: "n/a" })),
       args, settings: JSON.parse(process.env.JAM_ENGINE_SETTINGS), cwd: process.cwd(), root: process.env.JAM_PROJECT_ROOT
     }))`,
+  "commands/inventory.mjs": `
+    import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+    import { dirname } from "node:path"
+    const args = process.argv.slice(2)
+    const value = (flag) => args.includes(flag) ? args[args.indexOf(flag) + 1] : undefined
+    const out = value("--out"), previous = value("--previous")
+    const before = previous && existsSync(previous) ? JSON.parse(readFileSync(previous, "utf8")) : null
+    const files = { "Content/Crate.bin": { id: "/Game/Crate", size: 3, mtimeMs: 1, main: "/Game/Crate.Crate", references: [{ to: "/Game/Wood", kind: "hard" }], assets: [
+      { id: "/Game/Crate.Crate", class: "Mesh", tags: { Triangles: "12" }, fields: { Look: { object: "/Game/Wood.Wood", class: "Material" }, Size: { unparsed: "StructProperty(Size)" } }, fieldReferences: [{ property: "Look", to: "/Game/Wood.Wood", kind: "hard" }] },
+      { id: "/Game/Crate.Lid", class: "Mesh", fieldsError: "name index 9 of 3" }] } }
+    if (existsSync("inventory-bad")) files["Content/Bad.bin"] = { id: "/Game/Bad", size: "big", mtimeMs: 1 }
+    mkdirSync(dirname(out), { recursive: true })
+    writeFileSync(out, JSON.stringify({ format: 1, adapter: existsSync("inventory-other") ? "other" : "fake", fieldsConfig: "0123456789abcdef", generatedAt: "2026-11-17T00:00:00Z", roots: [{ id: "/Game", path: "Content" }], files }))
+    console.log(JSON.stringify({ inventory: existsSync("inventory-elsewhere") ? "elsewhere.json" : out, files: 1, assets: 1, read: before ? 0 : 1, reused: before ? 1 : 0, removed: 0, unread: 0, args }))`,
+  "commands/previews.mjs": `
+    import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+    const args = process.argv.slice(2)
+    const value = (flag) => args[args.indexOf(flag) + 1]
+    const out = value("--out")
+    const inventory = JSON.parse(readFileSync(value("--inventory"), "utf8"))
+    mkdirSync(out, { recursive: true })
+    writeFileSync(out + "/crate.png", "png")
+    const entry = existsSync("previews-bad") ? { version: "1", file: "../crate.png" } : { version: inventory.files["Content/Crate.bin"].size + ":1", file: "crate.png", kind: "image", how: "stored thumbnail" }
+    writeFileSync(out + "/index.json", JSON.stringify({ format: 1, adapter: "fake", generatedAt: "2026-11-18T00:00:00Z", files: { "Content/Crate.bin": entry } }))
+    console.log(JSON.stringify({ index: existsSync("previews-elsewhere") ? "elsewhere.json" : out + "/index.json", previews: 1, made: 1, reused: 0, failed: 0, waiting: args.includes("--no-engine") ? 3 : 0, none: 0, args }))`,
   "commands/inspect.mjs": `
     import { existsSync, readFileSync } from "node:fs"
     if (existsSync("editor-closed")) { console.log(JSON.stringify({ handoff: { reason: "the editor is not running", steps: ["start the editor"], resume: "jam engine inspect " + process.argv[2] } })); process.exit(3) }
@@ -121,14 +148,19 @@ describe("adapter resolution", () => {
     const outside = realpathSync(mkdtempSync(join(tmpdir(), "jam-adapter-")))
     after(() => rmSync(outside, { recursive: true, force: true }))
     for (const [path, text] of Object.entries(ADAPTER)) write(outside, path, text)
+    write(outside, "commands/test/test_import.py", "def test_x(): pass")
     const root = jamProject()
     const installed = cli(root, "engine", "install", outside, "--json")
     assert.equal(installed.status, 0, installed.stderr)
     assert.deepEqual(installed.json(), { id: "fake", dir: "jam/engines/fake", files: Object.keys(ADAPTER).length })
     assert.equal(readJson<{ engine: { adapter: string } }>(root, "jam.config.json").engine.adapter, "fake")
     assert.equal(readFileSync(join(root, "jam/engines/fake/commands/import.mjs"), "utf8"), ADAPTER["commands/import.mjs"])
+    assert.equal(existsSync(join(root, "jam/engines/fake/commands/test")), false, "the adapter's tests are not copied")
+    write(root, "jam/engines/fake/commands/retired.mjs", "old")
+    assert.equal(cli(root, "engine", "install", outside).status, 0)
+    assert.equal(existsSync(join(root, "jam/engines/fake/commands/retired.mjs")), false, "a reinstall replaces the folder")
     const show = cli(root, "engine", "show", "--json").json<{ source: string; commands: Record<string, boolean>; own: Array<string>; docs: Array<string> }>()
-    assert.deepEqual([show.source, show.commands, show.own, show.docs], ["project", { import: true, inspect: true, references: true, capture: false, check: true, "conform-skeleton": true }, ["fit-collision", "broken", "refused", "chatty"], ["capture", "import"]])
+    assert.deepEqual([show.source, show.commands, show.own, show.docs], ["project", { import: true, inspect: true, references: true, capture: false, check: true, "conform-skeleton": true, inventory: true, previews: true }, ["fit-collision", "broken", "refused", "chatty"], ["capture", "import"]])
     write(outside, "adapter.json", JSON.stringify({ id: "fake", label: "x" }))
     assert.match(cli(root, "engine", "install", outside).stderr, /facts: .*missing|facts/i)
     assert.match(cli(root, "engine", "install", join(outside, "nowhere")).stderr, /has no readable adapter\.json/)
@@ -245,6 +277,72 @@ describe("the command contract", () => {
     // An import done by hand while the editor is unreachable still needs evidence of what was checked.
     assert.match((await recordFailure(root, "crate", "import", { tool: "editor", engineAssets: [{ kind: "static", id: "/Game/model" }] })).message, /\/Game\/model was not inspected: the adapter could not reach the engine \(the editor is not running\)/)
     assert.ok(made.model.length > 0)
+  })
+})
+
+describe("inventory", () => {
+  type Printed = { outcome: { status: string; receipt: { inventory: string; read: number; reused: number; args: Array<string> } }; path: string }
+  it("the adapter writes the file the toolkit names and is handed the previous one to reuse; --full and --engine pass through", () => {
+    const root = withAdapter()
+    const first = cli(root, "engine", "inventory", "--json")
+    assert.equal(first.status, 0, first.stderr)
+    const printed = first.json<Printed>()
+    assert.equal(printed.path, "work/.scratch/.engine/inventory.json")
+    assert.deepEqual([printed.outcome.receipt.args, printed.outcome.receipt.read], [["--out", "work/.scratch/.engine/inventory.json"], 1])
+    assert.ok(!("inventory" in printed), "the inventory stays in its file")
+    const again = cli(root, "engine", "inventory", "--json").json<Printed>()
+    assert.deepEqual([again.outcome.receipt.args, again.outcome.receipt.reused], [["--out", "work/.scratch/.engine/inventory.json", "--previous", "work/.scratch/.engine/inventory.json"], 1])
+    const full = cli(root, "engine", "inventory", "--full", "--engine", "--json").json<Printed>()
+    assert.deepEqual(full.outcome.receipt.args, ["--out", "work/.scratch/.engine/inventory.json", "--engine"])
+    const custom = cli(root, "engine", "inventory", "--out", "cache/inv.json", "--json").json<Printed>()
+    assert.equal(custom.outcome.receipt.inventory, "cache/inv.json")
+    assert.equal(readJson<{ files: Record<string, { id: string }> }>(root, "cache/inv.json").files["Content/Crate.bin"]?.id, "/Game/Crate")
+    assert.match(cli(root, "engine", "inventory").stdout, /work\/\.scratch\/\.engine\/inventory\.json: 1 files, 1 assets\nread 0, reused 1, removed 0/)
+  })
+
+  it("an inventory of the wrong shape, for another adapter, or written somewhere else is refused; an adapter without the command gets its guide", () => {
+    const root = withAdapter()
+    write(root, "inventory-bad", "")
+    assert.match(cli(root, "engine", "inventory").stderr, /inventory written by adapter fake .*files\.Content\/Bad\.bin\.size/s)
+    rmSync(join(root, "inventory-bad"))
+    write(root, "inventory-other", "")
+    assert.match(cli(root, "engine", "inventory").stderr, /was written for adapter other, not fake/)
+    rmSync(join(root, "inventory-other"))
+    write(root, "inventory-elsewhere", "")
+    assert.match(cli(root, "engine", "inventory").stderr, /reported "elsewhere\.json", not the file it was asked to write/)
+    const preset = jamProject({ config: { engine: { adapter: "web", facts: {} } } })
+    const manual = cli(preset, "engine", "inventory", "--json")
+    assert.equal(manual.status, 0, manual.stderr)
+    assert.equal(manual.json<Printed>().outcome.status, "manual")
+  })
+})
+
+describe("previews", () => {
+  type Printed = { outcome: { status: string; receipt: { index: string; args: Array<string> } }; dir: string }
+  it("the inventory is brought up to date first; the adapter writes previews and their index in the folder the toolkit names", () => {
+    const root = withAdapter()
+    const made = cli(root, "engine", "previews", "--json")
+    assert.equal(made.status, 0, made.stderr)
+    const printed = made.json<Printed>()
+    assert.equal(printed.dir, "work/.scratch/.engine/previews")
+    assert.deepEqual(printed.outcome.receipt.args, ["--inventory", "work/.scratch/.engine/inventory.json", "--out", "work/.scratch/.engine/previews"])
+    assert.equal(readJson<{ files: Record<string, { file: string }> }>(root, "work/.scratch/.engine/previews/index.json").files["Content/Crate.bin"]?.file, "crate.png")
+    const narrowed = cli(root, "engine", "previews", "--full", "--no-engine", "--only", "Content/**", "--limit", "3", "--out", "cache/previews", "--json").json<Printed>()
+    assert.deepEqual(narrowed.outcome.receipt.args, ["--inventory", "work/.scratch/.engine/inventory.json", "--out", "cache/previews", "--full", "--no-engine", "--only", "Content/**", "--limit", "3"])
+    assert.match(cli(root, "engine", "previews", "--no-engine").stdout, /index\.json: 1 files have a preview\nmade 1, reused 0, failed 0, no preview for their kind 0\n3 files wait for the engine/)
+  })
+
+  it("an index of the wrong shape or written somewhere else is refused; an adapter without the command gets its guide", () => {
+    const root = withAdapter()
+    write(root, "previews-bad", "")
+    assert.match(cli(root, "engine", "previews").stderr, /previews index .*files\.Content\/Crate\.bin\.file/s)
+    rmSync(join(root, "previews-bad"))
+    write(root, "previews-elsewhere", "")
+    assert.match(cli(root, "engine", "previews").stderr, /reported "elsewhere\.json", not the index it was asked to write/)
+    const preset = jamProject({ config: { engine: { adapter: "web", facts: {} } } })
+    const manual = cli(preset, "engine", "previews", "--json")
+    assert.equal(manual.status, 0, manual.stderr)
+    assert.equal(manual.json<Printed>().outcome.status, "manual")
   })
 })
 

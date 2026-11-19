@@ -438,3 +438,24 @@ def test_inspect_prints_metres(tmp_path):
     local = bridge(tmp_path, """{"inspect": lambda a: {"id": a["asset"], "kind": "static-mesh", "boundsMin": [-30, -30, 0], "boundsMax": [30, 30, 90], "triangles": 500, "unavailable": {}}}""")
     code, receipt, _ = run_command(tmp_path, "engine_inspect.py", "/Game/Props/SM_Barrel.SM_Barrel", local=local)
     assert code == 0 and receipt == {"id": "/Game/Props/SM_Barrel", "kind": "static-mesh", "bounds": {"min": [-0.3, -0.3, 0.0], "max": [0.3, 0.3, 0.9]}, "pivot": [0.0, 0.0, 0.0], "triangles": 500}
+
+
+def test_a_program_returns_when_it_exits_even_while_a_helper_it_started_keeps_its_output_open(tmp_path):
+    # The editor starts helpers (a trace server) that inherit its output and outlive it.
+    helper = "import subprocess, sys, time; subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(20)']); print('done')"
+    started = __import__("time").monotonic()
+    code, out, _ = transport._run([sys.executable, "-c", helper], str(tmp_path), 60)
+    assert (code, out.strip()) == (0, "done")
+    assert __import__("time").monotonic() - started < 10
+
+
+def test_the_editor_writes_its_result_where_the_adapter_reads_it_when_the_uproject_is_not_at_the_root(tmp_path):
+    (tmp_path / "apps" / "client").mkdir(parents=True)
+    (tmp_path / "apps" / "client" / "Game.uproject").write_text("{}")
+    (tmp_path / "jam.local.json").write_text(json.dumps({"engine": {"project": "apps/client/Game.uproject"}}))
+    cfg = config.load(str(tmp_path), ADAPTER, environ={})
+    script = tmp_path / "s.py"
+    script.write_text("def main(ARGS):\n    return {}\n")
+    prepared = transport.prepare(cfg, "verb", transport.Step("step", str(script), {}))
+    written = os.path.normpath(os.path.join(tmp_path, "apps", "client", *json.loads(prepared["text"].split("ARGS = json.loads(", 1)[1].split("\n", 1)[0][:-1].strip("'\"").encode().decode("unicode_escape"))["_resultFile"].split("/")))
+    assert written == os.path.normpath(os.path.join(tmp_path, *prepared["result"].split("/")))

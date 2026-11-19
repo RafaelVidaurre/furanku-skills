@@ -60,6 +60,7 @@ export function UnitDetail({ route, ctx }) {
       <div class="d-side">
         ${(media.length > 0 || inspectors.length > 0) && contentFields.length > 0 && html`<section class="block content-properties" aria-label="Unit details"><${Attributes} d=${d} technical=${false} /></section>`}
         ${d.links.length > 0 && html`<section class="block" aria-label="Assets"><header class="block-h"><h3>Assets</h3><span class="badge">${d.links.length}</span></header><div class="usage">${d.links.map(l => html`<a class="mship" href=${entityHref('asset', l.asset.id)}><${KindIcon} kind=${l.asset.kind} size=${16} /><span><strong>${l.roleLabel}</strong><span class="asset-filename">${baseName(l.asset.path)}</span></span><${Icon} name="chev" size=${12} /></a>`)}</div></section>`}
+        <${Relations} d=${d} />
         ${(technicalFields.length > 0 || d.unit.sources.length > 0) && html`<details class="disclosure"><summary>Technical details</summary><${Attributes} d=${d} technical /></details>`}
         <section class="block" aria-label="Collections">
           <header class="block-h"><h3>Collections</h3><span class="badge">${d.memberships.length}</span><span class="push"></span>
@@ -132,6 +133,20 @@ function Attributes({ d, technical = false }) {
     ${extra.length > 0 && html`<dl class="attrs">${extra.map((k) => html`<div><dt>${k}</dt><dd><${Value} v=${d.unit.attrs[k]} /></dd></div>`)}</dl>`}
     ${technical && d.unit.sources.length > 0 && html`<details class="source"><summary>Source</summary>${d.unit.sources.map((s) => html`<div class="mono small">${s}</div>`)}</details>`}
   </div>`;
+}
+// Both directions of every relation plugins declare ("Uses" / "Used by", "Made from" / "In the
+// engine"…). A relation whose units an attribute of the details already lists is not shown twice.
+const RELATED_SHOWN = 40;
+function Relations({ d }) {
+  const sorted = (ids) => [...ids].sort().join('\n');
+  // Only attributes shown with the unit's details count; derived ones sit under Technical details.
+  const listed = d.type.fields.filter((f) => f.kind === 'refs' && !f.derived && d.unit.attrs[f.key] != null).map((f) => sorted([d.unit.attrs[f.key]].flat()));
+  const shown = (d.relations ?? []).filter((r) => r.units.length > 0 && !listed.includes(sorted(r.units.map((u) => u.id))));
+  if (!shown.length) return null;
+  return html`<section class="block" aria-label="Related"><header class="block-h"><h3>Related</h3></header><div class="attr-wrap related-list">${shown.map((r) => html`
+    <div class="related" aria-label=${r.label}><div class="attr-group">${r.label} <span class="badge">${r.units.length}</span></div>
+      <span class="refs">${r.units.slice(0, RELATED_SHOWN).map((u) => (u.exists ? html`<a class="ref" href=${entityHref('unit', u.id)}><${Thumb} asset=${u.thumb} size=${18} />${u.name}</a>` : html`<span class="ref missing" title="Not in this checkout">${u.id}</span>`))}${r.units.length > RELATED_SHOWN && html`<span class="muted small">and ${r.units.length - RELATED_SHOWN} more</span>`}</span>
+    </div>`)}</div></section>`;
 }
 function Help({ text, label }) {
   return html`<${Popover} label=${`About ${label}`} trigger=${() => html`<button class="help" aria-label=${`About ${label}`}>?</button>`}><p class="help-text">${text}</p><//>`;

@@ -6,7 +6,7 @@ import * as Option from "effect/Option"
 import { publishedSchemas } from "../catalog/published.ts"
 import { AudioUnit, LinesFile, SpeakersFile } from "./audio/schema.ts"
 import { JamConfig, LocalConfig } from "./config/schema.ts"
-import { Adapter, Handoff, RECEIPTS } from "./engine/schema.ts"
+import { Adapter, EngineInventory, EnginePreviews, Handoff, RECEIPTS } from "./engine/schema.ts"
 import { Descriptor } from "./providers/schema.ts"
 import { type Published, renderSchema } from "./published.ts"
 import { Recipe } from "./recipes/schema.ts"
@@ -21,6 +21,8 @@ export const PUBLISHED: ReadonlyArray<Published> = [
   { file: "engine-adapter.schema.json", schema: Adapter },
   ...Object.entries(RECEIPTS).map(([command, schema]) => ({ file: `engine-${command}-receipt.schema.json`, schema })),
   { file: "engine-handoff.schema.json", schema: Handoff },
+  { file: "engine-inventory.schema.json", schema: EngineInventory },
+  { file: "engine-previews.schema.json", schema: EnginePreviews },
   { file: "landmarks.schema.json", schema: LandmarkFile },
   { file: "run.schema.json", schema: Run },
   { file: "audio-unit.schema.json", schema: AudioUnit },

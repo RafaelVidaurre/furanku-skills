@@ -78,8 +78,15 @@ export async function boot() {
 }
 
 // ---------- Scopes: the top-level split of units, as the project's schema declares it ----------
-export const scopes = () => session.schema?.scopes ?? [];
-export const scopeOf = (section) => scopes().find((s) => s.id === section) ?? null;
+// A scope without units is not shown (two empty default sections ahead of a plugin's own would
+// open the catalog on an empty page); when no scope has units, the first one is.
+const allScopes = () => session.schema?.scopes ?? [];
+export const scopes = () => {
+  const used = new Set(Object.values(session.schema?.unitScopes ?? {}));
+  const shown = allScopes().filter((s) => used.has(s.id));
+  return shown.length > 0 ? shown : allScopes().slice(0, 1);
+};
+export const scopeOf = (section) => allScopes().find((s) => s.id === section) ?? null;
 export const defaultScope = () => scopes()[0]?.id ?? 'main';
 /** The sections that list things: every scope, plus collections and assets. */
 export const isListSection = (section) => !!scopeOf(section) || section === 'collections' || section === 'assets';

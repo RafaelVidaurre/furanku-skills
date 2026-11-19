@@ -1,6 +1,6 @@
 ---
 name: jam-engine-unreal
-description: Unreal Engine adapter for the jam toolkit. It supplies engine facts, import of static meshes, one skinned mesh on a reference skeleton, textures and sounds, inspection, reference lookup, collision authoring and fitting, conforming a rig to the UE5 Mannequin, and Unreal acceptance guidance. Use when an Unreal project uses the jam skills and needs this adapter installed, configured to reach its editor, or updated, or when a jam step in that project imports, inspects, checks or deletes engine assets.
+description: Unreal Engine adapter for the jam toolkit. It supplies engine facts, import of static meshes, one skinned mesh on a reference skeleton, textures and sounds, a content inventory read without the editor, inspection, reference lookup, collision authoring and fitting, conforming a rig to the UE5 Mannequin, and Unreal acceptance guidance. Use when an Unreal project uses the jam skills and needs this adapter installed, configured to reach its editor, or updated, or when a jam step in that project imports, inspects, checks or deletes engine assets.
 ---
 
 # Unreal adapter
@@ -19,8 +19,9 @@ This skill ships the adapter folder `adapter/` (`adapter.json`, `commands/`, `do
 | --- | --- | --- |
 | Import a static mesh, textures, a skinned mesh, sounds, a random-variant sound source | `jam engine import --kind static\|textures\|skinned\|audio\|audio-variants` | `import`, `audio` |
 | What the engine made of an asset | `jam engine inspect <id>` | `acceptance` |
+| Every package under `/Game` and content plugins: classes, engine tags, references, property values of the classes the project lists | `jam engine inventory [--engine]` | `inventory` |
 | What refers to an asset; delete it safely | `jam engine references <id>... [--delete]` | `locking` |
-| Stored sources, skinned import and pose, bones in play, collision coverage | `jam engine check --kind sources\|skinned\|bones-in-game\|collision` | `acceptance`, `collision` |
+| Stored sources, skinned import and pose, bones in play, collision coverage, inventory against the editor | `jam engine check --kind sources\|skinned\|bones-in-game\|collision\|inventory` | `acceptance`, `collision`, `inventory` |
 | Rework a character model onto the Mannequin's exact skeleton | `jam engine conform-skeleton <model>` | `skeletons`, `skinned-export` |
 | Collision hulls before import; fit collision in the editor | scripts under `jam/engines/unreal/commands/` | `collision` |
 | See something in the engine | no command: the project's own capture tooling | `cheap-looks` |
@@ -29,6 +30,6 @@ A command the toolkit does not route yet runs directly: `node tools/jam/jam.mjs 
 
 ## What is validated
 
-Nothing in the adapter was run in an Unreal editor after it was generalized. `jam engine docs validation` lists, per script, what ran in the game jam it came from, what was changed since, and the two scripts that are new and have never run (`import --kind static`, `inspect`). Treat the first run of each command in a project as its test: use a throwaway asset and compare the result with that page.
+Except the inventory, nothing in the adapter was run in an Unreal editor after it was generalized. `jam engine docs validation` lists, per script, what ran in the game jam it came from, what was changed since, and the two scripts that are new and have never run (`import --kind static`, `inspect`). Treat the first run of each command in a project as its test: use a throwaway asset and compare the result with that page.
 
 The engine-free code has unit tests: `python3 -m pytest <this skill>/adapter/commands/test`.

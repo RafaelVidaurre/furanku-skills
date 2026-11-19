@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "engine-previews-receipt.schema.json",
+  "$ref": "#/$defs/EnginePreviewsReceipt",
+  "$defs": {
+    "EnginePreviewsReceipt": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "string",
+          "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+          "description": "The index file written"
+        },
+        "previews": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Files that have a preview"
+        },
+        "made": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Previews made in this run"
+        },
+        "reused": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Previews kept because their file did not change"
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Files whose preview could not be made"
+        },
+        "waiting": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Files whose preview needs the engine, which did not make it in this run"
+        },
+        "none": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Files of a kind the adapter makes no preview for"
+        }
+      },
+      "required": [
+        "index",
+        "previews",
+        "made",
+        "reused",
+        "failed",
+        "waiting",
+        "none"
+      ],
+      "additionalProperties": false,
+      "title": "Receipt printed by an adapter's previews command"
+    }
+  }
+}

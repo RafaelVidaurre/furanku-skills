@@ -1,11 +1,11 @@
 ---
 name: jam-catalog
-description: Browse, organise and review a game project's content through its local catalog, and extend the catalog with plugins. Use when the user asks for the catalog or review link, asks what is waiting on them, wants to find, inspect or tag units and assets, leave or resolve a note, submit work for review or record a verdict, or when a project needs its own unit types, checks or actions in the catalog.
+description: Browse, organise and review a game project's content through its local catalog, and extend the catalog with plugins. Use when the user asks for the catalog or review link, asks what is waiting on them, wants to find, inspect or tag units and assets, leave or resolve a note, submit work for review or record a verdict, when the catalog should show the project's own content (its engine assets, archetypes, server data), or when a project needs its own unit types, checks or actions in the catalog.
 ---
 
 # Content catalog
 
-The catalog shows what this checkout contains (uncommitted files included): units declared in the project's manifest, jam runs, and whatever project plugins add. Notes, categories, tags, collections, review submissions and decisions are files under `.catalog/` that travel with Git. The catalog never commits or pushes.
+The catalog shows what this checkout contains (uncommitted files included): units declared in the project's manifest, jam runs, the game engine's assets when the `engine` plugin is listed, and whatever project plugins add. Notes, categories, tags, collections, review submissions and decisions are files under `.catalog/` that travel with Git. The catalog never commits or pushes.
 
 `jam` below is `node tools/jam/jam.mjs`; a missing toolkit is the `jam-recipe` skill's to route.
 
@@ -76,6 +76,8 @@ Notes have no replies. Mark one dealt with (`note.resolve`) only when what it sa
 Done when `review.get` shows the submission or decision, and the person has its `url`.
 
 ## Extending the catalog
+
+When the person wants the catalog to show the project's own content (the game engine's assets, archetypes such as weapons or creatures, data from the server), follow `tools/jam/docs/catalog-integration.md`.
 
 A project adds its own sources, relations, media kinds, checks, actions, scopes, inspectors and panels (its own browser modules on a unit's page) with a plugin: a module listed under `plugins` in `catalog.config.json`, kept under `jam/catalog/`, that imports `tools/jam/catalog-plugin.ts`. The contract, with a complete small plugin, is `tools/jam/src/catalog/README.md` (section "Plugins"); `tools/jam/examples/plugins/storybook.ts` uses every extension point. `jam catalog example <new folder>` creates a sample project to try things in.
 

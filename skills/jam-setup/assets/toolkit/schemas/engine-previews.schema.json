@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "engine-previews.schema.json",
+  "$ref": "#/$defs/EnginePreviews",
+  "$defs": {
+    "EnginePreviews": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "number",
+          "enum": [
+            1
+          ]
+        },
+        "adapter": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 64
+        },
+        "generatedAt": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "files": {
+          "type": "object",
+          "patternProperties": {
+            "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "string",
+                  "pattern": "\\S",
+                  "description": "The file's version the entry was made for: its inventory hash, or <size>:<mtimeMs> when it has none"
+                },
+                "file": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                  "description": "The preview, a file in the previews folder"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "image",
+                    "model",
+                    "audio"
+                  ],
+                  "description": "image: PNG, JPEG or WebP. model: self-contained GLB. audio: WAV"
+                },
+                "how": {
+                  "type": "string",
+                  "pattern": "\\S",
+                  "description": "How the adapter made it, in a few words"
+                },
+                "failed": {
+                  "type": "string",
+                  "pattern": "\\S",
+                  "description": "Why no preview was made for this version; the adapter tries again when the file changes"
+                }
+              },
+              "required": [
+                "version"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "format",
+        "adapter",
+        "generatedAt",
+        "files"
+      ],
+      "additionalProperties": false,
+      "title": "Index of engine previews written by an adapter's previews command"
+    }
+  }
+}

@@ -1,6 +1,6 @@
 ---
 name: jam-engine
-description: Choose, configure and use the engine adapter that gives the jam skills a game engine's conventions and commands, and write a new adapter. Use when a project picks or changes its engine for jam work, when a step needs engine facts (units, axes, formats, naming, skeletons), when a step imports, inspects, looks up references of, captures or checks an asset in the engine, when the adapter has no command for a step and it must be done by hand, or when writing an adapter for an engine or an in-house runtime.
+description: Choose, configure and use the engine adapter that gives the jam skills a game engine's conventions and commands, and write a new adapter. Use when a project picks or changes its engine for jam work, when a step needs engine facts (units, axes, formats, naming, skeletons), when a step imports, inspects, looks up references of, captures or checks an asset in the engine, when something needs a list of everything the engine's content holds or a viewable preview of each engine asset, when the adapter has no command for a step and it must be done by hand, or when writing an adapter for an engine or an in-house runtime.
 ---
 
 # Engine adapters
@@ -29,6 +29,8 @@ Done when `jam engine show` names the adapter you chose and `jam engine facts` p
 | Put delivered files in the engine | `jam engine import --kind <kind> <files>`, or `--run <id>` to import a run's result and record the step |
 | What the engine made of an asset | `jam engine inspect <engine asset id>` |
 | What refers to an asset | `jam engine references <engine asset id>` |
+| Everything the engine's content holds: files, assets, classes, engine metadata, references | `jam engine inventory`: writes one inventory file and prints its path; run again, it reads only files that changed. `--engine` lets the adapter start the engine for files it cannot read itself |
+| Something to look at for each engine asset (an image, a GLB model, a sound), as the catalog shows it | `jam engine previews`: writes them to one machine-local folder with an index; run again, it makes only those of changed assets. It may start the engine and take minutes; `--no-engine` takes only what the files hold, `--only <pattern>` and `--limit <n>` narrow it |
 | A still from the engine | `jam engine capture <engine asset id> <out.png>` |
 | The adapter's own checks | `jam engine check <arguments>` |
 | A rig on one of the engine's skeletons | `jam engine conform-skeleton <model> [--skeleton <id>]` |

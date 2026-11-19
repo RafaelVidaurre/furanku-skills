@@ -29,9 +29,10 @@ def asset_name(text):
     return re.sub(r"[^A-Za-z0-9_]+", "_", text).strip("_")
 
 
-def editor(cfg, verb, steps):
-    """Run (name, script, args) steps in the editor and return their results in order."""
-    return run_steps(cfg, verb, [Step(name, editor_script(script), args) for name, script, args in steps])
+def editor(cfg, verb, steps, render=False):
+    """Run (name, script, args) steps in the editor and return their results in order. `render`: the scripts need a
+    renderer, so a commandlet starts with one, off screen."""
+    return run_steps(cfg, verb, [Step(name, editor_script(script), args, render) for name, script, args in steps])
 
 
 def write_details(cfg, path, value):

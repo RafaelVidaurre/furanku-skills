@@ -6,11 +6,13 @@ import * as Effect from "effect/Effect"
 import { afterSeparator, Argv } from "../../kernel/Argv.ts"
 import { Output } from "../../kernel/cli.ts"
 import { attempt, fail } from "../../kernel/errors.ts"
-import { described, many, maybe, text } from "../cliSupport.ts"
+import { described, flag, many, maybe, text } from "../cliSupport.ts"
 import { lines, pairs } from "../text.ts"
 import { Engine, type EngineOutcome } from "./Engine.ts"
 import { factAt } from "./factPath.ts"
 import { conformFor, type HostedResult, importFor } from "./host.ts"
+import { inventoryFor } from "./inventory.ts"
+import { previewsFor } from "./previews.ts"
 import { type Verb, VERBS } from "./schema.ts"
 
 const stepText = (step: unknown, index: number): string => `  ${index + 1}. ${typeof step === "string" ? step : JSON.stringify(step)}`
@@ -118,6 +120,51 @@ const conform = Command.make("conform-skeleton", {
     "jam engine conform-skeleton --run hero"
   ))
 
+const inventory = Command.make("inventory", {
+  out: text("out", "Project path of the inventory file (default: .engine/inventory.json in the scratch root)"),
+  full: flag("full", "Read every file again instead of reusing what the previous inventory read"),
+  engine: flag("engine", "Let the adapter start the engine for what files cannot give: unreadable files, effective property values"),
+  args: Argument.String("args").pipe(Argument.withDescription("Arguments for the adapter's command; put ones that start with a dash after --"), Argument.variadic())
+}, (input) =>
+  Effect.gen(function*() {
+    const result = yield* inventoryFor({ out: maybe(input.out), full: input.full, engine: input.engine, extra: input.args })
+    const receipt = result.outcome.status === "ran" ? result.outcome.receipt : null
+    // The inventory itself stays in its file; it can be large.
+    yield* (yield* Output).emit({ outcome: result.outcome, path: result.path }, receipt === null
+      ? outcomeText(result.outcome)
+      : lines(
+        `${result.path}: ${receipt["files"]} files, ${receipt["assets"]} assets`,
+        `read ${receipt["read"]}, reused ${receipt["reused"]}, removed ${receipt["removed"]}`,
+        Number(receipt["unread"]) > 0 ? `${receipt["unread"]} files could not be read; "jam engine inventory --engine" reads them through the engine` : null
+      ))
+  })).pipe(described(
+    "Read what the engine's content holds (files, assets, classes, engine metadata, references) into one inventory file. Only files whose size or modification time changed are read again.",
+    "jam engine inventory"
+  ))
+
+const previews = Command.make("previews", {
+  out: text("out", "Project path of the previews folder (default: .engine/previews in the scratch root)"),
+  full: flag("full", "Make every preview again, not only those of files that changed"),
+  noEngine: flag("no-engine", "Make only the previews the engine's files hold themselves; no engine starts"),
+  only: many("only", "Only files whose project path matches this pattern (* within a folder, ** any depth). Repeat for several."),
+  limit: Flag.Int("limit").pipe(Flag.withDescription("Make at most this many previews through the engine in this run"), Flag.optional),
+  args: Argument.String("args").pipe(Argument.withDescription("Arguments for the adapter's command; put ones that start with a dash after --"), Argument.variadic())
+}, (input) =>
+  Effect.gen(function*() {
+    const result = yield* previewsFor({ out: maybe(input.out), full: input.full, engine: !input.noEngine, only: input.only, limit: maybe(input.limit), extra: input.args })
+    const receipt = result.outcome.status === "ran" ? result.outcome.receipt : null
+    yield* (yield* Output).emit({ outcome: result.outcome, dir: result.dir }, receipt === null
+      ? outcomeText(result.outcome)
+      : lines(
+        `${receipt["index"]}: ${receipt["previews"]} files have a preview`,
+        `made ${receipt["made"]}, reused ${receipt["reused"]}, failed ${receipt["failed"]}, no preview for their kind ${receipt["none"]}`,
+        Number(receipt["waiting"]) > 0 ? `${receipt["waiting"]} files wait for the engine; run "jam engine previews" without --no-engine or --limit` : null
+      ))
+  })).pipe(described(
+    "Make a viewable preview of each engine file (an image, a self-contained model or a sound) into one machine-local folder, for the catalog. Only files whose content changed are made again. It may start the engine.",
+    "jam engine previews"
+  ))
+
 const adapterArgs = Argument.String("args").pipe(Argument.withDescription("Arguments for the adapter's command; put ones that start with a dash after --"), Argument.variadic())
 
 const passthrough = (verb: Verb, description: string, example: string) =>
@@ -156,6 +203,8 @@ export const engine = Command.make("engine").pipe(
     passthrough("capture", "Capture a still of an asset or a level from the engine. Prefer one still to a recording.", "jam engine capture <engine asset id> out.png"),
     passthrough("check", "Run the adapter's own project checks; it prints problems in the same shape as the toolkit's checks.", "jam engine check"),
     conform,
+    inventory,
+    previews,
     own,
     docs
   ])

@@ -1028,6 +1028,56 @@ Example:
 jam engine conform-skeleton --run hero
 ```
 
+### engine inventory
+
+Read what the engine's content holds (files, assets, classes, engine metadata, references) into one inventory file. Only files whose size or modification time changed are read again.
+
+```
+jam engine inventory [<args...>] [flags]
+```
+
+| Argument | Meaning |
+|---|---|
+| `args` | Arguments for the adapter's command; put ones that start with a dash after -- |
+
+| Flag | Meaning |
+|---|---|
+| `--out <string>` | Project path of the inventory file (default: .engine/inventory.json in the scratch root) |
+| `--full` | Read every file again instead of reusing what the previous inventory read |
+| `--engine` | Let the adapter start the engine for what files cannot give: unreadable files, effective property values |
+
+Example:
+
+```
+jam engine inventory
+```
+
+### engine previews
+
+Make a viewable preview of each engine file (an image, a self-contained model or a sound) into one machine-local folder, for the catalog. Only files whose content changed are made again. It may start the engine.
+
+```
+jam engine previews [<args...>] [flags]
+```
+
+| Argument | Meaning |
+|---|---|
+| `args` | Arguments for the adapter's command; put ones that start with a dash after -- |
+
+| Flag | Meaning |
+|---|---|
+| `--out <string>` | Project path of the previews folder (default: .engine/previews in the scratch root) |
+| `--full` | Make every preview again, not only those of files that changed |
+| `--no-engine` | Make only the previews the engine's files hold themselves; no engine starts |
+| `--only <string>` (repeatable) | Only files whose project path matches this pattern (* within a folder, ** any depth). Repeat for several. |
+| `--limit <integer>` | Make at most this many previews through the engine in this run |
+
+Example:
+
+```
+jam engine previews
+```
+
 ### engine run
 
 Run a command the adapter adds beside the standard ones (collision fitting, exporting a reference skeleton, ...) and print its one JSON receipt.

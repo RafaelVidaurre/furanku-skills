@@ -1,0 +1,216 @@
+{
+ "assets": {
+  "/Game/Fixture/Blueprints/BP_Hero.BP_Hero_C:DefaultSceneRoot_GEN_VARIABLE": {
+   "bVisualizeComponent": {
+    "error": "SceneComponent: Property 'bVisualizeComponent' for attribute 'bVisualizeComponent' on 'SceneComponent' is protected and cannot be read"
+   }
+  },
+  "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C": {
+   "ArrowComponent": {
+    "error": "BP_Hero_C: Property 'ArrowComponent' for attribute 'ArrowComponent' on 'BP_Hero_C' is protected and cannot be read"
+   },
+   "CapsuleComponent": "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C:CollisionCylinder",
+   "CharacterMovement": "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C:CharMoveComp",
+   "Mesh": "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C:CharacterMesh0",
+   "RootComponent": "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C:CollisionCylinder"
+  },
+  "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C:Arrow": {
+   "AttachParent": {
+    "error": "ArrowComponent: Property 'AttachParent' for attribute 'AttachParent' on 'ArrowComponent' is protected and cannot be read"
+   }
+  },
+  "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C:CharMoveComp": {
+   "MaxWalkSpeed": 777.0
+  },
+  "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C:CharacterMesh0": {
+   "AttachParent": {
+    "error": "SkeletalMeshComponent: Property 'AttachParent' for attribute 'AttachParent' on 'SkeletalMeshComponent' is protected and cannot be read"
+   }
+  },
+  "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C:CollisionCylinder": {
+   "AreaClass": {
+    "error": "CapsuleComponent: Property 'AreaClass' for attribute 'AreaClass' on 'CapsuleComponent' is protected and cannot be read"
+   }
+  },
+  "/Game/Fixture/Blueprints/BP_Pickup.BP_Pickup_C:Body_GEN_VARIABLE": {
+   "StaticMesh": "/Game/Fixture/Meshes/SM_Crate/StaticMeshes/SM_Crate.SM_Crate"
+  },
+  "/Game/Fixture/Blueprints/BP_Pickup.BP_Pickup_C:DefaultSceneRoot_GEN_VARIABLE": {
+   "bVisualizeComponent": {
+    "error": "SceneComponent: Property 'bVisualizeComponent' for attribute 'bVisualizeComponent' on 'SceneComponent' is protected and cannot be read"
+   }
+  },
+  "/Game/Fixture/Blueprints/BP_Pickup.BP_Pickup_C:Trigger_GEN_VARIABLE": {
+   "AreaClass": {
+    "error": "SphereComponent: Property 'AreaClass' for attribute 'AreaClass' on 'SphereComponent' is protected and cannot be read"
+   },
+   "SphereRadius": 50.0
+  },
+  "/Game/Fixture/Blueprints/BP_Pickup.Default__BP_Pickup_C": {},
+  "/Game/Fixture/Blueprints/BP_PickupGold.BP_PickupGold_C:Body_GEN_VARIABLE": {
+   "CastShadow": false
+  },
+  "/Game/Fixture/Blueprints/BP_PickupGold.BP_PickupGold_C:DefaultSceneRoot_GEN_VARIABLE": {},
+  "/Game/Fixture/Blueprints/BP_PickupGold.BP_PickupGold_C:Glow_GEN_VARIABLE": {
+   "Intensity": 1234.0
+  },
+  "/Game/Fixture/Blueprints/BP_PickupGold.Default__BP_PickupGold_C": {},
+  "/Game/Fixture/Data/BPD_Base.Default__BPD_Base_C": {
+   "Icon": "/FixtureKit/Icons/T_Icon.T_Icon",
+   "Tag": "base",
+   "Weight": 2.5
+  },
+  "/Game/Fixture/Data/BPD_Child.Default__BPD_Child_C": {
+   "Damage": 7,
+   "Weight": 4.0
+  },
+  "/Game/Fixture/Data/DA_Child.DA_Child": {
+   "Damage": 9
+  },
+  "/Game/Fixture/Data/DA_Fields.DA_Fields": {
+   "Asset.PrimaryAssetName": "Arena",
+   "Asset.PrimaryAssetType.Name": "Map",
+   "Assets#": 2,
+   "Assets[0].PrimaryAssetName": "Arena",
+   "Assets[0].PrimaryAssetType.Name": "Map",
+   "Assets[1].PrimaryAssetName": "Crate",
+   "Assets[1].PrimaryAssetType.Name": "Item",
+   "Attach": "KEEP_WORLD",
+   "Big": 1099511627776,
+   "Caption": "3 crates",
+   "Cast.Default": true,
+   "Cast.PerPlatform#": 1,
+   "Cast.PerPlatform{Android}": false,
+   "Channel": "ECC_CAMERA",
+   "Count": 42,
+   "Fade.Default": 0.5,
+   "Fade.PerPlatform#": 1,
+   "Fade.PerPlatform{IOS}": 0.25,
+   "Flag": true,
+   "Icon": "/FixtureKit/Icons/T_Icon.T_Icon",
+   "Id": "CrateId",
+   "Kind": "/Script/Engine.StaticMeshActor",
+   "Label": "crate",
+   "Lod.Default": 2,
+   "Lod.PerPlatform#": 1,
+   "Lod.PerPlatform{Android}": 1,
+   "Look": "/Game/Fixture/Materials/MI_Crate.MI_Crate",
+   "Mark": "AE0875226C4A00F6AEE5A29FFA28C9CB",
+   "Mesh": "/Game/Fixture/Meshes/SM_Crate/StaticMeshes/SM_Crate.SM_Crate",
+   "Meshes#": 2,
+   "Meshes[0]": "/Game/Fixture/Meshes/SM_Crate/StaticMeshes/SM_Crate.SM_Crate",
+   "Meshes[1]": null,
+   "Names#": 2,
+   "Names[0]": "alpha",
+   "Names[1]": "beta",
+   "Note": "Handle with care",
+   "Numbers#": 3,
+   "Numbers[0]": 3,
+   "Numbers[1]": 1,
+   "Numbers[2]": 2,
+   "Offset.X": 1.5,
+   "Offset.Y": -2.0,
+   "Offset.Z": 3.0,
+   "Path": "/Game/Fixture/Textures/T_Crate.T_Crate",
+   "Payload.struct": "/Script/CoreUObject.Vector",
+   "Payload.value.X": 1.0,
+   "Payload.value.Y": 2.0,
+   "Payload.value.Z": 3.0,
+   "Payloads#": 2,
+   "Payloads[0].struct": "/Script/Engine.PrimaryAssetRules",
+   "Payloads[0].value.Priority": 4,
+   "Payloads[1]": null,
+   "Place.Rotation.W": 0.7071067811865476,
+   "Place.Rotation.X": 0.0,
+   "Place.Rotation.Y": -0.0,
+   "Place.Rotation.Z": 0.7071067811865475,
+   "Place.Scale3D.X": 2.0,
+   "Place.Scale3D.Y": 2.0,
+   "Place.Scale3D.Z": 2.0,
+   "Place.Translation.X": 1.0,
+   "Place.Translation.Y": 2.0,
+   "Place.Translation.Z": 3.0,
+   "Points#": 2,
+   "Points[0].X": 1.0,
+   "Points[0].Y": 0.0,
+   "Points[0].Z": 0.0,
+   "Points[1].X": 0.0,
+   "Points[1].Y": 1.0,
+   "Points[1].Z": 0.0,
+   "Rate.Default.Denominator": 1,
+   "Rate.Default.Numerator": 30,
+   "Rate.PerPlatform#": 1,
+   "Rate.PerPlatform{Android}.Denominator": 1,
+   "Rate.PerPlatform{Android}.Numerator": 15,
+   "Ratio": 0.25,
+   "Scores#": 2,
+   "Scores{alpha}": 1,
+   "Scores{beta}": 2,
+   "Shade.A": 255,
+   "Shade.B": 30,
+   "Shade.G": 20,
+   "Shade.R": 10,
+   "Share": "25%",
+   "Shout": "CRATE",
+   "Spawn": "/Game/Fixture/Blueprints/BP_Crate.BP_Crate_C",
+   "Spots#": 1,
+   "Spots{door}.X": 4.0,
+   "Spots{door}.Y": 5.0,
+   "Spots{door}.Z": 6.0,
+   "Tint.A": 1.0,
+   "Tint.B": 0.75,
+   "Tint.G": 0.5,
+   "Tint.R": 0.25,
+   "Title": "Crate of things",
+   "Turn.Pitch": 10.0,
+   "Turn.Roll": 30.0,
+   "Turn.Yaw": 20.0
+  },
+  "/Game/Fixture/LS_Shot.LS_Shot": {},
+  "/Game/Fixture/LS_Shot.LS_Shot:MovieSceneMetaData_0": {
+   "Author": "fixture",
+   "Created": "2026.11.18-12.46.15"
+  },
+  "/Game/Fixture/LS_Shot.LS_Shot:MovieSceneShotMetaData_0": {
+   "FavoriteRating": 2,
+   "bIsNoGood": false
+  },
+  "/Game/Fixture/LS_Shot.LS_Shot:MovieScene_0": {
+   "DisplayRate.Numerator": {
+    "error": "MovieScene: Property 'DisplayRate' for attribute 'DisplayRate' on 'MovieScene' is protected and cannot be read"
+   },
+   "NodeGroupCollection": {
+    "error": "MovieScene: Property 'NodeGroupCollection' for attribute 'NodeGroupCollection' on 'MovieScene' is protected and cannot be read"
+   },
+   "PlaybackRange.LowerBound.Type": {
+    "error": "MovieScene: Property 'PlaybackRange' for attribute 'PlaybackRange' on 'MovieScene' is protected and cannot be read"
+   },
+   "PlaybackRange.LowerBound.Value": {
+    "error": "MovieScene: Property 'PlaybackRange' for attribute 'PlaybackRange' on 'MovieScene' is protected and cannot be read"
+   },
+   "PlaybackRange.UpperBound.Type": {
+    "error": "MovieScene: Property 'PlaybackRange' for attribute 'PlaybackRange' on 'MovieScene' is protected and cannot be read"
+   },
+   "PlaybackRange.UpperBound.Value": {
+    "error": "MovieScene: Property 'PlaybackRange' for attribute 'PlaybackRange' on 'MovieScene' is protected and cannot be read"
+   },
+   "Signature": {
+    "error": "MovieScene: Property 'Signature' for attribute 'Signature' on 'MovieScene' is protected and cannot be read"
+   },
+   "TickResolution.Numerator": {
+    "error": "MovieScene: Property 'TickResolution' for attribute 'TickResolution' on 'MovieScene' is protected and cannot be read"
+   }
+  },
+  "/Game/Fixture/LS_Shot.LS_Shot:MovieScene_0.NodeGroupCollection": {},
+  "/Game/Fixture/PAL_Fixture.PAL_Fixture": {
+   "ExplicitAssets#": 1,
+   "ExplicitAssets[0]": "/Game/Fixture/Meshes/SM_Crate/StaticMeshes/SM_Crate.SM_Crate",
+   "ExplicitBlueprints#": 1,
+   "ExplicitBlueprints[0]": "/Game/Fixture/Blueprints/BP_Crate.BP_Crate_C",
+   "Rules.CookRule": "ALWAYS_COOK",
+   "Rules.Priority": 3,
+   "bLabelAssetsInMyDirectory": true
+  }
+ },
+ "engine": "5.9.0-60351404+++UE5+Release-5.9"
+}

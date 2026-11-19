@@ -45,7 +45,7 @@ jam catalog run review.decide --actor-kind human \
   "display": { "pixelArt": false } }
 ```
 
-- `plugins`: in load order. An entry is a built-in name (`manifest`, or one the toolkit registers, such as `jam`) or a project-relative module (`./catalog/storybook.ts`, `.ts`, `.mjs` or `.js`), or `{ "plugin": <name or path>, "options": { … } }` to give that plugin its options (it sees only its own). The built-in `media-core` plugin is always loaded first. Without a configuration file the catalog uses `["manifest"]`.
+- `plugins`: in load order. An entry is a built-in name (`manifest`, or one the toolkit registers: `jam` for runs, `engine` for the game engine's content, described in `docs/catalog-integration.md`) or a project-relative module (`./catalog/storybook.ts`, `.ts`, `.mjs` or `.js`), or `{ "plugin": <name or path>, "options": { … } }` to give that plugin its options (it sees only its own). The built-in `media-core` plugin is always loaded first. Without a configuration file the catalog uses `["manifest"]`.
 - `review.resolver`: `latest` (default), `strictest`, or a resolver a plugin registers. A resolver picks the decision that counts for a part; it never changes a decision.
 - `review.referenceRoles`: roles that are supporting material. They are left out of new submissions and decisions; older evidence stays viewable and does not count in review totals.
 - `review.verdicts`: the verdicts reviewers may give, from `approved`, `changes`, `rejected`.
@@ -150,7 +150,7 @@ The built-in **manifest** plugin reads `catalog.manifest.json` (option `file`): 
 
 ### Relations
 
-`{ name, label, inverseLabel, from(unit) }` returns the ids a unit refers to. `unit.get` returns `relations`: one entry per direction that has units, `{ name, direction: "out" | "in", label, units: [{ id, name, exists, thumb }] }`, where the `in` side is computed from every other unit's `from`. No unit stores its referrers.
+`{ name, label, inverseLabel, from(unit) }` returns the ids a unit refers to. `unit.get` returns `relations`: one entry per direction that has units, `{ name, direction: "out" | "in", label, units: [{ id, name, exists, thumb }] }`, where the `in` side is computed from every other unit's `from`. No unit stores its referrers. The page shows both directions in a unit's Related block; a relation whose units a `refs` attribute shown with the unit's details (not a derived one) already lists is not shown twice.
 
 ### Media kinds and probes
 
@@ -176,7 +176,7 @@ A plugin action is named `<plugin>.<operation>` (`storybook.outline`). An action
 
 ### Scopes, resolvers and browser modules
 
-- `scopes`: `[{ id, label, description }]`, the top-level split of units, in the order the page shows them. When no plugin registers any, the defaults are `main` ("Main") and `material` ("Material"); with a single scope the page has no split. An id is a section of the page and a segment of its addresses (`#/<scope>/u/<unit>`): lower-case letters, digits and hyphens, and none of `collections`, `assets`, `reviews`, `notes`, `organization`, `inbox`. `unit.search` takes `scope` (and `collection.search` too: collections with a member in the scope); `unit.get` reports `unit.scope`.
+- `scopes`: `[{ id, label, description }]`, the top-level split of units, in the order the page shows them. When no plugin registers any, the defaults are `main` ("Main") and `material` ("Material"). The page shows only scopes that hold units (the first one when none does) and opens on the first of those; with a single scope shown the page has no split. An id is a section of the page and a segment of its addresses (`#/<scope>/u/<unit>`): lower-case letters, digits and hyphens, and none of `collections`, `assets`, `reviews`, `notes`, `organization`, `inbox`. `unit.search` takes `scope` (and `collection.search` too: collections with a member in the scope); `unit.get` reports `unit.scope`.
 - `resolvers`: `{ <name>: (decisions, part) => decision }` (type `Resolver`). It receives the time-ordered `Decision`s that address one part and returns the deciding one.
 - `browserModules`: `{ <name>: "<browser module>" }`, one namespace for inspector, panel and collection preview modules. A type's inspector or panel names one with `module` and the function to call with `export` (default: the default export); a collection kind names one as `preview.module`. The `schema` action lists each as `browserModules: { <name>: <url> }` (null when the declared file is missing).
 
@@ -265,7 +265,7 @@ Calling a name from before this rule fails `not_found` with a fix naming its rep
 
 ### Using the engine from code
 
-[`Catalog.ts`](Catalog.ts) is the facade. `Catalog.layer` provides `Catalog` and `CatalogDiagnostics` for one project and needs the kernel's `ProjectFiles`, `Git` and `Ids`; it is a value, so keep it: a layer is one catalog, and building it twice builds two. `Catalog.layerWith({ plugins, defaults, overrides })` also registers plugins by name (how the toolkit adds `jam`), sets `defaults` (the plugins of a project without `catalog.config.json`, in place of `["manifest"]`) and applies command-line overrides. `CatalogSetup` (what `layerWith` provides) and `Catalog.layerNoDeps` are toolkit-internal.
+[`Catalog.ts`](Catalog.ts) is the facade. `Catalog.layer` provides `Catalog` and `CatalogDiagnostics` for one project and needs the kernel's `ProjectFiles`, `Git` and `Ids`; it is a value, so keep it: a layer is one catalog, and building it twice builds two. `Catalog.layerWith({ plugins, defaults, overrides })` also registers plugins by name (how the toolkit adds `jam` and `engine`), sets `defaults` (the plugins of a project without `catalog.config.json`, in place of `["manifest"]`) and applies command-line overrides. `CatalogSetup` (what `layerWith` provides) and `Catalog.layerNoDeps` are toolkit-internal.
 
 ```ts
 const program = Effect.gen(function*() {

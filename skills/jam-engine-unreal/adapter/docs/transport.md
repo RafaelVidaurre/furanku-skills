@@ -30,7 +30,9 @@ Keep host names, addresses and credentials out of tracked files; this file is th
 { "kind": "commandlet", "editor": "<path to UnrealEditor-Cmd>", "args": ["-unattended", "-nosplash", "-nullrhi", "-stdout"] }
 ```
 
-It runs `<editor> <project> -run=pythonscript -script=<file>` (Epic: "runs quickly and can run your scripts in headless mode"; it "does not load levels automatically", and the editor exits after the script). It needs the Python Editor Script Plugin enabled and no resident editor holding the project. `-nullrhi` removes the renderer, so nothing run this way is visual evidence. Scripts that wait across editor frames or call editor tools are refused on this route: collision measure and fit, random-variant sound sources, bones in play.
+It runs `<editor> <project> -run=pythonscript -script=<file>` (Epic: "runs quickly and can run your scripts in headless mode"; it "does not load levels automatically", and the editor exits after the script). It needs the Python Editor Script Plugin enabled and no resident editor holding the project. `-nullrhi` removes the renderer, so nothing run this way is visual evidence.
+
+A script that needs a renderer (the previews' baked materials, [previews.md](previews.md)) starts the commandlet with `args` minus `-nullrhi`, plus `-AllowCommandletRendering -RenderOffscreen`: the editor renders on the GPU with no window. Set `"renderArgs": [...]` to give that launch its own full argument list. Scripts that wait across editor frames or call editor tools are refused on this route: collision measure and fit, random-variant sound sources, bones in play.
 
 **`command`** hands the script to a program of the project's own that reaches a running editor:
 

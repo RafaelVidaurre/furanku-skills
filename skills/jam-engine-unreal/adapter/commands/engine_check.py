@@ -10,6 +10,9 @@
         during Play In Editor, every character mesh has the reference mesh's bones in the same order
     engine_check.py --kind collision /Game/<static mesh> ...
         each mesh's simple collision covers its render mesh (docs/collision.md)
+    engine_check.py --kind inventory [/Game/<folder or package> ...]
+        the package reader agrees with the editor's Asset Registry on classes, tags and package references
+        (docs/inventory.md); run it after an engine upgrade
 Common: [--report <file.json>] writes everything measured. Prints {"problems": [{"message", "fix"?}], "report"?: "<file>"}.
 """
 import argparse
@@ -18,7 +21,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from jam_unreal import cli, coverage, joints, machine_paths, paths  # noqa: E402
+from jam_unreal import cli, coverage, inventory, joints, machine_paths, paths  # noqa: E402
 from jam_unreal.errors import AdapterError  # noqa: E402
 
 
@@ -110,9 +113,19 @@ def check_collision(cfg, a):
     return problems, result
 
 
+def check_inventory(cfg, a):
+    result, _ = inventory.scan(cfg)
+    scope = [x.rstrip("/") for x in a.assets]
+    entries = [e for e in result["files"].values() if not scope or any(e["id"] == x or e["id"].startswith(x + "/") for x in scope)]
+    tags = {asset["id"]: sorted(asset.get("tags", {})) for e in entries for asset in e.get("assets", [])}
+    reported, = cli.editor(cfg, "check-inventory", [("inventory", "inventory", {"roots": [r["id"] for r in result["roots"]], "packages": [e["id"] for e in entries], "tags": tags})])
+    problems = inventory.compare({"files": {e["id"]: e for e in entries}}, reported["packages"])
+    return problems, {"engine": reported.get("engine"), "packages": len(entries), "differences": len(problems)}
+
+
 def build(cfg, argv):
     p = argparse.ArgumentParser(prog="engine_check.py")
-    p.add_argument("--kind", required=True, choices=("sources", "skinned", "bones-in-game", "collision"))
+    p.add_argument("--kind", required=True, choices=("sources", "skinned", "bones-in-game", "collision", "inventory"))
     p.add_argument("assets", nargs="*")
     for flag in ("--source", "--name", "--skeleton", "--dcc-joints", "--report"):
         p.add_argument(flag)
@@ -120,7 +133,7 @@ def build(cfg, argv):
     a = p.parse_args(argv)
     if a.kind in ("sources", "collision") and not a.assets:
         raise AdapterError("invalid", "--kind %s needs at least one asset id" % a.kind)
-    problems, report = {"sources": check_sources, "skinned": check_skinned, "bones-in-game": check_bones, "collision": check_collision}[a.kind](cfg, a)
+    problems, report = {"sources": check_sources, "skinned": check_skinned, "bones-in-game": check_bones, "collision": check_collision, "inventory": check_inventory}[a.kind](cfg, a)
     receipt = {"problems": problems}
     if a.report:
         cli.write_details(cfg, paths.portable(a.report, "--report"), report)

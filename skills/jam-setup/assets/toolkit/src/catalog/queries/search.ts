@@ -165,6 +165,8 @@ const searchIn = (p: Projection, section: Section, input: SearchInput) =>
       const counts = new Map<string, number>()
       for (const entry of all) if (passes(entry, key)) for (const value of values(entry, key)) counts.set(value, (counts.get(value) ?? 0) + 1)
       for (const value of filters[key] ?? []) if (!counts.has(value)) counts.set(value, 0)
+      // An attribute filter of types this section does not hold is not offered here.
+      if (key.startsWith("attr.") && counts.size === 0) continue
       facetOut[key] = {
         label: facet.label,
         tree: !!facet.tree,

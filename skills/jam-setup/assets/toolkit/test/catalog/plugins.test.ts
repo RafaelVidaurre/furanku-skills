@@ -447,3 +447,18 @@ test("a version 2 manifest or unit file that still uses views or role kinds is a
   assert.equal((await app.run("unit.get", { id: "lore/b" })).unit.name, "B", "the units still load")
   cleanup(dir)
 })
+
+test("an edit to a module a plugin imports from the project reloads the plugin, as an edit to the plugin does", async () => {
+  const dir = tmp("cc-imports-")
+  git(dir, "init", "-q")
+  write(dir, "catalog.config.json", { version: 3, plugins: ["./catalog/p.mjs"] })
+  write(dir, "catalog/p.mjs", `import { label } from "./lib/label.mjs"
+export default { name: "p", sources: [{ name: "one", inputs: () => ["catalog"], load: () => ({ types: { thing: { label: "Thing" } }, units: [{ id: "a", type: "thing", name: label() }] }) }] }
+`)
+  write(dir, "catalog/lib/label.mjs", `export const label = () => "first"\n`)
+  const app = await open(dir)
+  assert.equal((await app.run("unit.get", { id: "a" })).unit.name, "first")
+  write(dir, "catalog/lib/label.mjs", `export const label = () => "second"\n`)
+  assert.equal((await app.run("unit.get", { id: "a" })).unit.name, "second")
+  cleanup(dir)
+})

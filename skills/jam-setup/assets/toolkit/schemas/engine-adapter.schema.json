@@ -520,7 +520,7 @@
         "commands": {
           "type": "object",
           "additionalProperties": true,
-          "description": "By name. The standard commands are import, inspect, references, capture, check and conform-skeleton; any other name is the adapter's own, run with `jam engine run <name>`. A command prints one JSON receipt and exits 0, or exits 3 with a handoff. null (or absent) means: done by hand, following the matching guidance document."
+          "description": "By name. The standard commands are import, inspect, references, capture, check, conform-skeleton, inventory and previews; any other name is the adapter's own, run with `jam engine run <name>`. A command prints one JSON receipt and exits 0, or exits 3 with a handoff. null (or absent) means: done by hand, following the matching guidance document."
         },
         "docs": {
           "type": "object",

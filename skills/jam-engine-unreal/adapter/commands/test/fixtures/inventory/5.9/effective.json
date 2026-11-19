@@ -1,0 +1,721 @@
+{
+ "calls": [
+  {
+   "result": {
+    "assets": {
+     "/Game/Fixture/Blueprints/BP_Crate.BP_Crate": {
+      "components": [
+       {
+        "class": "/Script/Engine.SceneComponent",
+        "fields": {
+         "bVisualizeComponent": true
+        },
+        "name": "DefaultSceneRoot",
+        "path": "/Game/Fixture/Blueprints/BP_Crate.BP_Crate_C:DefaultSceneRoot_GEN_VARIABLE"
+       }
+      ],
+      "fields": {
+       "InitialLifeSpan": 0.0,
+       "Tags": []
+      }
+     },
+     "/Game/Fixture/Blueprints/BP_Hero.BP_Hero": {
+      "components": [
+       {
+        "class": "/Script/Engine.CapsuleComponent",
+        "fieldReferences": [
+         {
+          "kind": "native",
+          "property": "AreaClass",
+          "to": "/Script/NavigationSystem.NavArea_Obstacle"
+         }
+        ],
+        "fields": {
+         "AreaClass": {
+          "class": "/Script/CoreUObject.Class",
+          "object": "/Script/NavigationSystem.NavArea_Obstacle"
+         }
+        },
+        "inherited": true,
+        "name": "CapsuleComponent",
+        "native": true,
+        "path": "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C:CollisionCylinder"
+       },
+       {
+        "class": "/Script/Engine.SkeletalMeshComponent",
+        "fieldReferences": [
+         {
+          "kind": "hard",
+          "property": "AttachParent",
+          "to": "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C:CollisionCylinder"
+         }
+        ],
+        "fields": {
+         "AttachParent": {
+          "class": "/Script/Engine.CapsuleComponent",
+          "object": "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C:CollisionCylinder"
+         }
+        },
+        "inherited": true,
+        "name": "Mesh",
+        "native": true,
+        "path": "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C:CharacterMesh0"
+       },
+       {
+        "class": "/Script/Engine.CharacterMovementComponent",
+        "fields": {
+         "MaxWalkSpeed": 777.0
+        },
+        "inherited": true,
+        "name": "CharacterMovement",
+        "native": true,
+        "path": "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C:CharMoveComp"
+       }
+      ],
+      "fields": {
+       "InitialLifeSpan": 0.0,
+       "Tags": []
+      }
+     },
+     "/Game/Fixture/Blueprints/BP_Pickup.BP_Pickup": {
+      "components": [
+       {
+        "class": "/Script/Engine.SceneComponent",
+        "fields": {
+         "bVisualizeComponent": true
+        },
+        "name": "DefaultSceneRoot",
+        "path": "/Game/Fixture/Blueprints/BP_Pickup.BP_Pickup_C:DefaultSceneRoot_GEN_VARIABLE"
+       },
+       {
+        "class": "/Script/Engine.StaticMeshComponent",
+        "fieldReferences": [
+         {
+          "kind": "hard",
+          "property": "StaticMesh",
+          "to": "/Game/Fixture/Meshes/SM_Crate/StaticMeshes/SM_Crate.SM_Crate"
+         }
+        ],
+        "fields": {
+         "StaticMesh": {
+          "class": "/Script/Engine.StaticMesh",
+          "object": "/Game/Fixture/Meshes/SM_Crate/StaticMeshes/SM_Crate.SM_Crate"
+         }
+        },
+        "name": "Body",
+        "path": "/Game/Fixture/Blueprints/BP_Pickup.BP_Pickup_C:Body_GEN_VARIABLE"
+       },
+       {
+        "class": "/Script/Engine.SphereComponent",
+        "fieldReferences": [
+         {
+          "kind": "native",
+          "property": "AreaClass",
+          "to": "/Script/NavigationSystem.NavArea_Obstacle"
+         }
+        ],
+        "fields": {
+         "AreaClass": {
+          "class": "/Script/CoreUObject.Class",
+          "object": "/Script/NavigationSystem.NavArea_Obstacle"
+         },
+         "SphereRadius": 50.0
+        },
+        "name": "Trigger",
+        "path": "/Game/Fixture/Blueprints/BP_Pickup.BP_Pickup_C:Trigger_GEN_VARIABLE"
+       }
+      ],
+      "fields": {
+       "InitialLifeSpan": 0.0,
+       "Tags": []
+      }
+     },
+     "/Game/Fixture/Blueprints/BP_PickupGold.BP_PickupGold": {
+      "components": [
+       {
+        "class": "/Script/Engine.SceneComponent",
+        "fields": {},
+        "inherited": true,
+        "name": "DefaultSceneRoot",
+        "path": "/Game/Fixture/Blueprints/BP_PickupGold.BP_PickupGold_C:ICH-DefaultSceneRoot_GEN_VARIABLE"
+       },
+       {
+        "class": "/Script/Engine.StaticMeshComponent",
+        "fields": {
+         "CastShadow": false
+        },
+        "from": "/Game/Fixture/Blueprints/BP_Pickup.BP_Pickup_C",
+        "inherited": true,
+        "name": "Body",
+        "path": "/Game/Fixture/Blueprints/BP_PickupGold.BP_PickupGold_C:Body_GEN_VARIABLE"
+       },
+       {
+        "class": "/Script/Engine.SphereComponent",
+        "fields": {},
+        "from": "/Game/Fixture/Blueprints/BP_Pickup.BP_Pickup_C",
+        "inherited": true,
+        "name": "Trigger",
+        "path": "/Game/Fixture/Blueprints/BP_PickupGold.BP_PickupGold_C:Trigger_GEN_VARIABLE"
+       },
+       {
+        "class": "/Script/Engine.PointLightComponent",
+        "fields": {
+         "Intensity": 1234.0
+        },
+        "name": "Glow",
+        "path": "/Game/Fixture/Blueprints/BP_PickupGold.BP_PickupGold_C:Glow_GEN_VARIABLE"
+       }
+      ],
+      "fields": {
+       "InitialLifeSpan": 0.0,
+       "Tags": []
+      }
+     },
+     "/Game/Fixture/Data/BPD_Base.BPD_Base": {
+      "components": [],
+      "fieldReferences": [
+       {
+        "kind": "soft",
+        "property": "Icon",
+        "to": "/FixtureKit/Icons/T_Icon.T_Icon"
+       }
+      ],
+      "fields": {
+       "Icon": {
+        "soft": "/FixtureKit/Icons/T_Icon.T_Icon"
+       },
+       "Tag": "base",
+       "Weight": 2.5
+      }
+     },
+     "/Game/Fixture/Data/BPD_Child.BPD_Child": {
+      "components": [],
+      "fieldReferences": [
+       {
+        "kind": "soft",
+        "property": "Icon",
+        "to": "/FixtureKit/Icons/T_Icon.T_Icon"
+       }
+      ],
+      "fields": {
+       "Damage": 7,
+       "Icon": {
+        "soft": "/FixtureKit/Icons/T_Icon.T_Icon"
+       },
+       "Tag": "base",
+       "Weight": 4.0
+      }
+     },
+     "/Game/Fixture/Data/BPD_Fields.BPD_Fields": {
+      "components": [],
+      "fields": {
+       "Asset": {
+        "PrimaryAssetName": "None",
+        "PrimaryAssetType": {
+         "Name": "None"
+        }
+       },
+       "Assets": [],
+       "Attach": "EAttachmentRule::KeepRelative",
+       "Big": 0,
+       "Caption": "",
+       "Cast": {
+        "Default": false,
+        "PerPlatform": {}
+       },
+       "Channel": "ECC_WorldStatic",
+       "Count": 0,
+       "Fade": {
+        "Default": 0.0,
+        "PerPlatform": {}
+       },
+       "Flag": false,
+       "Icon": null,
+       "Id": "None",
+       "Kind": null,
+       "Label": "",
+       "Lod": {
+        "Default": 0,
+        "PerPlatform": {}
+       },
+       "Look": null,
+       "Mark": "00000000000000000000000000000000",
+       "Mesh": null,
+       "Meshes": [],
+       "Names": [],
+       "Note": "",
+       "Numbers": [],
+       "Offset": {
+        "X": 0.0,
+        "Y": 0.0,
+        "Z": 0.0
+       },
+       "Path": null,
+       "Payload": null,
+       "Payloads": [],
+       "Place": {
+        "Rotation": {
+         "W": 1.0,
+         "X": 0.0,
+         "Y": 0.0,
+         "Z": 0.0
+        },
+        "Scale3D": {
+         "X": 1.0,
+         "Y": 1.0,
+         "Z": 1.0
+        },
+        "Translation": {
+         "X": 0.0,
+         "Y": 0.0,
+         "Z": 0.0
+        }
+       },
+       "Points": [],
+       "Rate": {
+        "Default": {
+         "Denominator": 1,
+         "Numerator": 30
+        },
+        "PerPlatform": {}
+       },
+       "Ratio": 0.0,
+       "Scores": [],
+       "Shade": {
+        "A": 0,
+        "B": 0,
+        "G": 0,
+        "R": 0
+       },
+       "Share": "",
+       "Shout": "",
+       "Spawn": null,
+       "Spots": [],
+       "Tint": {
+        "A": 0.0,
+        "B": 0.0,
+        "G": 0.0,
+        "R": 0.0
+       },
+       "Title": "",
+       "Turn": {
+        "Pitch": 0.0,
+        "Roll": 0.0,
+        "Yaw": 0.0
+       }
+      }
+     },
+     "/Game/Fixture/Data/DA_Child.DA_Child": {
+      "fieldReferences": [
+       {
+        "kind": "soft",
+        "property": "Icon",
+        "to": "/FixtureKit/Icons/T_Icon.T_Icon"
+       }
+      ],
+      "fields": {
+       "Damage": 9,
+       "Icon": {
+        "soft": "/FixtureKit/Icons/T_Icon.T_Icon"
+       },
+       "Tag": "base",
+       "Weight": 4.0
+      }
+     },
+     "/Game/Fixture/Data/DA_Fields.DA_Fields": {
+      "fieldReferences": [
+       {
+        "kind": "soft",
+        "property": "Icon",
+        "to": "/FixtureKit/Icons/T_Icon.T_Icon"
+       },
+       {
+        "kind": "native",
+        "property": "Kind",
+        "to": "/Script/Engine.StaticMeshActor"
+       },
+       {
+        "kind": "hard",
+        "property": "Look",
+        "to": "/Game/Fixture/Materials/MI_Crate.MI_Crate"
+       },
+       {
+        "kind": "hard",
+        "property": "Mesh",
+        "to": "/Game/Fixture/Meshes/SM_Crate/StaticMeshes/SM_Crate.SM_Crate"
+       },
+       {
+        "kind": "hard",
+        "property": "Meshes[0]",
+        "to": "/Game/Fixture/Meshes/SM_Crate/StaticMeshes/SM_Crate.SM_Crate"
+       },
+       {
+        "kind": "soft",
+        "property": "Path",
+        "to": "/Game/Fixture/Textures/T_Crate.T_Crate"
+       },
+       {
+        "kind": "soft",
+        "property": "Spawn",
+        "to": "/Game/Fixture/Blueprints/BP_Crate.BP_Crate_C"
+       }
+      ],
+      "fields": {
+       "Asset": {
+        "PrimaryAssetName": "Arena",
+        "PrimaryAssetType": {
+         "Name": "Map"
+        }
+       },
+       "Assets": [
+        {
+         "PrimaryAssetName": "Arena",
+         "PrimaryAssetType": {
+          "Name": "Map"
+         }
+        },
+        {
+         "PrimaryAssetName": "Crate",
+         "PrimaryAssetType": {
+          "Name": "Item"
+         }
+        }
+       ],
+       "Attach": "EAttachmentRule::KeepWorld",
+       "Big": 1099511627776,
+       "Caption": "3 crates",
+       "Cast": {
+        "Default": true,
+        "PerPlatform": {
+         "Android": false
+        }
+       },
+       "Channel": "ECC_Camera",
+       "Count": 42,
+       "Fade": {
+        "Default": 0.5,
+        "PerPlatform": {
+         "IOS": 0.25
+        }
+       },
+       "Flag": true,
+       "Icon": {
+        "soft": "/FixtureKit/Icons/T_Icon.T_Icon"
+       },
+       "Id": "CrateId",
+       "Kind": {
+        "class": "/Script/CoreUObject.Class",
+        "object": "/Script/Engine.StaticMeshActor"
+       },
+       "Label": "crate",
+       "Lod": {
+        "Default": 2,
+        "PerPlatform": {
+         "Android": 1
+        }
+       },
+       "Look": {
+        "class": "/Script/Engine.MaterialInstanceConstant",
+        "object": "/Game/Fixture/Materials/MI_Crate.MI_Crate"
+       },
+       "Mark": "AE0875226C4A00F6AEE5A29FFA28C9CB",
+       "Mesh": {
+        "class": "/Script/Engine.StaticMesh",
+        "object": "/Game/Fixture/Meshes/SM_Crate/StaticMeshes/SM_Crate.SM_Crate"
+       },
+       "Meshes": [
+        {
+         "class": "/Script/Engine.StaticMesh",
+         "object": "/Game/Fixture/Meshes/SM_Crate/StaticMeshes/SM_Crate.SM_Crate"
+        },
+        null
+       ],
+       "Names": [
+        "alpha",
+        "beta"
+       ],
+       "Note": "Handle with care",
+       "Numbers": [
+        3,
+        1,
+        2
+       ],
+       "Offset": {
+        "X": 1.5,
+        "Y": -2.0,
+        "Z": 3.0
+       },
+       "Path": {
+        "soft": "/Game/Fixture/Textures/T_Crate.T_Crate"
+       },
+       "Payload": {
+        "struct": "/Script/CoreUObject.Vector",
+        "value": {
+         "X": 1.0,
+         "Y": 2.0,
+         "Z": 3.0
+        }
+       },
+       "Payloads": [
+        {
+         "struct": "/Script/Engine.PrimaryAssetRules",
+         "value": {
+          "ChunkId": -1,
+          "CookRule": "EPrimaryAssetCookRule::Unknown",
+          "Priority": 4,
+          "bApplyRecursively": true
+         }
+        },
+        null
+       ],
+       "Place": {
+        "Rotation": {
+         "W": 0.7071067811865476,
+         "X": 0.0,
+         "Y": -0.0,
+         "Z": 0.7071067811865475
+        },
+        "Scale3D": {
+         "X": 2.0,
+         "Y": 2.0,
+         "Z": 2.0
+        },
+        "Translation": {
+         "X": 1.0,
+         "Y": 2.0,
+         "Z": 3.0
+        }
+       },
+       "Points": [
+        {
+         "X": 1.0,
+         "Y": 0.0,
+         "Z": 0.0
+        },
+        {
+         "X": 0.0,
+         "Y": 1.0,
+         "Z": 0.0
+        }
+       ],
+       "Rate": {
+        "Default": {
+         "Denominator": 1,
+         "Numerator": 30
+        },
+        "PerPlatform": {
+         "Android": {
+          "Denominator": 1,
+          "Numerator": 15
+         }
+        }
+       },
+       "Ratio": 0.25,
+       "Scores": [
+        {
+         "key": "alpha",
+         "value": 1
+        },
+        {
+         "key": "beta",
+         "value": 2
+        }
+       ],
+       "Shade": {
+        "A": 255,
+        "B": 30,
+        "G": 20,
+        "R": 10
+       },
+       "Share": "25%",
+       "Shout": "CRATE",
+       "Spawn": {
+        "soft": "/Game/Fixture/Blueprints/BP_Crate.BP_Crate_C"
+       },
+       "Spots": [
+        {
+         "key": "door",
+         "value": {
+          "X": 4.0,
+          "Y": 5.0,
+          "Z": 6.0
+         }
+        }
+       ],
+       "Tint": {
+        "A": 1.0,
+        "B": 0.75,
+        "G": 0.5,
+        "R": 0.25
+       },
+       "Title": "Crate of things",
+       "Turn": {
+        "Pitch": 10.0,
+        "Roll": 30.0,
+        "Yaw": 20.0
+       }
+      }
+     },
+     "/Game/Fixture/LS_Shot.LS_Shot": {
+      "components": [
+       {
+        "class": "/Script/MovieScene.MovieScene",
+        "fieldReferences": [
+         {
+          "kind": "hard",
+          "property": "NodeGroupCollection",
+          "to": "/Game/Fixture/LS_Shot.LS_Shot:MovieScene_0.NodeGroupCollection"
+         }
+        ],
+        "fields": {
+         "DisplayRate": {
+          "Numerator": 30
+         },
+         "EditorData": {},
+         "NodeGroupCollection": {
+          "class": "/Script/MovieScene.MovieSceneNodeGroupCollection",
+          "object": "/Game/Fixture/LS_Shot.LS_Shot:MovieScene_0.NodeGroupCollection"
+         },
+         "PlaybackRange": {
+          "LowerBound": {
+           "Type": "Inclusive",
+           "Value": 0
+          },
+          "UpperBound": {
+           "Type": "Exclusive",
+           "Value": 120000
+          }
+         },
+         "Signature": "908DB1267D4DA43D9F00A48A058952E4",
+         "TickResolution": {
+          "Numerator": 24000
+         }
+        },
+        "name": "MovieScene_0",
+        "path": "/Game/Fixture/LS_Shot.LS_Shot:MovieScene_0"
+       },
+       {
+        "class": "/Script/MovieScene.MovieSceneMetaData",
+        "fields": {
+         "Author": "fixture",
+         "Created": 639306027755360000
+        },
+        "name": "MovieSceneMetaData_0",
+        "path": "/Game/Fixture/LS_Shot.LS_Shot:MovieSceneMetaData_0"
+       },
+       {
+        "class": "/Script/MovieScene.MovieSceneNodeGroupCollection",
+        "fields": {},
+        "name": "MovieScene_0.NodeGroupCollection",
+        "path": "/Game/Fixture/LS_Shot.LS_Shot:MovieScene_0.NodeGroupCollection"
+       },
+       {
+        "class": "/Script/MovieScene.MovieSceneShotMetaData",
+        "fields": {
+         "FavoriteRating": 2,
+         "bIsNoGood": false
+        },
+        "name": "MovieSceneShotMetaData_0",
+        "path": "/Game/Fixture/LS_Shot.LS_Shot:MovieSceneShotMetaData_0"
+       }
+      ],
+      "fields": {
+       "AssetUserData": [],
+       "MetaDataObjects": {
+        "unparsed": "MetaDataObjects (not readable from the editor's Python)"
+       },
+       "MovieScene": {
+        "unparsed": "MovieScene (not readable from the editor's Python)"
+       },
+       "Signature": {
+        "unparsed": "Signature (not readable from the editor's Python)"
+       }
+      }
+     }
+    },
+    "engine": "5.9.0-60351404+++UE5+Release-5.9",
+    "parents": {
+     "/Script/Engine.Actor": "/Script/CoreUObject.Object",
+     "/Script/Engine.Character": "/Script/Engine.Pawn",
+     "/Script/Engine.Pawn": "/Script/Engine.Actor",
+     "/Script/LevelSequence.LevelSequence": "/Script/MovieScene.MovieSceneSequence",
+     "/Script/MovieScene.MovieSceneSequence": "/Script/MovieScene.MovieSceneSignedObject",
+     "/Script/MovieScene.MovieSceneSignedObject": "/Script/CoreUObject.Object"
+    }
+   },
+   "step": "fields"
+  },
+  {
+   "result": {
+    "assets": {
+     "/Game/Fixture/Blueprints/BP_Hero.BP_Hero": {
+      "components": [
+       {
+        "class": "/Script/Engine.CapsuleComponent",
+        "fieldReferences": [
+         {
+          "kind": "native",
+          "property": "AreaClass",
+          "to": "/Script/NavigationSystem.NavArea_Obstacle"
+         }
+        ],
+        "fields": {
+         "AreaClass": {
+          "class": "/Script/CoreUObject.Class",
+          "object": "/Script/NavigationSystem.NavArea_Obstacle"
+         }
+        },
+        "inherited": true,
+        "name": "CapsuleComponent",
+        "native": true,
+        "path": "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C:CollisionCylinder"
+       },
+       {
+        "class": "/Script/Engine.SkeletalMeshComponent",
+        "fieldReferences": [
+         {
+          "kind": "hard",
+          "property": "AttachParent",
+          "to": "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C:CollisionCylinder"
+         }
+        ],
+        "fields": {
+         "AttachParent": {
+          "class": "/Script/Engine.CapsuleComponent",
+          "object": "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C:CollisionCylinder"
+         }
+        },
+        "inherited": true,
+        "name": "Mesh",
+        "native": true,
+        "path": "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C:CharacterMesh0"
+       },
+       {
+        "class": "/Script/Engine.CharacterMovementComponent",
+        "fields": {
+         "MaxWalkSpeed": 777.0
+        },
+        "inherited": true,
+        "name": "CharacterMovement",
+        "native": true,
+        "path": "/Game/Fixture/Blueprints/BP_Hero.Default__BP_Hero_C:CharMoveComp"
+       }
+      ],
+      "fields": {
+       "InitialLifeSpan": 0.0,
+       "Tags": []
+      }
+     }
+    },
+    "engine": "5.9.0-60351404+++UE5+Release-5.9",
+    "parents": {
+     "/Script/Engine.Actor": "/Script/CoreUObject.Object",
+     "/Script/Engine.Character": "/Script/Engine.Pawn",
+     "/Script/Engine.Pawn": "/Script/Engine.Actor"
+    }
+   },
+   "step": "fields"
+  }
+ ],
+ "engine": "5.9.0-60351404+++UE5+Release-5.9"
+}

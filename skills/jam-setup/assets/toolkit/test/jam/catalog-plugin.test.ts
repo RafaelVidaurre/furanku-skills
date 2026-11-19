@@ -95,11 +95,12 @@ process.on("exit", () => process.stderr.write("\\nLOADED " + JSON.stringify([...
     return (JSON.parse(result.stderr.slice(result.stderr.lastIndexOf("LOADED ") + 7)) as ReadonlyArray<string>).filter((url) => url.includes("/src/")).map((url) => url.slice(url.indexOf("/src/") + 1))
   }
 
-  it("a catalog that does not list jam loads none of the ledger; a ledger command loads none of the catalog", async () => {
+  it("a catalog that lists neither jam nor engine loads nothing behind them; a ledger command loads none of the catalog", async () => {
     const manifestOnly = catalogProject({ plugins: ["manifest"], files: { "catalog.manifest.json": JSON.stringify(MANIFEST), "kit/plank.glb": await glb(), "kit/plank.png": png(4, 4) } })
     const catalogModules = loaded(manifestOnly, "catalog", "run", "unit.get", "--input", JSON.stringify({ id: "kit/plank" }))
-    assert.ok(catalogModules.includes("src/jam/catalog/plugin.ts"), "the plugin is registered by name")
-    assert.deepEqual(catalogModules.filter((path) => path.startsWith("src/jam/") && path !== "src/jam/catalog/plugin.ts"), [], "and nothing behind it is loaded")
+    const registered = ["src/jam/catalog/plugin.ts", "src/jam/catalog/engine.ts"]
+    for (const plugin of registered) assert.ok(catalogModules.includes(plugin), `${plugin} is registered by name`)
+    assert.deepEqual(catalogModules.filter((path) => path.startsWith("src/jam/") && !registered.includes(path)), [], "and nothing behind them is loaded")
 
     const withRuns = catalogProject()
     await start(withRuns, "asset", "barrel", { budget: "prop" })

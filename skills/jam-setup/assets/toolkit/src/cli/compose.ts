@@ -1,5 +1,5 @@
 // Where the content catalog and the run ledger meet. Neither imports the other's internals: the
-// catalog gets the `jam` plugin by name, and the ledger gets a review desk backed by the catalog.
+// catalog gets the `jam` and `engine` plugins by name, and the ledger gets a review desk backed by the catalog.
 // Each side is loaded and built the first time the other asks for it, so a ledger command does
 // not load the catalog, and a catalog that does not list `jam` does not load the ledger.
 import * as Context from "effect/Context"
@@ -12,6 +12,7 @@ import type { RunCatalog } from "../jam/catalog/RunCatalog.ts"
 import type { JamCore, JamServices } from "../jam/layers.ts"
 import type { ReviewDesk } from "../jam/runs/ReviewDesk.ts"
 import type { CommandGroup, Kernel } from "../kernel/cli.ts"
+import type { ToolError } from "../kernel/errors.ts"
 
 /** The name the review desk submits under when the caller gives none. */
 const AGENT = "jam"
@@ -34,6 +35,37 @@ const ledgerOver = <R>(jam: Effect.Effect<Layer.Layer<JamCore, never, R>>): Effe
     }).pipe(Effect.provideContext(services)))
   })
 
+/** The `engine` plugin, running the engine adapter's inventory and previews over jam services built on first use. */
+const enginePlugin = <R>(jam: Effect.Effect<Layer.Layer<JamCore, never, R>>, scope: Scope.Scope): Effect.Effect<Plugin, never, R | Kernel> =>
+  Effect.gen(function*() {
+    const services = yield* Effect.context<R | Kernel>()
+    const core = yield* Effect.cached(Effect.gen(function*() {
+      return yield* Layer.buildWithScope(yield* jam, scope)
+    }).pipe(Effect.provideContext(services)))
+    const { enginePlugin: make } = yield* Effect.promise(() => import("../jam/catalog/engine.ts"))
+    // The engine host is loaded the first time the catalog asks for the inventory, the previews or an import.
+    const host = yield* Effect.cached(Effect.promise(() => Promise.all([import("../jam/engine/inventory.ts"), import("../jam/engine/host.ts"), import("../jam/engine/previews.ts")])))
+    const within = <A>(use: (modules: Effect.Success<typeof host>) => Effect.Effect<A, ToolError, JamCore | Kernel>) =>
+      Effect.flatMap(Effect.zip(core, host), ([built, modules]) => use(modules).pipe(Effect.provideContext(Context.merge(services, built))))
+    return make({
+      inventory: (request) => within(([{ inventoryFor }]) => inventoryFor(request)),
+      importFiles: (request) =>
+        within(([, { importFor }]) =>
+          Effect.map(importFor({ kind: request.kind, files: request.files, destination: request.destination }), ({ outcome }) =>
+            outcome.status === "ran"
+              ? { status: "ran", assets: (Array.isArray(outcome.receipt["assets"]) ? outcome.receipt["assets"] : []) as ReadonlyArray<{ id: string; kind: string; source?: string }> }
+              : { status: outcome.status, assets: [], next: outcome.status === "manual" ? outcome.next : `${outcome.reason}; then: ${outcome.resume}` })),
+      previews: {
+        read: within(([, , { readPreviews }]) => readPreviews()),
+        make: (request) => within(([, , { previewsFor }]) => previewsFor(request))
+      }
+    })
+  })
+
+/** The toolkit's own catalog plugins, by the names catalog.config.json lists them under. */
+const builtins = <R>(ledger: Effect.Effect<Ledger>, jam: Effect.Effect<Layer.Layer<JamCore, never, R>>, scope: Scope.Scope): Effect.Effect<Record<string, Plugin>, never, R | Kernel> =>
+  Effect.all({ jam: jamPlugin(ledger), engine: enginePlugin(jam, scope) })
+
 const jamCore: Effect.Effect<Layer.Layer<JamCore, never, Kernel>> = Effect.promise(() => import("../jam/layers.ts").then((module) => module.jamCoreLayer))
 
 /**
@@ -43,10 +75,10 @@ const jamCore: Effect.Effect<Layer.Layer<JamCore, never, Kernel>> = Effect.promi
 export const withJamPlugin = (group: CommandGroup): CommandGroup => ({
   commands: group.commands,
   layer: Layer.provide(group.layer, Layer.unwrap(Effect.gen(function*() {
-    const plugin = yield* jamPlugin(yield* ledgerOver(jamCore))
+    const plugins = yield* builtins(yield* ledgerOver(jamCore), jamCore, yield* Effect.scope)
     const { CatalogSetup } = yield* Effect.promise(() => import("../catalog/CatalogConfig.ts"))
     // A jam project without its own catalog configuration lists its runs as well as the manifest.
-    return Layer.succeed(CatalogSetup, { plugins: { jam: plugin }, defaults: yield* jamDefaults, overrides: {} })
+    return Layer.succeed(CatalogSetup, { plugins, defaults: yield* jamDefaults, overrides: {} })
   })))
 })
 
@@ -60,10 +92,10 @@ const jamDefaults: Effect.Effect<ReadonlyArray<string> | undefined, never, Kerne
 
 /** The catalog with the `jam` plugin, for code that is not the command line. */
 export const catalogWithJam: Layer.Layer<Catalog | CatalogDiagnostics, never, Kernel> = Layer.unwrap(Effect.gen(function*() {
-  const plugin = yield* jamPlugin(yield* ledgerOver(jamCore))
+  const plugins = yield* builtins(yield* ledgerOver(jamCore), jamCore, yield* Effect.scope)
   const { Catalog } = yield* Effect.promise(() => import("../catalog/Catalog.ts"))
   const defaults = yield* jamDefaults
-  return Catalog.layerWith({ plugins: { jam: plugin }, ...(defaults === undefined ? {} : { defaults }) })
+  return Catalog.layerWith({ plugins, ...(defaults === undefined ? {} : { defaults }) })
 }))
 
 /**
@@ -79,7 +111,7 @@ const desk = (agent: string, Desk: typeof ReviewDesk): Layer.Layer<ReviewDesk, n
     const real = yield* Effect.cached(Effect.gen(function*() {
       const [{ Catalog }, { catalogDesk }] = yield* Effect.promise(() => Promise.all([import("../catalog/Catalog.ts"), import("../jam/catalog/desk.ts")]))
       const defaults = yield* jamDefaults
-      const catalog = Catalog.layerWith({ plugins: { jam: yield* jamPlugin(ledger) }, ...(defaults === undefined ? {} : { defaults }) })
+      const catalog = Catalog.layerWith({ plugins: yield* builtins(ledger, Effect.succeed(Layer.succeedContext(services)), scope), ...(defaults === undefined ? {} : { defaults }) })
       return Context.get(yield* Layer.buildWithScope(catalogDesk(agent).pipe(Layer.provide(catalog)), scope), Desk)
     }).pipe(Effect.provideContext(services)))
     return {

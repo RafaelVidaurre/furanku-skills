@@ -54,7 +54,7 @@ Every fact is optional beyond the core four, and a project overrides any of them
 "import": { "run": ["python", "commands/import.py"], "kinds": ["static", "skinned"], "timeoutSeconds": 600, "description": "..." }
 ```
 
-The verbs are `import`, `inspect`, `references`, `capture`, `check` and `conform-skeleton`. For each, the toolkit builds the command line from `run`:
+The verbs are `import`, `inspect`, `references`, `capture`, `check`, `conform-skeleton`, `inventory` and `previews`. For each, the toolkit builds the command line from `run`:
 
 - A first element of `python`, `blender` or `node` becomes this machine's own (from `jam.local.json`, else `PATH`; `node` is the one running the toolkit).
 - An element that is a path existing inside the adapter folder becomes that file's absolute path.
@@ -79,6 +79,8 @@ What the toolkit passes after the verb:
 | `import` | `--kind <kind> <file>...` (the kind must be in `kinds` when that is listed) | `{"assets": [{"id", "kind", "source"?, "sha256"?}]}`: the engine's id of each asset made or updated, with the source file and its hash where it has one. **Idempotent: importing the same source to the same place again returns the same id.** With `--run`, the toolkit records the step with these ids |
 | `inspect` | whatever follows the verb; by convention the asset id | `{"id", "kind"?, "bounds"?: {"min", "max"}, "pivot"?, "triangles"?, "vertices"?, "materials"?, "skeleton"?: {"root", "bones"}, "collision"?: {"shapes", "kinds"?}}`. Lengths in **meters** whatever the engine's unit; `materials` are slot names in slot order. Leave out what the engine did not give |
 | `conform-skeleton` | `--skeleton <id> [--out <folder>] <model>...` | `{"model": "<project file>", "skeleton"?, "evidence"?: [files]}`: the reworked model, recorded as the step's model |
+| `inventory` | `--out <file> [--previous <file>] [--engine]` | `{"inventory", "files", "assets", "read", "reused", "removed", "unread"}` after writing the inventory file (`schemas/engine-inventory.schema.json`); reuse the `--previous` entries whose size and mtime are unchanged; start the engine only with `--engine` |
+| `previews` | `--inventory <file> --out <folder> [--full] [--no-engine] [--only <pattern>]... [--limit <n>]` | `{"index", "previews", "made", "reused", "failed", "waiting", "none"}` after writing previews and `<folder>/index.json` (`schemas/engine-previews.schema.json`): per inventory path, the version made for (its `hash`, else `<size>:<mtimeMs>`), the file (an image, a self-contained GLB or a WAV) or why there is none. Make again only what changed; start no engine with `--no-engine` |
 | `references`, `capture`, `check` | whatever follows the verb | One JSON object. The toolkit fixes no shape for these yet; use `{"references": [{"id", "referencers": [...]}]}`, `{"captures": [files]}` and, as project checks do, `{"problems": [{"message", "fix"?}]}` |
 
 Every command is optional. For a verb whose command is `null` or absent, `jam engine <verb>` prints what to do and the path of `docs.<verb>` when the adapter has that guide; the step is done by hand and recorded with evidence.

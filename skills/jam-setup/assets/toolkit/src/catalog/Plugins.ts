@@ -13,6 +13,7 @@ import type { Problem } from "./model/types.ts"
 import { RESOLVERS, type Resolver } from "./model/verdicts.ts"
 import { RESERVED_SECTIONS } from "./routes.ts"
 import type { Check, MediaKind, Plugin, PluginAction, PluginContext, Probe, Relation, ScopeInput, Source } from "./plugin.ts"
+import { importsOf, pluginUrl } from "./pluginImports.ts"
 import { manifest } from "./plugins/manifest.ts"
 import { mediaCore } from "./plugins/media-core.ts"
 import { message, pluginContext } from "./support.ts"
@@ -143,18 +144,30 @@ export class Plugins extends Context.Service<Plugins, {
       const moduleHash = (path: string): Effect.Effect<string | null> =>
         files.readBytes(path).pipe(Effect.map((bytes) => sha256(bytes)), Effect.catch(() => Effect.succeed(null)))
 
+      // The project modules each plugin module imported when it last loaded (absolute paths).
+      const imports = new Map<string, ReadonlyArray<string>>()
+      const importsHash = (path: string): Effect.Effect<string> =>
+        Effect.map(
+          Effect.forEach(imports.get(path) ?? [], (absolute) =>
+            files.relative(absolute).pipe(Effect.flatMap(moduleHash), Effect.catch(() => Effect.succeed(null)))),
+          (hashes) => digest(hashes)
+        )
+
       const importModule = (path: string, what: string): Effect.Effect<Record<string, unknown>, ToolError> =>
         Effect.gen(function*() {
           const full = yield* files.resolve(path)
           const bytes = yield* files.readBytes(path).pipe(
             Effect.mapError((error) => (error.code === "not_found" ? toolError("unavailable", `${what} module not found: ${path}`) : error))
           )
-          // The query string makes Node import the module again when its bytes change.
-          const href = `${pathToFileURL(full).href}?v=${sha256(bytes).slice(0, 16)}`
-          return yield* Effect.tryPromise({
-            try: () => import(href) as Promise<Record<string, unknown>>,
+          // The version in the URL makes Node import the module, and the project modules it
+          // imports, again when any of their bytes change.
+          const version = sha256(`${sha256(bytes)}:${yield* importsHash(path)}`).slice(0, 16)
+          const loaded = yield* Effect.tryPromise({
+            try: () => import(pluginUrl(pathToFileURL(full).href, version)) as Promise<Record<string, unknown>>,
             catch: (cause) => toolError("invalid", `${what} module ${path} could not be loaded: ${message(cause)}`)
           })
+          imports.set(path, importsOf(version))
+          return loaded
         })
 
       const loadOne = (ref: PluginRef): Effect.Effect<{ plugin: Plugin; context: PluginContext }, ToolError> =>
@@ -199,7 +212,7 @@ export class Plugins extends Context.Service<Plugins, {
 
       const current = Effect.gen(function*() {
         const state = yield* configs.current
-        const hashes = yield* Effect.forEach(moduleFilesOf(state.config), moduleHash)
+        const hashes = yield* Effect.forEach(moduleFilesOf(state.config), (path) => Effect.zipWith(moduleHash(path), importsHash(path), (own, imported) => `${own}:${imported}`))
         const signature = digest({ config: state.signature, modules: hashes })
         const configProblems = state.problem ? [state.problem] : []
         if (last?.signature === signature) return configProblems.length > 0 ? { ...last, problems: [...configProblems, ...last.problems] } : last
