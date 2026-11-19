@@ -10,7 +10,7 @@
 // This module only describes the plugin. Everything it does goes through `RunCatalog`, which the
 // composition (src/cli/compose.ts) builds the first time the catalog asks: a catalog that does
 // not list `jam` never loads the run ledger.
-import { type Check, definePlugin, Effect, type EnrichPatch, type MergedSources, type Plugin, type Probe, type ToolError } from "../../catalog/plugin.ts"
+import { defineCheck, definePlugin, defineProbe, defineSource, Effect, type EnrichPatch, type MergedSources, type Plugin, type Probe, type ToolError } from "../../catalog/plugin.ts"
 import type { RunCatalog } from "./RunCatalog.ts"
 
 /** Reaches the run ledger. The effect it returns needs no services, as plugin functions must. */
@@ -59,7 +59,7 @@ const PROBES: ReadonlyArray<Omit<Probe, "measure">> = [
   {
     name: "jam-geometry",
     version: "1",
-    kinds: ["model"],
+    mediaKinds: ["model"],
     fields: [
       { key: "triangles", label: "Triangles" },
       { key: "materials", label: "Materials" },
@@ -69,7 +69,7 @@ const PROBES: ReadonlyArray<Omit<Probe, "measure">> = [
       { key: "drawPrimitives", label: "Draw primitives" }
     ]
   },
-  { name: "jam-pixels", version: "1", kinds: ["image"], fields: [{ key: "width", label: "Width", unit: "px" }, { key: "height", label: "Height", unit: "px" }] }
+  { name: "jam-pixels", version: "1", mediaKinds: ["image"], fields: [{ key: "width", label: "Width", unit: "px" }, { key: "height", label: "Height", unit: "px" }] }
 ]
 
 export const jamPlugin = (runs: RunCatalogAccess): Plugin => {
@@ -77,14 +77,14 @@ export const jamPlugin = (runs: RunCatalogAccess): Plugin => {
   let subjects: ReadonlySet<string> = new Set()
   return definePlugin({
     name: "jam",
-    sources: [{
+    sources: [defineSource({
       name: "runs",
       inputs: () => runs((ledger) => ledger.inputs),
       load: () => Effect.tap(runs((ledger) => ledger.load), (output) => Effect.sync(() => void (subjects = new Set((output.units ?? []).map((unit) => unit.id)))))
-    }],
+    })],
     enrich: (merged) => traceInputs(merged, subjects),
     relations: [{ name: "made-from", label: "Made from", inverseLabel: "Used by", from: (unit) => strings(unit.attrs[MADE_FROM]) }],
-    probes: PROBES.map((probe): Probe => ({ ...probe, measure: (file) => runs((ledger) => ledger.measure(file.path)) })),
-    checks: Object.entries(CHECKS).map(([name, label]): Check => ({ name, label, run: () => runs((ledger) => ledger.check(name as CheckName)) }))
+    probes: PROBES.map((probe) => defineProbe({ ...probe, measure: (file) => runs((ledger) => ledger.measure(file.path)) })),
+    checks: Object.entries(CHECKS).map(([name, label]) => defineCheck({ name, label, run: () => runs((ledger) => ledger.check(name as CheckName)) }))
   })
 }

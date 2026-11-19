@@ -1,0 +1,356 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "engine-inventory.schema.json",
+  "$ref": "#/$defs/EngineInventory",
+  "$defs": {
+    "EngineInventory": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "number",
+          "enum": [
+            1
+          ]
+        },
+        "adapter": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 64
+        },
+        "generatedAt": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "fieldsConfig": {
+          "type": "string",
+          "description": "Hash of the field list the entries were read with; when the list changes the adapter reads again the entries it affects"
+        },
+        "parents": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Class -> parent class links the adapter learned from the engine, kept so runs without the engine select the same subclasses"
+        },
+        "roots": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "\\S",
+                "description": "The engine's name for the root, as it starts the ids under it"
+              },
+              "path": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "."
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+                    "description": "Project-relative path with forward slashes"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "path"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "files": {
+          "type": "object",
+          "patternProperties": {
+            "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "\\S",
+                  "description": "The engine's id of the file, which references to it use"
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "mtimeMs": {
+                  "type": "number",
+                  "description": "Modification time when it was read; with size, what a refresh compares"
+                },
+                "hash": {
+                  "type": "string",
+                  "description": "The engine's own content hash of the file, when its format has one"
+                },
+                "saved": {
+                  "type": "string",
+                  "description": "The engine version that wrote the file"
+                },
+                "main": {
+                  "type": "string",
+                  "pattern": "\\S",
+                  "description": "The asset that stands for the file"
+                },
+                "assets": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "\\S",
+                        "description": "The engine's id of the asset"
+                      },
+                      "class": {
+                        "type": "string",
+                        "pattern": "\\S",
+                        "description": "The engine's class or type of the asset"
+                      },
+                      "tags": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "Metadata the engine keeps without loading the asset, as strings"
+                      },
+                      "tagsFromEngine": {
+                        "type": "boolean",
+                        "description": "false when the asset was read through the engine and its tags could not be listed"
+                      },
+                      "fields": {
+                        "type": "object",
+                        "description": "Property values by property name, for the classes the project lists and their subclasses. A reference is {object, class} or {soft}; a value the adapter cannot decode is {unparsed: <type>}"
+                      },
+                      "fieldsSource": {
+                        "type": "string",
+                        "enum": [
+                          "file",
+                          "engine"
+                        ],
+                        "description": "file: the values the file itself sets. engine: the effective values the engine holds, inherited and native defaults included"
+                      },
+                      "fieldReferences": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "property": {
+                              "type": "string",
+                              "pattern": "\\S",
+                              "description": "The property path holding the reference, such as Parts[0] or Rules.Mesh"
+                            },
+                            "to": {
+                              "type": "string",
+                              "pattern": "\\S",
+                              "description": "The engine id of the referenced object"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "hard",
+                                "soft",
+                                "native"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "property",
+                            "to",
+                            "kind"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "description": "Each reference in fields, with the property that holds it"
+                      },
+                      "components": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "pattern": "\\S",
+                              "description": "The component's name in its owner, such as Body or CharacterMovement"
+                            },
+                            "class": {
+                              "type": "string",
+                              "pattern": "\\S",
+                              "description": "The engine's class of the component"
+                            },
+                            "path": {
+                              "type": "string",
+                              "pattern": "\\S",
+                              "description": "The engine id of the component object or template"
+                            },
+                            "from": {
+                              "type": "string",
+                              "pattern": "\\S",
+                              "description": "The class that declares the component, when a parent class does"
+                            },
+                            "inherited": {
+                              "type": "boolean",
+                              "description": "True when a parent class adds the component"
+                            },
+                            "native": {
+                              "type": "boolean",
+                              "description": "True when code adds the component"
+                            },
+                            "fields": {
+                              "type": "object",
+                              "description": "The component's property values, encoded as the asset's fields"
+                            },
+                            "fieldReferences": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "property": {
+                                    "type": "string",
+                                    "pattern": "\\S",
+                                    "description": "The property path holding the reference, such as Parts[0] or Rules.Mesh"
+                                  },
+                                  "to": {
+                                    "type": "string",
+                                    "pattern": "\\S",
+                                    "description": "The engine id of the referenced object"
+                                  },
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "hard",
+                                      "soft",
+                                      "native"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "property",
+                                  "to",
+                                  "kind"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "description": "Each reference in fields, with the property that holds it"
+                            },
+                            "fieldsError": {
+                              "type": "string",
+                              "pattern": "\\S"
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "class"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "description": "The components and instanced subobjects the asset holds"
+                      },
+                      "fieldsError": {
+                        "type": "string",
+                        "pattern": "\\S",
+                        "description": "Why the asset's fields could not be read; the rest of the entry is still read"
+                      },
+                      "fieldsEngineError": {
+                        "type": "string",
+                        "pattern": "\\S",
+                        "description": "Why the engine could not give the asset's effective values; fields are the file's"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "class"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "references": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "to": {
+                        "type": "string",
+                        "pattern": "\\S",
+                        "description": "The engine id of what is referenced: another file's id, or a code module"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "hard",
+                          "soft",
+                          "native",
+                          "build"
+                        ],
+                        "description": "hard: needed to load the file. soft: named by path and loaded on demand. native: a code module. build: needed only to build the file."
+                      },
+                      "editorOnly": {
+                        "type": "boolean",
+                        "description": "True when the game does not need this reference, only the editor"
+                      }
+                    },
+                    "required": [
+                      "to",
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "names": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "on": {
+                        "type": "string"
+                      },
+                      "values": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "on",
+                      "values"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Searchable names the file uses (gameplay tags, for example), grouped by what they name"
+                },
+                "unread": {
+                  "type": "string",
+                  "pattern": "\\S",
+                  "description": "Why the adapter could not read the file; such an entry has no assets or references"
+                }
+              },
+              "required": [
+                "id",
+                "size",
+                "mtimeMs"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "format",
+        "adapter",
+        "generatedAt",
+        "roots",
+        "files"
+      ],
+      "additionalProperties": false,
+      "title": "Engine content inventory written by an adapter's inventory command"
+    }
+  }
+}

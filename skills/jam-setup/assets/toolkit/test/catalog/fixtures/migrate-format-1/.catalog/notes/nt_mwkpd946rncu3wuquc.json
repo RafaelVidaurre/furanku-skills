@@ -1,0 +1,28 @@
+{
+  "id": "nt_mwkpd946rncu3wuquc",
+  "target": {
+    "kind": "unit",
+    "id": "armor/coat"
+  },
+  "body": "Needs a model.",
+  "by": {
+    "name": "Rae Tester",
+    "kind": "human"
+  },
+  "at": "2026-11-17T13:02:57.126Z",
+  "revision": 2,
+  "resolved": {
+    "by": {
+      "name": "Rae Tester",
+      "kind": "human"
+    },
+    "at": "2026-11-17T13:02:57.136Z",
+    "explanation": "Out of scope."
+  },
+  "lastRequestId": "rq-resolve",
+  "lastRequestBinding": {
+    "action": "note.resolve",
+    "digest": "f6ae96685a56d74504f806ab12b13733971632d1ad02104bcbd594d155752bf7",
+    "context": "ff52585e9d24:main"
+  }
+}

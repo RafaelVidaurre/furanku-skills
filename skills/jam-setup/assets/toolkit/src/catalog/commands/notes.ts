@@ -1,7 +1,7 @@
 // Standalone notes on units, collections, assets and submissions.
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import { ExpectedRevision, optional, priorRequest, requestFields, Text, write, type WriteEnv } from "../action.ts"
+import { ExpectedRevision, optional, priorRequest, refOf, requestFields, Text, write, type WriteEnv } from "../action.ts"
 import { fail, type ToolError } from "../../kernel/errors.ts"
 import { isNonEmpty } from "../../kernel/hash.ts"
 import { Ids, nowIso } from "../../kernel/Ids.ts"
@@ -9,6 +9,8 @@ import type { NoteRecord, NoteTarget } from "../model/types.ts"
 import { type Projection, typeOf } from "../Projection.ts"
 import { partsOf } from "../queries/review.ts"
 import { Records } from "../Records.ts"
+import { NoteRecord as NoteRecordSchema } from "../records/schemas.ts"
+import { OpenRecord, Written } from "../results.ts"
 
 /** Whether something a note, label or review names exists in this checkout. */
 export const targetExists = (p: Projection, target: { readonly kind: string; readonly id: string }): boolean =>
@@ -22,12 +24,7 @@ export const targetExists = (p: Projection, target: { readonly kind: string; rea
     ? p.records.submission.some((submission) => submission.id === target.id)
     : false
 
-const NoteTargetInput = Schema.Struct({
-  kind: Schema.Literals(["unit", "collection", "asset", "submission"]),
-  id: Text,
-  item: optional(Schema.String).annotate({ description: "A submission item id, when the target is a submission" }),
-  part: optional(Schema.String).annotate({ description: "A part id of the target (or of the submission item)" })
-})
+const NoteTargetInput = refOf(["unit", "collection", "asset", "submission"], { item: true, part: true })
 
 const checkPart = (p: Projection, target: typeof NoteTargetInput.Type): Effect.Effect<void, ToolError> =>
   Effect.gen(function*() {
@@ -40,7 +37,7 @@ const checkPart = (p: Projection, target: typeof NoteTargetInput.Type): Effect.E
     if (!target.part) return
     const unit = target.kind === "unit" ? p.snapshot.unitsById.get(target.id) : undefined
     const known = (target.kind === "unit" || target.kind === "collection") && partsOf(p, { kind: target.kind, id: target.id }).some((part) => part.id === target.part)
-    // A note may name a role that has no visual yet ("the model is missing").
+    // A note may name a role that has no asset linked yet ("the model is missing").
     if (!known && !(unit && typeOf(p, unit).roles.some((role) => role.key === target.part))) return yield* fail("invalid", `unknown part ${target.part}`)
   })
 
@@ -64,11 +61,20 @@ const change = (id: string, expectedRevision: number | null | undefined, env: Wr
 
 const noteLock = (input: { readonly id: string }): string => `note:${input.id}`
 
+export const NoteCreateInput = Schema.Struct({ target: NoteTargetInput, body: Schema.String })
+export const NoteEditInput = Schema.Struct({ id: Text, body: Schema.String, expectedRevision: ExpectedRevision })
+export const NoteResolveInput = Schema.Struct({ id: Text, explanation: optional(Schema.String), expectedRevision: ExpectedRevision })
+export const NoteIdInput = Schema.Struct({ id: Text, expectedRevision: ExpectedRevision })
+/** A note as written. */
+export const NoteOutput = Written({ note: OpenRecord(NoteRecordSchema.fields) })
+export const DeletedOutput = Written({ deleted: Schema.String })
+
 export const noteActions = [
   write(
     "note.create",
     "Create a standalone note on a unit, collection, asset or submission (optionally an item/part)",
-    Schema.Struct({ target: NoteTargetInput, body: Schema.String }),
+    NoteCreateInput,
+    NoteOutput,
     "notes",
     (input, env) =>
       Effect.gen(function*() {
@@ -88,7 +94,8 @@ export const noteActions = [
   write(
     "note.edit",
     "Edit note text (expectedRevision guards concurrent edits)",
-    Schema.Struct({ id: Text, body: Schema.String, expectedRevision: ExpectedRevision }),
+    NoteEditInput,
+    NoteOutput,
     noteLock,
     (input, env) =>
       isNonEmpty(input.body)
@@ -98,7 +105,8 @@ export const noteActions = [
   write(
     "note.resolve",
     "Mark a note dealt with, with an optional explanation",
-    Schema.Struct({ id: Text, explanation: optional(Schema.String), expectedRevision: ExpectedRevision }),
+    NoteResolveInput,
+    NoteOutput,
     noteLock,
     (input, env) =>
       change(input.id, input.expectedRevision, env, (note, at) => ({
@@ -109,7 +117,8 @@ export const noteActions = [
   write(
     "note.reopen",
     "Return a dealt-with note to the open list",
-    Schema.Struct({ id: Text, expectedRevision: ExpectedRevision }),
+    NoteIdInput,
+    NoteOutput,
     noteLock,
     (input, env) =>
       change(input.id, input.expectedRevision, env, (note) => {
@@ -120,7 +129,8 @@ export const noteActions = [
   write(
     "note.delete",
     "Clear (delete) a note",
-    Schema.Struct({ id: Text, expectedRevision: ExpectedRevision }),
+    NoteIdInput,
+    DeletedOutput,
     noteLock,
     (input, env) =>
       Effect.gen(function*() {

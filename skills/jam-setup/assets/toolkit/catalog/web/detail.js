@@ -1,12 +1,12 @@
 import { html, useState, useEffect, useRef, useQuery, write, href, withQuery, replace, entityHref, listParams, Icon, Popover, Thumb, NoteCount, Tags, CategoryPicker, CopyId, KindIcon, kindLabel, scopeOf, fmtSize, ago, toast, ErrorLine, shortHash, baseName, isTyping } from './core.js';
 import { MediaViewer, UnavailableViewer } from './viewers.js';
 import { PreviewHost } from './previews.js';
-import { useActiveViewer, setSelectionProvider, setSelectHandler } from './controller.js';
+import { refusal, useActiveViewer, setSelectionProvider, setSelectHandler } from './controller.js';
 import { NotesBlock } from './notes.js';
 import { CollectionToggle } from './lists.js';
-import { ViewHost, PanelHost } from './views.js';
+import { InspectorHost, PanelHost } from './views.js';
 
-const organize = (target, body) => write('organize.set', { target, ...body }).catch((e) => toast(e.message, 'err'));
+const organize = (target, body) => write('organization.set', { target, ...body }).catch((e) => toast(e.message, 'err'));
 
 function Loading({ q }) {
   if (q.error && !q.data) return html`<div class="detail"><${ErrorLine} error=${q.error} onRetry=${q.reload} /></div>`;
@@ -17,7 +17,7 @@ function OrgLine({ target, o, tags }) {
     <${Tags} tags=${tags} projectTags=${o.projectTags} onChange=${(t) => organize(target, { tags: t, expectedRevision: o.revision ?? undefined })} />`;
 }
 
-// ---------- Content unit ----------
+// ---------- Unit ----------
 export function UnitDetail({ route, ctx }) {
   const id = ctx ? route.member : route.id;
   const q = useQuery('unit.get', { id });
@@ -27,21 +27,21 @@ export function UnitDetail({ route, ctx }) {
     if (!ctx && d?.unit.id === id && d.unit.scope && scopeOf(d.unit.scope) && route.section !== d.unit.scope) replace({ ...route, section: d.unit.scope });
   }, [d?.unit.id, d?.unit.scope, route.section, ctx]);
   const partId = route.query.get('part');
-  const visual = d ? d.review.parts.filter((p) => p.asset) : [];
-  const views = d?.views ?? [];
-  // No part named: the type's default view, else the first visual. Views are parts `view:<key>`.
-  // A named part or view that does not exist is an error, never a substitute.
-  const selView = partId ? (partId.startsWith('view:') ? views.find((v) => `view:${v.key}` === partId) ?? null : null) : views.find((v) => v.default) ?? null;
-  const sel = selView ? null : partId ? visual.find((p) => p.id === partId) : visual[0];
-  const badPart = !!d && !!partId && !sel && !selView;
+  const media = d ? d.review.parts.filter((p) => p.asset) : [];
+  const inspectors = d?.inspectors ?? [];
+  // No part named: the type's default inspector, else the first media part. Inspectors are parts
+  // `inspector:<key>`. A named part or inspector that does not exist is an error, never a substitute.
+  const selInspector = partId ? (partId.startsWith('inspector:') ? inspectors.find((v) => `inspector:${v.key}` === partId) ?? null : null) : inspectors.find((v) => v.default) ?? null;
+  const sel = selInspector ? null : partId ? media.find((p) => p.id === partId) : media[0];
+  const badPart = !!d && !!partId && !sel && !selInspector;
   const col = useQuery('collection.get', { id: ctx ?? '' }, !!ctx);
   const notMember = !!ctx && !!col.data && col.data.collection.id === ctx && !col.data.members.some((m) => m.id === id);
   const setPart = (pid) => replace(withQuery(route, { part: pid }));
   const link = sel && d.links.find((l) => l.asset.id === sel.asset && l.role === sel.role);
-  const unavailable = notMember ? `${id} is not a member of ${ctx}` : badPart ? `${d.unit.name} has no visual part or view "${partId}"` : (q.error && !d ? q.error.message : null);
-  const viewIds = views.map((v) => `view:${v.key}`);
-  setSelectionProvider(() => ({ kind: 'unit', id, collection: ctx ?? null, part: selView ? `view:${selView.key}` : sel?.id ?? (badPart ? partId : null), loading: (!d && !q.error) || q.stale || (!!ctx && !col.data), unavailable: !!unavailable, error: unavailable, parts: [...viewIds, ...visual.map((p) => p.id)], asset: link ? { id: link.asset.id, sha256: link.asset.sha256, kind: link.asset.kind } : null }));
-  setSelectHandler((s) => { if (!s.part) return { ok: true }; if (!visual.some((p) => p.id === s.part) && !viewIds.includes(s.part)) return { error: `no visual part or view ${s.part}`, code: 'not_found' }; setPart(s.part); return { ok: true }; });
+  const unavailable = notMember ? `${id} is not a member of ${ctx}` : badPart ? `${d.unit.name} has no media part or inspector "${partId}"` : (q.error && !d ? q.error.message : null);
+  const inspectorIds = inspectors.map((v) => `inspector:${v.key}`);
+  setSelectionProvider(() => ({ kind: 'unit', id, collection: ctx ?? null, part: selInspector ? `inspector:${selInspector.key}` : sel?.id ?? (badPart ? partId : null), loading: (!d && !q.error) || q.stale || (!!ctx && !col.data), unavailable: !!unavailable, error: unavailable, parts: [...inspectorIds, ...media.map((p) => p.id)], asset: link ? { id: link.asset.id, sha256: link.asset.sha256, kind: link.asset.kind } : null }));
+  setSelectHandler((s) => { if (!s.part) return; if (!media.some((p) => p.id === s.part) && !inspectorIds.includes(s.part)) throw refusal('not_found', `no media part or inspector ${s.part}`); setPart(s.part); });
   useEffect(() => () => { setSelectionProvider(() => null); setSelectHandler(null); }, []);
   if (notMember) return html`<div class="detail"><${MemberNav} route=${route} col=${ctx} unitId=${id} /><div class="errline" role="alert"><${Icon} name="warn" size=${13} /><span>${unavailable}</span></div></div>`;
   if (!d || d.unit.id !== id) return html`<${Loading} q=${q} />`;
@@ -54,12 +54,13 @@ export function UnitDetail({ route, ctx }) {
       <div class="d-title"><h1>${d.unit.name}</h1></div>
       <div class="d-meta"><span class="type" title=${d.type.help ?? ''}>${d.type.label}</span><${OrgLine} target=${target} o=${d.organization} tags=${d.tags} /></div>
     </header>
-    <div class=${`d-body${visual.length || views.length || d.missing.length || badPart ? '' : ' single'}`}>
-      ${(visual.length > 0 || views.length > 0 || d.missing.length > 0 || badPart) && html`<div class="d-main"><${Stage} d=${d} visual=${visual} views=${views} selView=${selView} sel=${sel} link=${link} setPart=${setPart} badPart=${badPart ? partId : null} route=${route} /></div>`}
-      ${!visual.length && !views.length && contentFields.length > 0 && html`<section class="block content-properties" aria-label="Content details"><${Attributes} d=${d} technical=${false} /></section>`}
+    <div class=${`d-body${media.length || inspectors.length || d.missing.length || badPart ? '' : ' single'}`}>
+      ${(media.length > 0 || inspectors.length > 0 || d.missing.length > 0 || badPart) && html`<div class="d-main"><${Stage} d=${d} media=${media} inspectors=${inspectors} selInspector=${selInspector} sel=${sel} link=${link} setPart=${setPart} badPart=${badPart ? partId : null} route=${route} /></div>`}
+      ${!media.length && !inspectors.length && contentFields.length > 0 && html`<section class="block content-properties" aria-label="Unit details"><${Attributes} d=${d} technical=${false} /></section>`}
       <div class="d-side">
-        ${(visual.length > 0 || views.length > 0) && contentFields.length > 0 && html`<section class="block content-properties" aria-label="Content details"><${Attributes} d=${d} technical=${false} /></section>`}
-        ${d.links.length > 0 && html`<section class="block" aria-label="Files"><header class="block-h"><h3>Files</h3><span class="badge">${d.links.length}</span></header><div class="usage">${d.links.map(l => html`<a class="mship" href=${entityHref('asset', l.asset.id)}><${KindIcon} kind=${l.asset.kind} size=${16} /><span><strong>${l.roleLabel}</strong><span class="asset-filename">${baseName(l.asset.path)}</span></span><${Icon} name="chev" size=${12} /></a>`)}</div></section>`}
+        ${(media.length > 0 || inspectors.length > 0) && contentFields.length > 0 && html`<section class="block content-properties" aria-label="Unit details"><${Attributes} d=${d} technical=${false} /></section>`}
+        ${d.links.length > 0 && html`<section class="block" aria-label="Assets"><header class="block-h"><h3>Assets</h3><span class="badge">${d.links.length}</span></header><div class="usage">${d.links.map(l => html`<a class="mship" href=${entityHref('asset', l.asset.id)}><${KindIcon} kind=${l.asset.kind} size=${16} /><span><strong>${l.roleLabel}</strong><span class="asset-filename">${baseName(l.asset.path)}</span></span><${Icon} name="chev" size=${12} /></a>`)}</div></section>`}
+        <${Relations} d=${d} />
         ${(technicalFields.length > 0 || d.unit.sources.length > 0) && html`<details class="disclosure"><summary>Technical details</summary><${Attributes} d=${d} technical /></details>`}
         <section class="block" aria-label="Collections">
           <header class="block-h"><h3>Collections</h3><span class="badge">${d.memberships.length}</span><span class="push"></span>
@@ -75,40 +76,40 @@ export function UnitDetail({ route, ctx }) {
   </div>`;
 }
 
-// A view's own state (its selections) lives in the page address, so a link reopens it as it was.
-const viewStateOf = (route) => { try { return JSON.parse(route.query.get('vs') ?? '{}'); } catch { return {}; } };
+// An inspector's own state (its selections) lives in the page address, so a link reopens it as it was.
+const inspectorStateOf = (route) => { try { return JSON.parse(route.query.get('vs') ?? '{}'); } catch { return {}; } };
 
-function Stage({ d, visual, views = [], selView, sel, link, setPart, badPart, route }) {
+function Stage({ d, media, inspectors = [], selInspector, sel, link, setPart, badPart, route }) {
   useActiveViewer('stage', true);
   const a = link?.asset;
-  const source = a && { unit: d.unit.id, part: sel.id, asset: a.id, path: a.path, sha256: a.sha256 };
-  const ids = [...views.map((v) => `view:${v.key}`), ...visual.map((p) => p.id)];
-  const current = selView ? `view:${selView.key}` : sel?.id;
+  const shows = a && { unit: d.unit.id, part: sel.id, asset: a.id, path: a.path, sha256: a.sha256 };
+  const ids = [...inspectors.map((v) => `inspector:${v.key}`), ...media.map((p) => p.id)];
+  const current = selInspector ? `inspector:${selInspector.key}` : sel?.id;
   return html`<div class=${`stage${d.display?.pixelArt ? ' pixel-art' : ''}`}>
-    ${selView && html`<div class="stage-view view-stage" data-viewer-root data-active="true"><${ViewHost} key=${`${d.unit.id}:${selView.key}`} unit=${d.unit} view=${selView} source=${{ unit: d.unit.id, part: `view:${selView.key}`, view: selView.key }}
-      viewState=${viewStateOf(route)} onState=${(state) => replace(withQuery(route, { vs: state && Object.keys(state).length ? JSON.stringify(state) : null }))} /></div>`}
-    ${badPart && html`<div class="stage-view" data-viewer-root data-active="true"><${UnavailableViewer} viewerId="stage" source=${{ unit: d.unit.id, part: badPart }} message=${`No visual part "${badPart}"`} /></div>`}
+    ${selInspector && html`<div class="stage-view view-stage" data-viewer-root data-active="true"><${InspectorHost} key=${`${d.unit.id}:${selInspector.key}`} unit=${d.unit} inspector=${selInspector} shows=${{ unit: d.unit.id, part: `inspector:${selInspector.key}`, inspector: selInspector.key }}
+      inspectorState=${inspectorStateOf(route)} onState=${(state) => replace(withQuery(route, { vs: state && Object.keys(state).length ? JSON.stringify(state) : null }))} /></div>`}
+    ${badPart && html`<div class="stage-view" data-viewer-root data-active="true"><${UnavailableViewer} viewerId="stage" shows=${{ unit: d.unit.id, part: badPart }} message=${`No media part or inspector "${badPart}"`} /></div>`}
     ${a && html`<div class="stage-view" data-viewer-root data-active="true">
-      <${MediaViewer} media=${a} viewerId="stage" source=${source} label=${a.id} keepCamera context=${{ unit: d.unit, type: d.type, link }} />
+      <${MediaViewer} media=${a} viewerId="stage" shows=${shows} label=${a.id} keepCamera context=${{ unit: d.unit, type: d.type, link }} />
     </div>`}
-    <div class="strip" role="tablist" aria-label="Visuals"
+    <div class="strip" role="tablist" aria-label="Media"
       onKeyDown=${(e) => { if (isTyping(e) && !e.target.closest('.strip')) return; const i = ids.indexOf(current); const n = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : null; if (n != null && ids[n]) { setPart(ids[n]); e.preventDefault(); requestAnimationFrame(() => document.querySelector('.strip [aria-selected="true"]')?.focus()); } }}>
-      ${views.map((v) => html`<button role="tab" aria-selected=${v === selView} tabindex=${v === selView ? 0 : -1} class=${`tile${v === selView ? ' on' : ''}`} onClick=${() => setPart(`view:${v.key}`)} title=${v.help ?? v.label}>
+      ${inspectors.map((v) => html`<button role="tab" aria-selected=${v === selInspector} tabindex=${v === selInspector ? 0 : -1} class=${`tile${v === selInspector ? ' on' : ''}`} onClick=${() => setPart(`inspector:${v.key}`)} title=${v.help ?? v.label}>
         <span class="thumb view-thumb" style="width:52px;height:52px"><${Icon} name="expand" size=${20} /></span><span class="tile-l">${v.label}</span></button>`)}
-      ${visual.map((p) => {
+      ${media.map((p) => {
         const l = d.links.find((x) => x.asset.id === p.asset && x.role === p.role);
         const shared = l.alsoUsedBy.length;
         return html`<button role="tab" aria-selected=${p === sel} tabindex=${p === sel ? 0 : -1} class=${`tile${p === sel ? ' on' : ''}`} onClick=${() => setPart(p.id)} title=${l.asset.id}>
           <${Thumb} asset=${l.asset} size=${52} pixel=${!!d.display?.pixelArt} />
           <span class="tile-l">${p.label}</span>
-          ${shared > 0 && html`<span class="tile-shared" title=${`Shared by ${shared + 1} catalog entries`}><${Icon} name="link" size=${10} />${shared + 1}</span>`}
+          ${shared > 0 && html`<span class="tile-shared" title=${`Shared by ${shared + 1} units`}><${Icon} name="link" size=${10} />${shared + 1}</span>`}
 
         </button>`;
       })}
-      ${d.missing.map((r) => html`<span class="tile missing" title=${`No ${r.label.toLowerCase()}`}><span class="thumb empty" style="width:52px;height:52px"><${KindIcon} kind=${r.kinds[0]} size=${18} /></span><span class="tile-l">${r.label}</span></span>`)}
+      ${d.missing.map((r) => html`<span class="tile missing" title=${`No ${r.label.toLowerCase()}`}><span class="thumb empty" style="width:52px;height:52px"><${KindIcon} kind=${r.mediaKinds[0]} size=${18} /></span><span class="tile-l">${r.label}</span></span>`)}
     </div>
     ${a && html`<div class="asset-line">
-      <a class="link" href=${entityHref('asset', a.id)}>Open file <${Icon} name="chev" size=${12} /></a>
+      <a class="link" href=${entityHref('asset', a.id)}>Open asset <${Icon} name="chev" size=${12} /></a>
       <span class="muted">${a.state === 'ok' ? html`${fmtSize(a.size)}` : html`<span class="c-bad">${a.error}</span>`}</span>
       ${link.alsoUsedBy.length > 0 && html`<span class="also"><${Icon} name="link" size=${11} />Also used by ${link.alsoUsedBy.slice(0, 3).map((x, i) => html`${i ? ', ' : ' '}<a href=${entityHref('unit', x.unit, { part: x.role })}>${x.name}</a>`)}${link.alsoUsedBy.length > 3 && html`, <a href=${entityHref('asset', a.id)}>+${link.alsoUsedBy.length - 3}</a>`}</span>`}
     </div>`}
@@ -132,6 +133,20 @@ function Attributes({ d, technical = false }) {
     ${extra.length > 0 && html`<dl class="attrs">${extra.map((k) => html`<div><dt>${k}</dt><dd><${Value} v=${d.unit.attrs[k]} /></dd></div>`)}</dl>`}
     ${technical && d.unit.sources.length > 0 && html`<details class="source"><summary>Source</summary>${d.unit.sources.map((s) => html`<div class="mono small">${s}</div>`)}</details>`}
   </div>`;
+}
+// Both directions of every relation plugins declare ("Uses" / "Used by", "Made from" / "In the
+// engine"…). A relation whose units an attribute of the details already lists is not shown twice.
+const RELATED_SHOWN = 40;
+function Relations({ d }) {
+  const sorted = (ids) => [...ids].sort().join('\n');
+  // Only attributes shown with the unit's details count; derived ones sit under Technical details.
+  const listed = d.type.fields.filter((f) => f.kind === 'refs' && !f.derived && d.unit.attrs[f.key] != null).map((f) => sorted([d.unit.attrs[f.key]].flat()));
+  const shown = (d.relations ?? []).filter((r) => r.units.length > 0 && !listed.includes(sorted(r.units.map((u) => u.id))));
+  if (!shown.length) return null;
+  return html`<section class="block" aria-label="Related"><header class="block-h"><h3>Related</h3></header><div class="attr-wrap related-list">${shown.map((r) => html`
+    <div class="related" aria-label=${r.label}><div class="attr-group">${r.label} <span class="badge">${r.units.length}</span></div>
+      <span class="refs">${r.units.slice(0, RELATED_SHOWN).map((u) => (u.exists ? html`<a class="ref" href=${entityHref('unit', u.id)}><${Thumb} asset=${u.thumb} size=${18} />${u.name}</a>` : html`<span class="ref missing" title="Not in this checkout">${u.id}</span>`))}${r.units.length > RELATED_SHOWN && html`<span class="muted small">and ${r.units.length - RELATED_SHOWN} more</span>`}</span>
+    </div>`)}</div></section>`;
 }
 function Help({ text, label }) {
   return html`<${Popover} label=${`About ${label}`} trigger=${() => html`<button class="help" aria-label=${`About ${label}`}>?</button>`}><p class="help-text">${text}</p><//>`;
@@ -226,23 +241,23 @@ export function CollectionDetail({ route }) {
 function PreviewStage({ d }) {
   useActiveViewer('stage', true);
   const pv = d.preview;
-  const source = { collection: d.collection.id, part: 'preview', module: pv.module, members: pv.members.map((m) => ({ unit: m.unit, part: m.part, sha256: m.asset.sha256 })), base: pv.base?.sha256 ?? null };
-  return html`<div class="stage"><div class="stage-view" data-viewer-root data-active="true"><${PreviewHost} module=${pv.module} moduleUrl=${pv.moduleUrl} moduleError=${pv.moduleError} members=${pv.members} base=${pv.base} config=${pv.config} label=${pv.label} viewerId="stage" source=${source} /></div>
+  const shows = { collection: d.collection.id, part: 'preview', module: pv.module, members: pv.members.map((m) => ({ unit: m.unit, part: m.part, sha256: m.asset.sha256 })), base: pv.base?.sha256 ?? null };
+  return html`<div class="stage"><div class="stage-view" data-viewer-root data-active="true"><${PreviewHost} module=${pv.module} moduleUrl=${pv.moduleUrl} moduleError=${pv.moduleError} members=${pv.members} base=${pv.base} config=${pv.config} label=${pv.label} viewerId="stage" shows=${shows} /></div>
     <div class="asset-line"><span>${pv.label}</span><span class="muted small">${pv.represents === 'representative' ? 'Representative member' : `${new Set(pv.members.map((m) => m.unit)).size} of ${d.members.length} members`}</span></div></div>`;
 }
 function MemberPicker({ members, update }) {
   const [q, setQ] = useState('');
-  const { data } = useQuery('catalog.search', { section: 'units', q, pageSize: 40 });
+  const { data } = useQuery('unit.search', { q, pageSize: 40 });
   const has = (id) => members.some((m) => m.id === id);
   return html`<div class="picker wide">
-    <input value=${q} placeholder="Content" aria-label="Find content" onInput=${(e) => setQ(e.target.value)} />
-    <div class="picker-list tall">${(data?.items ?? []).map((u) => html`<label class="picker-item check">
+    <input value=${q} placeholder="Units" aria-label="Find units" onInput=${(e) => setQ(e.target.value)} />
+    <div class="picker-list tall">${(data?.units ?? []).map((u) => html`<label class="picker-item check">
       <input type="checkbox" checked=${has(u.id)} onChange=${() => update(has(u.id) ? { remove: [u.id] } : { add: [u.id] })} />
       <${Thumb} asset=${u.thumb} size=${20} label=${u.typeLabel[0]} />${u.name}<span class="count">${u.typeLabel}</span></label>`)}</div>
   </div>`;
 }
 
-// ---------- Visual asset ----------
+// ---------- Asset ----------
 export function AssetDetail({ route }) {
   const q = useQuery('asset.get', { id: route.id });
   const d = q.data;
@@ -266,11 +281,11 @@ export function AssetDetail({ route }) {
     </header>
     <div class="d-body">
       <div class="d-main">
-        <div class="stage"><${AssetStage} a=${shown} key=${shown.sha256 ?? a.id} source=${{ asset: a.id, sha256: shown.sha256, version: old ? 'evidence' : 'current' }} />
+        <div class="stage"><${AssetStage} a=${shown} key=${shown.sha256 ?? a.id} shows=${{ asset: a.id, sha256: shown.sha256, version: old ? 'evidence' : 'current' }} />
           <details class="disclosure"><summary>Version history</summary><div class="versions" role="list">${d.versions.map((v) => html`<div class=${`version${(old ? v.sha256 === old.sha256 : v.current) ? ' on' : ''}`} role="listitem">
             <button class="link mono" onClick=${() => setQ({ rev: v.current ? null : v.sha256 })}>${shortHash(v.sha256)}</button>
             <span class="muted small">${v.current ? 'Current' : `Reviewed ${ago(v.firstSeen)} ago · ${v.submissions.map((s) => s.ref).join(', ')}`} · ${fmtSize(v.size)}</span>
-            ${!v.current && a.state === 'ok' && html`<a class="btn xs push" href=${href(withQuery(route, { cmp: `${v.submissions[0].submission}~${v.submissions[0].item}~${v.submissions[0].part}` }))}>Compare with current</a>`}
+            ${!v.current && a.state === 'ok' && html`<a class="btn xs push" href=${href(withQuery(route, { cmp: JSON.stringify({ a: { submission: v.submissions[0].submission, item: v.submissions[0].item, part: v.submissions[0].part } }) }))}>Compare with current</a>`}
           </div>`)}</div></details>
         </div>
       </div>
@@ -284,7 +299,7 @@ export function AssetDetail({ route }) {
     </div>
   </div>`;
 }
-function AssetStage({ a, source }) {
+function AssetStage({ a, shows }) {
   useActiveViewer('stage', true);
-  return html`<div class="stage-view" data-viewer-root data-active="true"><${MediaViewer} media=${a} viewerId="stage" source=${source} /></div>`;
+  return html`<div class="stage-view" data-viewer-root data-active="true"><${MediaViewer} media=${a} viewerId="stage" shows=${shows} /></div>`;
 }

@@ -1,0 +1,11 @@
+{
+  "target": {
+    "kind": "collection",
+    "id": "outfit/iron"
+  },
+  "category": "Gear/Heavy",
+  "tags": [
+    "starter"
+  ],
+  "revision": 1
+}

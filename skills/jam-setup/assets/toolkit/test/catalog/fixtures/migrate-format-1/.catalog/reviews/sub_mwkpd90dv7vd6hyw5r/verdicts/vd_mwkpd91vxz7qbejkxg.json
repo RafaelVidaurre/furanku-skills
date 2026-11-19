@@ -1,0 +1,19 @@
+{
+  "id": "vd_mwkpd91vxz7qbejkxg",
+  "submission": "sub_mwkpd90dv7vd6hyw5r",
+  "item": "it_mwkpd8vlgmjdzqcy3w",
+  "by": {
+    "name": "Sam Second",
+    "kind": "human"
+  },
+  "at": "2026-11-17T13:02:57.043Z",
+  "scope": {
+    "kind": "parts",
+    "parts": [
+      "preview"
+    ]
+  },
+  "verdicts": {
+    "preview": "approved"
+  }
+}

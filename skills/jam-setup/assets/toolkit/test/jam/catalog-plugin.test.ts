@@ -12,9 +12,9 @@ import { AGENT_MODE, makeFiles, record, start } from "./flow.ts"
 type Any = any
 
 const MANIFEST = {
-  version: 1,
+  version: 2,
   assetRoots: ["kit"],
-  types: { piece: { label: "Kit piece", roles: [{ key: "model", label: "Model", kinds: ["model"] }, { key: "picture", label: "Picture", kinds: ["image"] }] } },
+  types: { piece: { label: "Kit piece", roles: [{ key: "model", label: "Model", mediaKinds: ["model"] }, { key: "picture", label: "Picture", mediaKinds: ["image"] }] } },
   units: [{ id: "kit/plank", type: "piece", name: "Plank", links: [{ role: "model", asset: "kit/plank.glb" }, { role: "picture", asset: "kit/plank.png" }] }]
 }
 
@@ -29,7 +29,7 @@ describe("probes", () => {
   it("the toolkit's measurements appear on any catalog asset and are made once per file version", async () => {
     const root = await kitProject()
     const app = openCatalog(root)
-    assert.deepEqual((await app.run("schema", {})).probes.map((probe: Any) => [probe.name, probe.plugin, probe.kinds]), [["jam-geometry", "jam", ["model"]], ["jam-pixels", "jam", ["image"]]])
+    assert.deepEqual((await app.run("schema", {})).probes.map((probe: Any) => [probe.name, probe.plugin, probe.mediaKinds]), [["jam-geometry", "jam", ["model"]], ["jam-pixels", "jam", ["image"]]])
     // Hand-registered content, never part of a run.
     const plank = await app.run("unit.get", { id: "kit/plank" })
     const facts = Object.fromEntries(plank.links.map((entry: Any) => [entry.role, entry.facts]))
@@ -95,11 +95,12 @@ process.on("exit", () => process.stderr.write("\\nLOADED " + JSON.stringify([...
     return (JSON.parse(result.stderr.slice(result.stderr.lastIndexOf("LOADED ") + 7)) as ReadonlyArray<string>).filter((url) => url.includes("/src/")).map((url) => url.slice(url.indexOf("/src/") + 1))
   }
 
-  it("a catalog that does not list jam loads none of the ledger; a ledger command loads none of the catalog", async () => {
+  it("a catalog that lists neither jam nor engine loads nothing behind them; a ledger command loads none of the catalog", async () => {
     const manifestOnly = catalogProject({ plugins: ["manifest"], files: { "catalog.manifest.json": JSON.stringify(MANIFEST), "kit/plank.glb": await glb(), "kit/plank.png": png(4, 4) } })
     const catalogModules = loaded(manifestOnly, "catalog", "run", "unit.get", "--input", JSON.stringify({ id: "kit/plank" }))
-    assert.ok(catalogModules.includes("src/jam/catalog/plugin.ts"), "the plugin is registered by name")
-    assert.deepEqual(catalogModules.filter((path) => path.startsWith("src/jam/") && path !== "src/jam/catalog/plugin.ts"), [], "and nothing behind it is loaded")
+    const registered = ["src/jam/catalog/plugin.ts", "src/jam/catalog/engine.ts"]
+    for (const plugin of registered) assert.ok(catalogModules.includes(plugin), `${plugin} is registered by name`)
+    assert.deepEqual(catalogModules.filter((path) => path.startsWith("src/jam/") && !registered.includes(path)), [], "and nothing behind them is loaded")
 
     const withRuns = catalogProject()
     await start(withRuns, "asset", "barrel", { budget: "prop" })
@@ -107,7 +108,7 @@ process.on("exit", () => process.stderr.write("\\nLOADED " + JSON.stringify([...
       assert.deepEqual(loaded(withRuns, ...command).filter((path) => path.startsWith("src/catalog/") || path.startsWith("src/jam/catalog/")), [], `jam ${command.join(" ")}`)
     }
     // With the plugin listed, the catalog reads runs through the ledger.
-    assert.ok(loaded(withRuns, "catalog", "run", "catalog.search").includes("src/jam/runs/Runs.ts"))
+    assert.ok(loaded(withRuns, "catalog", "run", "unit.search").includes("src/jam/runs/Runs.ts"))
     assert.ok(existsSync(join(withRuns, "catalog.config.json")))
   })
 })

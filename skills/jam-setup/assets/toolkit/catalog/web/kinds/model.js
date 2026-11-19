@@ -5,7 +5,7 @@ import { html, useEffect, useRef, useState, Icon, prefersReducedMotion } from '.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { registerViewer } from '../controller.js';
+import { refusal, useViewer } from '../controller.js';
 import { registerMediaKind } from '../media-kinds.js';
 import { registerPreview } from '../previews.js';
 import { Msg, UnavailableViewer } from '../viewers.js';
@@ -35,7 +35,7 @@ function disposeScene(obj) {
 }
 
 // srcs and ghost entries are URLs or { url, position, rotation, scale } placements.
-export function ModelViewer({ srcs, ghost = [], sync, label, viewerId, source, initialCamera, initialState, keepCamera, onStatus, animationNote }) {
+export function ModelViewer({ srcs, ghost = [], sync, label, viewerId, shows, initialCamera, initialState, keepCamera, onStatus, animationNote }) {
   const box = useRef();
   const api = useRef({});
   const [st, setSt] = useState({ status: 'loading', error: null });
@@ -190,10 +190,10 @@ export function ModelViewer({ srcs, ghost = [], sync, label, viewerId, source, i
   const doAnimate = (a, fromSync) => { const r = api.current.animate(a, fromSync); setMissingClip(r.missing); setAnim({ clip: r.missing ? null : a.clip, playing: !!a.playing && !r.missing }); };
   api.current.onSyncAnim = (a) => doAnimate(a, true);
 
-  registerViewer(viewerId, () => {
+  useViewer(viewerId, () => {
     const a = api.current;
     return {
-      kind: 'model', status: st.status, error: st.error, source, restoreIssues,
+      kind: 'model', status: st.status, error: st.error, shows, restoreIssues,
       // What a submitter saves with the camera to restore this view later.
       view: { mode, ...(anim.clip ? { animation: { clip: anim.clip, time: a.time?.() ?? 0, playing: false } } : {}) }, files: { models: items.map((x) => x.url), ghosts: ghosts.map((x) => x.url) },
       camera: a.camera ? { position: a.camera.position.toArray().map((x) => +x.toFixed(4)), target: a.controls.target.toArray().map((x) => +x.toFixed(4)) } : null,
@@ -204,10 +204,10 @@ export function ModelViewer({ srcs, ghost = [], sync, label, viewerId, source, i
     if (st.status !== 'ready') return false;
     let did = false;
     if (c.camera) { api.current.setCamera(c.camera); did = true; }
-    if (c.mode) { if (!['textured', 'clay', 'wireframe'].includes(c.mode)) return { error: `unknown mode ${c.mode}`, code: 'invalid' }; setModeAndApply(c.mode); did = true; }
-    if (c.animation) { if (c.animation.clip && !clips.some((x) => x.name === c.animation.clip)) return { error: `this model has no animation clip "${c.animation.clip}"`, code: 'unsupported' }; doAnimate({ clip: c.animation.clip ?? null, time: c.animation.time ?? 0, playing: !!c.animation.playing }); did = true; }
-    if (c.isolate !== undefined) { if (c.isolate !== null && !meshes.some((m) => m.i === c.isolate || m.name === c.isolate)) return { error: 'no such mesh', code: 'invalid' }; doIsolate(c.isolate === null ? null : meshes.find((m) => m.i === c.isolate || m.name === c.isolate).i); did = true; }
-    if (c.texture !== undefined) { if (c.texture !== null && !textures.some((t) => t.id === c.texture || t.name === c.texture)) return { error: 'no such texture', code: 'unsupported' }; setTexView(c.texture === null ? null : textures.find((t) => t.id === c.texture || t.name === c.texture).id); did = true; }
+    if (c.mode) { if (!['textured', 'clay', 'wireframe'].includes(c.mode)) throw refusal('invalid', `unknown mode ${c.mode}`); setModeAndApply(c.mode); did = true; }
+    if (c.animation) { if (c.animation.clip && !clips.some((x) => x.name === c.animation.clip)) throw refusal('unsupported', `this model has no animation clip "${c.animation.clip}"`); doAnimate({ clip: c.animation.clip ?? null, time: c.animation.time ?? 0, playing: !!c.animation.playing }); did = true; }
+    if (c.isolate !== undefined) { if (c.isolate !== null && !meshes.some((m) => m.i === c.isolate || m.name === c.isolate)) throw refusal('invalid', 'no such mesh'); doIsolate(c.isolate === null ? null : meshes.find((m) => m.i === c.isolate || m.name === c.isolate).i); did = true; }
+    if (c.texture !== undefined) { if (c.texture !== null && !textures.some((t) => t.id === c.texture || t.name === c.texture)) throw refusal('unsupported', 'no such texture'); setTexView(c.texture === null ? null : textures.find((t) => t.id === c.texture || t.name === c.texture).id); did = true; }
     return did;
   });
 
@@ -251,8 +251,8 @@ export function ModelCompare({ a, b, labels, mark, control, camera, state }) {
     </div>
     ${m === 'overlay' && both ? html`<div class="cmp-one">${sideLabel(b, `${labels[1]} over ${labels[0]} (grey)`)}<${ModelViewer} srcs=${[b.url]} ghost=${[a.url]} initialCamera=${camera} initialState=${state} onStatus=${(s) => { mark('a')(s); mark('b')(s); }} /></div>`
       : html`<div class="cmp-side">
-        <div>${sideLabel(a, labels[0])}${a.status === 'ok' ? html`<${ModelViewer} srcs=${[a.url]} sync=${sync} initialCamera=${camera} initialState=${state} onStatus=${mark('a')} viewerId=${`cmp-a-${a.sha256}`} source=${{ side: 'a', sha256: a.sha256 }} />` : html`<${SideError} side=${a} />`}</div>
-        <div>${sideLabel(b, labels[1])}${b.status === 'ok' ? html`<${ModelViewer} srcs=${[b.url]} sync=${sync} initialCamera=${camera} initialState=${state} onStatus=${mark('b')} viewerId=${`cmp-b-${b.sha256}`} source=${{ side: 'b', sha256: b.sha256 }} />` : html`<${SideError} side=${b} />`}</div>
+        <div>${sideLabel(a, labels[0])}${a.status === 'ok' ? html`<${ModelViewer} srcs=${[a.url]} sync=${sync} initialCamera=${camera} initialState=${state} onStatus=${mark('a')} viewerId=${`cmp-a-${a.sha256}`} shows=${{ side: 'a', sha256: a.sha256 }} />` : html`<${SideError} side=${a} />`}</div>
+        <div>${sideLabel(b, labels[1])}${b.status === 'ok' ? html`<${ModelViewer} srcs=${[b.url]} sync=${sync} initialCamera=${camera} initialState=${state} onStatus=${mark('b')} viewerId=${`cmp-b-${b.sha256}`} shows=${{ side: 'b', sha256: b.sha256 }} />` : html`<${SideError} side=${b} />`}</div>
       </div>`}
   </div>`;
 }
@@ -261,13 +261,14 @@ export function ModelCompare({ a, b, labels, mark, control, camera, state }) {
 // Member models in one shared space, with the optional base shown in grey.
 registerPreview('assembled-mesh', (ctx) => {
   const models = ctx.members.filter((m) => m.asset.kind === 'model');
-  if (!models.length) return html`<${UnavailableViewer} viewerId=${ctx.viewerId} source=${ctx.source} message="No member models" />`;
-  return html`<${ModelViewer} srcs=${models.map((m) => m.asset.url)} ghost=${ctx.base ? [ctx.base.url] : []} viewerId=${ctx.viewerId} source=${ctx.source} label=${ctx.label}
+  if (!models.length) return html`<${UnavailableViewer} viewerId=${ctx.viewerId} shows=${ctx.shows} message="No member models" />`;
+  return html`<${ModelViewer} srcs=${models.map((m) => m.asset.url)} ghost=${ctx.base ? [ctx.base.url] : []} viewerId=${ctx.viewerId} shows=${ctx.shows} label=${ctx.label}
     initialCamera=${ctx.initialCamera} initialState=${ctx.initialState} />`;
 });
 
 registerMediaKind('model', {
   icon: 'M10 2l7 4v8l-7 4-7-4V6z M3 6l7 4 7-4 M10 10v8',
+  controls: ['camera', 'mode', 'animation', 'isolate', 'texture'],
   // One viewer instance across parts and versions, so the camera stays where the reviewer put it.
   reuse: true,
   // Its viewer has a camera a submitter can frame a view with.

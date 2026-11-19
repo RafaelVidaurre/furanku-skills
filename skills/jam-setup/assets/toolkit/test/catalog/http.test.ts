@@ -26,10 +26,11 @@ test("T15/T21 HTTP actions: discovery, browser identity, same validation, and a 
   try {
     const listed: Array<Any> = json(await raw(s.port, { path: "/api/actions" })).actions
     const actions = listed.map((a) => a.name)
-    for (const a of ["catalog.search", "note.create", "review.submit", "review.decide", "evidence.compare", "viewer.open", "viewer.capture", "viewer.control"]) assert.ok(actions.includes(a), a)
+    for (const a of ["unit.search", "note.create", "review.submit", "review.decide", "evidence.compare", "viewer.open", "viewer.capture", "viewer.control"]) assert.ok(actions.includes(a), a)
     // Viewer actions are told apart from the actions that run anywhere, and publish their inputs too.
-    assert.equal(listed.find((a) => a.name === "viewer.open").kind, "viewer")
+    assert.deepEqual([listed.find((a) => a.name === "viewer.open").access, listed.find((a) => a.name === "viewer.open").requires], ["read", ["server"]])
     assert.ok(listed.find((a) => a.name === "viewer.open").input.properties.target)
+    assert.ok(listed.find((a) => a.name === "viewer.open").output.properties.state)
     // A non-browser client must declare its actor.
     assert.equal((await post(s.port, "note.create", { input: { target: unit("armor/helm"), body: "x" } })).status, 400)
     const body = { input: { target: unit("armor/helm"), body: "Lost response" }, actor: bot, requestId: "retry-1" }
@@ -39,10 +40,10 @@ test("T15/T21 HTTP actions: discovery, browser identity, same validation, and a 
     assert.equal(b.replayed, true)
     const web = json(await post(s.port, "note.create", { input: { target: unit("armor/boots"), body: "From browser" } }, { "x-catalog-client": "web" }))
     assert.equal(web.note.by.kind, "human")
-    const bad = await post(s.port, "organize.set", { input: { target: unit("armor/helm"), tags: ["Bad Tag"] }, actor: bot })
+    const bad = await post(s.port, "organization.set", { input: { target: unit("armor/helm"), tags: ["Bad Tag"] }, actor: bot })
     assert.equal(bad.status, 400)
     assert.equal(json(bad).error.code, "invalid")
-    assert.equal(json(await post(s.port, "notes.list", { input: {} })).total, 2)
+    assert.equal(json(await post(s.port, "note.list", { input: {} })).total, 2)
     // New: every failure code has its status, and the body is the error the CLI would print.
     const missing = await post(s.port, "unit.get", { input: { id: "armor/none" } })
     assert.deepEqual([missing.status, json(missing).error.code], [404, "not_found"])
@@ -53,7 +54,7 @@ test("T15/T21 HTTP actions: discovery, browser identity, same validation, and a 
     const typo = await post(s.port, "note.create", { input: { target: unit("armor/helm"), body: "x" }, actor: bot, requestID: "lost" })
     assert.equal(typo.status, 400)
     assert.match(json(typo).error.message, /requestID/)
-    assert.equal(json(await post(s.port, "notes.list", { input: {} })).total, 2, "nothing was recorded by the refused request")
+    assert.equal(json(await post(s.port, "note.list", { input: {} })).total, 2, "nothing was recorded by the refused request")
     // New: a server says who it is, so a command can tell it from another process on that port.
     const health = json(await raw(s.port, { path: "/api/health" }))
     assert.deepEqual([health.ok, health.pid, health.root], [true, process.pid, dir])
@@ -76,10 +77,10 @@ test("T22 security: loopback host/origin checks, write headers, body limits, tra
   const app = s.app
   try {
     assert.equal((await raw(s.port, { path: "/api/actions", headers: { host: "evil.example:80" } })).status, 403, "DNS rebinding host")
-    assert.equal((await post(s.port, "notes.list", { input: {} }, { origin: "http://evil.example" })).status, 403, "cross-origin write")
+    assert.equal((await post(s.port, "note.list", { input: {} }, { origin: "http://evil.example" })).status, 403, "cross-origin write")
     assert.equal((await raw(s.port, { method: "POST", path: "/api/run/note.create", headers: { "content-type": "application/json" }, body: "{}" })).status, 403, "missing request header")
-    assert.equal((await raw(s.port, { method: "POST", path: "/api/run/notes.list", headers: { "content-type": "text/plain", "x-catalog-request": "1" }, body: "{}" })).status, 415)
-    assert.equal((await raw(s.port, { method: "POST", path: "/api/run/notes.list", headers: { "content-type": "application/json", "x-catalog-request": "1" }, body: "x".repeat(1_100_000) })).status, 400)
+    assert.equal((await raw(s.port, { method: "POST", path: "/api/run/note.list", headers: { "content-type": "text/plain", "x-catalog-request": "1" }, body: "{}" })).status, 415)
+    assert.equal((await raw(s.port, { method: "POST", path: "/api/run/note.list", headers: { "content-type": "application/json", "x-catalog-request": "1" }, body: "x".repeat(1_100_000) })).status, 400)
     for (const p of ["/../package.json", "/vendor/three/../../package.json", "/vendor/three/../../../../../../etc/passwd", "/media/asset/..%2F..%2Fpackage.json", "/media/asset/.git%2Fconfig", "/.catalog/.gitignore", "/media/evidence/x/y/z"]) {
       assert.ok([400, 403, 404].includes((await raw(s.port, { path: p })).status), p)
     }
@@ -131,10 +132,10 @@ test("who may talk to the server: the Host must name it, an Origin must be it, a
     for (const origin of ["http://evil.example", `https://127.0.0.1:${s.port}`, `http://127.0.0.1:${s.port + 1}`, "null"]) {
       assert.equal(await call({ origin }), 403, origin)
       assert.equal(await call({ origin }, asset("art/helm.png")), 403, `${origin} media`)
-      assert.equal((await post(s.port, "notes.list", { input: {} }, { origin })).status, 403, `${origin} action`)
+      assert.equal((await post(s.port, "note.list", { input: {} }, { origin })).status, 403, `${origin} action`)
     }
     // A cross-site form can POST, but it cannot set a header or send JSON: reads through /api/run need both too.
-    const run = (headers: Record<string, string>, method = "POST") => raw(s.port, { method, path: "/api/run/notes.list", headers, body: method === "POST" ? "{}" : undefined } as never).then((r) => r.status)
+    const run = (headers: Record<string, string>, method = "POST") => raw(s.port, { method, path: "/api/run/note.list", headers, body: method === "POST" ? "{}" : undefined } as never).then((r) => r.status)
     assert.equal(await run({ "content-type": "application/json", "x-catalog-request": "1" }), 200)
     assert.equal(await run({ "content-type": "application/json" }), 403)
     assert.equal(await run({ "content-type": "application/json", "x-catalog-request": "0" }), 403)
@@ -143,15 +144,15 @@ test("who may talk to the server: the Host must name it, an Origin must be it, a
     assert.equal(await run({ "x-catalog-request": "1" }), 415)
     assert.equal(await run({ "content-type": "application/json", "x-catalog-request": "1" }, "GET"), 405)
     // The body limit is one mebibyte: just under passes validation, just over is refused unread.
-    const sized = (bytes: number) => raw(s.port, { method: "POST", path: "/api/run/notes.list", headers: { "content-type": "application/json", "x-catalog-request": "1" }, body: JSON.stringify({ input: { q: "x".repeat(bytes) } }) })
+    const sized = (bytes: number) => raw(s.port, { method: "POST", path: "/api/run/note.list", headers: { "content-type": "application/json", "x-catalog-request": "1" }, body: JSON.stringify({ input: { q: "x".repeat(bytes) } }) })
     assert.equal((await sized(1_000_000)).status, 200)
     const over = await sized(1_048_576)
     assert.equal(over.status, 400)
     assert.match(json(over).error.message, /too large/)
-    const malformed = await raw(s.port, { method: "POST", path: "/api/run/notes.list", headers: { "content-type": "application/json", "x-catalog-request": "1" }, body: "{ nope" })
+    const malformed = await raw(s.port, { method: "POST", path: "/api/run/note.list", headers: { "content-type": "application/json", "x-catalog-request": "1" }, body: "{ nope" })
     assert.deepEqual([malformed.status, json(malformed).error.message], [400, "request body is not valid JSON"])
     // Only reads on the routes that hand out files.
-    for (const path of ["/", "/app.js", asset("art/helm.png"), "/vendor/three/three.module.js", "/media/evidence/a/b/c", "/media/before/a/b/c", "/project/preview/x", "/project/kind/x", "/api/actions", "/api/health"]) {
+    for (const path of ["/", "/app.js", asset("art/helm.png"), "/vendor/three/three.module.js", "/media/evidence/a/b/c", "/media/before/a/b/c", "/project/module/x", "/project/kind/x", "/api/actions", "/api/health"]) {
       assert.ok([404, 405].includes((await raw(s.port, { method: "POST", path, headers: { "content-type": "application/json" }, body: "{}" })).status), `POST ${path}`)
     }
     assert.equal((await raw(s.port, { method: "DELETE", path: "/app.js" })).status, 405)
@@ -168,7 +169,7 @@ test("an allowed origin admits exactly that origin and its host; every other hos
   const s = await startServer(dir, { allowOrigins: ["https://box.tail.ts.net:8908"] })
   try {
     const call = (headers: Record<string, string>) => raw(s.port, { path: "/api/actions", headers }).then((r) => r.status)
-    const run = (headers: Record<string, string>) => post(s.port, "context", { input: {} }, headers).then((r) => r.status)
+    const run = (headers: Record<string, string>) => post(s.port, "summary", { input: {} }, headers).then((r) => r.status)
     assert.equal(await call({ host: `127.0.0.1:${s.port}` }), 200)
     assert.equal(await call({ host: "box.tail.ts.net:8908" }), 200)
     assert.equal(await run({ host: "box.tail.ts.net:8908", origin: "https://box.tail.ts.net:8908" }), 200)
@@ -204,7 +205,7 @@ test("traversal on every route that serves files: nothing outside the web folder
 
     const up = ["..", "../..", "%2e%2e", "..%2f..", "%2e%2e%2f%2e%2e", "..%5c..", "%252e%252e", "....//"]
     const targets = ["secret.txt", "catalog.config.json", "catalog.manifest.json", ".git/config", ".git/HEAD", ".catalog/.gitignore", ".catalog/.local/private.png", "package.json"]
-    const prefixes = ["/", "/vendor/", "/vendor/three/", "/vendor/three-addons/", "/media/asset/", "/media/asset/art/", "/media/evidence/", `/media/evidence/${review.id}/${item.id}/`, "/media/before/", `/media/before/${review.id}/${item.id}/`, "/project/preview/", "/project/kind/"]
+    const prefixes = ["/", "/vendor/", "/vendor/three/", "/vendor/three-addons/", "/media/asset/", "/media/asset/art/", "/media/evidence/", `/media/evidence/${review.id}/${item.id}/`, "/media/before/", `/media/before/${review.id}/${item.id}/`, "/project/module/", "/project/kind/"]
     const tried: Array<string> = []
     for (const prefix of prefixes) {
       for (const dots of up) {
@@ -217,7 +218,7 @@ test("traversal on every route that serves files: nothing outside the web folder
       const answer = await raw(s.port, { path })
       assert.ok([400, 403, 404].includes(answer.status), `${path} answered ${answer.status}`)
       const text = answer.body.toString("latin1")
-      assert.ok(!text.includes("TOP-SECRET") && !text.includes("[core]") && !text.includes("ref: refs/") && !text.includes('"adapter"'), `${path} leaked a file`)
+      assert.ok(!text.includes("TOP-SECRET") && !text.includes("[core]") && !text.includes("ref: refs/") && !text.includes('"plugins"'), `${path} leaked a file`)
     }
     assert.ok(tried.length > 1500, "the matrix was built")
     // Files under the asset roots that are not media, and machine-local state, are no assets either.
@@ -243,7 +244,7 @@ test("media answers: types from bytes, no sniffing, sandboxed, ranges, and cachi
   const take = tone({ duration: 0.25 })
   const dir = await makeProject({
     assets: { "art/voice.wav": take, "art/older.wav": tone({ duration: 0.25, frequency: 220 }), "art/disguised.png": tone({ duration: 0.1 }) },
-    extra: { types: { sound: { label: "Sound", thumb: "audio", fields: [], roles: [{ key: "audio", label: "Take", kinds: ["audio"], many: true }] } } },
+    extra: { types: { sound: { label: "Sound", thumb: "audio", fields: [], roles: [{ key: "audio", label: "Take", mediaKinds: ["audio"], many: true }] } } },
     units: [{ id: "sound/hello", type: "sound", name: "Hello", attrs: {}, links: [{ role: "audio", asset: "art/voice.wav" }] }]
   })
   const s = await startServer(dir)
@@ -337,29 +338,33 @@ test("P1 over HTTP: a running server follows the checkout, and a write prepared 
   const s = await startServer(dir)
   const call = async (action: string, input: unknown, extra: Record<string, unknown> = {}) => post(s.port, action, { input, ...extra })
   try {
-    const main = json(await call("context", {}))
-    assert.deepEqual([main.context.branch, main.project, main.resolver], ["main", "Testgame", "latest"])
+    const main = json(await call("summary", {}))
+    assert.deepEqual([main.checkout.branch, main.project, main.resolver], ["main", "Testgame", "latest"])
     // An alternate branch: a different manifest file, units and resolver.
     git(dir, "checkout", "-q", "-b", "alternate")
     write(dir, "alternate.json", { ...read(dir, "catalog.manifest.json"), project: "Alternate", unitFiles: ["alt"] })
     write(dir, "alt/one.json", { id: "armor/helm", type: "armor", name: "Alt Helm", attrs: { slot: "Head" }, links: [{ role: "icon", asset: "art/helm.png" }] })
-    write(dir, "catalog.config.json", { version: 1, adapter: "manifest", options: { manifest: "alternate.json" }, review: { resolver: "strictest" } })
+    write(dir, "catalog.config.json", { version: 3, plugins: [{ plugin: "manifest", options: { file: "alternate.json" } }], review: { resolver: "strictest" } })
     git(dir, "add", "-A")
     git(dir, "commit", "-q", "-m", "alternate")
-    const moved = json(await call("context", {}))
-    assert.deepEqual([moved.context.branch, moved.project, moved.resolver], ["alternate", "Alternate", "strictest"])
+    const moved = json(await call("summary", {}))
+    assert.deepEqual([moved.checkout.branch, moved.project, moved.resolver], ["alternate", "Alternate", "strictest"])
     assert.notEqual(moved.version, main.version, "the page fetches the schema again")
-    assert.deepEqual(json(await call("catalog.search", { section: "units" })).items.map((u: Any) => u.name), ["Alt Helm"])
+    assert.deepEqual(json(await call("unit.search", {})).units.map((u: Any) => u.name), ["Alt Helm"])
     // What a page still open on main tries to save: refused, with the checkout it is on now.
-    const stale = await call("note.create", { target: unit("armor/helm"), body: "Written on main" }, { actor: bot, context: main.context.key })
+    const stale = await call("note.create", { target: unit("armor/helm"), body: "Written on main" }, { actor: bot, checkoutKey: main.checkout.key })
     assert.equal(stale.status, 409)
-    assert.deepEqual([json(stale).error.code, json(stale).error.details.context.branch], ["context_changed", "alternate"])
-    assert.equal(json(await call("notes.list", {})).total, 0)
-    assert.equal((await call("note.create", { target: unit("armor/helm"), body: "Written here" }, { actor: bot, context: moved.context.key })).status, 200)
+    assert.deepEqual([json(stale).error.code, json(stale).error.details.checkout.branch], ["checkout_changed", "alternate"])
+    assert.equal(json(await call("note.list", {})).total, 0)
+    // The precondition is `checkoutKey`; the field it replaced is refused, not ignored.
+    const renamed = await call("note.create", { target: unit("armor/helm"), body: "Written here" }, { actor: bot, context: moved.checkout.key })
+    assert.equal(json(renamed).error.code, "invalid")
+    assert.match(json(renamed).error.message, /context/)
+    assert.equal((await call("note.create", { target: unit("armor/helm"), body: "Written here" }, { actor: bot, checkoutKey: moved.checkout.key })).status, 200)
     git(dir, "add", "-A")
     git(dir, "commit", "-q", "-m", "note on alternate")
     git(dir, "checkout", "-q", "main")
-    const back = json(await call("context", {}))
+    const back = json(await call("summary", {}))
     assert.deepEqual([back.project, back.resolver, back.version], ["Testgame", "latest", main.version])
   } finally {
     await s.close()
@@ -367,7 +372,7 @@ test("P1 over HTTP: a running server follows the checkout, and a write prepared 
   }
 })
 
-test("project code for the page is served only when declared: preview modules and media kind modules, by name", async () => {
+test("project code for the page is served only when declared: browser modules and media kind modules, by name", async () => {
   const dir = await standardProject()
   write(dir, "catalog/previews/lineup.mjs", "export default (ctx) => ctx.html`<p>lineup</p>`\n")
   write(dir, "catalog/previews/undeclared.mjs", "export default () => 'UNDECLARED'\n")
@@ -380,23 +385,25 @@ test("project code for the page is served only when declared: preview modules an
     name: "text",
     // A browser module beside the plugin itself, outside the project: declared by its file URL.
     mediaKinds: [{ id: "text", label: "Text", extensions: ["txt"], sniff: () => null, web: new URL(`file://${join(beside, "text-kind.js")}`).href }],
-    previews: { lineup: "catalog/previews/lineup.mjs", gone: "catalog/previews/gone.mjs", notScript: "catalog/notes.txt" }
+    browserModules: { lineup: "catalog/previews/lineup.mjs", gone: "catalog/previews/gone.mjs", notScript: "catalog/notes.txt" }
   })
-  write(dir, "catalog.config.json", { version: 2, plugins: ["manifest", "text"] })
+  write(dir, "catalog.config.json", { version: 3, plugins: ["manifest", "text"] })
   const s = await startServer(dir, { plugins: { text } })
   try {
     // P3 from corrections.test.mjs: a declared module is served as a script; an unknown name is not found.
-    const lineup = await raw(s.port, { path: "/project/preview/lineup" })
+    const lineup = await raw(s.port, { path: "/project/module/lineup" })
     assert.equal(lineup.status, 200)
     assert.match(lineup.body.toString(), /lineup/)
     assert.match(String(lineup.headers["content-type"]), /^text\/javascript/)
     assert.equal(lineup.headers["x-content-type-options"], "nosniff")
     assert.equal(lineup.headers["content-security-policy"], "default-src 'none'")
-    assert.equal((await raw(s.port, { path: "/project/preview/nope" })).status, 404)
+    assert.equal((await raw(s.port, { path: "/project/module/nope" })).status, 404)
+    // The routes of the earlier contract are gone.
+    for (const old of ["/project/preview/lineup", "/project/view/lineup"]) assert.equal((await raw(s.port, { path: old })).status, 404, old)
     // The address is a declared name, never a path: files beside a declared module stay unreachable.
     for (const name of ["undeclared", "undeclared.mjs", "catalog/previews/undeclared.mjs", "catalog%2Fpreviews%2Fundeclared.mjs", "..%2Fsecret.mjs", "lineup/../undeclared", "lineup%2F..%2Fundeclared", "constructor", "__proto__", "toString", "gone", "notScript", ""]) {
-      const answer = await raw(s.port, { path: `/project/preview/${name}` })
-      assert.equal(answer.status, 404, `preview ${name}`)
+      const answer = await raw(s.port, { path: `/project/module/${name}` })
+      assert.equal(answer.status, 404, `module ${name}`)
       assert.ok(!answer.body.toString().includes("UNDECLARED"))
     }
     // A pinned revision is served only while it is the current one.
@@ -407,7 +414,7 @@ test("project code for the page is served only when declared: preview modules an
     assert.equal(module.status, 200)
     assert.match(module.body.toString(), /registerMediaKind\('text'/)
     assert.equal((await raw(s.port, { path: "/project/kind/text?v=0000000000000000" })).status, 409)
-    assert.equal((await raw(s.port, { path: "/project/preview/lineup?v=0000000000000000" })).status, 409)
+    assert.equal((await raw(s.port, { path: "/project/module/lineup?v=0000000000000000" })).status, 409)
     // Kinds that declare no module, and files beside the declared one, are not served.
     for (const name of ["image", "model", "audio", "nope", "other", "other.js", "text%2F..%2Fother.js", "text/other.js", encodeURIComponent(join(beside, "other.js")), "constructor"]) {
       const answer = await raw(s.port, { path: `/project/kind/${name}` })
@@ -420,7 +427,7 @@ test("project code for the page is served only when declared: preview modules an
     const edited = await s.app.run("schema", {})
     assert.notEqual(edited.version, schema.version)
     assert.notEqual(edited.mediaKinds.text.web, kindUrl)
-    assert.equal((await s.app.run("context", {})).version, edited.version)
+    assert.equal((await s.app.run("summary", {})).version, edited.version)
     assert.equal((await raw(s.port, { path: kindUrl })).status, 409)
     // A declared module whose file is missing is reported, and offered to no one.
     unlinkSync(join(beside, "text-kind.js"))

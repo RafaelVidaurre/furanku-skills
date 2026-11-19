@@ -55,8 +55,8 @@ test("captures and work items in the review page; pixel art keeps hard texels an
     await page.waitForFunction(ready)
     const pair = await page.evaluate(() => (globalThis as Any).catalogViewer.state())
     assert.equal(pair.viewer.kind, "compare")
-    assert.deepEqual(pair.viewer.source.pair.map((side: Any) => [side.leaf, side.sha256]), work.parts[0].leaves.map((leaf: Any) => [leaf.key, leaf.sha256]))
-    assert.equal(pair.viewer.source.view, work.views[0].id)
+    assert.deepEqual(pair.viewer.shows.pair.map((side: Any) => [side.leaf, side.sha256]), work.parts[0].leaves.map((leaf: Any) => [leaf.key, leaf.sha256]))
+    assert.equal(pair.viewer.shows.view, work.views[0].id)
     assert.match(await page.locator(".item-text").innerText(), /^Warm floors return; the fog no longer swallows the stairs\.\nCompare the stair landing\.$/)
     assert.equal(await page.locator(".renderer-badge").innerText(), "Unreal")
     assert.match(await page.locator(".rows .row.sel .row-sub").innerText(), /^Work · Undecided/)
@@ -84,7 +84,7 @@ test("captures and work items in the review page; pixel art keeps hard texels an
     await page.waitForFunction(() => (globalThis as Any).catalogViewer.state().selection.part === "icon" && (globalThis as Any).catalogViewer.state().viewer?.status === "ready")
     assert.equal(await page.locator(".stage-view img").evaluate((image) => getComputedStyle(image).imageRendering), "pixelated")
     // Thumbnails: whole images with hard texels.
-    await page.goto(`${s.url}#/content`)
+    await page.goto(`${s.url}#/main`)
     const thumb = page.locator(".card-media .thumb img").first()
     await thumb.waitFor()
     assert.deepEqual(await thumb.evaluate((image) => [getComputedStyle(image).imageRendering, getComputedStyle(image).objectFit]), ["pixelated", "contain"])
@@ -108,6 +108,20 @@ test("captures and work items in the review page; pixel art keeps hard texels an
     assert.deepEqual(capture.shows.pair.map((side: Any) => side.sha256), work.parts[0].leaves.map((leaf: Any) => leaf.sha256))
     assert.equal(capture.shows.view, work.views[0].id)
     await s.viewer("viewer.close", { session: "c" })
+
+    // A comparison is the object evidence.compare takes: the page address carries its JSON, and an
+    // agent opens or selects one with the same object (absent b: current content).
+    const icon = { submission: submission.id, item: helm.id, part: "icon" }
+    const cmpOf = (route: string) => new URLSearchParams(route.split("?")[1] ?? "").get("cmp")
+    const opened = await s.viewer("viewer.open", { session: "cmp", target: { kind: "unit", id: "armor/helm", compare: { a: icon } } })
+    assert.equal(cmpOf(opened.state.route), JSON.stringify({ a: icon }))
+    assert.deepEqual([opened.state.viewer.kind, opened.state.viewer.status, opened.state.viewer.identical], ["compare", "ready", [true]])
+    const selected = await s.viewer("viewer.control", { session: "cmp", select: { compare: { a: icon, b: icon } } })
+    assert.equal(cmpOf(selected.state.route), JSON.stringify({ a: icon, b: icon }))
+    assert.deepEqual([selected.state.viewer.kind, selected.state.viewer.status, selected.state.viewer.shows.a, selected.state.viewer.shows.b], ["compare", "ready", "Earlier", "Later"])
+    await s.viewer("viewer.close", { session: "cmp" })
+    const tilde = await s.viewer("viewer.open", { session: "old", target: { kind: "unit", id: "armor/helm", compare: `${submission.id}~${helm.id}~icon` } }).catch((error: Any) => error)
+    assert.equal(tilde.code, "invalid", "the ~ string is not a comparison")
 
     // `capture --url … --out`: the file is copied from the checkout of the server that took it.
     const out = join(tmp("cc-capture-out-"), "pair.png")

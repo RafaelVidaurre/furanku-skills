@@ -10,17 +10,20 @@ import { reviewOf } from "./review.ts"
 import { submissionView } from "./reviews.ts"
 
 export interface CatalogProblem {
-  readonly scope: "project" | "content" | "records"
-  readonly source: string
+  /** Where it comes from: the project's configuration and plugins, its sources, or the records. */
+  readonly origin: "project" | "sources" | "records"
+  /** What it is about: a path or a unit id. */
+  readonly subject: string
   readonly error: string
   readonly recovery: string | null
 }
 
 /** Everything that could not be used: plugin and configuration failures, source problems, bad records. */
 export const problemsOf = (p: Projection): Array<CatalogProblem> => [
-  ...p.plugins.problems.map((problem: Problem) => ({ scope: "project" as const, ...problem })),
-  ...p.snapshot.problems.map((problem) => ({ scope: "content" as const, ...problem })),
-  ...p.records.problems.map((problem) => ({ scope: "records" as const, source: problem.file, error: problem.error, recovery: problem.recovery ?? null }))
+  ...p.plugins.problems.map((problem: Problem) => ({ origin: "project" as const, ...problem })),
+  ...p.snapshot.problems.map((problem) => ({ origin: "sources" as const, ...problem })),
+  ...p.records.problems.map((problem) => ({ origin: "records" as const, subject: problem.file, error: problem.error, recovery: problem.recovery ?? null })),
+  ...p.recordProblems.map((problem) => ({ origin: "records" as const, ...problem }))
 ]
 
 const first = <A>(list: ReadonlyArray<A>, limit: number): ReadonlyArray<A> => list.slice(0, limit)
@@ -40,8 +43,8 @@ export const inbox = (p: Projection, limit: number) => {
     })
   // Only targets that ever received a verdict can have changed since one.
   const decided = new Map<string, Target>()
-  for (const event of p.events) {
-    const target = p.items.get(event.item)!.item.target
+  for (const decision of p.decisions) {
+    const target = p.items.get(decision.item)!.item.target
     if (target === null) continue
     decided.set(`${target.kind}:${target.id}`, target)
   }
@@ -54,7 +57,7 @@ export const inbox = (p: Projection, limit: number) => {
       target,
       ...(route === null ? {} : { route }),
       name: name ?? target.id,
-      parts: parts.map((part) => ({ id: part.id, label: part.label, verdict: part.verdict, submission: part.event?.submission ?? null, ref: part.event ? shortRef(part.event.submission) : null }))
+      parts: parts.map((part) => ({ id: part.id, label: part.label, verdict: part.verdict, submission: part.decision?.submission ?? null, ref: part.decision ? shortRef(part.decision.submission) : null }))
     }]
   }).sort((a, b) => a.name.localeCompare(b.name))
   const problems = problemsOf(p)

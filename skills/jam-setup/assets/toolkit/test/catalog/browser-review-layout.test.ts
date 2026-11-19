@@ -46,7 +46,7 @@ test("multi-item review keeps notes, part navigation and long content usable at 
     const { app, url } = server
     const s = await W(app, agent)("review.submit", {
       title: "LongBatchTitle".repeat(18),
-      note: "### Listen\nOne **submission description** for eleven sounds.\n\n```text\n" + "UnbrokenCode".repeat(90) + "\n```",
+      brief: "### Listen\nOne **submission description** for eleven sounds.\n\n```text\n" + "UnbrokenCode".repeat(90) + "\n```",
       items: names.map((_, i) => ({
         target: { kind: "unit", id: `sound/${i}` },
         ...(i === 10 ? { views: [{ part: `audio:${paths[0]}`, caption: "Compare room tails", before: { path: paths[1], label: "PreviousTake".repeat(5) }, afterLabel: "CurrentTake".repeat(5) }] } : {})
@@ -64,21 +64,21 @@ test("multi-item review keeps notes, part navigation and long content usable at 
     }
     await show()
     await shot(p, "review-first-item-1600")
-    await t.test("one Markdown submission note below the preview, including after item navigation", async () => {
+    await t.test("one Markdown submission brief below the preview, including after item navigation", async () => {
       for (const item of [first, second]) {
         await show(item)
-        assert.equal(await p.locator('[aria-label="Submission note"]').count(), 1)
-        assert.equal(await p.locator('.d-main [aria-label="Submission note"] strong').textContent(), "submission description")
-        assert.equal(await p.locator('.d-main [aria-label="Submission note"] pre code').count(), 1)
+        assert.equal(await p.locator('[aria-label="Submission brief"]').count(), 1)
+        assert.equal(await p.locator('.d-main [aria-label="Submission brief"] strong').textContent(), "submission description")
+        assert.equal(await p.locator('.d-main [aria-label="Submission brief"] pre code').count(), 1)
         const stage = (await p.locator(".stage").boundingBox())!
-        const note = (await p.locator('[aria-label="Submission note"]').boundingBox())!
-        assert.ok(note.y >= stage.y + stage.height, "note follows the preview")
+        const note = (await p.locator('[aria-label="Submission brief"]').boundingBox())!
+        assert.ok(note.y >= stage.y + stage.height, "brief follows the preview")
       }
     })
     await t.test("preview pills and item-detail tabs use the decision part labels", async () => {
       await show()
       assert.deepEqual(await p.locator(".view-tile").allTextContents(), first.parts.filter((x: Any) => x.id !== "attributes").map((x: Any) => x.label))
-      await p.goto(`${url}#/content/u/sound%2F0`)
+      await p.goto(`${url}#/main/u/sound%2F0`)
       await p.waitForFunction(() => window.catalogViewer?.state().selection?.id === "sound/0")
       await ready(p)
       assert.deepEqual(await p.locator(".tile-l").allTextContents(), first.parts.filter((x: Any) => x.id !== "attributes").map((x: Any) => x.label))
@@ -105,7 +105,7 @@ test("multi-item review keeps notes, part navigation and long content usable at 
         await assertContained(p, ".sub-head > *, .d-title > *, .comp-all > *, .comp-row > *, .block-h > *, .md > *, .decide-f > *")
         for (const button of await p.locator(".comp-all button").all()) assert.ok(await button.isVisible())
         if (width === 1280 || width === 390) await shot(p, `review-long-title-${width}`)
-        await p.goto(`${url}#/content/u/sound%2F1`)
+        await p.goto(`${url}#/main/u/sound%2F1`)
         await p.waitForFunction(() => window.catalogViewer?.state().selection?.id === "sound/1")
         await ready(p)
         await assertContained(p, ".d-title > *, .asset-line > *, .block-h > *, .attrs dd, .mship > *")

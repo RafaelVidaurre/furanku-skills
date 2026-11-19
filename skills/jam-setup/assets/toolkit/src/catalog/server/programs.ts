@@ -22,7 +22,7 @@ export const serve = (options: ServeOptions): Effect.Effect<never, ToolError, Se
   const announce = Layer.effectDiscard(Effect.gen(function*() {
     const server = yield* CatalogServer
     const output = yield* Output
-    const checkout = yield* (yield* Catalog).context
+    const checkout = yield* (yield* Catalog).checkout
     yield* output.emit(
       { url: server.url, port: server.port, pid: options.pid, project: checkout.name, branch: checkout.branch, recorded: server.recorded },
       `Catalog for ${checkout.name} (${checkout.branch ?? "detached"}) at ${server.url}`

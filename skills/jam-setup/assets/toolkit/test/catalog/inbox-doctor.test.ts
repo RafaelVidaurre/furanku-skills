@@ -5,7 +5,7 @@ import { unlinkSync } from "node:fs"
 import { join } from "node:path"
 import { test } from "node:test"
 import { definePlugin } from "../../src/catalog/plugin.ts"
-import { agent, cleanup, git, open, png, read, standardProject, W, write } from "./helpers.ts"
+import { agent, cleanup, git, open, png, read, rejects, standardProject, W, write } from "./helpers.ts"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any
@@ -37,7 +37,7 @@ test("inbox: waiting reviews, open notes, parts changed since their verdict and 
   assert.deepEqual(inbox.waiting.map((w: Any) => [w.submission, w.ref, w.title, w.waiting, w.items, w.route]), [[review.id, review.ref, "Boots pass", 1, 2, `#/reviews/s/${review.id}`]])
   assert.deepEqual(inbox.notes.map((n: Any) => [n.id, n.targetName, n.partLabel, n.body, n.by.kind]), [[open1.note.id, "Iron Helm", "Model", "Visor reads thin", "agent"]])
   assert.deepEqual(inbox.changed.map((c: Any) => [c.target, c.name, c.parts.map((p: Any) => [p.id, p.verdict])]), [[unit("armor/helm"), "Iron Helm", [["icon", "approved"]]]])
-  assert.deepEqual(inbox.problems.map((p: Any) => [p.scope, p.source]), [["content", "content/broken.json"]])
+  assert.deepEqual(inbox.problems.map((p: Any) => [p.origin, p.subject]), [["sources", "content/broken.json"]])
   // One fast list: a single projection and a single pass over the record folders.
   assert.equal(after.projections - before.projections, 1)
   assert.equal(after.recordScans - before.recordScans, 1)
@@ -90,28 +90,28 @@ test("doctor: a clean project is ok; checks from plugins run with the catalog's 
         label: "Units without a tag",
         // A check asks the catalog like any client; from a check, only reads are allowed.
         run: async (context) => {
-          const search = (await context.run("catalog.search", { section: "units", pageSize: 200 })) as { items: ReadonlyArray<{ id: string; tags: ReadonlyArray<string> }> }
+          const search = (await context.run("unit.search", { pageSize: 200 })) as { units: ReadonlyArray<{ id: string; tags: ReadonlyArray<string> }> }
           await context.run("note.create", { target: { kind: "unit", id: "armor/helm" }, body: "from a check" }).catch((error: { code: string }) => seen.push(error.code))
-          return search.items.filter((item) => item.tags.length === 0).map((item) => ({ subject: item.id, message: `${item.id} has no tag`, severity: "info" as const }))
+          return search.units.filter((item) => item.tags.length === 0).map((item) => ({ subject: item.id, message: `${item.id} has no tag`, severity: "info" as const }))
         }
       },
       { name: "explodes", run: () => { throw new Error("check blew up") } }
     ]
   })
-  write(dir, "catalog.config.json", { version: 2, plugins: ["manifest", "audit"] })
-  const clean = await (await open(dir)).run("doctor", {}).catch(() => null)
-  assert.equal(clean, null, "a plugin the composition root does not provide is a configuration error")
+  write(dir, "catalog.config.json", { version: 3, plugins: ["manifest", "audit"] })
+  const unknown = await rejects((await open(dir)).run("doctor", {}))
+  assert.match(unknown.message, /audit/, "a plugin the composition root does not provide is a configuration error")
   const app = await open(dir, { plugins: { audit } })
   const report = await app.run("doctor", {})
   const check = (name: string): Any => report.checks.find((c: Any) => c.name === name)
   assert.deepEqual(check("untagged").problems.map((p: Any) => p.subject).sort(), ["armor/boots", "armor/coat", "lore/origin"])
   assert.equal(check("untagged").plugin, "audit")
   assert.deepEqual(seen, ["forbidden"], "a check cannot write through the catalog")
-  assert.equal((await app.run("notes.list", {})).total, 0)
+  assert.equal((await app.run("note.list", {})).total, 0)
   assert.match(check("explodes").problems[0].message, /check blew up/)
   assert.equal(report.ok, false, "a check that cannot run is a problem, not a pass")
   // Without the plugin's checks the standard project has nothing to fix.
-  write(dir, "catalog.config.json", { version: 2, plugins: ["manifest"] })
+  write(dir, "catalog.config.json", { version: 3, plugins: ["manifest"] })
   const plain = await app.run("doctor", {})
   assert.deepEqual([plain.ok, plain.summary.problems], [true, 0])
   cleanup(dir)

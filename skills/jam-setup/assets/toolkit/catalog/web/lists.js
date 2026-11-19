@@ -1,9 +1,11 @@
 import { html, useState, useEffect, useLayoutEffect, useRef, useQuery, write, href, withQuery, replace, entityHref, Icon, Popover, Thumb, pixelArt, NoteCount, TagPicker, KindIcon, kindLabel, scopeOf, sectionLabel, session, toast, enc, ErrorLine, newRequestId, fmtSize } from './core.js';
 
-// A list shows units of one scope, collections, or media files.
-const searchSection = (section) => (section === 'collections' ? 'collections' : section === 'files' ? 'assets' : 'units');
-const kindOf = (section) => (section === 'collections' ? 'collection' : section === 'files' ? 'asset' : 'unit');
-const describe = (section) => scopeOf(section)?.description ?? (section === 'collections' ? 'Related entries, gathered into sets' : 'Every media file the catalog knows');
+// A list shows units of one scope, collections, or assets.
+const searchSection = (section) => (section === 'collections' ? 'collections' : section === 'assets' ? 'assets' : 'units');
+// Each list has its own search, and its result names its entities: `units`, `collections` or `assets`.
+const SEARCH = { units: 'unit.search', collections: 'collection.search', assets: 'asset.search' };
+const kindOf = (section) => (section === 'collections' ? 'collection' : section === 'assets' ? 'asset' : 'unit');
+const describe = (section) => scopeOf(section)?.description ?? (section === 'collections' ? 'Related units, gathered into sets' : 'Every asset the catalog knows');
 export function selectedFacets(route) {
   const out = {};
   for (const [k, v] of route.query) if (k.startsWith('f.') && v) out[k.slice(2)] = v.split(',').map(decodeURIComponent);
@@ -21,10 +23,10 @@ export function ListPane({ route, compact }) {
   const [mode, setMode] = useState(() => localStorage.getItem(`listMode:${route.section}`) ?? 'grid');
   const [picked, setPicked] = useState(new Set());
   const scroller = useRef();
-  const query = useQuery('catalog.search', { section, scope, q, filters: sel, page, pageSize: compact ? 100 : 60 });
+  const query = useQuery(SEARCH[section], { ...(scope ? { scope } : {}), q, filters: sel, page, pageSize: compact ? 100 : 60 });
   const { error, loading, reload } = query;
   // Query identity includes the library, filters, search and page.
-  const data = query.data?.section === section && (!scope || query.data.scope === scope) ? query.data : null;
+  const data = query.data?.[section] && (!scope || query.data.scope === scope) ? query.data : null;
   useEffect(() => setPicked(new Set()), [route.section]);
   // Filter and search changes reset pagination; typing replaces history instead of adding entries.
   const setQ = (changes) => replace(withQuery(route, { ...changes, page: null }));
@@ -45,11 +47,11 @@ export function ListPane({ route, compact }) {
   const pick = (id, e) => { e.preventDefault(); e.stopPropagation(); const n = new Set(picked); n.has(id) ? n.delete(id) : n.add(id); setPicked(n); };
   const go = (p) => location.hash = href(withQuery(route, { page: p > 1 ? p : null })).slice(1);
   return html`<div class=${`list-pane${compact ? ' compact' : ''}`} ref=${scroller} onScroll=${rememberScroll} onClickCapture=${rememberScroll}>
-    <header class="browse-head"><div><span class="eyebrow">${session.ctx?.project ?? 'Catalog'}</span><h1>${sectionLabel(route.section)}</h1></div><span class="muted">${describe(route.section)}</span></header>
+    <header class="browse-head"><div><span class="eyebrow">${session.summary?.project ?? 'Catalog'}</span><h1>${sectionLabel(route.section)}</h1></div><span class="muted">${describe(route.section)}</span></header>
     <div class="list-bar">
       <input class="search" type="search" placeholder="Filter" aria-label="Filter list" value=${q} onInput=${(e) => setQ({ q: e.target.value })} data-list-search
         onKeyDown=${(e) => { if (e.key === 'Escape' && e.target.value) { e.stopPropagation(); e.preventDefault(); setQ({ q: null }); } }} />
-      ${data && Object.entries(data.facets).filter(([k]) => !['review', 'visual'].includes(k)).map(([k, f]) => html`<${FacetMenu} key=${k} name=${k} f=${f} onToggle=${(v) => toggle(k, v)} onClear=${() => setQ({ [`f.${k}`]: null })} />`)}
+      ${data && Object.entries(data.facets).filter(([k]) => !['review', 'role'].includes(k)).map(([k, f]) => html`<${FacetMenu} key=${k} name=${k} f=${f} onToggle=${(v) => toggle(k, v)} onClear=${() => setQ({ [`f.${k}`]: null })} />`)}
       <span class="push"></span>
       ${route.section === 'collections' && html`<${NewCollection} />`}
       ${!compact && html`<span class="seg" aria-label="Layout">
@@ -65,8 +67,8 @@ export function ListPane({ route, compact }) {
     <${ErrorLine} error=${error} onRetry=${reload} />
     ${picked.size > 0 && html`<${BulkBar} ids=${[...picked]} kind=${kind} onClear=${() => setPicked(new Set())} />`}
     <div class=${rows ? 'rows' : `grid ${route.section}`} role="list" aria-busy=${loading}>
-      ${data?.items.map((e) => {
-        const props = { e, h: linkOf(e.id), selected: e.id === route.id, picked: picked.has(e.id), onPick: route.section !== 'files' ? (ev) => pick(e.id, ev) : null, rows };
+      ${data?.[section].map((e) => {
+        const props = { e, h: linkOf(e.id), selected: e.id === route.id, picked: picked.has(e.id), onPick: route.section !== 'assets' ? (ev) => pick(e.id, ev) : null, rows };
         return kind === 'unit' ? html`<${UnitItem} key=${e.id} ...${props} />` : kind === 'collection' ? html`<${CollectionItem} key=${e.id} ...${props} />` : html`<${AssetItem} key=${e.id} ...${props} />`;
       })}
     </div>
@@ -130,7 +132,7 @@ function CollectionItem({ e: c, h, selected, rows, picked, onPick }) {
   </a>`;
 }
 function AssetItem({ e: a, h, selected, rows }) {
-  const use = html`<span class=${`uses${a.usedBy > 1 ? ' shared' : a.usedBy === 0 ? ' unused' : ''}`} title=${`Used by ${a.usedBy} catalog entr${a.usedBy === 1 ? 'y' : 'ies'}`}><${Icon} name="link" size=${11} />${a.usedBy}</span>`;
+  const use = html`<span class=${`uses${a.usedBy > 1 ? ' shared' : a.usedBy === 0 ? ' unused' : ''}`} title=${`Used by ${a.usedBy} unit${a.usedBy === 1 ? '' : 's'}`}><${Icon} name="link" size=${11} />${a.usedBy}</span>`;
   const name = a.path.split('/').pop();
   if (rows) return html`<a class=${`row${selected ? ' sel' : ''}`} href=${h} role="listitem" aria-current=${selected ? 'true' : undefined}>
     <${Thumb} asset=${a} size=${34} />
@@ -150,7 +152,7 @@ function BulkBar({ ids, kind, onClear }) {
     <b>${ids.length} selected</b>
     ${kind === 'unit' && html`<${Popover} label="Add to collection" trigger=${() => html`<button class="btn sm">Collections</button>`}><${CollectionToggle} unitIds=${ids} /><//>`}
     <${Popover} label="Add tag" trigger=${() => html`<button class="btn sm">Add tag</button>`}>
-      ${(close) => html`<${TagPicker} onPick=${async (t) => { try { await write('organize.bulk', { targets, addTags: [t] }); toast(`Tagged ${ids.length} with ${t}`); close(); } catch (e) { toast(e.message, 'err'); } }} />`}
+      ${(close) => html`<${TagPicker} onPick=${async (t) => { try { await write('organization.setMany', { targets, addTags: [t] }); toast(`Tagged ${ids.length} with ${t}`); close(); } catch (e) { toast(e.message, 'err'); } }} />`}
     <//>
 
     <button class="btn sm ghost push" onClick=${onClear}>Clear</button>
@@ -160,7 +162,7 @@ function BulkBar({ ids, kind, onClear }) {
 // Membership toggles for one or many units. Membership is by reference: nothing is copied.
 export function CollectionToggle({ unitIds }) {
   const [q, setQ] = useState('');
-  const { data, reload } = useQuery('collections.membership', { units: unitIds, q });
+  const { data, reload } = useQuery('collection.membership', { units: unitIds, q });
   const cols = data?.collections ?? [];
   const state = (c) => (c.contains === 0 ? 'none' : c.contains === unitIds.length ? 'all' : 'some');
   const toggle = async (c) => { try { await write('collection.update', state(c) === 'all' ? { id: c.id, remove: unitIds } : { id: c.id, add: unitIds }); reload(); } catch (e) { toast(e.message, 'err'); } };

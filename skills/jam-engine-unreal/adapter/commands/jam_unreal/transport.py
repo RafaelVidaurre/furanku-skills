@@ -1,6 +1,6 @@
 """How an editor script reaches the Unreal editor. The route is `engine.transport` in jam.local.json, never code.
 
-    {"kind": "commandlet", "editor": "<UnrealEditor-Cmd>", "args": [...]}   headless, starts its own editor process
+    {"kind": "commandlet", "editor": "<UnrealEditor-Cmd>", "args": [...], "renderArgs": [...]}   headless, its own process
     {"kind": "command", "run": ["<program>", "...", "{script}"], "await": true}   the project's own bridge to a running editor
     absent, or {"kind": "handoff"}                                           scripts are prepared for an agent to run
 
@@ -13,6 +13,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 
 from .errors import AdapterError, Handoff
 
@@ -20,6 +21,7 @@ PACKAGE = os.path.dirname(os.path.abspath(__file__))
 INCLUDE = re.compile(r"^# jam: include (.+)$", re.M)
 ASYNC_MAIN = re.compile(r"^async def main\(", re.M)
 COMMANDLET_ARGS = ["-unattended", "-nosplash", "-nullrhi", "-stdout"]
+RENDER_ARGS = ["-AllowCommandletRendering", "-RenderOffscreen"]
 
 EPILOGUE = '''
 try:
@@ -88,21 +90,27 @@ def parse_returned(text):
 
 
 def _run(argv, cwd, timeout):
+    """Run a program and return (code, stdout, stderr). Output goes to files, not pipes: the editor starts helpers
+    (a trace server, a storage server) that inherit its output and outlive it, and reading a pipe to its end would
+    wait for them."""
     try:
-        done = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
+            code = subprocess.run(argv, cwd=cwd, stdout=out, stderr=err, stdin=subprocess.DEVNULL, timeout=timeout).returncode
+            out.seek(0); err.seek(0)
+            return code, out.read().decode("utf-8", "replace"), err.read().decode("utf-8", "replace")
     except FileNotFoundError:
         raise AdapterError("transport-failed", "program not found: %s" % argv[0], fix="correct engine.transport in jam.local.json")
     except subprocess.TimeoutExpired:
         raise AdapterError("transport-timeout", "the editor did not answer within %s seconds" % timeout,
                            fix="check the editor is running and reachable, or raise engine.transport.timeoutSeconds")
-    return done.returncode, done.stdout, done.stderr
 
 
 class Step:
-    def __init__(self, name, script_file, args):
+    def __init__(self, name, script_file, args, render=False):
         self.name = name
         self.script_file = script_file
         self.args = args
+        self.render = render    # needs a renderer: a commandlet then starts without -nullrhi
 
 
 def prepare(cfg, verb, step):
@@ -110,10 +118,34 @@ def prepare(cfg, verb, step):
         text = f.read()
     key = hashlib.sha256((text + json.dumps(step.args, sort_keys=True)).encode("utf-8")).hexdigest()[:12]
     base = "%s/%s-%s-%s" % (cfg.work_dir, verb, step.name, key)
-    args = dict(step.args, _resultFile=base + ".result.json")
+    args = dict(step.args, _resultFile=_from_editor_project(cfg, base + ".result.json"))
     if cfg.local.get("editorProject"):   # the project folder as the editor's machine names it; guards against another checkout's editor
         args["_expectProject"] = cfg.local["editorProject"]
-    return {"name": step.name, "script": base + ".py", "result": base + ".result.json", "await": needs_await(text), "text": compose(text, args)}
+    return {"name": step.name, "script": base + ".py", "result": base + ".result.json", "await": needs_await(text), "render": step.render,
+            "text": compose(text, args)}
+
+
+def commandlet_args(transport, render):
+    """The commandlet's arguments: `args`; for a script that renders, `renderArgs`, by default `args` with a renderer
+    allowed and kept off screen in place of -nullrhi."""
+    args = list(transport.get("args", COMMANDLET_ARGS))
+    if not render:
+        return args
+    if transport.get("renderArgs") is not None:
+        return list(transport["renderArgs"])
+    kept = [a for a in args if a.lower() != "-nullrhi"]
+    present = {a.lower() for a in kept}
+    return kept + [a for a in RENDER_ARGS if a.lower() not in present]
+
+
+def _from_editor_project(cfg, relative):
+    """A project path as the editor finds it: the editor resolves it from its own project folder (the .uproject's),
+    which need not be the project root."""
+    try:
+        editor_dir = os.path.dirname(cfg.uproject())
+    except AdapterError:
+        return relative
+    return os.path.relpath(_local(cfg, relative), editor_dir).replace(os.sep, "/")
 
 
 def _local(cfg, relative):
@@ -143,7 +175,7 @@ def _execute(cfg, step, transport, runner):
                                fix="configure engine.transport of kind command (with \"await\": true) or run it by handoff")
         if not transport.get("editor"):
             raise AdapterError("invalid", "engine.transport.editor is missing", fix="set it to this machine's UnrealEditor-Cmd executable in jam.local.json")
-        argv = [transport["editor"], cfg.uproject(), "-run=pythonscript", "-script=" + script] + list(transport.get("args", COMMANDLET_ARGS))
+        argv = [transport["editor"], cfg.uproject(), "-run=pythonscript", "-script=" + script] + commandlet_args(transport, step.get("render"))
     elif kind == "command":
         if step["await"] and not transport.get("await"):
             raise AdapterError("transport-cannot-wait", "%s uses top-level await, which engine.transport does not declare" % step["name"],

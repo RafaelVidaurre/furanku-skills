@@ -1,6 +1,6 @@
 ---
 name: jam-setup
-description: Install, upgrade and configure the jam game-content toolkit in a project, and diagnose it. Use when starting jam work in a project that has no toolkit, when a jam command or skill reports a missing toolkit, tool or provider access, when choosing an engine adapter, when connecting a generation provider for the first time, when setting spending limits or lowering review gates, or when upgrading a version 1 project.
+description: Install, upgrade and configure the jam game-content toolkit in a project, and diagnose it. Use when starting jam work in a project that has no toolkit, when a jam command or skill reports a missing toolkit, tool or provider access, when choosing an engine adapter, when connecting a generation provider for the first time, when setting spending limits or lowering review gates, or when upgrading a project from an older toolkit.
 ---
 
 # Jam setup
@@ -23,7 +23,7 @@ Done when `node --version` reports 22.20 or newer.
 node <this skill's folder>/scripts/install.mjs
 ```
 
-It copies the toolkit into the project, writes `.gitignore` and Git LFS rules for the content folders, creates or migrates `catalog.config.json`, installs the toolkit's packages, finds Python and Blender, upgrades a version 1 configuration, and ends with `jam doctor`. It never signs in, spends or commits. The same command upgrades an installed toolkit.
+It copies the toolkit into the project, writes `.gitignore` and Git LFS rules for the content folders, creates `catalog.config.json` when it is missing, installs the toolkit's packages, finds Python and Blender, upgrades a version 1 configuration, and ends with `jam doctor`. It never signs in, spends or commits. The same command upgrades an installed toolkit.
 
 | Flag | Use |
 | --- | --- |
@@ -69,11 +69,13 @@ Lowering review gates for a crunch, or changing who reviews a step: `tools/jam/d
 
 Done when `jam config show spend` (or `review`) shows the person's choice and your reply names the provider or steps affected.
 
-## 6. Upgrading a version 1 project
+## 6. Upgrading a project
 
-Step 2 does the upgrade, configuration included, and lists what it could not carry over exactly under `configuration.notes`: pass those notes on to the person. To see the configuration change before it is written, run the installer with `--no-deps` (it replaces the toolkit and leaves `jam.config.json` alone), then `jam config migrate --dry-run`, then `jam config migrate`. What moves where, and how version 1 commands map to version 2: `tools/jam/docs/setup.md#upgrading-from-version-1`.
+Step 2 does the upgrade. A version 1 configuration is migrated with it, and what could not be carried over exactly is listed under `configuration.notes`: pass those notes on to the person. To see the configuration change before it is written, run the installer with `--no-deps` (it replaces the toolkit and leaves `jam.config.json` alone), then `jam config migrate --dry-run`, then `jam config migrate`. What moves where, and how version 1 commands map to version 2: `tools/jam/docs/setup.md#upgrading-from-version-1`.
 
-Done when `jam doctor` and `jam recipe check` pass and `jam run status` lists the project's open runs.
+When the summary says `needs migration: run jam catalog migrate`, the catalog's files are in an older format: follow `tools/jam/docs/catalog-migration.md`.
+
+Done when `jam doctor` and `jam recipe check` pass, `jam run status` lists the project's open runs, and `jam catalog run problems` lists nothing that names an older toolkit.
 
 ## 7. Return to the task
 

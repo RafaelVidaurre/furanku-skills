@@ -8,7 +8,10 @@ import * as fsp from "node:fs/promises"
 import * as nodePath from "node:path"
 import { asToolError, type ToolError } from "../../kernel/errors.ts"
 import type { ProjectFiles } from "../../kernel/ProjectFiles.ts"
-import { GITIGNORE, LOCAL_DIR, LOCAL_GITIGNORE, RECORD_FOLDERS, RECORDS_DIR } from "./layout.ts"
+import { FORMAT_FILE, FORMAT_TEXT, GITIGNORE, LOCAL_DIR, LOCAL_GITIGNORE, RECORD_FOLDERS, RECORDS_DIR } from "./layout.ts"
+
+/** Whether text still holds Git's conflict markers (`<<<<<<<`, `=======`, `>>>>>>>` at a line start). */
+export const hasConflictMarkers = (text: string): boolean => /^(<{7}|={7}|>{7})( |$)/m.test(text)
 
 export interface RecordProblem {
   readonly file: string
@@ -77,6 +80,11 @@ export const scanRecords = async (root: string): Promise<Scan> => {
     if (stat.isSymbolicLink()) problems.push(linkIgnored(`${RECORDS_DIR}/${folder}`, "directory or file"))
     else if (stat.isDirectory()) await visit(full, folder)
   }
+  // The format marker is scanned like a record so a change to it is noticed; it is not one.
+  const marker = nodePath.join(base, "format.json")
+  const markerStat = await fsp.lstat(marker).catch(() => null)
+  if (markerStat?.isSymbolicLink()) problems.push({ file: `${RECORDS_DIR}/format.json`, kind: "records", error: "symbolic link ignored", recovery: "replace the link with a real file" })
+  else if (markerStat?.isFile()) files.push({ relative: "format.json", full: marker, size: markerStat.size, mtimeMs: markerStat.mtimeMs })
   const categories = nodePath.join(base, "categories.json")
   const stat = await fsp.lstat(categories).catch(() => null)
   if (stat?.isSymbolicLink()) problems.push({ file: `${RECORDS_DIR}/categories.json`, kind: "categories", error: "symbolic link ignored" })
@@ -134,4 +142,10 @@ export const ensureBase = (files: ProjectFiles["Service"]): Effect.Effect<void, 
   Effect.gen(function*() {
     const ignore = `${RECORDS_DIR}/.gitignore`
     if ((yield* files.stat(ignore, { noFollow: true })) === null) yield* files.writeText(ignore, GITIGNORE, { noFollow: true })
+  })
+
+/** Before the first record is written: the marker naming the layout it is written in. */
+export const ensureFormat = (files: ProjectFiles["Service"]): Effect.Effect<void, ToolError> =>
+  Effect.gen(function*() {
+    if ((yield* files.stat(FORMAT_FILE, { noFollow: true })) === null) yield* files.writeText(FORMAT_FILE, FORMAT_TEXT, { noFollow: true })
   })

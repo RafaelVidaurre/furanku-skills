@@ -1,25 +1,25 @@
-// Verdict events and how they resolve to one current verdict per part. Events are immutable
+// Decisions and how they resolve to one current verdict per part. Decisions are immutable
 // files; everything here is a deterministic reading of them.
-import type { Actor, VerdictRecord } from "./types.ts"
+import type { Actor, DecisionRecord } from "./types.ts"
 
 export const VERDICTS = ["approved", "changes", "rejected"] as const
 export type Verdict = (typeof VERDICTS)[number]
 
-/** The per-part verdicts one event records. */
-export const eventVerdicts = (event: VerdictRecord): Record<string, string> =>
-  event.scope.kind === "whole"
-    ? Object.fromEntries(event.scope.parts.map((part) => [part, event.exceptions?.[part] ?? event.verdict ?? ""]))
-    : { ...event.verdicts }
+/** The per-part verdicts one decision records. */
+export const decisionVerdicts = (decision: DecisionRecord): Record<string, string> =>
+  decision.covers.kind === "whole"
+    ? Object.fromEntries(decision.covers.parts.map((part) => [part, decision.exceptions?.[part] ?? decision.verdict ?? ""]))
+    : { ...decision.verdicts }
 
-/** The documented order: recorded UTC time, then event identity. */
-export const eventOrder = (a: VerdictRecord, b: VerdictRecord): number =>
+/** The documented order: recorded UTC time, then decision identity. */
+export const decisionOrder = (a: DecisionRecord, b: DecisionRecord): number =>
   a.at < b.at ? -1 : a.at > b.at ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 
-/** Picks the deciding event among the ordered events that address one part. */
-export type Resolver = (events: ReadonlyArray<VerdictRecord>, part: string) => VerdictRecord | null | undefined
+/** Picks the deciding decision among the ordered decisions that address one part. */
+export type Resolver = (events: ReadonlyArray<DecisionRecord>, part: string) => DecisionRecord | null | undefined
 
 const SEVERITY: Record<string, number> = { approved: 0, changes: 1, rejected: 2 }
-const severity = (event: VerdictRecord, part: string): number => SEVERITY[eventVerdicts(event)[part] ?? ""] ?? -1
+const severity = (event: DecisionRecord, part: string): number => SEVERITY[decisionVerdicts(event)[part] ?? ""] ?? -1
 const actorKey = (actor: Actor): string => `${actor.kind}:${actor.name}`
 
 export const RESOLVERS: Readonly<Record<string, Resolver>> = {
@@ -27,13 +27,13 @@ export const RESOLVERS: Readonly<Record<string, Resolver>> = {
   latest: (events) => events.at(-1) ?? null,
   /** Each actor's latest verdict counts; the most severe of those decides. */
   strictest: (events, part) => {
-    const byActor = new Map<string, VerdictRecord>()
+    const byActor = new Map<string, DecisionRecord>()
     for (const event of events) byActor.set(actorKey(event.by), event)
-    let pick: VerdictRecord | null = null
+    let pick: DecisionRecord | null = null
     for (const event of byActor.values()) {
       if (
         !pick || severity(event, part) > severity(pick, part) ||
-        (severity(event, part) === severity(pick, part) && eventOrder(event, pick) > 0)
+        (severity(event, part) === severity(pick, part) && decisionOrder(event, pick) > 0)
       ) pick = event
     }
     return pick
@@ -42,20 +42,20 @@ export const RESOLVERS: Readonly<Record<string, Resolver>> = {
 
 export interface Resolved {
   readonly verdict: string
-  readonly event: VerdictRecord
+  readonly decision: DecisionRecord
 }
 
 export const resolveParts = (
-  events: ReadonlyArray<VerdictRecord>,
+  events: ReadonlyArray<DecisionRecord>,
   partIds: ReadonlyArray<string>,
   resolver: Resolver
 ): Record<string, Resolved | null> => {
-  const sorted = [...events].sort(eventOrder)
+  const sorted = [...events].sort(decisionOrder)
   const out: Record<string, Resolved | null> = {}
   for (const part of partIds) {
-    const addressing = sorted.filter((event) => eventVerdicts(event)[part])
+    const addressing = sorted.filter((event) => decisionVerdicts(event)[part])
     const event = addressing.length > 0 ? resolver(addressing, part) : null
-    out[part] = event ? { verdict: eventVerdicts(event)[part] ?? "", event } : null
+    out[part] = event ? { verdict: decisionVerdicts(event)[part] ?? "", decision: event } : null
   }
   return out
 }

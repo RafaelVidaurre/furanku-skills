@@ -58,7 +58,7 @@ const STATUS: Readonly<Record<ErrorCode, number>> = {
   forbidden: 403,
   not_found: 404,
   conflict: 409,
-  context_changed: 409,
+  checkout_changed: 409,
   locked: 423,
   malformed: 422,
   unsupported: 422,

@@ -1,6 +1,8 @@
-// Hand-registered content: a project describes its types, media and entries in JSON files it
+// Hand-registered content: a project describes its types, media and units in JSON files it
 // already versions. Options: `file` (default catalog.manifest.json).
 import { definePlugin, type PluginContext, type ProblemInput, type SourceOutput, type UnitInput } from "../plugin.ts"
+import { retiredInManifest, retiredInUnitFile, retiredMessage, withoutRetired } from "../model/retired.ts"
+import { hasConflictMarkers } from "../records/files.ts"
 import { message } from "../support.ts"
 
 interface Manifest {
@@ -15,12 +17,18 @@ interface Manifest {
   readonly collections?: SourceOutput["collections"]
 }
 
+/** The manifest version this plugin reads; `jam catalog migrate` moves version 1 to it. */
+export const MANIFEST_VERSION = 2
+
+/** The manifest file read when the plugin's options name none. */
+export const DEFAULT_MANIFEST = "catalog.manifest.json"
+
 const manifestFile = (context: PluginContext): string =>
-  typeof context.options["file"] === "string" ? context.options["file"] : "catalog.manifest.json"
+  typeof context.options["file"] === "string" ? context.options["file"] : DEFAULT_MANIFEST
 
 const readJson = async (context: PluginContext, path: string): Promise<unknown> => {
   const text = await context.files.readText(path)
-  if (/^(<{7}|>{7})( |$)/m.test(text)) throw new Error("unresolved Git merge conflict")
+  if (hasConflictMarkers(text)) throw new Error("unresolved Git merge conflict")
   return JSON.parse(text) as unknown
 }
 
@@ -49,7 +57,7 @@ export const manifest = definePlugin({
     load: async (context): Promise<SourceOutput> => {
       const file = manifestFile(context)
       if (!(await context.files.exists(file))) {
-        return { problems: [{ source: file, error: "manifest not found", recovery: `create ${file} or list other plugins in catalog.config.json` }] }
+        return { problems: [{ subject: file, error: "manifest not found", recovery: `create ${file} or list other plugins in catalog.config.json` }] }
       }
       let doc: Manifest
       try {
@@ -57,23 +65,32 @@ export const manifest = definePlugin({
       } catch (cause) {
         throw new Error(`${file}: ${message(cause)}`)
       }
-      if (doc.version !== 1) throw new Error(`${file}: unsupported manifest version`)
+      if (doc.version === 1) {
+        return { problems: [{ subject: file, error: `${file} was written by an older toolkit (manifest version 1)`, recovery: "run: jam catalog migrate" }] }
+      }
+      if (doc.version !== MANIFEST_VERSION) throw new Error(`${file}: unsupported manifest version`)
       const problems: Array<ProblemInput> = []
-      const units: Array<UnitInput> = (doc.units ?? []).map((unit) => ({ ...unit, sources: [file] }))
+      // A key from before version 2 is named once here, and left out so nothing else names it again.
+      const retired = (subject: string, value: unknown, find: (value: unknown) => ReturnType<typeof retiredInManifest>): void => {
+        for (const key of find(value)) problems.push({ subject, error: retiredMessage(key), recovery: "run: jam catalog migrate" })
+      }
+      retired(file, doc, retiredInManifest)
+      const units: Array<UnitInput> = (doc.units ?? []).map((unit) => ({ ...withoutRetired.unit(unit), sources: [file] }))
       for (const folder of unitFolders(doc)) {
         for (const path of await unitFilesIn(context, folder)) {
           try {
             const entry = (await readJson(context, path)) as UnitInput | { units: ReadonlyArray<UnitInput> }
             const list = Array.isArray((entry as { units?: unknown }).units) ? (entry as { units: ReadonlyArray<UnitInput> }).units : [entry as UnitInput]
-            for (const unit of list) units.push({ ...unit, sources: [path] })
+            retired(path, entry, retiredInUnitFile)
+            for (const unit of list) units.push({ ...withoutRetired.unit(unit), sources: [path] })
           } catch (cause) {
-            problems.push({ source: path, error: message(cause), recovery: "fix this file; its entries are skipped until it parses" })
+            problems.push({ subject: path, error: message(cause), recovery: "fix this file; its units are skipped until it parses" })
           }
         }
       }
       return {
         project: doc.project ?? null,
-        types: doc.types ?? {},
+        types: Object.fromEntries(Object.entries(doc.types ?? {}).map(([key, type]) => [key, withoutRetired.type(type)])),
         collectionKinds: doc.collectionKinds ?? {},
         assetRoots: doc.assetRoots ?? [""],
         assets: doc.assets ?? [],

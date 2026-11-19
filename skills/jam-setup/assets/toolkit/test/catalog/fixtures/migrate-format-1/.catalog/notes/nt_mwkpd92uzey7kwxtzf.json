@@ -1,0 +1,21 @@
+{
+  "id": "nt_mwkpd92uzey7kwxtzf",
+  "target": {
+    "kind": "unit",
+    "id": "armor/helm",
+    "part": "model"
+  },
+  "body": "The visor clips at the hinge.",
+  "by": {
+    "name": "Rae Tester",
+    "kind": "human"
+  },
+  "at": "2026-11-17T13:02:57.078Z",
+  "revision": 1,
+  "requestId": "rq-note-1",
+  "requestBinding": {
+    "action": "note.create",
+    "digest": "e923f013255295df13a10d507dcae5bfe91abf8009a43242cfa3d170ccaf81a9",
+    "context": "ff52585e9d24:main"
+  }
+}

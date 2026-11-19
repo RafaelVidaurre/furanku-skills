@@ -19,7 +19,6 @@ const WIN = process.platform === 'win32';
 
 const TOOLKIT_IGNORE = ['node_modules/', '.venv/', '__pycache__/'];
 const LFS_EXTENSIONS = ['glb', 'bin', 'fbx', 'obj', 'blend', 'png', 'jpg', 'jpeg', 'webp', 'exr', 'psd', 'wav', 'mp4', 'webm', 'zip'];
-const CATALOG_PLUGINS = ['manifest', 'jam'];
 
 // How to install each prerequisite on the user's OS; the summary carries the ones that are missing.
 const OS = WIN ? 'windows' : process.platform === 'darwin' ? 'macos' : 'linux';
@@ -183,61 +182,44 @@ function lfs(root, roots, engineGlobs) {
   return `${changed ? 'added' : 'present'}: binaries under ${roots.tracked.join(', ')} tracked in LFS${hooked ? '' : '; run `git lfs install` once on this machine'}`;
 }
 
-// catalog.config.json version 2 lists plugins. A version 1 file named one adapter: the built-in ones become the
-// shipped plugins; a project's own adapter module keeps working as a plugin and is listed beside them.
+// catalog.config.json version 3 lists plugins, each a name or path or { plugin, options }. The installer writes
+// only that version: it creates the file for a new project and adds jam to a version 3 file. Any other file is
+// left as it is; whether the catalog's files need migrating is the toolkit's to say (`catalogMigration`).
+const pluginName = (entry) => (typeof entry === 'string' ? entry : entry?.plugin);
 function catalog(root, roots) {
   const file = join(root, 'catalog.config.json');
-  const v1 = bundled('defaults/migration-v1.json').catalog;
   const result = {};
-  let config = existsSync(file) ? readJson(file) : null;
-  const fallbackManifest = `${roots.tracked[0] ?? dirname(roots.delivered)}/catalog.json`;
-  if (!config) {
-    config = { version: 2, plugins: [...CATALOG_PLUGINS], options: { manifest: { file: fallbackManifest } } };
+  let config = existsSync(file) ? readJsonOr(file) : null;
+  if (!existsSync(file)) {
+    const manifest = `${roots.tracked[0] ?? dirname(roots.delivered)}/catalog.json`;
+    config = { version: 3, plugins: [{ plugin: 'manifest', options: { file: manifest } }, 'jam'] };
     result.catalogConfig = 'created';
-  } else if (config.version === 2) {
-    const missing = CATALOG_PLUGINS.filter((plugin) => !(config.plugins ?? []).includes(plugin) && plugin === 'jam');
-    result.catalogConfig = missing.length ? 'added the jam plugin' : 'present';
-    if (missing.length) config = { ...config, plugins: [...(config.plugins ?? []), ...missing] };
-  } else {
-    const { adapter, options = {}, review = {}, previewModules = {} } = config;
-    const builtin = adapter === 'manifest' || adapter === 'jam' || adapter === v1.adapter || adapter === undefined;
-    const manifest = typeof options.manifest === 'string' ? options.manifest : adapter === 'manifest' ? 'catalog.manifest.json' : v1.manifest;
-    // Version 2 options are one object per plugin. The manifest plugin's path is `file`; a project's own adapter
-    // is listed by its module path and finds its whole version 1 options object under that same key.
-    const kept = builtin ? { manifest: { file: manifest } } : Object.keys(options).length ? { [adapter]: options } : {};
-    // A version 2 file holds nothing else of version 1: preview modules and a resolver module are registered by a
-    // plugin, and a resolver that came from a module cannot be named without it.
-    const shipped = ['latest', 'strictest'].includes(review.resolver ?? 'latest');
-    const keptReview = Object.fromEntries(Object.entries(review).filter(([key]) => key === 'referenceRoles' || key === 'verdicts' || (key === 'resolver' && shipped)));
-    // Anything version 2 cannot hold, including settings this installer does not know, would be lost.
-    const known = new Set(['version', 'adapter', 'options', 'review', 'previewModules']);
-    const knownReview = new Set(['resolver', 'resolverModule', 'referenceRoles', 'verdicts']);
-    const dropped = [
-      ...(Object.keys(previewModules).length ? ['previewModules'] : []),
-      ...(shipped ? [] : [`review.resolver ${review.resolver}`]),
-      ...(review.resolverModule ? ['review.resolverModule'] : []),
-      ...Object.keys(config).filter((key) => !known.has(key)),
-      ...Object.keys(review).filter((key) => !knownReview.has(key)).map((key) => `review.${key}`),
-    ];
-    // A version 1 file still loads as it is: when moving it would lose a setting, it is left alone.
-    if (dropped.length) {
-      result.catalogConfig = 'kept version 1 (it still loads; migrating it would lose settings)';
-      result.catalogNotCarried = dropped;
-      return result;
-    }
-    config = { version: 2, plugins: builtin ? [...CATALOG_PLUGINS] : [adapter, 'jam'], options: kept, ...(Object.keys(keptReview).length ? { review: keptReview } : {}) };
-    result.catalogConfig = builtin
-      ? `migrated to version 2: plugins ${CATALOG_PLUGINS.join(', ')} (keeps manifest ${manifest}); review settings kept`
-      : `migrated to version 2: the project's adapter ${adapter} is kept as a plugin beside jam; if it already shows jam runs itself, remove "jam" from plugins`;
-  }
+  } else if (config?.version === 3) {
+    const listed = (config.plugins ?? []).some((entry) => pluginName(entry) === 'jam');
+    result.catalogConfig = listed ? 'present' : 'added the jam plugin';
+    if (!listed) config = { ...config, plugins: [...(config.plugins ?? []), 'jam'] };
+  } else return { catalogConfig: 'left as it is' };
   if (result.catalogConfig !== 'present') writeJson(file, config);
-  const manifest = config.options?.manifest?.file;
-  if (!manifest || !config.plugins.includes('manifest')) return result;
+  const manifest = config.plugins.find((entry) => pluginName(entry) === 'manifest')?.options?.file;
+  if (!manifest) return result;
   if (!existsSync(join(root, manifest))) {
     writeJson(join(root, manifest), { ...readJson(join(ASSETS, 'project/catalog.json')), assetRoots: roots.tracked });
     result.catalogManifest = `created ${manifest} (hand-registered external content)`;
   } else result.catalogManifest = 'present';
   return result;
+}
+
+const MIGRATE_CATALOG = 'needs migration: run jam catalog migrate';
+const readJsonOr = (file) => { try { return readJson(file); } catch { return null; } };
+
+// Whether the catalog's files (catalog.config.json, its manifest, .catalog/) are in the formats this toolkit reads,
+// as the toolkit itself answers: `jam catalog migrate --dry-run` plans no change when they are.
+function catalogMigration(root, dir, toolkit, usable) {
+  const command = `"node ${toolkit}/jam.mjs catalog migrate --dry-run"`;
+  if (!usable) return `not checked: the toolkit's packages are not installed; run ${command} afterwards`;
+  const planned = jam(root, dir, ['catalog', 'migrate', '--dry-run']);
+  if (!planned.ok) return `dry run refused: ${planned.value.error?.message ?? 'no answer'}; ${command} names the files to repair`;
+  return Array.isArray(planned.value.changes) && planned.value.changes.length > 0 ? MIGRATE_CATALOG : 'current';
 }
 
 // The toolkit's own command, once its packages are installed.
@@ -305,7 +287,9 @@ function main() {
   const roots = contentRoots(config);
   summary.roots = { scratch: roots.scratch, tracked: roots.tracked, from: roots.source };
   summary.gitignore = replaceBlock(join(root, '.gitignore'), '# >>> jam toolkit', '# <<< jam toolkit', [`/${roots.scratch}/`, '/jam.local.json', '.catalog/.local/']) ? 'updated' : 'present';
+  const hadCatalog = existsSync(join(root, 'catalog.config.json')) || existsSync(join(root, '.catalog'));
   Object.assign(summary, catalog(root, roots));
+  summary.catalogMigration = catalogMigration(root, dir, toolkit, usable);
   const engineBinaries = usable && config?.version === 2 ? jam(root, dir, ['engine', 'facts', 'binaries.lfs']) : null;
   summary.lfs = o['no-lfs'] ? 'skipped (--no-lfs)' : lfs(root, roots, engineBinaries?.ok && Array.isArray(engineBinaries.value) ? engineBinaries.value : []);
   summary.dcc = blender(root);
@@ -319,8 +303,8 @@ function main() {
   if (failed) next.push('Fix the failed npm install: rerun this installer after addressing the reported error');
   if (config === null) next.push(`Create ${CONFIG}: "node ${toolkit}/jam.mjs setup" prints the choices to decide with the user, then "node ${toolkit}/jam.mjs setup --from <choices.json>"; rerun this installer afterwards if the content folders differ from the defaults`);
   if (config?.version === 1) next.push(`Upgrade ${CONFIG}: "node ${toolkit}/jam.mjs config migrate" (add --dry-run to preview)`);
-  if (summary.catalogNotCarried) next.push(`catalog.config.json was left at version 1 because version 2 cannot hold ${summary.catalogNotCarried.join(', ')}; it keeps working. To list jam runs in the catalog, move those settings into a catalog plugin and switch to version 2 by hand (${toolkit}/src/catalog/README.md)`);
-  if (String(summary.catalogConfig).includes('remove "jam"')) next.push('Check the catalog shows each jam run once (catalog.config.json lists the project\'s adapter and the jam plugin)');
+  if (summary.catalogMigration === MIGRATE_CATALOG) next.push(`Migrate the catalog's files (catalog.config.json, its manifest and .catalog/) as ${toolkit}/docs/catalog-migration.md says: "node ${toolkit}/jam.mjs catalog migrate" (add --dry-run to preview)`);
+  else if (summary.catalogMigration !== 'current' && (usable || hadCatalog)) next.push(`Check the catalog's files: ${summary.catalogMigration}`);
   next.push(`Commit ${toolkit}/, ${existsSync(join(root, 'jam')) ? 'jam/, ' : ''}catalog.config.json, .gitignore and .gitattributes changes when the user wants them versioned`);
   const fixes = [];
   if (String(summary.lfs).includes('git-lfs is not installed')) fixes.push(fix('git-lfs', 'versions content binaries; rerun the installer afterwards'));

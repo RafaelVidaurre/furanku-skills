@@ -1,13 +1,13 @@
 // The image kind: pan and zoom viewer, plain thumbnail, and side-by-side, divider and toggle
 // comparison. Registered like any other kind (see media-kinds.js).
 import { html, useEffect, useRef, useState, Icon, useDialog } from '../core.js';
-import { registerViewer } from '../controller.js';
+import { useViewer } from '../controller.js';
 import { registerMediaKind } from '../media-kinds.js';
 import { Msg } from '../viewers.js';
 import { sideLabel, SideError } from '../compare.js';
 
 // ---------- 2D image: fit, zoom around pointer, pan, 1:1; controlled or uncontrolled view ----------
-export function ImageViewer({ src, label, view: extView, onView, viewerId, source, onStatus }) {
+export function ImageViewer({ src, label, view: extView, onView, viewerId, shows, onStatus }) {
   const box = useRef(); const img = useRef();
   const [loaded, setLoaded] = useState({ src: null });
   const [failed, setFailed] = useState(null);
@@ -51,7 +51,7 @@ export function ImageViewer({ src, label, view: extView, onView, viewerId, sourc
     else return;
     e.preventDefault(); e.stopPropagation();
   };
-  registerViewer(viewerId, () => ({ kind: 'image', status, error: status === 'error' ? `Failed to load ${source?.path ?? src}` : null, source, natural: natural ? { width: natural.w, height: natural.h } : null, zoom: v ? { scale: +v.scale.toFixed(4), x: Math.round(v.x), y: Math.round(v.y) } : null, controls: ['zoom'] }),
+  useViewer(viewerId, () => ({ kind: 'image', status, error: status === 'error' ? `Failed to load ${shows?.path ?? src}` : null, shows, natural: natural ? { width: natural.w, height: natural.h } : null, zoom: v ? { scale: +v.scale.toFixed(4), x: Math.round(v.x), y: Math.round(v.y) } : null, controls: ['zoom'] }),
     (c) => { if (c.zoom) { if (c.zoom.fit) setView(null); else setView({ scale: c.zoom.scale ?? v?.scale ?? 1, x: c.zoom.x ?? v?.x ?? 0, y: c.zoom.y ?? v?.y ?? 0 }); return true; } return false; });
   return html`<div class="viewer viewer-2d" ref=${box} tabindex="0" data-viewer-input aria-label=${label ?? 'Image'} onPointerDown=${onDown} onDblClick=${() => (view ? setView(null) : natural && oneToOne())} onKeyDown=${onKey}>
     <${Msg} status=${status} error=${status === 'error' ? 'Image could not be decoded or loaded' : null} onRetry=${() => { setFailed(null); setNonce(nonce + 1); }} />
@@ -129,6 +129,7 @@ function Divider({ a, b, labels, value, onChange }) {
 
 registerMediaKind('image', {
   icon: 'M3 4h14v12H3z M3 13l4-4 3 3 2-2 5 5',
+  controls: ['zoom'],
   viewer: ({ media, label, ...rest }) => html`<${ImageViewer} src=${media.url} label=${label ?? media.id} ...${rest} />`,
   thumbnail: ({ asset }) => html`<img src=${asset.url} alt="" loading="lazy" decoding="async" />`,
   compare: ImageCompare,

@@ -12,16 +12,16 @@ import { CatalogConfig, CatalogSetup, CONFIG_FILE, type PluginRef, type Resolved
 import type { Problem } from "./model/types.ts"
 import { RESOLVERS, type Resolver } from "./model/verdicts.ts"
 import { RESERVED_SECTIONS } from "./routes.ts"
-import type { AdapterFactory, Check, MediaKind, Plugin, PluginAction, PluginContext, Probe, Relation, ScopeDef, Source } from "./plugin.ts"
+import type { Check, MediaKind, Plugin, PluginAction, PluginContext, Probe, Relation, ScopeInput, Source } from "./plugin.ts"
+import { importsOf, pluginUrl } from "./pluginImports.ts"
 import { manifest } from "./plugins/manifest.ts"
 import { mediaCore } from "./plugins/media-core.ts"
-import { adapterPlugin } from "./plugins/v1.ts"
 import { message, pluginContext } from "./support.ts"
 
 /** The split used when no plugin registers its own. */
-export const DEFAULT_SCOPES: ReadonlyArray<ScopeDef> = [
-  { id: "content", label: "Content", description: "Entries that make up the project" },
-  { id: "assets", label: "Assets", description: "Source material and media entries" }
+export const DEFAULT_SCOPES: ReadonlyArray<ScopeInput> = [
+  { id: "main", label: "Main", description: "Units that make up the project" },
+  { id: "material", label: "Material", description: "Source material and media units" }
 ]
 
 export interface Owned<A> {
@@ -42,14 +42,12 @@ export interface PluginSet {
   readonly probes: ReadonlyArray<Owned<Probe>>
   readonly checks: ReadonlyArray<Owned<Check>>
   readonly actions: ReadonlyArray<Owned<PluginAction>>
-  readonly scopes: ReadonlyArray<ScopeDef>
+  readonly scopes: ReadonlyArray<ScopeInput>
   readonly resolvers: Readonly<Record<string, Resolver>>
-  /** Preview module name to its declared browser module (see browserModules.ts). */
-  readonly previews: Readonly<Record<string, string>>
+  /** Browser module name to its declaration: inspector, panel and preview modules (see browserModules.ts). */
+  readonly browserModules: Readonly<Record<string, string>>
   /** Media kind id to the declared browser module that registers its viewer. */
   readonly kindModules: Readonly<Record<string, string>>
-  /** Module name to the declared browser module of type views and panels. */
-  readonly viewModules: Readonly<Record<string, string>>
   /** Project files that are code: configuration and modules. A change reloads everything. */
   readonly moduleFiles: ReadonlyArray<string>
   readonly problems: ReadonlyArray<Problem>
@@ -59,8 +57,21 @@ const BUILTIN: Readonly<Record<string, Plugin>> = { manifest, "media-core": medi
 const isModuleRef = (ref: string): boolean => ref.startsWith("./") || /\.(m?js|ts|mts)$/.test(ref)
 const modulePath = (ref: string): string => ref.replace(/^\.\//, "")
 
+/**
+ * A field of an earlier plugin contract. Nothing old is read, so a plugin still declaring one
+ * fails to load, naming the field and what replaced it.
+ */
+const retiredField = (plugin: Readonly<Record<string, unknown>>): { readonly field: string; readonly fix: string } | null => {
+  for (const key of ["views", "previews"]) {
+    if (plugin[key] !== undefined) return { field: `${key} is no longer read; it was renamed browserModules`, fix: "declare inspector, panel and preview modules under browserModules (see docs/catalog-migration.md)" }
+  }
+  const actions = Array.isArray(plugin["actions"]) ? plugin["actions"] : []
+  const old = actions.find((action) => isRecord(action) && action["kind"] !== undefined)
+  if (isRecord(old)) return { field: `action ${String(old["name"])}: kind is no longer read; it was renamed access`, fix: 'declare access: "read" or "write" (see docs/catalog-migration.md)' }
+  return null
+}
+
 const collect = (config: ResolvedConfig, loaded: ReadonlyArray<{ plugin: Plugin; context: PluginContext }>, extra: {
-  readonly resolvers: Record<string, Resolver>
   readonly moduleFiles: ReadonlyArray<string>
 }): Omit<PluginSet, "signature"> => {
   const problems: Array<Problem> = []
@@ -73,7 +84,7 @@ const collect = (config: ResolvedConfig, loaded: ReadonlyArray<{ plugin: Plugin;
     for (const entry of entries) {
       const earlier = seen.get(entry.name)
       if (earlier !== undefined) {
-        problems.push({ source: CONFIG_FILE, error: `plugin ${entry.owner}: ${what} ${entry.name} is already registered by ${earlier}`, recovery: "rename it or remove one of the plugins" })
+        problems.push({ subject: CONFIG_FILE, error: `plugin ${entry.owner}: ${what} ${entry.name} is already registered by ${earlier}`, recovery: "rename it or remove one of the plugins" })
         continue
       }
       seen.set(entry.name, entry.owner)
@@ -86,7 +97,7 @@ const collect = (config: ResolvedConfig, loaded: ReadonlyArray<{ plugin: Plugin;
   // A scope is a section of the page and a segment of its addresses.
   const usable = each((p) => p.scopes).filter(({ entry, value }) => {
     const refused = RESERVED_SECTIONS.includes(value.id) ? "is a section of the catalog page" : /^[a-z0-9][a-z0-9-]*$/.test(value.id) ? null : "must be lower-case letters, digits and hyphens"
-    if (refused !== null) problems.push({ source: CONFIG_FILE, error: `plugin ${entry.plugin.name}: scope id ${JSON.stringify(value.id)} ${refused}`, recovery: "rename the scope" })
+    if (refused !== null) problems.push({ subject: CONFIG_FILE, error: `plugin ${entry.plugin.name}: scope id ${JSON.stringify(value.id)} ${refused}`, recovery: "rename the scope" })
     return refused === null
   })
   const scopes = firstByName("scope", usable.map(({ entry, value }) => ({ owner: entry.plugin.name, name: value.id, value })))
@@ -102,11 +113,12 @@ const collect = (config: ResolvedConfig, loaded: ReadonlyArray<{ plugin: Plugin;
     checks: firstByName("check", each((p) => p.checks).map(({ entry, value }) => ({ owner: entry.plugin.name, name: value.name, value: own(entry, value) }))),
     actions: firstByName("action", each((p) => p.actions).map(({ entry, value }) => ({ owner: entry.plugin.name, name: value.name, value: own(entry, value) }))),
     scopes: scopes.length > 0 ? scopes : DEFAULT_SCOPES,
-    resolvers: { ...RESOLVERS, ...Object.assign({}, ...loaded.map((entry) => entry.plugin.resolvers ?? {})), ...extra.resolvers },
-    previews: { ...Object.assign({}, ...loaded.map((entry) => entry.plugin.previews ?? {})), ...config.previewModules },
+    // A plugin's resolver returns one of the decisions it was given, so it returns the engine's records.
+    resolvers: { ...RESOLVERS, ...(Object.assign({}, ...loaded.map((entry) => entry.plugin.resolvers ?? {})) as Record<string, Resolver>) },
+    browserModules: Object.fromEntries(firstByName("browser module", loaded.flatMap((entry) =>
+      Object.entries(entry.plugin.browserModules ?? {}).map(([name, path]) => ({ owner: entry.plugin.name, name, value: [name, path] as const }))
+    ))),
     kindModules: Object.fromEntries(mediaKinds.flatMap((kind) => (typeof kind.web === "string" ? [[kind.id, kind.web]] : []))),
-    // Version 1 declared every project module under `previewModules`; views name them the same way.
-    viewModules: { ...Object.assign({}, ...loaded.map((entry) => entry.plugin.views ?? {})), ...config.previewModules },
     moduleFiles: extra.moduleFiles,
     problems
   }
@@ -125,14 +137,21 @@ export class Plugins extends Context.Service<Plugins, {
       const builtin: Readonly<Record<string, Plugin>> = { ...BUILTIN, ...setup.plugins }
       let last: PluginSet | null = null
 
-      const moduleFilesOf = (config: ResolvedConfig): Array<string> => [
-        ...config.plugins.filter((p) => !builtin[p.ref] && isModuleRef(p.ref)).map((p) => modulePath(p.ref)),
-        ...(config.review.resolverModule === null ? [] : [config.review.resolverModule])
-      ]
+      const moduleFilesOf = (config: ResolvedConfig): Array<string> =>
+        config.plugins.filter((p) => !builtin[p.ref] && isModuleRef(p.ref)).map((p) => modulePath(p.ref))
       // Code is fingerprinted by its bytes every time: an edit that keeps size and timestamp
       // must still reload it.
       const moduleHash = (path: string): Effect.Effect<string | null> =>
         files.readBytes(path).pipe(Effect.map((bytes) => sha256(bytes)), Effect.catch(() => Effect.succeed(null)))
+
+      // The project modules each plugin module imported when it last loaded (absolute paths).
+      const imports = new Map<string, ReadonlyArray<string>>()
+      const importsHash = (path: string): Effect.Effect<string> =>
+        Effect.map(
+          Effect.forEach(imports.get(path) ?? [], (absolute) =>
+            files.relative(absolute).pipe(Effect.flatMap(moduleHash), Effect.catch(() => Effect.succeed(null)))),
+          (hashes) => digest(hashes)
+        )
 
       const importModule = (path: string, what: string): Effect.Effect<Record<string, unknown>, ToolError> =>
         Effect.gen(function*() {
@@ -140,15 +159,18 @@ export class Plugins extends Context.Service<Plugins, {
           const bytes = yield* files.readBytes(path).pipe(
             Effect.mapError((error) => (error.code === "not_found" ? toolError("unavailable", `${what} module not found: ${path}`) : error))
           )
-          // The query string makes Node import the module again when its bytes change.
-          const href = `${pathToFileURL(full).href}?v=${sha256(bytes).slice(0, 16)}`
-          return yield* Effect.tryPromise({
-            try: () => import(href) as Promise<Record<string, unknown>>,
+          // The version in the URL makes Node import the module, and the project modules it
+          // imports, again when any of their bytes change.
+          const version = sha256(`${sha256(bytes)}:${yield* importsHash(path)}`).slice(0, 16)
+          const loaded = yield* Effect.tryPromise({
+            try: () => import(pluginUrl(pathToFileURL(full).href, version)) as Promise<Record<string, unknown>>,
             catch: (cause) => toolError("invalid", `${what} module ${path} could not be loaded: ${message(cause)}`)
           })
+          imports.set(path, importsOf(version))
+          return loaded
         })
 
-      const loadOne = (ref: PluginRef, config: ResolvedConfig): Effect.Effect<{ plugin: Plugin; context: PluginContext }, ToolError> =>
+      const loadOne = (ref: PluginRef): Effect.Effect<{ plugin: Plugin; context: PluginContext }, ToolError> =>
         Effect.gen(function*() {
           const known = builtin[ref.ref]
           let exported: unknown = known
@@ -159,50 +181,38 @@ export class Plugins extends Context.Service<Plugins, {
               })
             }
             const module = yield* importModule(modulePath(ref.ref), "plugin")
-            exported = module["default"] ?? module["createAdapter"]
-          }
-          if (typeof exported === "function") {
-            const options = ref.adapterOptions ?? config.options[ref.ref] ?? {}
-            const context = pluginContext(files, options)
-            const plugin = yield* Effect.try({
-              try: () => adapterPlugin(ref.ref, exported as AdapterFactory, { ...options })(context),
-              catch: (cause) => toolError("invalid", `adapter ${ref.ref} could not be created: ${message(cause)}`)
-            })
-            return { plugin, context }
+            exported = module["default"]
           }
           if (!isRecord(exported) || typeof exported["name"] !== "string" || exported["name"] === "") {
             return yield* fail("invalid", `plugin ${ref.ref} has no default export with a name`, {
               fix: 'export default definePlugin({ name: "…", … }) from the module'
             })
           }
+          const retired = retiredField(exported)
+          if (retired !== null) return yield* fail("invalid", `plugin ${exported["name"]}: ${retired.field}`, { fix: retired.fix })
           const plugin = exported as unknown as Plugin
-          return { plugin, context: pluginContext(files, config.options[plugin.name] ?? {}) }
+          return { plugin, context: pluginContext(files, ref.options) }
         })
 
       const load = (config: ResolvedConfig, signature: string): Effect.Effect<PluginSet, ToolError> =>
         Effect.gen(function*() {
-          const refs: Array<PluginRef> = [{ ref: "media-core" }, ...config.plugins.filter((p) => p.ref !== "media-core")]
+          const refs: Array<PluginRef> = [{ ref: "media-core", options: {} }, ...config.plugins.filter((p) => p.ref !== "media-core")]
           const loaded: Array<{ plugin: Plugin; context: PluginContext }> = []
           for (const ref of refs) {
-            const entry = yield* loadOne(ref, config)
+            const entry = yield* loadOne(ref)
             if (loaded.some((other) => other.plugin.name === entry.plugin.name)) {
               return yield* fail("invalid", `${CONFIG_FILE}: plugin ${entry.plugin.name} is listed twice`)
             }
             loaded.push(entry)
           }
-          const resolvers: Record<string, Resolver> = {}
-          if (config.review.resolverModule !== null) {
-            const module = yield* importModule(config.review.resolverModule, "resolver")
-            if (typeof module["default"] === "function") resolvers[config.review.resolver] ??= module["default"] as Resolver
-          }
-          const set = { signature, ...collect(config, loaded, { resolvers, moduleFiles: [CONFIG_FILE, ...moduleFilesOf(config)] }) }
+          const set = { signature, ...collect(config, loaded, { moduleFiles: [CONFIG_FILE, ...moduleFilesOf(config)] }) }
           if (!set.resolvers[config.review.resolver]) return yield* fail("invalid", `unknown verdict resolver ${config.review.resolver}`)
           return set
         })
 
       const current = Effect.gen(function*() {
         const state = yield* configs.current
-        const hashes = yield* Effect.forEach(moduleFilesOf(state.config), moduleHash)
+        const hashes = yield* Effect.forEach(moduleFilesOf(state.config), (path) => Effect.zipWith(moduleHash(path), importsHash(path), (own, imported) => `${own}:${imported}`))
         const signature = digest({ config: state.signature, modules: hashes })
         const configProblems = state.problem ? [state.problem] : []
         if (last?.signature === signature) return configProblems.length > 0 ? { ...last, problems: [...configProblems, ...last.problems] } : last
@@ -212,7 +222,7 @@ export class Plugins extends Context.Service<Plugins, {
           return configProblems.length > 0 ? { ...last, problems: [...configProblems, ...last.problems] } : last
         }
         if (!last) return yield* Effect.fail(next.failure)
-        const problem: Problem = { source: CONFIG_FILE, error: next.failure.message, recovery: "fix the plugin or its configuration; the previous plugins stay in use until then" }
+        const problem: Problem = { subject: CONFIG_FILE, error: next.failure.message, recovery: "fix the plugin or its configuration; the previous plugins stay in use until then" }
         return { ...last, problems: [problem, ...configProblems, ...last.problems] }
       })
       return { current }

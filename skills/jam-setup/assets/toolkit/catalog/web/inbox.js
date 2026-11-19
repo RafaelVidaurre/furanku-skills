@@ -1,5 +1,5 @@
 // What needs attention, in one place: reviews waiting for a verdict, open notes, content that
-// changed since its verdict, and problems. The same list the `todo` command prints.
+// changed since its verdict, and problems. The same list `jam catalog inbox` prints.
 import { html, useQuery, ago, Icon, Person, ErrorLine, Verdict } from './core.js';
 
 const Section = ({ title, total, shown, children }) => (total === 0 ? null : html`<section class="block attention" aria-label=${title}>
@@ -27,7 +27,7 @@ export function InboxView() {
         <span class="sub-main"><span class="row-name">${e.name}</span><span class="row-sub">${e.parts.map((p, i) => html`${i ? ', ' : ''}${p.label} `)}changed after ${e.parts.length === 1 ? 'its verdict' : 'their verdicts'}</span></span>
         <span class="sub-counts">${e.parts.map((p) => html`<${Verdict} v=${p.verdict} short />`)}</span></a>`)}<//>
       <${Section} title="Problems" total=${c.problems} shown=${data.problems.length}>${data.problems.map((p) => html`<div class="problem">
-        <div class="mono small"><${Icon} name="warn" size=${12} /> ${p.source}</div><div>${p.error}</div>${p.recovery && html`<div class="muted small">${p.recovery}</div>`}</div>`)}<//>
+        <div class="mono small"><${Icon} name="warn" size=${12} /> ${p.subject}</div><div>${p.error}</div>${p.recovery && html`<div class="muted small">${p.recovery}</div>`}</div>`)}<//>
     </div>`}
   </div>`;
 }

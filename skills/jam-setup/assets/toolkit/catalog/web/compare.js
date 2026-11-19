@@ -2,16 +2,16 @@
 // another frozen part, or a view's before side. How two pieces of media are compared is up to
 // their kind (media-kinds.js); attributes are compared here as a table.
 import { html, useState, useRef, useEffect, Icon, useDialog, shortHash, baseName, call, href, withQuery, ErrorLine } from './core.js';
-import { registerViewer, useActiveViewer } from './controller.js';
+import { refusal, useViewer, useActiveViewer } from './controller.js';
 import { mediaKind, useMediaKinds } from './media-kinds.js';
 
 export const sideLabel = (side, label) => html`<div class="cmp-cap"><b>${label}</b>${side.status === 'ok' && side.path ? html` <span class="mono">${baseName(side.path)}</span> <span class="mono muted">${shortHash(side.sha256)}</span>` : ''}</div>`;
 export const SideError = ({ side }) => html`<div class="viewer"><div class="viewer-msg err" role="alert">${side.status === 'missing' ? 'Missing: ' : side.status === 'corrupt' ? 'Changed bytes: ' : ''}${side.error ?? side.status}</div></div>`;
 
 // Rows come from the evidence.compare action or a submission view's before side; each side was
-// resolved independently. `source` identifies the comparison to agents; camera and state apply to
+// resolved independently. `shows` identifies the comparison to agents; camera and state apply to
 // both sides where the kind has them.
-export function CompareRows({ rows, labels, viewerId = 'compare', source, camera, state }) {
+export function CompareRows({ rows, labels, viewerId = 'compare', shows, camera, state }) {
   useMediaKinds();
   const api = useRef();
   // A kind may compare its two sides in one viewer (two takes on one transport): then that viewer
@@ -21,16 +21,16 @@ export function CompareRows({ rows, labels, viewerId = 'compare', source, camera
   const [statuses, setStatuses] = useState({});
   const mark = (k) => (s) => setStatuses((x) => (x[k] === s ? x : { ...x, [k]: s }));
   const [modes, setModes] = useState({});
-  registerViewer(viewerId, () => {
-    if (one && !oneAvailable) return { kind: 'compare', mediaKind: one, status: 'error', error: `Both ${one} sides must be available`, source, controls: [] };
-    if (oneAvailable && !api.current) return { kind: 'compare', mediaKind: one, status: 'loading', source, controls: [] };
+  useViewer(viewerId, () => {
+    if (one && !oneAvailable) return { kind: 'compare', mediaKind: one, status: 'error', error: `Both ${one} sides must be available`, shows, controls: [] };
+    if (oneAvailable && !api.current) return { kind: 'compare', mediaKind: one, status: 'loading', shows, controls: [] };
     if (oneAvailable && api.current) {
       const st = api.current.getState();
-      return { ...st, kind: 'compare', mediaKind: one, source: { ...source, ...st.source }, identical: rows.map((r) => r.identical) };
+      return { ...st, kind: 'compare', mediaKind: one, shows: { ...shows, ...st.shows }, identical: rows.map((r) => r.identical) };
     }
     const sides = rows.flatMap((r, i) => ['a', 'b'].map((s) => ({ row: r.label, side: s, status: r[s].status === 'ok' ? statuses[`${i}${s}`] ?? (r[s].kind === 'attributes' ? 'ready' : 'loading') : 'error', error: r[s].error ?? null, sha256: r[s].sha256 ?? null, kind: r[s].kind })));
-    return { kind: 'compare', status: sides.some((s) => s.status === 'loading') ? 'loading' : 'ready', sides, identical: rows.map((r) => r.identical), modes, source: { a: labels[0], b: labels[1], ...source }, controls: ['compare'] };
-  }, (c) => { if (one) return oneAvailable && api.current ? api.current.control(c) : { error: `Both ${one} sides must be ready`, code: 'unavailable' }; if (!c.compare) return false; setModes((m) => ({ ...m, ...c.compare })); return true; });
+    return { kind: 'compare', status: sides.some((s) => s.status === 'loading') ? 'loading' : 'ready', sides, identical: rows.map((r) => r.identical), modes, shows: { a: labels[0], b: labels[1], ...shows }, controls: ['compare'] };
+  }, (c) => { if (one) { if (!oneAvailable || !api.current) throw refusal('unavailable', `Both ${one} sides must be ready`); return api.current.control(c); } if (!c.compare) return false; setModes((m) => ({ ...m, ...c.compare })); return true; });
   if (!rows.length) return html`<p class="muted">Nothing to compare</p>`;
   return html`${rows.map((r, i) => html`<section class="cmp-item" key=${r.key}>
     ${rows.length > 1 && html`<h4>${r.label}</h4>`}
@@ -54,7 +54,7 @@ function CompareRow({ row, labels, mark, control, camera, state, apiRef }) {
 // The comparison of a kind that registered none: its viewer twice, or what is wrong with a side.
 function SideBySide({ a, b, labels, mark, kind }) {
   useEffect(() => { if (a.status !== 'ok' || !kind) mark('a')('error'); if (b.status !== 'ok' || !kind) mark('b')('error'); }, [a.status, b.status, kind]);
-  const side = (s, k, label) => html`<div>${sideLabel(s, label)}${s.status === 'ok' && kind ? html`<${kind.viewer} media=${{ ...s, state: 'ok' }} source=${{ side: k, sha256: s.sha256 }} onStatus=${mark(k)} />` : html`<${SideError} side=${s} />`}</div>`;
+  const side = (s, k, label) => html`<div>${sideLabel(s, label)}${s.status === 'ok' && kind ? html`<${kind.viewer} media=${{ ...s, state: 'ok' }} shows=${{ side: k, sha256: s.sha256 }} onStatus=${mark(k)} />` : html`<${SideError} side=${s} />`}</div>`;
   return html`<div class="cmp"><div class="cmp-side">${side(a, 'a', labels[0])}${side(b, 'b', labels[1])}</div></div>`;
 }
 
@@ -69,7 +69,8 @@ function AttrDiff({ a, b, labels }) {
   </tbody></table>`;
 }
 
-// Overlay driven by `cmp=<sub>~<item>~<part>[~<sub2>~<item2>~<part2>]` in the URL.
+// Overlay driven by `cmp=<comparison>` in the URL: the JSON of what evidence.compare takes,
+// `{ a: { submission, item, part }, b?: "current" | { submission, item, part } }`.
 export function CompareOverlay({ route }) {
   const spec = route.query.get('cmp');
   const [res, setRes] = useState(null);
@@ -78,10 +79,13 @@ export function CompareOverlay({ route }) {
   useEffect(() => {
     if (!spec) return;
     setRes(null); setError(null);
-    const [s, i, p, s2, i2, p2] = spec.split('~');
-    call('evidence.compare', { a: { submission: s, item: i, part: p }, b: s2 ? { submission: s2, item: i2, part: p2 } : 'current' }).then(setRes, setError);
+    let comparison;
+    try { comparison = JSON.parse(spec); } catch { setError(new Error('The comparison in this address is not valid JSON')); return; }
+    call('evidence.compare', comparison).then(setRes, setError);
   }, [spec]);
   useActiveViewer('compare', !!spec, 1);
+  // Until the comparison's rows arrive, the overlay itself is the viewer agents read.
+  useViewer(spec && !res ? 'compare' : null, () => ({ kind: 'compare', status: error ? 'error' : 'loading', error: error?.message ?? null, shows: {}, controls: [] }), () => false);
   if (!spec) return null;
   return html`<${Overlay} title=${res ? res.title : 'Compare'} onClose=${close}>
     <${ErrorLine} error=${error} />

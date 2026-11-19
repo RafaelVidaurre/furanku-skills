@@ -14,7 +14,7 @@ import { AGENT_MODE, makeFiles, record, review, start, throughTexture } from "./
 type Any = any
 const BARREL = { kind: "unit", id: "barrel" }
 const ids = async (app: ReturnType<typeof openCatalog>): Promise<ReadonlyArray<string>> =>
-  ((await app.run("catalog.search", { section: "units" })).items as ReadonlyArray<{ id: string }>).map((item) => item.id).sort()
+  ((await app.run("unit.search", {})).units as ReadonlyArray<{ id: string }>).map((item) => item.id).sort()
 const part = (detail: Any, id: string): Any => detail.review.parts.find((candidate: Any) => candidate.id === id)
 const link = (detail: Any, role: string): Any => detail.links.find((candidate: Any) => candidate.role === role)
 
@@ -37,7 +37,7 @@ describe("identity", () => {
     assert.equal(link(detail, "concept").asset.path, "work/assets/barrel/1/concept.png")
     assert.deepEqual(detail.review.parts.map((entry: Any) => entry.id), ["concept:1", "view:front", "view:left", "view:back", "view:right", "view:three-quarter", "model:1"])
     assert.ok(detail.review.parts.every((entry: Any) => entry.verdict === "changes" && entry.changed === false), JSON.stringify(detail.review.parts))
-    assert.equal((await app.run("notes.list", { target: BARREL })).notes.length, 1)
+    assert.equal((await app.run("note.list", { target: BARREL })).notes.length, 1)
     assert.deepEqual([detail.unit.attrs.state, detail.unit.attrs.delivered, detail.unit.attrs.attempt], ["delivered", "work/assets/barrel/1", 1])
 
     // Another clone has only the delivery.
@@ -54,7 +54,7 @@ describe("identity", () => {
     assert.deepEqual(detail.unit.sources, ["work/.scratch/barrel/2/run.json", "work/assets/barrel/1/run.json"])
     assert.deepEqual([part(detail, "concept:1").verdict, part(detail, "concept:1").changed], ["changes", true], "other bytes under the same part")
     assert.deepEqual([detail.unit.attrs.attempt, detail.unit.attrs.delivered, detail.unit.attrs.state], [2, "work/assets/barrel/1", "in progress"])
-    assert.equal((await app.run("notes.list", { target: BARREL })).notes.length, 1)
+    assert.equal((await app.run("note.list", { target: BARREL })).notes.length, 1)
   })
 
   it("only deliverable work is content: provider tests and explorations are not listed", async () => {
@@ -70,7 +70,7 @@ describe("identity", () => {
   })
 
   it("a subject id another plugin also registers is one unit and one named problem: the first plugin listed supplies it", async () => {
-    const manifest = { version: 1, assetRoots: ["kit"], types: { piece: { label: "Kit piece" } }, units: [{ id: "barrel", type: "piece", name: "Kit barrel" }] }
+    const manifest = { version: 2, assetRoots: ["kit"], types: { piece: { label: "Kit piece" } }, units: [{ id: "barrel", type: "piece", name: "Kit barrel" }] }
     for (const [plugins, type] of [[["manifest", "jam"], "piece"], [["jam", "manifest"], "asset"]] as const) {
       const root = catalogProject({ plugins, files: { "catalog.manifest.json": JSON.stringify(manifest) } })
       await start(root, "asset", "barrel", { budget: "prop" })
@@ -78,7 +78,7 @@ describe("identity", () => {
       assert.deepEqual(await ids(app), ["barrel"])
       assert.equal((await app.run("unit.get", { id: "barrel" })).unit.type, type)
       const problems = (await app.run("problems", {})).problems as ReadonlyArray<{ error: string }>
-      assert.deepEqual(problems.map((problem) => problem.error.replace(/ \(also from .*\)$/, "")), ["duplicate content id barrel"])
+      assert.deepEqual(problems.map((problem) => problem.error.replace(/ \(also from .*\)$/, "")), ["duplicate unit id barrel"])
     }
   })
 
@@ -86,8 +86,8 @@ describe("identity", () => {
     const root = catalogProject()
     rmSync(join(root, "jam.config.json"))
     const app = openCatalog(root)
-    const context = await app.run("context", {})
-    assert.deepEqual([context.counts.units, context.counts.assets, context.problems], [0, 0, 0])
+    const summary = await app.run("summary", {})
+    assert.deepEqual([summary.counts.units, summary.counts.assets, summary.problems], [0, 0, 0])
   })
 })
 
@@ -96,7 +96,7 @@ describe("types, roles and derived fields", () => {
     version: 1,
     id: "poster",
     title: "Key art",
-    catalog: { scope: "content" },
+    catalog: { scope: "main" },
     steps: [{ id: "paint", title: "Painting", produces: [{ role: "art", kind: "image", max: 1 }, { role: "layers", kind: "any", min: 0 }, { role: "notes", kind: "text", min: 0 }], review: "human" }]
   }
 
@@ -114,8 +114,8 @@ describe("types, roles and derived fields", () => {
     assert.deepEqual((await app.run("problems", {})).problems, [])
 
     const cover = await app.run("unit.get", { id: "cover" })
-    assert.deepEqual([cover.unit.type, cover.unit.scope, cover.type.label, cover.type.reviewAttributes], ["poster", "content", "Key art", false])
-    assert.deepEqual(cover.type.roles.map((role: Any) => [role.key, role.many, role.kinds]), [
+    assert.deepEqual([cover.unit.type, cover.unit.scope, cover.type.label, cover.type.reviewAttributes], ["poster", "main", "Key art", false])
+    assert.deepEqual(cover.type.roles.map((role: Any) => [role.key, role.many, role.mediaKinds]), [
       ["art", false, ["image"]],
       ["layers", true, ["image", "video", "model", "audio"]],
       ["evidence", true, ["image", "video", "model", "audio"]]
@@ -124,7 +124,7 @@ describe("types, roles and derived fields", () => {
     assert.deepEqual(cover.review.parts.map((entry: Any) => entry.id), ["art"], "no attributes part: nothing about the workflow is reviewed")
 
     const barrel = await app.run("unit.get", { id: "barrel" })
-    assert.deepEqual([barrel.unit.type, barrel.unit.scope, barrel.type.label], ["asset", "assets", "3D asset"])
+    assert.deepEqual([barrel.unit.type, barrel.unit.scope, barrel.type.label], ["asset", "material", "3D asset"])
     assert.deepEqual(barrel.type.roles.map((role: Any) => [role.key, role.many]), [["concept", true], ["view", true], ["model", true], ["evidence", true]])
     assert.ok(barrel.type.fields.every((field: Any) => field.derived), "every field is a live fact")
     assert.deepEqual(barrel.links.map((entry: Any) => [entry.role, entry.key]), [["concept", "1"], ["evidence", "concept-sheet"]])
@@ -134,8 +134,8 @@ describe("types, roles and derived fields", () => {
       ["waiting for a person", "concept waits for a person's acceptance", "concept, turnaround, delivery", "waiting for a person's acceptance", "waiting: needs concept (review)", "prop", 1, "work/.scratch/barrel/1/run.json"]
     )
     // The run state and the budget are facets.
-    const search = await app.run("catalog.search", { section: "units", filters: { "attr.state": ["waiting for a person"], type: ["asset"] } })
-    assert.deepEqual(search.items.map((item: Any) => item.id), ["barrel"])
+    const search = await app.run("unit.search", { filters: { "attr.state": ["waiting for a person"], type: ["asset"] } })
+    assert.deepEqual(search.units.map((item: Any) => item.id), ["barrel"])
   })
 
   it("catalog actions never write a run; a gate decision changes derived fields only and marks no verdict changed; changed bytes do", async () => {
@@ -150,7 +150,7 @@ describe("types, roles and derived fields", () => {
     // was not asked for through the run is not the run's decision.
     await app.run("note.create", { target: BARREL, body: "Prefer this direction" }, { actor: human })
     await app.run("review.decideCurrent", { target: BARREL, whole: "approved" }, { actor: human })
-    await app.run("organize.set", { target: BARREL, tags: ["shortlist"] }, { actor: human })
+    await app.run("organization.set", { target: BARREL, tags: ["shortlist"] }, { actor: human })
     assert.equal(runFile(), before)
     assert.equal((await app.run("unit.get", { id: "barrel" })).unit.attrs["step.concept"], "waiting for a person's acceptance")
 
@@ -249,12 +249,12 @@ describe("loading", () => {
     rmSync(join(root, "jam/recipes/poster.json"))
     const app = openCatalog(root)
     assert.deepEqual(await ids(app), ["barrel"])
-    const problems = (await app.run("problems", {})).problems as ReadonlyArray<{ source: string; error: string }>
-    assert.deepEqual(problems.map((problem) => problem.source).sort(), ["work/.scratch/cover/1/run.json", "work/broken/run.json", "work/torn/run.json"])
-    assert.match(problems.find((problem) => problem.source === "work/.scratch/cover/1/run.json")!.error, /recipe poster does not exist/)
+    const problems = (await app.run("problems", {})).problems as ReadonlyArray<{ subject: string; error: string }>
+    assert.deepEqual(problems.map((problem) => problem.subject).sort(), ["work/.scratch/cover/1/run.json", "work/broken/run.json", "work/torn/run.json"])
+    assert.match(problems.find((problem) => problem.subject === "work/.scratch/cover/1/run.json")!.error, /recipe poster does not exist/)
     rmSync(join(root, "work/broken"), { recursive: true })
     rmSync(join(root, "work/torn"), { recursive: true })
-    assert.deepEqual(((await app.run("problems", {})).problems as ReadonlyArray<{ source: string }>).map((problem) => problem.source), ["work/.scratch/cover/1/run.json"])
+    assert.deepEqual(((await app.run("problems", {})).problems as ReadonlyArray<{ subject: string }>).map((problem) => problem.subject), ["work/.scratch/cover/1/run.json"])
   })
 
   it("the runs are read again when a run file or a file a run recorded changes, and not otherwise", async () => {
@@ -263,15 +263,15 @@ describe("loading", () => {
     const made = await makeFiles(root, "barrel")
     const app = openCatalog(root)
     const loads = async (): Promise<number> => (await app.stats()).sourceLoads["jam/runs"] ?? 0
-    await app.run("context", {})
+    await app.run("summary", {})
     assert.equal(await loads(), 1)
-    await app.run("catalog.search", { section: "units" })
+    await app.run("unit.search", {})
     await app.run("unit.get", { id: "barrel" })
     assert.equal(await loads(), 1, "nothing changed")
     // Work in progress under the content roots that no run names is not the catalog's business.
     write(root, "work/.scratch/barrel/1/draft.png", png(4, 4))
     write(root, "work/elsewhere/notes.md", "ideas")
-    await app.run("context", {})
+    await app.run("summary", {})
     assert.equal(await loads(), 1)
 
     await record(root, "barrel", "concept", { files: [made.concept] })
@@ -281,7 +281,7 @@ describe("loading", () => {
     write(root, made.concept, png(16, 16, [9, 9, 9]))
     assert.match((await app.run("unit.get", { id: "barrel" })).unit.attrs["step.concept"], /^stale/)
     assert.equal(await loads(), 3)
-    await app.run("context", {})
+    await app.run("summary", {})
     assert.equal(await loads(), 3)
   })
 })

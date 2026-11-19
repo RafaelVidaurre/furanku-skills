@@ -546,6 +546,8 @@ model-thumb.failed { background: repeating-linear-gradient(-45deg, #1a1212 0 4px
 .attrs dd { overflow-wrap: anywhere; font-size: 13px; }
 .block { border-radius: 10px; }
 .block-h { padding: 14px 16px; }
+.related-list { padding: 0 16px 14px; gap: 10px; }
+.related .attr-group { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
 .reference-links { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px; }
 .versions { padding: 12px; }
 @media (max-width: 1100px) {
@@ -680,7 +682,7 @@ audio-thumb canvas { width: 100%; height: 100%; object-fit: fill; }
 .item-text { margin: 0; white-space: pre-wrap; line-height: 1.5; }
 .renderer-badge { font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 
-/* Type views (in the visual strip) and panels (in the sidebar), mounted from plugin modules. */
+/* Inspectors (in the media strip) and panels (in the sidebar), mounted from plugin modules. */
 .stage-view.view-stage { overflow: auto; }
 .view-host { position: relative; min-height: 100%; }
 .view-thumb { color: var(--accent); }

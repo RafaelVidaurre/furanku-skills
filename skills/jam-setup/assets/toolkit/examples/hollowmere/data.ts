@@ -1,18 +1,12 @@
 // Hollowmere sample project data (example/test project only): a small game's gear, creatures,
 // abilities, consumables and recipes, the media each one links, and the collections over them.
-import type { CollectionKindInput, LinkInput, TypeInput } from "../../src/catalog/plugin.ts"
+import type { CollectionKindInput, LinkInput, TypeInput } from "../../catalog-plugin.ts"
 import type { ArtSpec, IconShape, IconSpec, MeshShape, MeshSpec, Palette } from "./art.mjs"
-
-/** A collection kind as the manifest declares it; the extra labels are carried for readers of the file. */
-type SampleCollectionKind = Omit<CollectionKindInput, "memberExtra" | "preview"> & {
-  readonly preview?: NonNullable<CollectionKindInput["preview"]> & { readonly key?: string }
-  readonly memberExtra?: { readonly key: string; readonly label?: string }
-}
 
 export interface SampleSchema {
   readonly project: string
   readonly types: Readonly<Record<string, TypeInput>>
-  readonly collectionKinds: Readonly<Record<string, SampleCollectionKind>>
+  readonly collectionKinds: Readonly<Record<string, CollectionKindInput>>
 }
 
 /** A media file of the project and how each of its revisions is drawn. */
@@ -65,9 +59,9 @@ export const schema: SampleSchema = {
         { key: "weight", label: "Weight", kind: "number", unit: "kg" },
       ],
       roles: [
-        { key: "icon", label: "Icon", kinds: ["image"], expected: true },
-        { key: "model", label: "Model", kinds: ["model"], expected: true },
-        { key: "concept", label: "Concept", kinds: ["image"], many: true },
+        { key: "icon", label: "Icon", mediaKinds: ["image"], expected: true },
+        { key: "model", label: "Model", mediaKinds: ["model"], expected: true },
+        { key: "concept", label: "Concept", mediaKinds: ["image"], many: true },
       ],
     },
     creature: {
@@ -80,10 +74,10 @@ export const schema: SampleSchema = {
         { key: "abilities", label: "Abilities", kind: "refs" },
       ],
       roles: [
-        { key: "portrait", label: "Portrait", kinds: ["image"], expected: true },
-        { key: "model", label: "Model", kinds: ["model"], expected: true },
-        { key: "turntable", label: "Turntable", kinds: ["video"] },
-        { key: "concept", label: "Concept", kinds: ["image"], many: true },
+        { key: "portrait", label: "Portrait", mediaKinds: ["image"], expected: true },
+        { key: "model", label: "Model", mediaKinds: ["model"], expected: true },
+        { key: "turntable", label: "Turntable", mediaKinds: ["video"] },
+        { key: "concept", label: "Concept", mediaKinds: ["image"], many: true },
       ],
     },
     ability: {
@@ -96,8 +90,8 @@ export const schema: SampleSchema = {
         { key: "damage", label: "Damage", kind: "number" },
       ],
       roles: [
-        { key: "icon", label: "Icon", kinds: ["image"], expected: true },
-        { key: "vfx", label: "Effect", kinds: ["video"] },
+        { key: "icon", label: "Icon", mediaKinds: ["image"], expected: true },
+        { key: "vfx", label: "Effect", mediaKinds: ["video"] },
       ],
     },
     consumable: {
@@ -109,8 +103,8 @@ export const schema: SampleSchema = {
         { key: "stack", label: "Stack", kind: "number" },
       ],
       roles: [
-        { key: "icon", label: "Icon", kinds: ["image"], expected: true },
-        { key: "vfx", label: "Effect", kinds: ["video"] },
+        { key: "icon", label: "Icon", mediaKinds: ["image"], expected: true },
+        { key: "vfx", label: "Effect", mediaKinds: ["video"] },
       ],
     },
     recipe: {
@@ -125,8 +119,8 @@ export const schema: SampleSchema = {
     },
   },
   collectionKinds: {
-    "armor-set": { label: "Armor set", preview: { key: "assembled", label: "Assembled", module: "assembled-mesh", represents: "complete", base: "art/characters/mannequin.glb" }, memberField: "slot" },
-    encounter: { label: "Encounter", memberExtra: { key: "count", label: "Count" } },
+    "armor-set": { label: "Armor set", preview: { label: "Assembled", module: "assembled-mesh", represents: "complete", base: "art/characters/mannequin.glb" }, memberField: "slot" },
+    encounter: { label: "Encounter", memberExtra: { key: "count" } },
   },
 }
 

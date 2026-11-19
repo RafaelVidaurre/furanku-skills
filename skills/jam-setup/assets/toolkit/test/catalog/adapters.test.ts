@@ -10,7 +10,7 @@ import { cleanup, open, standardProject, tmp, write } from "./helpers.ts"
 
 const engine = (relative: string): string => new URL(`../../src/${relative}`, import.meta.url).href
 
-test("T23 the generic core loads no game- or toolkit-specific modules with the manifest adapter", async () => {
+test("T23 the generic core loads no game- or toolkit-specific modules with the manifest plugin", async () => {
   const dir = await standardProject()
   // The engine is opened the way `open()` in helpers.ts opens it, in a process of its own whose
   // module resolutions are recorded. The script lives outside the toolkit, so everything it loads
@@ -31,7 +31,7 @@ test("T23 the generic core loads no game- or toolkit-specific modules with the m
     const kernel = Layer.mergeAll(Git.layerNoDeps, Ids.layer).pipe(Layer.provideMerge(Layer.mergeAll(ProjectFiles.layer(${JSON.stringify(dir)}), Process.layer)));
     const runtime = ManagedRuntime.make(Catalog.layerWith({}).pipe(Layer.provide(kernel), Layer.provide(Layer.empty)));
     const run = (action, input) => runtime.runPromise(Effect.flatMap(Catalog, (catalog) => catalog.run(action, input)));
-    await run('catalog.search', { section: 'units' });
+    await run('unit.search', {});
     await run('unit.get', { id: 'armor/helm' });
     await runtime.dispose();
     console.log(JSON.stringify(seen));`
@@ -55,20 +55,20 @@ test("T23 the generic core loads no game- or toolkit-specific modules with the m
   }
 })
 
-test("Manifest adapter: project collections, aliases, explanations and per-file problems", async () => {
+test("Manifest plugin: project collections, aliases, explanations and per-file problems", async () => {
   const dir = await standardProject()
   write(dir, "content/bad.json", '{"id": 1}')
   write(dir, "content/dup.json", { id: "armor/helm", type: "armor", name: "Dup" })
   write(dir, "content/unknown.json", { id: "x/y", type: "vehicle", name: "Car" })
   const app = await open(dir)
-  const problems: Array<string> = (await app.run("problems", {})).problems.map((p: { source: string; error: string }) => `${p.source}: ${p.error}`)
-  assert.ok(problems.some((p) => /duplicate content id armor\/helm/.test(p)))
+  const problems: Array<string> = (await app.run("problems", {})).problems.map((p: { subject: string; error: string }) => `${p.subject}: ${p.error}`)
+  assert.ok(problems.some((p) => /duplicate unit id armor\/helm/.test(p)))
   assert.ok(problems.some((p) => /unknown type vehicle/.test(p)))
   assert.ok(problems.some((p) => /content\/bad\.json/.test(p)))
   assert.equal((await app.run("unit.get", { id: "armor/helm" })).unit.name, "Iron Helm")
   const col = await app.run("collection.get", { id: "outfit/iron" })
-  // A collection defined by a source still reports the owner as "adapter".
-  assert.equal(col.collection.owner, "adapter")
+  // A collection defined by a source is project-owned.
+  assert.equal(col.collection.owner, "project")
   assert.equal(col.preview.module, "assembled-mesh")
   assert.equal(col.preview.members.length, 2)
   cleanup(dir)

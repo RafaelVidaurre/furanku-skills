@@ -10,7 +10,7 @@ What a run records, what makes recorded work stop counting, and where files live
 | `roots.delivered` (`<delivered>/<id>/<n>/`) | The delivered copy of a finished run | Tracked; binaries in Git LFS |
 | `jam.config.json`, `catalog.config.json`, `jam/` | Project policy, recipes, adapters, descriptors, plugins | Tracked |
 | `jam.local.json` | This machine's paths | Ignored |
-| `.catalog/` | Notes, labels, review submissions and verdicts (`.catalog/.local/` is ignored) | Tracked |
+| `.catalog/` | Notes, organization, collections, review submissions and decisions (`.catalog/.local/` is ignored) | Tracked |
 
 Every stored path is project-relative with forward slashes. Records, request files and evidence never hold an absolute path, a credential or a signed download URL.
 

@@ -1,8 +1,7 @@
 // Jam command group: everything except `catalog`.
 import * as Command from "effect/cli/Command"
 import * as Effect from "effect/Effect"
-import type { CommandGroup } from "../cli/main.ts"
-import { Output } from "../kernel/cli.ts"
+import { type CommandGroup, Output } from "../kernel/cli.ts"
 import { fail } from "../kernel/errors.ts"
 import { Git } from "../kernel/Git.ts"
 import { audio } from "./audio/commands.ts"
@@ -14,7 +13,6 @@ import { jamLayer } from "./layers.ts"
 import { commands as fileTools } from "./measure/commands.ts"
 import { provider } from "./providers/commands.ts"
 import { recipe } from "./recipes/commands.ts"
-import { REFERENCE_PATH, renderReference, renderSchemas } from "./reference.ts"
 import { job, run } from "./runs/commands.ts"
 import { Toolkit } from "./Toolkit.ts"
 
@@ -27,14 +25,18 @@ const where = Command.make("where", {}, () =>
     )
   })).pipe(described("Show which project and checkout commands act on.", "jam where"))
 
-/** Every file the toolkit generates from its own definitions. */
-const generated = (): ReadonlyArray<{ readonly path: string; readonly text: string }> =>
-  [...renderSchemas(), { path: REFERENCE_PATH, text: renderReference(commands()) }]
+/**
+ * Every file the toolkit generates from its own definitions. Loaded by the commands that need it:
+ * the published schemas include the catalog's, which no other jam command loads.
+ */
+const generated: Effect.Effect<ReadonlyArray<{ readonly path: string; readonly text: string }>> = Effect.promise(() =>
+  import("./reference.ts").then(({ REFERENCE_PATH, renderReference, renderSchemas }) => [...renderSchemas(), { path: REFERENCE_PATH, text: renderReference(commands()) }])
+)
 
 const schemasWrite = Command.make("write", {}, () =>
   Effect.gen(function*() {
     const toolkit = yield* Toolkit
-    const files = generated()
+    const files = yield* generated
     for (const file of files) yield* toolkit.writeText(file.path, file.text)
     yield* (yield* Output).emit({ written: files.map((file) => file.path), toolkit: toolkit.dir }, `wrote ${files.length} files in ${toolkit.dir}:\n${files.map((file) => `  ${file.path}`).join("\n")}`)
   })).pipe(described("Regenerate the published JSON Schemas (schemas/) and the command reference (docs/cli.md) from the toolkit's own definitions.", "jam schemas write"))
@@ -43,7 +45,7 @@ const schemasCheck = Command.make("check", {}, () =>
   Effect.gen(function*() {
     const toolkit = yield* Toolkit
     const stale: Array<string> = []
-    for (const file of generated()) {
+    for (const file of yield* generated) {
       const current = yield* toolkit.readText(file.path).pipe(Effect.catch(() => Effect.succeed(null)))
       if (current !== file.text) stale.push(file.path)
     }

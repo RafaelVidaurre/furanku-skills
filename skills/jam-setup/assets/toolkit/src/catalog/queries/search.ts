@@ -1,6 +1,6 @@
 // Search and filtering of units, collections and assets: ranked matches, facet counts that apply
 // every other filter, and bounded pages.
-import { fail, type ToolError } from "../../kernel/errors.ts"
+import { fail } from "../../kernel/errors.ts"
 import * as Effect from "effect/Effect"
 import type { Asset, Collection, Unit } from "../model/types.ts"
 import { type Rank, rankDoc, type SearchDoc } from "../model/search.ts"
@@ -53,8 +53,8 @@ const facetsFor = (p: Projection, section: Section): Record<string, Facet<never>
       cat: category,
       tag,
       review: review("unit"),
-      visual: {
-        label: "Visuals",
+      role: {
+        label: "Roles",
         values: (unit) => [
           ...new Set(unit.links.map((link) => link.role)),
           ...missingRoles(p, unit).map((role) => `missing:${role.key}`),
@@ -119,7 +119,6 @@ const searchDoc = (p: Projection, section: Section, entry: Entry): SearchDoc => 
 }
 
 export interface SearchInput {
-  readonly section?: Section | null | undefined
   readonly scope?: string | null | undefined
   readonly q?: string | null | undefined
   readonly filters?: Readonly<Record<string, ReadonlyArray<string>>> | null | undefined
@@ -127,9 +126,8 @@ export interface SearchInput {
   readonly pageSize?: number | null | undefined
 }
 
-export const search = (p: Projection, input: SearchInput): Effect.Effect<unknown, ToolError> =>
+const searchIn = (p: Projection, section: Section, input: SearchInput) =>
   Effect.gen(function*() {
-    const section = input.section ?? "units"
     const scope = input.scope ?? null
     const q = input.q ?? ""
     const filters = input.filters ?? {}
@@ -162,11 +160,13 @@ export const search = (p: Projection, input: SearchInput): Effect.Effect<unknown
     const matched = all.filter((entry) => passes(entry)).sort((a, b) => (ranked.get(b)!.score - ranked.get(a)!.score) || nameOf(a).localeCompare(nameOf(b)))
 
     // A facet's counts apply every filter except its own, so its other values stay choosable.
-    const facetOut: Record<string, unknown> = {}
+    const facetOut: Record<string, { label: string; tree: boolean; values: Array<{ value: string; label: string; count: number; selected: boolean }> }> = {}
     for (const [key, facet] of Object.entries(facets)) {
       const counts = new Map<string, number>()
       for (const entry of all) if (passes(entry, key)) for (const value of values(entry, key)) counts.set(value, (counts.get(value) ?? 0) + 1)
       for (const value of filters[key] ?? []) if (!counts.has(value)) counts.set(value, 0)
+      // An attribute filter of types this section does not hold is not offered here.
+      if (key.startsWith("attr.") && counts.size === 0) continue
       facetOut[key] = {
         label: facet.label,
         tree: !!facet.tree,
@@ -175,10 +175,11 @@ export const search = (p: Projection, input: SearchInput): Effect.Effect<unknown
       }
     }
     const page = paginate(matched, input.page, input.pageSize, 60, MAX_PAGE)
-    const summarize = (entry: Entry) =>
-      section === "units" ? unitSummary(p, entry as Unit) : section === "collections" ? collectionSummary(p, entry as Collection) : assetSummary(p, entry as Asset)
+    const match = (entry: Entry) => {
+      const member = ranked.get(entry)?.member
+      return { match: member ? { member } : null }
+    }
     return {
-      section,
       scope,
       q,
       filters,
@@ -187,8 +188,20 @@ export const search = (p: Projection, input: SearchInput): Effect.Effect<unknown
       page: page.page,
       pages: page.pages,
       pageSize: page.pageSize,
-      items: page.items.map((entry) => { const member = ranked.get(entry)?.member; return { ...summarize(entry), match: member ? { member } : null } }),
+      hits: page.items.map((entry) => ({ entry, ...match(entry) })),
       facets: facetOut,
       ids: matched.map((entry) => entry.id)
     }
   })
+
+/** `unit.search`: units, optionally of one scope. */
+export const unitSearch = (p: Projection, input: SearchInput) =>
+  Effect.map(searchIn(p, "units", input), ({ hits, ...found }) => ({ units: hits.map(({ entry, match }) => ({ ...unitSummary(p, entry as Unit), match })), ...found }))
+
+/** `collection.search`: collections, optionally those with a member in one scope. */
+export const collectionSearch = (p: Projection, input: SearchInput) =>
+  Effect.map(searchIn(p, "collections", input), ({ hits, ...found }) => ({ collections: hits.map(({ entry, match }) => ({ ...collectionSummary(p, entry as Collection), match })), ...found }))
+
+/** `asset.search`: assets; scopes split units, so an asset search has none. */
+export const assetSearch = (p: Projection, input: Omit<SearchInput, "scope">) =>
+  Effect.map(searchIn(p, "assets", input), ({ hits, scope: _scope, ...found }) => ({ assets: hits.map(({ entry, match }) => ({ ...assetSummary(p, entry as Asset), match })), ...found }))

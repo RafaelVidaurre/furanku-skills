@@ -75,7 +75,7 @@
               "type": "string",
               "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
               "maxLength": 64,
-              "description": "Catalog scope the subjects are listed under (default: assets)"
+              "description": "Catalog scope the subjects are listed under (default: material)"
             }
           },
           "additionalProperties": false,

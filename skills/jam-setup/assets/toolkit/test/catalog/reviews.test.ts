@@ -1,4 +1,4 @@
-// Ported from the version 1 engine: submissions, verdict events, the review projection, frozen
+// Ported from the version 1 engine: submissions, decisions, the review projection, frozen
 // evidence and before/after views.
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
@@ -17,7 +17,7 @@ const files = (dir: string, rel: string): Array<string> =>
   existsSync(join(dir, rel)) ? (readdirSync(join(dir, rel), { recursive: true }) as Array<string>).filter((f) => f.endsWith(".json")) : []
 const parts = (r: Any) => Object.fromEntries(r.review.parts.map((p: Any) => [p.id, p.verdict]))
 
-test("T09 several views per item; approve-with-exceptions is one event; a later part-only verdict touches only that part", async () => {
+test("T09 several views per item; approve-with-exceptions is one decision; a later part-only verdict touches only that part", async () => {
   const dir = await standardProject()
   const app = await open(dir)
   const run = W(app)
@@ -35,11 +35,12 @@ test("T09 several views per item; approve-with-exceptions is one event; a later 
   const item = rv.items[1]
   assert.deepEqual(item.parts.map((p: Any) => p.id), ["member:armor/helm", "member:armor/boots", "preview"])
   await run("review.decide", { submission: rv.id, item: item.id, whole: "approved", exceptions: { "member:armor/boots": "changes" }, comment: "All good except boots" })
-  const events = files(dir, `.catalog/reviews/${rv.id}/verdicts`)
-  assert.equal(events.length, 1, "compound approval is one atomic event")
-  const ev = read(dir, `.catalog/reviews/${rv.id}/verdicts/${events[0]}`)
-  assert.deepEqual(ev.scope, { kind: "whole", parts: ["member:armor/helm", "member:armor/boots", "preview"] })
-  assert.deepEqual(ev.exceptions, { "member:armor/boots": "changes" })
+  const decisions = files(dir, `.catalog/reviews/${rv.id}/decisions`)
+  assert.equal(decisions.length, 1, "compound approval is one atomic decision")
+  assert.match(decisions[0]!, /^dc_[a-z0-9]+\.json$/)
+  const decision = read(dir, `.catalog/reviews/${rv.id}/decisions/${decisions[0]}`)
+  assert.deepEqual(decision.covers, { kind: "whole", parts: ["member:armor/helm", "member:armor/boots", "preview"] })
+  assert.deepEqual(decision.exceptions, { "member:armor/boots": "changes" })
   assert.deepEqual(parts(await app.run("collection.get", { id: "outfit/iron" })), { "member:armor/helm": "approved", "member:armor/boots": "changes", preview: "approved" })
   await run("review.decide", { submission: rv.id, item: item.id, verdicts: { "member:armor/boots": "approved" } })
   assert.deepEqual(parts(await app.run("collection.get", { id: "outfit/iron" })), { "member:armor/helm": "approved", "member:armor/boots": "approved", preview: "approved" })
@@ -54,7 +55,7 @@ test("T09 several views per item; approve-with-exceptions is one event; a later 
   cleanup(dir)
 })
 
-test("T10 two reviewers on different branches: merge in either order yields the same latest-wins projection; ties are deterministic; alternate resolver needs no event changes", async () => {
+test("T10 two reviewers on different branches: merge in either order yields the same latest-wins projection; ties are deterministic; alternate resolver needs no decision changes", async () => {
   const dir = await standardProject()
   const base = await open(dir)
   const sub = await W(base)("review.submit", { items: [{ target: unit("armor/helm") }] })
@@ -83,26 +84,26 @@ test("T10 two reviewers on different branches: merge in either order yields the 
   const ba = await projectionAfter("reviewer-b", "reviewer-a")
   assert.equal(ab.model.verdict, "changes")
   assert.equal(ba.model.verdict, "changes")
-  assert.equal(ab.model.event.by.name, human2.name)
+  assert.equal(ab.model.decision.by.name, human2.name)
   assert.equal(ab.history, 2)
   assert.equal(ba.history, 2)
   // Tie on recorded time: identity decides, reproducibly.
-  const evDir = join(dir, ".catalog/reviews", rv.id, "verdicts")
-  const evs = readdirSync(evDir).map((f) => read(dir, `.catalog/reviews/${rv.id}/verdicts/${f}`))
+  const evDir = join(dir, ".catalog/reviews", rv.id, "decisions")
+  const evs = readdirSync(evDir).map((f) => read(dir, `.catalog/reviews/${rv.id}/decisions/${f}`))
   for (const e of evs) writeFileSync(join(evDir, `${e.id}.json`), JSON.stringify({ ...e, at: "2026-01-01T00:00:00.000Z" }))
   const winner = evs.map((e) => e.id).sort().at(-1)
-  for (let i = 0; i < 2; i++) assert.equal((await (await open(dir)).run("unit.get", { id: "armor/helm" })).review.parts.find((p: Any) => p.id === "model").event.id, winner)
+  for (let i = 0; i < 2; i++) assert.equal((await (await open(dir)).run("unit.get", { id: "armor/helm" })).review.parts.find((p: Any) => p.id === "model").decision.id, winner)
   // Alternate resolver from project configuration: most severe of each reviewer's latest.
   const before = readdirSync(evDir).map((f) => readFileSync(join(evDir, f), "utf8"))
   for (const e of evs) writeFileSync(join(evDir, `${e.id}.json`), JSON.stringify({ ...e, at: e.verdicts.model === "approved" ? "2026-02-01T00:00:00.000Z" : "2026-01-01T00:00:00.000Z" }))
   assert.equal((await (await open(dir)).run("unit.get", { id: "armor/helm" })).review.parts.find((p: Any) => p.id === "model").verdict, "approved", "latest wins by default")
-  write(dir, "catalog.config.json", { version: 1, adapter: "manifest", review: { resolver: "strictest" } })
+  write(dir, "catalog.config.json", { version: 3, plugins: ["manifest"], review: { resolver: "strictest" } })
   assert.equal((await (await open(dir)).run("unit.get", { id: "armor/helm" })).review.parts.find((p: Any) => p.id === "model").verdict, "changes", "strictest resolver")
   assert.equal(before.length, readdirSync(evDir).length)
   cleanup(dir)
 })
 
-test("T11 content changes keep verdicts, show them as changed, create no events; new members inherit nothing", async () => {
+test("T11 content changes keep verdicts, show them as changed, create no decisions; new members inherit nothing", async () => {
   const dir = await standardProject()
   const app = await open(dir)
   const run = W(app)
@@ -212,7 +213,7 @@ test("T13 uncommitted work is captured as repository evidence and reopens exactl
   assert.equal(leaf("icon").storage, "catalog")
   assert.equal(leaf("model").storage, "git")
   assert.equal(leaf("attributes").attrs.armor, 2)
-  assert.equal(rv.context.dirty > 0, true)
+  assert.equal(rv.checkout.dirty > 0, true)
   const iconSha = leaf("icon").sha256
   // Later source edits do not change the frozen evidence.
   write(dir, "art/new.png", png(7, 7, [255, 0, 0, 255]))
@@ -257,8 +258,8 @@ test("Catalog Review reuses a waiting item with identical evidence, otherwise su
   const r2 = await run("review.decideCurrent", { target: unit("armor/helm"), verdicts: { icon: "changes" } }, "quick-1")
   assert.equal(r2.createdSubmission, true)
   const r3 = await run("review.decideCurrent", { target: unit("armor/helm"), verdicts: { icon: "changes" } }, "quick-1")
-  assert.equal(r3.event.id, r2.event.id, "retry with the same request id records once")
-  assert.equal((await app.run("reviews.list", { state: "all" })).total, 2)
+  assert.equal(r3.decision.id, r2.decision.id, "retry with the same request id records once")
+  assert.equal((await app.run("review.list", { state: "all" })).total, 2)
   // Multi-role part identity: a different concept file is a different part.
   const u = await app.run("unit.get", { id: "armor/helm" })
   assert.ok(u.review.parts.some((p: Any) => p.id === "concept:art/sheet.png"))
@@ -269,67 +270,76 @@ test("Queue counts distinguish waiting, approved, changes and rejected", async (
   const dir = await standardProject()
   const app = await open(dir)
   const run = W(app)
-  const s = await run("review.submit", { items: [{ target: unit("armor/helm") }, { target: unit("armor/boots") }, { target: unit("armor/coat") }, { target: unit("lore/origin") }] })
+  const s = await run("review.submit", { brief: "Four units for the **first pass**.", items: [{ target: unit("armor/helm") }, { target: unit("armor/boots") }, { target: unit("armor/coat") }, { target: unit("lore/origin") }] })
   const rv = await app.run("review.get", { submission: s.submission.id })
+  // The brief and the checkout the submission was made from are recorded with it.
+  assert.deepEqual([rv.brief, rv.checkout.branch], ["Four units for the **first pass**.", "main"])
+  assert.equal(read(dir, `.catalog/reviews/${rv.id}/submission.json`).brief, "Four units for the **first pass**.")
+  await rejects(run("review.submit", { note: "old name", items: [{ target: unit("armor/helm") }] }), "invalid")
   await run("review.decide", { submission: rv.id, item: rv.items[0].id, whole: "approved" })
   await run("review.decide", { submission: rv.id, item: rv.items[1].id, whole: "rejected" })
   await run("review.decide", { submission: rv.id, item: rv.items[2].id, whole: "changes" })
   const v = await app.run("review.get", { submission: rv.id })
   assert.deepEqual(v.counts, { items: 4, waiting: 1, approved: 1, changes: 1, rejected: 1 })
   assert.deepEqual(v.items.map((i: Any) => i.state), ["approved", "rejected", "changes", "undecided"])
-  assert.equal((await app.run("reviews.list", { state: "rejected" })).total, 1)
-  assert.equal((await app.run("reviews.list", { state: "waiting" })).total, 1)
+  assert.equal((await app.run("review.list", { state: "rejected" })).total, 1)
+  assert.equal((await app.run("review.list", { state: "waiting" })).total, 1)
+  // The list names its entities and pages them like every other list.
+  const listed = await app.run("review.list", { pageSize: 10 })
+  assert.deepEqual(listed.submissions.map((submission: Any) => [submission.id, submission.counts.items]), [[rv.id, 4]])
+  assert.deepEqual([listed.total, listed.page, listed.pages, listed.pageSize, "items" in listed], [1, 1, 1, 10, false])
+  assert.deepEqual(listed.counts, { all: 1, waiting: 1, changes: 1, rejected: 1, approved: 0 })
   // The metadata-only unit has an attributes part only.
   assert.deepEqual(v.items[3].parts.map((p: Any) => p.id), ["attributes"])
   cleanup(dir)
 })
 
-test("Part notes stay with their decided part through recording, reload, history and retries; notes on undecided or unknown parts are refused", async () => {
+test("Part comments stay with their decided part through recording, reload, history and retries; comments on undecided or unknown parts are refused", async () => {
   const dir = await standardProject()
   const app = await open(dir)
   const run = W(app)
   const s = await run("review.submit", { items: [{ target: unit("armor/helm") }] })
   const rv = await app.run("review.get", { submission: s.submission.id })
   const item = rv.items[0].id
-  const verdictFiles = () => files(dir, `.catalog/reviews/${rv.id}/verdicts`)
-  // Unknown part, undecided part and non-text notes are refused before any record is written.
-  await rejects(run("review.decide", { submission: rv.id, item, verdicts: { icon: "changes" }, partNotes: { "concept:nope": "x" } }), "invalid")
-  await rejects(run("review.decide", { submission: rv.id, item, verdicts: { icon: "changes" }, partNotes: { model: "Not decided here" } }), "invalid")
-  await rejects(run("review.decide", { submission: rv.id, item, verdicts: { icon: "changes" }, partNotes: { icon: 5 } }), "invalid")
-  await rejects(run("review.decideCurrent", { target: unit("armor/boots"), verdicts: { icon: "changes" }, partNotes: { model: "x" } }), "invalid")
-  assert.equal(verdictFiles().length, 0)
-  assert.equal((await app.run("reviews.list", { state: "all" })).total, 1, "an invalid quick review creates no submission")
+  const decisionFiles = () => files(dir, `.catalog/reviews/${rv.id}/decisions`)
+  // Unknown part, undecided part and non-text comments are refused before any record is written.
+  await rejects(run("review.decide", { submission: rv.id, item, verdicts: { icon: "changes" }, partComments: { "concept:nope": "x" } }), "invalid")
+  await rejects(run("review.decide", { submission: rv.id, item, verdicts: { icon: "changes" }, partComments: { model: "Not decided here" } }), "invalid")
+  await rejects(run("review.decide", { submission: rv.id, item, verdicts: { icon: "changes" }, partComments: { icon: 5 } }), "invalid")
+  await rejects(run("review.decideCurrent", { target: unit("armor/boots"), verdicts: { icon: "changes" }, partComments: { model: "x" } }), "invalid")
+  assert.equal(decisionFiles().length, 0)
+  assert.equal((await app.run("review.list", { state: "all" })).total, 1, "an invalid quick review creates no submission")
 
-  // Whole approval with a change and a rejection, two distinct part notes, a blank one and an overall comment.
-  await run("review.decide", { submission: rv.id, item, whole: "approved", exceptions: { icon: "changes", model: "rejected" }, comment: "Overall close", partNotes: { icon: "  Outline too thin  ", model: "Wrong silhouette", attributes: "   " } }, "pn-1")
-  const ev = read(dir, `.catalog/reviews/${rv.id}/verdicts/${verdictFiles()[0]}`)
-  assert.deepEqual(ev.partNotes, { icon: "Outline too thin", model: "Wrong silhouette" })
-  assert.equal(ev.comment, "Overall close")
-  // Retrying the request records once; reusing its id with other notes is a conflict.
-  await run("review.decide", { submission: rv.id, item, whole: "approved", exceptions: { icon: "changes", model: "rejected" }, comment: "Overall close", partNotes: { icon: "  Outline too thin  ", model: "Wrong silhouette", attributes: "   " } }, "pn-1")
-  await rejects(run("review.decide", { submission: rv.id, item, whole: "approved", exceptions: { icon: "changes", model: "rejected" }, partNotes: { icon: "Other" } }, "pn-1"), "conflict")
-  assert.equal(verdictFiles().length, 1)
-  // A later part-only approval with its own note; an event without notes stays readable.
-  await run("review.decide", { submission: rv.id, item, verdicts: { icon: "approved" }, partNotes: { icon: "Fixed outline" } })
+  // Whole approval with a change and a rejection, two distinct part comments, a blank one and an overall comment.
+  await run("review.decide", { submission: rv.id, item, whole: "approved", exceptions: { icon: "changes", model: "rejected" }, comment: "Overall close", partComments: { icon: "  Outline too thin  ", model: "Wrong silhouette", attributes: "   " } }, "pn-1")
+  const recorded = read(dir, `.catalog/reviews/${rv.id}/decisions/${decisionFiles()[0]}`)
+  assert.deepEqual(recorded.partComments, { icon: "Outline too thin", model: "Wrong silhouette" })
+  assert.equal(recorded.comment, "Overall close")
+  // Retrying the request records once; reusing its id with other comments is a conflict.
+  await run("review.decide", { submission: rv.id, item, whole: "approved", exceptions: { icon: "changes", model: "rejected" }, comment: "Overall close", partComments: { icon: "  Outline too thin  ", model: "Wrong silhouette", attributes: "   " } }, "pn-1")
+  await rejects(run("review.decide", { submission: rv.id, item, whole: "approved", exceptions: { icon: "changes", model: "rejected" }, partComments: { icon: "Other" } }, "pn-1"), "conflict")
+  assert.equal(decisionFiles().length, 1)
+  // A later part-only approval with its own comment; a decision without comments stays readable.
+  await run("review.decide", { submission: rv.id, item, verdicts: { icon: "approved" }, partComments: { icon: "Fixed outline" } })
   await run("review.decide", { submission: rv.id, item, verdicts: { attributes: "approved" } })
 
   const fresh = await open(dir)
   const u = await fresh.run("unit.get", { id: "armor/helm" })
   const part = (id: string) => u.review.parts.find((p: Any) => p.id === id)
-  assert.equal(part("icon").event.partNotes.icon, "Fixed outline", "the deciding event carries the current part note")
-  assert.equal(part("model").event.partNotes.model, "Wrong silhouette")
-  assert.equal(part("attributes").event.partNotes.attributes, undefined)
-  assert.deepEqual(u.history.map((e: Any) => e.partNotes), [{}, { icon: "Fixed outline" }, { icon: "Outline too thin", model: "Wrong silhouette" }])
+  assert.equal(part("icon").decision.partComments.icon, "Fixed outline", "the decision that decides the part carries its current comment")
+  assert.equal(part("model").decision.partComments.model, "Wrong silhouette")
+  assert.equal(part("attributes").decision.partComments.attributes, undefined)
+  assert.deepEqual(u.history.map((e: Any) => e.partComments), [{}, { icon: "Fixed outline" }, { icon: "Outline too thin", model: "Wrong silhouette" }])
   assert.deepEqual(u.history[2].verdicts, { icon: "changes", model: "rejected", "concept:art/sheet.png": "approved", attributes: "approved" })
-  assert.equal(u.history[2].comment, "Overall close", "the overall comment stays separate from part notes")
+  assert.equal(u.history[2].comment, "Overall close", "the overall comment stays separate from part comments")
   const asset = await fresh.run("asset.get", { id: "art/helm.glb" })
-  assert.deepEqual(asset.verdicts.map((v: Any) => [v.verdict, v.note]), [["rejected", "Wrong silhouette"]])
+  assert.deepEqual(asset.verdicts.map((v: Any) => [v.verdict, v.partComment, /^dc_/.test(v.decision)]), [["rejected", "Wrong silhouette", true]])
   assert.equal((await fresh.run("problems", {})).problems.length, 0)
 
-  // A record whose note addresses a part it does not decide is excluded as a problem.
-  const bad = read(dir, `.catalog/reviews/${rv.id}/verdicts/${verdictFiles().find((f) => read(dir, `.catalog/reviews/${rv.id}/verdicts/${f}`).verdicts?.attributes)}`)
-  write(dir, `.catalog/reviews/${rv.id}/verdicts/${bad.id}.json`, { ...bad, partNotes: { model: "Stray" } })
-  assert.match((await (await open(dir)).run("problems", {})).problems.map((p: Any) => p.error).join("\n"), /part notes are invalid/)
+  // A record whose comment addresses a part it does not decide is excluded as a problem.
+  const bad = read(dir, `.catalog/reviews/${rv.id}/decisions/${decisionFiles().find((f) => read(dir, `.catalog/reviews/${rv.id}/decisions/${f}`).verdicts?.attributes)}`)
+  write(dir, `.catalog/reviews/${rv.id}/decisions/${bad.id}.json`, { ...bad, partComments: { model: "Stray" } })
+  assert.match((await (await open(dir)).run("problems", {})).problems.map((p: Any) => p.error).join("\n"), /part comments are invalid/)
   cleanup(dir)
 })
 
@@ -373,7 +383,7 @@ test("Before/after views: a view compares its evidence with a frozen project fil
   assert.equal((await app.run("review.get", { submission: s3.submission.id })).items[0].views[0].before.status, "ok")
 
   // Every refusal leaves no record.
-  const count = (await app.run("reviews.list", { state: "all" })).total
+  const count = (await app.run("review.list", { state: "all" })).total
   const helm = (view: unknown) => run("review.submit", { items: [{ target: unit("armor/helm"), views: [view] }] })
   await rejects(helm({ part: "model", before: { path: "art/helm.png" } }), "invalid") // image before a model
   await rejects(helm({ part: "icon", before: { path: "content/armor_helm.json" } }), "forbidden") // outside the asset roots
@@ -383,16 +393,16 @@ test("Before/after views: a view compares its evidence with a frozen project fil
   await rejects(helm({ part: "icon", afterLabel: "After" }), "invalid")
   await rejects(helm({ part: "icon", before: { submission: rv.id, item: rv.items[0].id, part: "attributes" } }), "invalid")
   await rejects(run("review.submit", { items: [{ target: { kind: "collection", id: "outfit/iron" }, views: [{ part: "member:armor/helm", before: { path: "art/boots.png" } }] }] }), "invalid") // no leaf named
-  assert.equal((await app.run("reviews.list", { state: "all" })).total, count)
+  assert.equal((await app.run("review.list", { state: "all" })).total, count)
 
   // The record survives a fresh open (schema validation) unchanged.
   const again = await open(dir)
   assert.equal((await again.run("review.get", { submission: rv.id })).items[0].views[0].before.sha256, sha(old))
-  assert.equal((await again.run("context", {})).problems, 0, "the before record passes validation")
+  assert.equal((await again.run("summary", {})).problems, 0, "the before record passes validation")
   cleanup(dir)
 })
 
-test("review.remove retires submissions with their verdicts and notes, keeps what others depend on, and frees only unshared evidence", async () => {
+test("review.remove retires submissions with their decisions and notes, keeps what others depend on, and frees only unshared evidence", async () => {
   const dir = await standardProject({ commit: false })
   const app = await open(dir)
   const run = W(app)
@@ -412,7 +422,7 @@ test("review.remove retires submissions with their verdicts and notes, keeps wha
 
   // A dry run says exactly what would go, and changes nothing.
   const plan = await run("review.remove", { submissions: [third.id], reason: "obsolete", dryRun: true })
-  assert.deepEqual([plan.removed, plan.submissions.map((s: { id: string }) => s.id), plan.verdicts, plan.notes], [false, [third.id], [], []])
+  assert.deepEqual([plan.removed, plan.submissions.map((s: { id: string }) => s.id), plan.decisions, plan.notes], [false, [third.id], [], []])
   assert.ok(plan.evidence.length > 0)
   assert.deepEqual(evidenceFiles(), stored)
   // What stays may not lose what it depends on.
@@ -420,14 +430,14 @@ test("review.remove retires submissions with their verdicts and notes, keeps wha
   assert.match(refused.message, new RegExp(`${second.id} depends on ${first.id}`))
   // Removing the later round alone keeps the first round's evidence, which the first still uses.
   await run("review.remove", { submissions: [second.id], reason: "archived" })
-  assert.equal((await app.run("reviews.list", { state: "all" })).total, 2)
-  // Removing the first takes its verdict, its note and the evidence nothing else uses.
+  assert.equal((await app.run("review.list", { state: "all" })).total, 2)
+  // Removing the first takes its decision, its note and the evidence nothing else uses.
   const gone = await run("review.remove", { submissions: [first.id, third.id], reason: "archived" }, "cleanup-1")
   assert.equal(gone.removed, true)
-  assert.equal(gone.verdicts.length, 1)
+  assert.equal(gone.decisions.length, 1)
   assert.equal(gone.notes.length, 1)
-  assert.equal((await app.run("reviews.list", { state: "all" })).total, 0)
-  assert.equal((await app.run("notes.list", { state: "all" })).total, 0)
+  assert.equal((await app.run("review.list", { state: "all" })).total, 0)
+  assert.equal((await app.run("note.list", { state: "all" })).total, 0)
   assert.deepEqual(evidenceFiles(), [], "no evidence is left that no record uses")
   assert.equal((await app.run("problems", {})).problems.length, 0)
   // The same request again replays; an unknown id is named.
@@ -448,7 +458,7 @@ test("review.remove with the dry run's plan refuses when an owner decision arriv
   await run("review.decide", { submission: submission.id, item, whole: "approved", comment: "Good now" })
   const stale = await rejects(run("review.remove", { submissions: [submission.id], reason: "archived", expectedPlan: plan.plan }), "conflict")
   assert.notEqual(stale.details.plan, plan.plan)
-  assert.equal((await app.run("reviews.list", { state: "all" })).total, 1, "nothing was removed")
+  assert.equal((await app.run("review.list", { state: "all" })).total, 1, "nothing was removed")
   // A note edited after the plan is a change as well.
   const note = (await run("note.create", { target: { kind: "submission", id: submission.id }, body: "Rim" })).note
   const fresh = await run("review.remove", { submissions: [submission.id], reason: "archived", dryRun: true })
@@ -458,8 +468,63 @@ test("review.remove with the dry run's plan refuses when an owner decision arriv
   const current = await run("review.remove", { submissions: [submission.id], reason: "archived", dryRun: true })
   const gone = await run("review.remove", { submissions: [submission.id], reason: "archived", expectedPlan: current.plan })
   assert.equal(gone.removed, true)
-  assert.deepEqual([gone.records.submissions.length, gone.records.verdicts.length, gone.records.notes.length], [1, 2, 1])
+  assert.deepEqual([gone.records.submissions.length, gone.records.decisions.length, gone.records.notes.length], [1, 2, 1])
   assert.equal(gone.records.notes[0].body, "Rim reads thin")
-  assert.ok(gone.records.verdicts.some((verdict: { comment?: string }) => verdict.comment === "Good now"))
+  assert.ok(gone.records.decisions.some((decision: { comment?: string }) => decision.comment === "Good now"))
+  cleanup(dir)
+})
+
+test("a decision under a missing submission, or naming an item its submission lacks, is a record problem and decides nothing", async () => {
+  const dir = await standardProject()
+  const app = await open(dir)
+  const run = W(app)
+  const approved = await run("review.decideCurrent", { target: unit("armor/helm"), whole: "approved" })
+  const other = await run("review.submit", { items: [{ target: unit("armor/boots") }] })
+  const sub = approved.submission.id as string
+  const decision = read(dir, `.catalog/reviews/${sub}/decisions/${approved.decision.id}.json`)
+  // A merge brought a decision on a submission another branch removed, and a hand edit pointed one at another submission's item.
+  const orphan = { ...decision, id: "dc_orphan1", submission: "sub_gone1", verdict: "rejected", exceptions: {} }
+  const foreign = { ...decision, id: "dc_foreign1", item: other.submission.items[0].id, verdict: "rejected", exceptions: {} }
+  write(dir, `.catalog/reviews/sub_gone1/decisions/dc_orphan1.json`, orphan)
+  write(dir, `.catalog/reviews/${sub}/decisions/dc_foreign1.json`, foreign)
+
+  const expected = [
+    { origin: "records", subject: ".catalog/reviews/sub_gone1/decisions/dc_orphan1.json", error: "decision belongs to submission sub_gone1, which does not exist", recovery: "remove this file, or restore the submission it belongs to" },
+    { origin: "records", subject: `.catalog/reviews/${sub}/decisions/dc_foreign1.json`, error: `decision names item ${foreign.item}, which submission ${sub} does not have`, recovery: "remove this file, or restore the submission it belongs to" }
+  ]
+  const sorted = (list: ReadonlyArray<Any>) => [...list].sort((a, b) => a.subject.localeCompare(b.subject))
+  assert.deepEqual(sorted((await app.run("problems", {})).problems), sorted(expected))
+  assert.deepEqual(sorted((await app.run("inbox", {})).problems), sorted(expected))
+  const helm = await app.run("unit.get", { id: "armor/helm" })
+  assert.ok(helm.review.parts.every((part: Any) => part.verdict === "approved"), "the stray decisions decide nothing")
+  assert.ok((await app.run("unit.get", { id: "armor/boots" })).review.parts.every((part: Any) => part.verdict === null))
+  cleanup(dir)
+})
+
+test("a part is changed against the evidence the decision that decided it saw; a newer undecided submission does not reset it and waits meanwhile", async () => {
+  const dir = await standardProject()
+  const app = await open(dir)
+  const run = W(app)
+  await run("review.decideCurrent", { target: unit("armor/helm"), whole: "approved" })
+  write(dir, "art/helm.png", png(4, 4, [10, 10, 250, 255]))
+  const icon = async () => (await app.run("unit.get", { id: "armor/helm" })).review.parts.find((p: Any) => p.id === "icon")
+  assert.deepEqual([(await icon()).verdict, (await icon()).changed], ["approved", true])
+
+  // A newer submission freezes the new bytes, but until it is decided the old verdict decides the part.
+  const newer = await run("review.submit", { items: [{ target: unit("armor/helm"), parts: ["icon"] }] })
+  assert.deepEqual([(await icon()).verdict, (await icon()).changed], ["approved", true])
+  const inbox = await app.run("inbox", {})
+  assert.ok(inbox.waiting.some((entry: Any) => entry.submission === newer.submission.id), "the newer submission waits")
+  assert.ok(inbox.changed.some((entry: Any) => JSON.stringify(entry).includes("armor/helm")), "the part is listed as changed")
+
+  await run("review.decide", { submission: newer.submission.id, item: newer.submission.items[0].id, whole: "approved" })
+  assert.deepEqual([(await icon()).verdict, (await icon()).changed], ["approved", false])
+  cleanup(dir)
+})
+
+test("review.decideCurrent takes a unit or a collection; another kind is invalid input", async () => {
+  const dir = await standardProject()
+  const run = W(await open(dir))
+  await rejects(run("review.decideCurrent", { target: { kind: "asset", id: "art/helm.png" }, whole: "approved" }), "invalid")
   cleanup(dir)
 })

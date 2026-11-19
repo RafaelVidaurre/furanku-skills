@@ -13,7 +13,7 @@ const { shot } = screenshots(import.meta.url)
 
 const dialogueType = {
   label: "Dialogue",
-  scope: "content",
+  scope: "main",
   thumb: "audio",
   reviewAttributes: false,
   audioTranscript: { text: "text", words: "words", asset: "voiceFile" },
@@ -23,7 +23,7 @@ const dialogueType = {
     { key: "words", label: "Word timings", derived: true, summary: false },
     { key: "voiceFile", label: "Aligned take", derived: true, summary: false }
   ],
-  roles: [{ key: "audio", label: "Aligned take", kinds: ["audio"] }]
+  roles: [{ key: "audio", label: "Aligned take", mediaKinds: ["audio"] }]
 }
 
 test("dialogue highlighting follows playback, pause, silence, seeking and line changes", async (t) => {
@@ -43,7 +43,7 @@ test("dialogue highlighting follows playback, pause, silence, seeking and line c
     })
     server = await startServer(root)
     const p = await newPage(browser)
-    await p.goto(`${server.url}#/content/u/line%2Fvoiced`)
+    await p.goto(`${server.url}#/main/u/line%2Fvoiced`)
     await p.waitForFunction(() => window.catalogViewer?.state().viewer?.status === "ready")
     const state = () => p.evaluate(() => window.catalogViewer.state().viewer)
     const control = (command: unknown) => p.evaluate((c) => window.catalogViewer.control(c), command)
@@ -74,7 +74,7 @@ test("dialogue highlighting follows playback, pause, silence, seeking and line c
       return !v.playing && v.currentTime === v.duration
     })
     assert.equal((await state()).currentWord, null, "ending the take clears highlighting")
-    await p.goto(`${server.url}#/content/u/line%2Fmissing`)
+    await p.goto(`${server.url}#/main/u/line%2Fmissing`)
     await p.getByRole("heading", { name: "Silent line." }).waitFor()
     await p.evaluate(() => window.catalogViewer.settled())
     assert.equal(await p.getByRole("button", { name: "Play", exact: true }).count(), 0)

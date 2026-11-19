@@ -8,7 +8,7 @@ import { ProjectFiles } from "../kernel/ProjectFiles.ts"
 import { lfsPointer } from "./Evidence.ts"
 import { factsOf, type Projection } from "./Projection.ts"
 import type { Owned } from "./Plugins.ts"
-import type { Check, CheckProblem } from "./plugin.ts"
+import type { Check, CheckProblem, RunAction } from "./plugin.ts"
 import { problemsOf } from "./queries/inbox.ts"
 import { submissionView } from "./queries/reviews.ts"
 import { fromPlugin, toPromise } from "./support.ts"
@@ -101,14 +101,14 @@ const runChecks = (env: ReadEnv): Effect.Effect<Array<CheckRun>, never, ActionSe
     const p = env.projection
     const lfs = yield* lfsCheck(p)
     const builtin: Array<CheckRun> = [
-      { name: "catalog-problems", label: "Catalog problems", plugin: "catalog", problems: problemsOf(p).map((problem) => ({ subject: problem.source, message: problem.error, ...(problem.recovery ? { fix: { label: problem.recovery } } : {}) })) },
+      { name: "catalog-problems", label: "Catalog problems", plugin: "catalog", problems: problemsOf(p).map((problem) => ({ subject: problem.subject, message: problem.error, ...(problem.recovery ? { fix: { label: problem.recovery } } : {}) })) },
       { name: "lfs-pointers", label: "Git LFS files left as pointers", plugin: "catalog", problems: lfs },
       { name: "unreadable-media", label: "Media that cannot be shown", plugin: "catalog", problems: unreadableCheck(p, new Set(lfs.flatMap((problem) => (problem.subject === undefined ? [] : [problem.subject])))) },
       { name: "unlinked-files", label: "Media no unit links", plugin: "catalog", problems: yield* unlinkedCheck(p) },
       { name: "waiting-reviews", label: "Reviews waiting on a person", plugin: "catalog", problems: waitingCheck(p) }
     ]
     const fromPlugins = yield* Effect.forEach(p.plugins.checks, (owned: Owned<Check>) =>
-      fromPlugin(`check ${owned.value.name}`, () => owned.value.run({ ...owned.context, run: (action, input) => toPromise(env.runRead(action, input)) })).pipe(
+      fromPlugin(`check ${owned.value.name}`, () => owned.value.run({ ...owned.context, run: ((action: string, input?: unknown) => toPromise(env.runRead(action, input))) as RunAction })).pipe(
         Effect.catch((error) => Effect.succeed<ReadonlyArray<CheckProblem>>([{ message: error.message }])),
         Effect.map((problems): CheckRun => ({ name: owned.value.name, label: owned.value.label ?? owned.value.name, plugin: owned.plugin, problems: Array.isArray(problems) ? problems : [] }))
       ))

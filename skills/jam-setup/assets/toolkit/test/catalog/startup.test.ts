@@ -37,9 +37,9 @@ test("data commands and the server's own bookkeeping load neither the HTTP stack
   const dir = await standardProject()
   const commands: ReadonlyArray<ReadonlyArray<string>> = [
     ["actions"],
-    ["run", "catalog.search", "--input", '{"q":"helm"}'],
+    ["run", "unit.search", "--input", '{"q":"helm"}'],
     ["run", "unit.get", "--input", '{"id":"armor/helm"}'],
-    ["todo"],
+    ["inbox"],
     ["doctor"],
     ["status"],
     ["stop"]

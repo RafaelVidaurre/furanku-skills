@@ -8,14 +8,14 @@ import type { Projection } from "./Projection.ts"
 const enc = encodeURIComponent
 
 /** Sections of the page that are not unit scopes. A scope cannot take one of these ids. */
-export const RESERVED_SECTIONS: ReadonlyArray<string> = ["collections", "files", "reviews", "notes", "organize", "inbox"]
+export const RESERVED_SECTIONS: ReadonlyArray<string> = ["collections", "assets", "reviews", "notes", "organization", "inbox"]
 
 export const unitRoute = (scope: string, id: string): string => `#/${enc(scope)}/u/${enc(id)}`
 export const collectionRoute = (id: string): string => `#/collections/c/${enc(id)}`
-export const assetRoute = (id: string): string => `#/files/a/${enc(id)}`
+export const assetRoute = (id: string): string => `#/assets/a/${enc(id)}`
 export const reviewRoute = (submission: string, item?: string): string => `#/reviews/s/${enc(submission)}${item === undefined ? "" : `/${enc(item)}`}`
 
-/** The page of a note's or verdict's target; null when the target is not in this checkout. */
+/** The page of a note's or decision's target; null when the target is not in this checkout. */
 export const targetRoute = (p: Projection, target: Target & { readonly item?: string | undefined }): string | null => {
   if (target.kind === "submission") return reviewRoute(target.id, target.item)
   if (target.kind === "collection") return collectionRoute(target.id)

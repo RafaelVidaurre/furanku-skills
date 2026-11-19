@@ -1,9 +1,11 @@
-// Browser half of the storybook plugin's type views and panels. The plugin declares this file under
-// `views` (it ships beside the plugin, so the declaration is a file: URL); a scene names its
-// exports as a view and a panel. Each export is `mount(host, ctx)`, with no framework.
+// Browser half of the storybook plugin's inspectors and panels. The plugin declares this file under
+// `browserModules` (it ships beside the plugin, so the declaration is a file: URL); a scene names
+// its exports as an inspector and a panel. Each export is `mount(host, ctx)`, with no framework.
+// Types: catalog-plugin-web.d.ts.
 
-// The scene's cast as a strip of cards; one can be highlighted. The highlight is the view's state:
-// it is kept in the page address and is what `viewer.control { view: { highlight } }` changes.
+// The scene's cast as a strip of cards; one can be highlighted. The highlight is the inspector's
+// state: it is kept in the page address and is what `viewer.control { inspector: { highlight } }` changes.
+/** @type {import('../../catalog-plugin-web.d.ts').MountFunction<import('../../catalog-plugin-web.d.ts').InspectorContext>} */
 export function beats(host, ctx) {
   const stage = document.createElement('div');
   stage.className = 'storybook-beats';
@@ -24,8 +26,9 @@ export function beats(host, ctx) {
   const ids = Array.isArray(ctx.unit.attrs.characters) ? ctx.unit.attrs.characters : [];
   Promise.all(ids.map((id) => ctx.call('unit.get', { id }).then((d) => ({ id, name: d.unit.name }), () => ({ id, name: id })))).then((found) => { cast = found; draw(); });
   return {
-    state: () => ({ status: cast === null ? 'loading' : 'ready', renderer: 'storybook beats view', cast: (cast ?? []).map((c) => c.id), highlight }),
+    state: () => ({ status: cast === null ? 'loading' : 'ready', renderer: 'storybook beats inspector', cast: (cast ?? []).map((c) => c.id), highlight }),
     control: (command) => {
+      // false: not one of its controls; a thrown Error: a wrong command (refused `invalid`).
       if (!('highlight' in command)) return false;
       if (command.highlight !== null && !ids.includes(command.highlight)) throw new Error(`${command.highlight} is not in this scene`);
       highlight = command.highlight;
@@ -38,6 +41,7 @@ export function beats(host, ctx) {
 }
 
 // A sidebar section: where the scene sits in the running order, from the plugin's own action.
+/** @type {import('../../catalog-plugin-web.d.ts').MountFunction} */
 export function placement(host, ctx) {
   const line = document.createElement('p');
   line.className = 'storybook-placement';

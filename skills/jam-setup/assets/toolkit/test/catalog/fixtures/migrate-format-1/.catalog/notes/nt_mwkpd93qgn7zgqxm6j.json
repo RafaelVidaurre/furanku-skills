@@ -1,0 +1,29 @@
+{
+  "id": "nt_mwkpd93qgn7zgqxm6j",
+  "target": {
+    "kind": "submission",
+    "id": "sub_mwkpd90dv7vd6hyw5r",
+    "item": "it_mwkpd8zop7atz8m5qt",
+    "part": "decision"
+  },
+  "body": "Applied in the lighting pass (all torches).",
+  "by": {
+    "name": "checker",
+    "kind": "agent"
+  },
+  "at": "2026-11-17T13:02:57.110Z",
+  "revision": 2,
+  "requestId": "rq-note-2",
+  "requestBinding": {
+    "action": "note.create",
+    "digest": "cffd0eb7174f213ddeddd4566afd2fbb6c08c5245ef7b83e6f3f0d7a81810b7b",
+    "context": "ff52585e9d24:main"
+  },
+  "editedAt": "2026-11-17T13:02:57.145Z",
+  "lastRequestId": "rq-edit",
+  "lastRequestBinding": {
+    "action": "note.edit",
+    "digest": "975087f8ff96cb73d2c283904d587160bf64cfd82801249f7d151937d85aafd2",
+    "context": "ff52585e9d24:main"
+  }
+}

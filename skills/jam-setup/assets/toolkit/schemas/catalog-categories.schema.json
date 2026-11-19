@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "catalog-categories.schema.json",
+  "$ref": "#/$defs/CategoriesRecord",
+  "$defs": {
+    "CategoriesRecord": {
+      "type": "object",
+      "properties": {
+        "categories": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[^/\\s][^/]{0,63}(\\/[^/\\s][^/]{0,63}){0,7}$"
+          }
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "categories",
+        "revision"
+      ],
+      "additionalProperties": true,
+      "description": "Registered category paths"
+    }
+  }
+}

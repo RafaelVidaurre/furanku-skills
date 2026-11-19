@@ -30,14 +30,15 @@ describe("installing", () => {
     const first = install(root, "--no-lfs")
     assert.equal(first.status, 0, first.stderr)
     assert.equal(first.json["installed"], "installed")
-    for (const file of ["jam.mjs", "package.json", "package-lock.json", ".npmrc", "src/cli/main.ts", "src/jam/cli.ts", "recipes/prop.json", "providers/meshy.json", "engines/web.json", "schemas/recipe.schema.json", "defaults/config.json", "scripts/crop_turnaround.py", "docs/cli.md", ".jam-toolkit.json", ".gitignore"]) {
+    for (const file of ["jam.mjs", "package.json", "package-lock.json", ".npmrc", "catalog-plugin.ts", "catalog-plugin-web.d.ts", "src/cli/main.ts", "src/jam/cli.ts", "recipes/prop.json", "providers/meshy.json", "engines/web.json", "schemas/recipe.schema.json", "defaults/config.json", "scripts/crop_turnaround.py", "docs/cli.md", "docs/catalog-migration.md", ".jam-toolkit.json", ".gitignore"]) {
       assert.ok(existsSync(join(root, "tools/jam", file)), file)
     }
     assert.ok(!existsSync(join(root, "tools/jam/test")), "toolkit tests stay in the skill")
     assert.ok(!existsSync(join(root, "tools/jam/node_modules")))
     assert.ok(!existsSync(join(root, "tools/jam/core.mjs")), "nothing of version 1 is shipped")
-    assert.deepEqual(readJson(root, "catalog.config.json"), { version: 2, plugins: ["manifest", "jam"], options: { manifest: { file: "Art/catalog.json" } } })
-    assert.deepEqual(readJson<{ assetRoots: unknown }>(root, "Art/catalog.json").assetRoots, ["Art"])
+    assert.deepEqual(readJson(root, "catalog.config.json"), { version: 3, plugins: [{ plugin: "manifest", options: { file: "Art/catalog.json" } }, "jam"] })
+    assert.deepEqual(readJson<{ version: number; assetRoots: unknown }>(root, "Art/catalog.json"), { ...readJson(join(TOOLKIT, ".."), "project/catalog.json"), assetRoots: ["Art"] })
+    assert.equal(readJson<{ version: number }>(root, "Art/catalog.json").version, 2)
     assert.equal(read(root, ".gitignore"), "dist/\n\n# >>> jam toolkit\n/Art/.scratch/\n/jam.local.json\n.catalog/.local/\n# <<< jam toolkit\n")
     assert.deepEqual([first.json["configuration"], first.json["dependencies"], first.json["complete"]], ["missing", "skipped (--no-deps)", true])
     assert.match(first.json["next"][0], /node tools\/jam\/jam\.mjs setup --from <choices\.json>/)
@@ -91,7 +92,7 @@ describe("installing", () => {
     assert.equal(readJson<{ toolkit: string }>(root, "jam.config.json").toolkit, "vendor/jam-toolkit")
     assert.deepEqual(result.json["roots"], { scratch: "content/.work", tracked: ["content", "audio"], from: "jam.config.json" })
     assert.match(read(root, ".gitignore"), /# >>> jam toolkit\n\/content\/\.work\/\n\/jam\.local\.json\n/)
-    assert.equal(readJson<{ options: { manifest: { file: string } } }>(root, "catalog.config.json").options.manifest.file, "content/catalog.json")
+    assert.deepEqual(readJson<{ plugins: unknown }>(root, "catalog.config.json").plugins, [{ plugin: "manifest", options: { file: "content/catalog.json" } }, "jam"])
     if (spawnSync("git", ["lfs", "version"]).status === 0) {
       const attributes = read(root, ".gitattributes")
       assert.match(attributes, /content\/\*\*\/\*\.glb filter=lfs diff=lfs merge=lfs -text\n/)
@@ -105,6 +106,7 @@ describe("installing", () => {
 })
 
 describe("upgrading from version 1", () => {
+  const V1_CATALOG = { version: 1, adapter: "./tools/jam/catalog-adapter.mjs", review: { referenceRoles: ["evidence"] } }
   const v1Layout = (): string => {
     const files = { "core.mjs": "// v1 ledger", "measure.mjs": "// v1 measure", "catalog/bin/catalog.mjs": "// v1 catalog", "jam.mjs": "// v1 cli" }
     const root = tempProject({
@@ -114,7 +116,7 @@ describe("upgrading from version 1", () => {
         "tools/jam/.jam-toolkit.json": JSON.stringify({ source: "furanku-skills jam-setup", digest: "v1", files: Object.fromEntries(Object.entries(files).map(([path, text]) => [path, sha(text)])) }),
         "tools/jam/catalog/node_modules/left/index.js": "",
         "jam.config.json": read(TOOLKIT, "test/jam/fixtures/v1-config.json"),
-        "catalog.config.json": JSON.stringify({ version: 1, adapter: "./tools/jam/catalog-adapter.mjs", review: { referenceRoles: ["evidence"] } }),
+        "catalog.config.json": JSON.stringify(V1_CATALOG),
         "Art/style.md": "style",
         ".gitignore": "# >>> jam toolkit\n/Art/.scratch/\n/Art/.jam-jobs.lock\n/jam.local.json\n.catalog/.local/\n# <<< jam toolkit\n"
       }
@@ -122,15 +124,18 @@ describe("upgrading from version 1", () => {
     return root
   }
 
-  it("replaces the toolkit, drops what version 1 shipped, and moves catalog.config.json to plugins", () => {
+  it("replaces the toolkit, drops what version 1 shipped, and leaves catalog.config.json for the catalog's migration", () => {
     const root = v1Layout()
     const result = install(root, "--no-lfs")
     assert.equal(result.status, 0, result.stderr)
     assert.equal(result.json["installed"], "upgraded")
     for (const gone of ["core.mjs", "measure.mjs", "catalog/node_modules"]) assert.ok(!existsSync(join(root, "tools/jam", gone)), gone)
     assert.match(read(root, "tools/jam/jam.mjs"), /src\/cli\/main\.ts/)
-    assert.deepEqual(readJson(root, "catalog.config.json"), { version: 2, plugins: ["manifest", "jam"], options: { manifest: { file: "Art/catalog.json" } }, review: { referenceRoles: ["evidence"] } })
-    assert.match(result.json["catalogConfig"], /migrated to version 2: plugins manifest, jam \(keeps manifest Art\/catalog\.json\)/)
+    assert.equal(read(root, "catalog.config.json"), JSON.stringify(V1_CATALOG), "the catalog's files are left for jam catalog migrate")
+    assert.equal(result.json["catalogConfig"], "left as it is")
+    // Without the toolkit's packages it cannot ask the toolkit whether the catalog's files need migrating.
+    assert.equal(result.json["catalogMigration"], 'not checked: the toolkit\'s packages are not installed; run "node tools/jam/jam.mjs catalog migrate --dry-run" afterwards')
+    assert.ok((result.json["next"] as Array<string>).some((line) => line.includes('"node tools/jam/jam.mjs catalog migrate --dry-run"')))
     assert.equal(read(root, ".gitignore"), "# >>> jam toolkit\n/Art/.scratch/\n/jam.local.json\n.catalog/.local/\n# <<< jam toolkit\n")
     // Without the toolkit's packages the configuration cannot be migrated yet; the summary says how.
     assert.match(result.json["configuration"], /version 1: run "node tools\/jam\/jam\.mjs config migrate"/)
@@ -145,6 +150,8 @@ describe("upgrading from version 1", () => {
     const result = install(root, "--no-lfs")
     assert.equal(result.status, 0, result.stderr)
     assert.equal(result.json["configuration"].migrated, true)
+    assert.equal(result.json["catalogMigration"], "needs migration: run jam catalog migrate", "the toolkit's own dry run plans the version 1 catalog configuration's migration")
+    assert.ok((result.json["next"] as Array<string>).some((line) => line.includes('"node tools/jam/jam.mjs catalog migrate"')))
     assert.deepEqual(result.json["configuration"].recipes, ["asset", "character", "player-base", "prop", "npc", "set-piece"].map((id) => `jam/recipes/${id}.json`))
     const config = readJson<{ version: number; toolkit: string; budgets: Record<string, unknown> }>(root, "jam.config.json")
     assert.deepEqual([config.version, config.toolkit, Object.keys(config.budgets).length], [2, "tools/jam", 5])
@@ -155,24 +162,60 @@ describe("upgrading from version 1", () => {
     assert.match(read(root, "tools/jam/.gitignore"), /^node_modules\/$/m, "the toolkit's packages are ignored")
   })
 
-  it("keeps a project's own catalog adapter as a plugin, a manifest adapter's file, and a version 2 file as it is", () => {
-    const custom = tempProject({ files: { "catalog.config.json": JSON.stringify({ version: 1, adapter: "./tools/catalog/project.mjs", options: { strict: true } }) } })
-    const kept = install(custom, "--no-lfs")
-    assert.deepEqual(readJson(custom, "catalog.config.json"), { version: 2, plugins: ["./tools/catalog/project.mjs", "jam"], options: { "./tools/catalog/project.mjs": { strict: true } } })
-    assert.match(kept.json["catalogConfig"], /adapter \.\/tools\/catalog\/project\.mjs is kept as a plugin beside jam/)
-    assert.equal(kept.json["catalogManifest"], undefined)
+  it("leaves an older catalog.config.json to the catalog's migration, keeps a version 3 file, and adds jam when no entry names it", () => {
+    for (const older of [{ version: 1, adapter: "manifest", options: { manifest: "content/library.json" } }, { version: 2, plugins: ["manifest"], options: { manifest: { file: "content/library.json" } } }]) {
+      const root = tempProject({ files: { "catalog.config.json": JSON.stringify(older) } })
+      install(root, "--no-lfs")
+      lendPackages(root)
+      const result = install(root, "--no-lfs")
+      assert.deepEqual([result.json["catalogConfig"], result.json["catalogManifest"], result.json["catalogMigration"]], ["left as it is", undefined, "needs migration: run jam catalog migrate"])
+      assert.equal(read(root, "catalog.config.json"), JSON.stringify(older))
+      assert.ok(!existsSync(join(root, "content/library.json")), "no manifest is created beside a configuration that is not migrated")
+    }
 
-    const manifest = tempProject({ files: { "catalog.config.json": JSON.stringify({ version: 1, adapter: "manifest", options: { manifest: "content/library.json" } }), "content/library.json": "{}" } })
-    install(manifest, "--no-lfs")
-    assert.deepEqual(readJson(manifest, "catalog.config.json"), { version: 2, plugins: ["manifest", "jam"], options: { manifest: { file: "content/library.json" } } })
-    assert.equal(read(manifest, "content/library.json"), "{}")
+    const current = JSON.stringify({ version: 3, plugins: [{ plugin: "jam", options: {} }, "./jam/catalog/game.ts"] })
+    const v3 = tempProject({ files: { "catalog.config.json": current } })
+    assert.equal(install(v3, "--no-lfs").json["catalogConfig"], "present", "an object entry naming jam lists it")
+    assert.equal(read(v3, "catalog.config.json"), current)
+    writeFileSync(join(v3, "catalog.config.json"), JSON.stringify({ version: 3, plugins: [{ plugin: "manifest", options: { file: "content/library.json" } }] }))
+    const added = install(v3, "--no-lfs")
+    assert.deepEqual([added.json["catalogConfig"], added.json["catalogManifest"]], ["added the jam plugin", "created content/library.json (hand-registered external content)"])
+    assert.deepEqual(readJson<{ plugins: unknown }>(v3, "catalog.config.json").plugins, [{ plugin: "manifest", options: { file: "content/library.json" } }, "jam"])
+  })
 
-    const current = JSON.stringify({ version: 2, plugins: ["jam", "./jam/catalog/game.ts"] })
-    const v2 = tempProject({ files: { "catalog.config.json": current } })
-    assert.equal(install(v2, "--no-lfs").json["catalogConfig"], "present")
-    assert.equal(read(v2, "catalog.config.json"), current)
-    writeFileSync(join(v2, "catalog.config.json"), JSON.stringify({ version: 2, plugins: ["manifest"] }))
-    assert.equal(install(v2, "--no-lfs").json["catalogConfig"], "added the jam plugin")
-    assert.deepEqual(readJson<{ plugins: unknown }>(v2, "catalog.config.json").plugins, ["manifest", "jam"])
+  it("asks the toolkit whether the catalog's files need migrating: a version 1 manifest, records without the format 2 marker, a manifest option without a file", () => {
+    const config = JSON.stringify({ version: 3, plugins: [{ plugin: "manifest", options: { file: "content/library.json" } }, "jam"] })
+    const root = tempProject({ files: { "catalog.config.json": config, "content/library.json": JSON.stringify({ version: 1, units: [] }), ".catalog/categories.json": JSON.stringify({ categories: ["Lore"], revision: 1 }) } })
+    install(root, "--no-lfs")
+    lendPackages(root)
+    const result = install(root, "--no-lfs")
+    assert.deepEqual([result.json["catalogConfig"], result.json["catalogManifest"], result.json["catalogMigration"]], ["present", "present", "needs migration: run jam catalog migrate"])
+    assert.ok((result.json["next"] as Array<string>).some((line) => line.includes('"node tools/jam/jam.mjs catalog migrate"')))
+    assert.equal(read(root, "content/library.json"), JSON.stringify({ version: 1, units: [] }), "the installer rewrites no catalog file")
+
+    write(root, "content/library.json", JSON.stringify({ version: 2, units: [] }))
+    write(root, ".catalog/format.json", JSON.stringify({ format: 2 }))
+    const migrated = install(root, "--no-lfs")
+    assert.equal(migrated.json["catalogMigration"], "current")
+    assert.ok(!(migrated.json["next"] as Array<string>).some((line) => line.includes("catalog migrate")))
+
+    // A plain "manifest" entry reads catalog.manifest.json, which may still be version 1.
+    write(root, "catalog.config.json", JSON.stringify({ version: 3, plugins: ["manifest", "jam"] }))
+    write(root, "catalog.manifest.json", JSON.stringify({ version: 1, units: [] }))
+    assert.equal(install(root, "--no-lfs").json["catalogMigration"], "needs migration: run jam catalog migrate")
+  })
+
+  it("an unreadable catalog file is not taken as current: the installer passes on the dry run's refusal naming the file", () => {
+    const root = tempProject({ files: { "catalog.config.json": JSON.stringify({ version: 3, plugins: ["manifest", "jam"] }), "catalog.manifest.json": JSON.stringify({ version: 2, units: [] }), ".catalog/format.json": "{ not json" } })
+    install(root, "--no-lfs")
+    lendPackages(root)
+    const result = install(root, "--no-lfs")
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.json["catalogMigration"], /^dry run refused: cannot migrate: \.catalog\/format\.json/)
+    assert.ok((result.json["next"] as Array<string>).some((line) => line.startsWith("Check the catalog's files: dry run refused")))
+    writeFileSync(join(root, "catalog.config.json"), "{ not json")
+    const broken = install(root, "--no-lfs")
+    assert.equal(broken.status, 0, broken.stderr)
+    assert.deepEqual([broken.json["catalogConfig"], broken.json["catalogMigration"].startsWith("dry run refused: ")], ["left as it is", true])
   })
 })

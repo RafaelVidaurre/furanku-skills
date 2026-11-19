@@ -10,7 +10,7 @@
 // captures. Only a step with nothing showable at all is refused.
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import { Catalog } from "../../catalog/Catalog.ts"
+import { type ActionOutput, Catalog } from "../../catalog/Catalog.ts"
 import type { Actor } from "../../catalog/plugin.ts"
 import { fail } from "../../kernel/errors.ts"
 import { Git } from "../../kernel/Git.ts"
@@ -21,41 +21,13 @@ import { type Relayed, requestIdOf, ReviewDesk, type ReviewRequest, type Verdict
 import { reviewNote, words } from "./note.ts"
 import { capturable, EVIDENCE_ROLE } from "./units.ts"
 
-// The parts of catalog results this module reads.
-interface UnitDetail {
-  readonly links: ReadonlyArray<{ readonly asset: { readonly id: string; readonly path: string } }>
-  readonly review: { readonly parts: ReadonlyArray<{ readonly id: string; readonly label: string; readonly role?: string; readonly asset?: string; readonly reviewable: boolean }> }
-}
 interface Linked {
   readonly id: string
   readonly route: string
-  readonly url?: string
+  readonly url?: string | undefined
 }
-interface Submitted {
-  readonly submission: Linked
-  readonly hint?: string
-}
-interface Listed {
-  readonly items: ReadonlyArray<Linked & { readonly items: ReadonlyArray<{ readonly summary: { readonly approved: number; readonly changes: number; readonly rejected: number } }> }>
-  readonly hint?: string
-}
-interface Decided {
-  readonly items: ReadonlyArray<{
-    readonly parts: ReadonlyArray<{
-      readonly id: string
-      readonly label: string
-      readonly reviewable: boolean
-      readonly verdict: string | null
-      readonly event: {
-        readonly id: string
-        readonly by: Actor
-        readonly comment: string
-        readonly partNotes: Readonly<Record<string, string>>
-        readonly relay?: { readonly by: string; readonly channel: string; readonly words: string }
-      } | null
-    }>
-  }>
-}
+type Decided = ActionOutput<"review.get">
+type DecidingDecision = NonNullable<Decided["items"][number]["parts"][number]["decision"]>
 
 const VIEW_MAX = 50
 const CAPTION_MAX = 300
@@ -89,9 +61,9 @@ export const catalogDesk = (agent: string): Layer.Layer<ReviewDesk, never, Catal
           const { run } = context.ref
           const relay = `record the person's answer instead: jam run review ${run.id} ${step.id} --accept --relay "<where they answered>: <their words>"`
           // A subject the catalog does not list (work that is not content) is reviewed as work.
-          const detail = (yield* catalog.run("unit.get", { id: run.id }).pipe(
+          const detail = yield* catalog.run("unit.get", { id: run.id }).pipe(
             Effect.catch((error) => (error.code === "not_found" ? Effect.succeed(null) : Effect.fail(error)))
-          )) as UnitDetail | null
+          )
           const pathOf = (asset: string | undefined): string | undefined => detail?.links.find((link) => link.asset.id === asset)?.asset.path
           const shown = (detail?.review.parts ?? []).filter((part) => part.reviewable && part.asset !== undefined)
           const produced = shown.filter((part) => part.role !== EVIDENCE_ROLE && record.files.some((file) => file.role === part.role && file.path === pathOf(part.asset)))
@@ -134,52 +106,52 @@ export const catalogDesk = (agent: string): Layer.Layer<ReviewDesk, never, Catal
           const title = `${run.id} · ${step.title}`
           const item = detail === null
             ? { title, captures, views }
-            : { target: { kind: "unit", id: run.id }, parts: [...produced, ...evidence.map((entry) => entry.part)].map((part) => part.id), ...(captures.length > 0 ? { captures } : {}), views }
-          const result = (yield* catalog.run(
+            : { target: { kind: "unit" as const, id: run.id }, parts: [...produced, ...evidence.map((entry) => entry.part)].map((part) => part.id), ...(captures.length > 0 ? { captures } : {}), views }
+          const result = yield* catalog.run(
             "review.submit",
-            { title, note, items: [item] },
+            { title, brief: note, items: [item] },
             // The record's id is the request: submitting it again returns the first submission.
             { actor, requestId: requestIdOf(record) }
-          )) as Submitted
+          )
           // Who the review waits for is what the recipe says (a person or a role); nothing is guessed.
           return request(result.submission, result.hint, step.reviewer ?? null)
         })
 
-      const decision = (review: Decided): Verdict | null => {
+      const outcome = (review: Decided): Verdict | null => {
         const parts = review.items.flatMap((item) => item.parts).filter((part) => part.reviewable)
         // Only a person's verdict counts, for approval and for sending work back alike: given in the
         // catalog, or relayed by an agent with the person's own words (and recorded as a relay).
-        const personOf = (event: NonNullable<Decided["items"][number]["parts"][number]["event"]>): string | null =>
-          event.by.kind === "human" ? event.by.name : event.relay?.by ?? null
-        const human = parts.flatMap((part) => (part.event !== null && personOf(part.event) !== null && part.verdict !== null ? [{ ...part, verdict: part.verdict, event: part.event }] : []))
-        const relayOf = (events: ReadonlyArray<(typeof human)[number]["event"]>): { relay?: Relayed } => {
-          const relays = events.flatMap((event) => (event.relay === undefined ? [] : [event.relay]))
+        const personOf = (decision: DecidingDecision): string | null =>
+          decision.by.kind === "human" ? decision.by.name : decision.relay?.by ?? null
+        const human = parts.flatMap((part) => (part.decision !== null && personOf(part.decision) !== null && part.verdict !== null ? [{ ...part, verdict: part.verdict, decision: part.decision }] : []))
+        const relayOf = (decisions: ReadonlyArray<(typeof human)[number]["decision"]>): { relay?: Relayed } => {
+          const relays = decisions.flatMap((decision) => (decision.relay === undefined ? [] : [decision.relay]))
           return relays.length === 0 ? {} : { relay: { channel: unique(relays.map((r) => r.channel)).join("; "), words: unique(relays.map((r) => r.words)).join(" ") } }
         }
         const back = human.filter((part) => part.verdict === "changes" || part.verdict === "rejected")
         if (back.length > 0) {
-          const events = unique(back.map((part) => part.event.id)).map((id) => back.find((part) => part.event.id === id)!.event)
+          const decisions = unique(back.map((part) => part.decision.id)).map((id) => back.find((part) => part.decision.id === id)!.decision)
           const said = [
-            ...unique(events.map((event) => event.comment.trim()).filter((comment) => comment !== "")),
+            ...unique(decisions.map((decision) => decision.comment.trim()).filter((comment) => comment !== "")),
             ...back.flatMap((part) => {
-              const note = part.event.partNotes[part.id]?.trim() ?? ""
-              return note === "" ? [] : [`${part.label}: ${note}`]
+              const comment = part.decision.partComments[part.id]?.trim() ?? ""
+              return comment === "" ? [] : [`${part.label}: ${comment}`]
             })
           ]
           return {
             state: "returned",
-            by: names(unique(events.map((event) => personOf(event)!))),
-            ...relayOf(events),
+            by: names(unique(decisions.map((decision) => personOf(decision)!))),
+            ...relayOf(decisions),
             reason: said.length > 0 ? said.join(" ") : `${back.some((part) => part.verdict === "rejected") ? "rejected" : "changes requested"}: ${back.map((part) => part.label).join(", ")}`,
             rejected: back.every((part) => part.verdict === "rejected")
           }
         }
         if (parts.length === 0 || human.length < parts.length || human.some((part) => part.verdict !== "approved")) return null
-        const comments = unique(human.map((part) => part.event.comment.trim()).filter((comment) => comment !== ""))
+        const comments = unique(human.map((part) => part.decision.comment.trim()).filter((comment) => comment !== ""))
         return {
           state: "accepted",
-          by: names(unique(human.map((part) => personOf(part.event)!))),
-          ...relayOf(human.map((part) => part.event)),
+          by: names(unique(human.map((part) => personOf(part.decision)!))),
+          ...relayOf(human.map((part) => part.decision)),
           ...(comments.length > 0 ? { comment: comments.join(" ") } : {})
         }
       }
@@ -187,11 +159,11 @@ export const catalogDesk = (agent: string): Layer.Layer<ReviewDesk, never, Catal
       const verdict: ReviewDesk["Service"]["verdict"] = (submission) =>
         Effect.gen(function*() {
           // The list answers "has anyone decided anything" without reading frozen evidence.
-          const list = (yield* catalog.run("reviews.list", { q: submission.slice(-6), pageSize: 200 })) as Listed
-          const found = list.items.find((candidate) => candidate.id === submission)
+          const list = yield* catalog.run("review.list", { q: submission.slice(-6), pageSize: 200 })
+          const found = list.submissions.find((candidate) => candidate.id === submission)
           if (found === undefined) return yield* fail("not_found", `review ${submission} is not in this checkout's catalog`)
           const touched = found.items.some((item) => item.summary.approved + item.summary.changes + item.summary.rejected > 0)
-          const decided = touched ? decision((yield* catalog.run("review.get", { submission })) as Decided) : null
+          const decided = touched ? outcome(yield* catalog.run("review.get", { submission })) : null
           return decided ?? { state: "pending", request: request(found, list.hint, null) }
         })
 

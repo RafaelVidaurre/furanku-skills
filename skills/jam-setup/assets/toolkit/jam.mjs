@@ -18,7 +18,8 @@ if (major < 22 || (major === 22 && minor < 20)) {
 }
 
 // Installed means: node_modules holds the versions the lockfile asks for. The stamp records the
-// lockfile it was installed from, so an upgraded toolkit reinstalls once.
+// lockfile it was installed from, so an upgraded toolkit reinstalls once. Only this launcher and
+// jam-setup's installer write it: a bare `npm ci` empties node_modules, stamp included.
 const lock = join(here, 'package-lock.json');
 const stamp = join(here, 'node_modules', '.jam-installed');
 const wanted = existsSync(lock) ? readFileSync(lock, 'utf8') : '';
@@ -26,7 +27,7 @@ const installed = existsSync(stamp) && readFileSync(stamp, 'utf8') === wanted;
 if (!installed) {
   if (process.env.JAM_NO_INSTALL === '1') {
     say('error: the jam toolkit packages are not installed');
-    say(`  fix: run "npm ci --ignore-scripts" in ${here}, or unset JAM_NO_INSTALL`);
+    say('  fix: run any jam command once without JAM_NO_INSTALL: it installs them and stamps the install');
     process.exit(1);
   }
   say('jam: installing toolkit packages (first run in this checkout)...');

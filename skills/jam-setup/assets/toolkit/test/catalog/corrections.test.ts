@@ -7,8 +7,8 @@
 //   same reads go through `evidenceMedia` and must reject.
 // - P1: the actions ran as `POST /api/run/<action>` against a running server. Here they run
 //   through `app.run` on one long-lived catalog.
-// - P3: `GET /project/preview/lineup` answers 200 with the module text and
-//   `GET /project/preview/nope` answers 404. Here the same reads go through `previewModule`.
+// - P3: `GET /project/module/lineup` answers 200 with the module text and
+//   `GET /project/module/nope` answers 404. Here the same reads go through `browserModule`.
 import assert from "node:assert/strict"
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
@@ -16,7 +16,7 @@ import { test } from "node:test"
 import { cleanup, git, glb, human, human2, makeProject, open, png, read, rejects, standardProject, tmp, W, write } from "./helpers.ts"
 
 interface Problem {
-  readonly source: string
+  readonly subject: string
   readonly error: string
 }
 interface FrozenPart {
@@ -72,7 +72,7 @@ test("S1 evidence reads never follow links out of .catalog and require complete 
   const rec = JSON.parse(readFileSync(subFile(dir, rv.id), "utf8"))
   delete rec.items[0].parts[0].evidence.sha256
   writeFileSync(subFile(dir, rv.id), JSON.stringify(rec))
-  assert.ok((await app.run("problems", {})).problems.some((p: Problem) => p.source.includes(rv.id) && /evidence/.test(p.error)))
+  assert.ok((await app.run("problems", {})).problems.some((p: Problem) => p.subject.includes(rv.id) && /evidence/.test(p.error)))
   await rejects(app.run("review.get", { submission: rv.id }), "not_found")
   // Was an HTTP fetch of leaf.url: status is not 200.
   await rejects(app.evidenceMedia(rv.id, item.id, part.id, leaf.key))
@@ -88,7 +88,7 @@ test("S1 record writes and reads never follow links inside .catalog", async () =
   await rejects(W(app)("note.create", { target: unit("armor/helm"), body: "x" }), "forbidden")
   assert.deepEqual(readdirSync(outside), [], "nothing written outside the checkout")
   writeFileSync(join(outside, "nt_abc.json"), JSON.stringify({ id: "nt_abc", target: unit("armor/helm"), body: "planted", by: human, at: "2026-01-01T00:00:00.000Z", revision: 1 }))
-  assert.equal((await app.run("notes.list", {})).total, 0, "linked records are not read")
+  assert.equal((await app.run("note.list", {})).total, 0, "linked records are not read")
   assert.ok((await app.run("problems", {})).problems.some((p: Problem) => /symbolic link/.test(p.error)))
   // The machine-local folder is protected too (locks, journal, captures).
   rmSync(join(dir, ".catalog/notes"))
@@ -110,19 +110,36 @@ test("S2 tags and categories are type-checked; empty rename destinations are rej
   const dir = await standardProject()
   const app = await open(dir)
   const run = W(app)
-  await run("organize.set", { target: unit("armor/helm"), tags: ["keep"] })
+  await run("organization.set", { target: unit("armor/helm"), tags: ["keep"] })
   await rejects(run("tag.rename", { from: "keep", to: "" }), "invalid")
   await rejects(run("tag.rename", { from: "keep", to: "   " }), "invalid")
-  await rejects(run("organize.set", { target: unit("armor/helm"), tags: [null] }), "invalid")
-  await rejects(run("organize.set", { target: unit("armor/helm"), tags: [123] }), "invalid")
-  await rejects(run("organize.set", { target: unit("armor/helm"), category: 42 }), "invalid")
+  await rejects(run("organization.set", { target: unit("armor/helm"), tags: [null] }), "invalid")
+  await rejects(run("organization.set", { target: unit("armor/helm"), tags: [123] }), "invalid")
+  await rejects(run("organization.set", { target: unit("armor/helm"), category: 42 }), "invalid")
   await rejects(run("category.rename", { from: "Gear", to: "" }), "invalid")
   assert.deepEqual((await app.run("unit.get", { id: "armor/helm" })).tags.sort(), ["keep", "tier:1"])
-  assert.equal((await app.run("catalog.search", { section: "units", q: "helm" })).items[0].id, "armor/helm")
+  assert.equal((await app.run("unit.search", { q: "helm" })).units[0].id, "armor/helm")
   cleanup(dir)
 })
 
-test("S3 arbitrary JSON in records becomes scoped problems; the application keeps working", async () => {
+test("category.create, category.delete, tag.delete and collection.delete answer what they did, as their outputs declare", async () => {
+  const dir = await standardProject()
+  const app = await open(dir)
+  const run = W(app)
+  assert.deepEqual(await run("category.create", { path: "Gear/Light" }), { category: "Gear/Light" })
+  assert.ok((await app.run("organization.list", {})).categories.some((c: { path: string }) => c.path === "Gear/Light"))
+  await run("organization.set", { target: unit("armor/boots"), category: "Gear/Light", tags: ["spare", "worn"] })
+  assert.deepEqual(await run("category.delete", { path: "Gear/Light" }), { cleared: 1 })
+  assert.equal((await app.run("unit.get", { id: "armor/boots" })).organization.category, null)
+  assert.deepEqual(await run("tag.delete", { tag: "spare" }), { removed: 1 })
+  assert.deepEqual((await app.run("unit.get", { id: "armor/boots" })).tags, ["worn"])
+  await run("collection.create", { id: "set/kept", name: "Kept", members: ["armor/boots"] })
+  assert.deepEqual(await run("collection.delete", { id: "set/kept" }), { deleted: "set/kept" })
+  await rejects(app.run("collection.get", { id: "set/kept" }), "not_found")
+  cleanup(dir)
+})
+
+test("S3 arbitrary JSON in records becomes problems naming each file; the application keeps working", async () => {
   const dir = await standardProject()
   const app = await open(dir)
   const run = W(app)
@@ -135,17 +152,17 @@ test("S3 arbitrary JSON in records becomes scoped problems; the application keep
     "notes/nt_t.json": JSON.stringify({ id: "nt_t", target: null, body: "x", by: human, at: "2026-01-01T00:00:00.000Z", revision: 1 }),
     "notes/nt_by.json": JSON.stringify({ id: "nt_by", target: unit("armor/helm"), body: "x", by: "someone", at: "2026-01-01T00:00:00.000Z", revision: 1 }),
     "collections/x-0000000000.json": JSON.stringify({ id: "x", name: "X", tags: [null], members: [{ unit: 5 }], revision: 1 }),
-    "labels/unit/y.json": JSON.stringify({ target: { kind: "unit", id: "armor/helm" }, tags: "tier", revision: 1 }),
-    "reviews/sub_bad/submission.json": JSON.stringify({ id: "sub_bad", title: "x", by: human, at: "2026-01-01T00:00:00.000Z", context: {}, items: [null] }),
-    [`reviews/${s.submission.id}/verdicts/vd_bad.json`]: JSON.stringify({ id: "vd_bad", submission: s.submission.id, item: "it_x", by: human, at: "2026-01-01T00:00:00.000Z", scope: { kind: "parts", parts: [{}] }, verdicts: {} }),
+    "organization/unit/y.json": JSON.stringify({ target: { kind: "unit", id: "armor/helm" }, tags: "tier", revision: 1 }),
+    "reviews/sub_bad/submission.json": JSON.stringify({ id: "sub_bad", title: "x", by: human, at: "2026-01-01T00:00:00.000Z", checkout: {}, items: [null] }),
+    [`reviews/${s.submission.id}/decisions/dc_bad.json`]: JSON.stringify({ id: "dc_bad", submission: s.submission.id, item: "it_x", by: human, at: "2026-01-01T00:00:00.000Z", covers: { kind: "parts", parts: [{}] }, verdicts: {} }),
     "categories.json": JSON.stringify({ categories: [null], revision: 1 })
   }
   for (const [rel, text] of Object.entries(bad)) write(dir, `.catalog/${rel}`, text)
-  const ctx = await app.run("context", {})
+  const ctx = await app.run("summary", {})
   assert.ok(ctx.problems >= Object.keys(bad).length)
-  assert.deepEqual((await app.run("notes.list", {})).notes.map((n: { id: string }) => n.id), [keep.id])
-  for (const section of ["units", "collections", "assets"]) assert.ok((await app.run("catalog.search", { section })).total > 0 || section === "assets")
-  assert.equal((await app.run("reviews.list", { state: "all" })).total, 1)
+  assert.deepEqual((await app.run("note.list", {})).notes.map((n: { id: string }) => n.id), [keep.id])
+  for (const action of ["unit.search", "collection.search", "asset.search"]) assert.ok((await app.run(action, {})).total > 0 || action === "asset.search")
+  assert.equal((await app.run("review.list", { state: "all" })).total, 1)
   await app.run("organization.list", {})
   await app.run("unit.get", { id: "armor/helm" })
   cleanup(dir)
@@ -155,15 +172,15 @@ test("S4 multi-record operations validate every resulting record before writing 
   const dir = await standardProject()
   const app = await open(dir)
   const run = W(app)
-  await run("organize.set", { target: unit("armor/boots"), category: "A" })
-  await run("organize.set", { target: unit("armor/helm"), category: "A/child" })
+  await run("organization.set", { target: unit("armor/boots"), category: "A" })
+  await run("organization.set", { target: unit("armor/helm"), category: "A/child" })
   await run("collection.create", { name: "Kit", category: "A" })
-  const before = snapshotDir(join(dir, ".catalog/labels")) + snapshotDir(join(dir, ".catalog/collections"))
+  const before = snapshotDir(join(dir, ".catalog/organization")) + snapshotDir(join(dir, ".catalog/collections"))
   await rejects(run("category.rename", { from: "A", to: "a/b/c/d/e/f/g/h" }), "invalid")
-  assert.equal(snapshotDir(join(dir, ".catalog/labels")) + snapshotDir(join(dir, ".catalog/collections")), before, "no partial rename")
+  assert.equal(snapshotDir(join(dir, ".catalog/organization")) + snapshotDir(join(dir, ".catalog/collections")), before, "no partial rename")
   const sub = await run("review.submit", { items: [{ target: unit("armor/coat") }] })
-  await rejects(run("organize.bulk", { targets: [unit("armor/coat"), { kind: "submission", id: sub.submission.id }], addTags: ["x"] }), "invalid")
-  await rejects(run("organize.bulk", { targets: [unit("armor/coat"), unit("armor/missing")], addTags: ["x"] }), "not_found")
+  await rejects(run("organization.setMany", { targets: [unit("armor/coat"), { kind: "submission", id: sub.submission.id }], addTags: ["x"] }), "invalid")
+  await rejects(run("organization.setMany", { targets: [unit("armor/coat"), unit("armor/missing")], addTags: ["x"] }), "not_found")
   assert.deepEqual((await app.run("unit.get", { id: "armor/coat" })).tags, [], "first target untouched")
   // A valid rename still updates every record in one operation.
   await run("category.rename", { from: "A", to: "B" })
@@ -172,7 +189,7 @@ test("S4 multi-record operations validate every resulting record before writing 
   cleanup(dir)
 })
 
-test("S5 concurrent retries with one request id record once; ids are bound to the checkout context", async () => {
+test("S5 concurrent retries with one request id record once; ids are bound to the checkout", async () => {
   const dir = await standardProject()
   const app = await open(dir)
   const run = W(app)
@@ -198,7 +215,7 @@ test("S6/P5 catalog Review: validated before any effect; reuses only waiting ite
   const evidenceCount = (): number => (existsSync(join(dir, ".catalog/evidence")) ? readdirSync(join(dir, ".catalog/evidence"), { recursive: true }).length : 0)
   await rejects(run("review.decideCurrent", { target: unit("armor/helm"), whole: "bogus" }), "invalid")
   await rejects(run("review.decideCurrent", { target: unit("armor/helm"), verdicts: { nope: "approved" } }), "invalid")
-  assert.equal((await app.run("reviews.list", { state: "all" })).total, 0)
+  assert.equal((await app.run("review.list", { state: "all" })).total, 0)
   assert.equal(evidenceCount(), 0, "no frozen blobs from a rejected action")
   const first = await run("review.decideCurrent", { target: unit("armor/helm"), whole: "approved" })
   assert.equal(first.createdSubmission, true)
@@ -229,7 +246,7 @@ test("P6 only the selected parts are frozen: unrelated missing media does not bl
   cleanup(dir)
 })
 
-test("P1 a running catalog follows the checkout: configuration, adapter options and resolver change with the branch", async () => {
+test("P1 a running catalog follows the checkout: configuration, plugin options and resolver change with the branch", async () => {
   const dir = await standardProject()
   const app = await open(dir)
   // Was `POST /api/run/<action>` on a running server: the same long-lived catalog, asked directly.
@@ -245,29 +262,30 @@ test("P1 a running catalog follows the checkout: configuration, adapter options 
     const m = read(dir, "catalog.manifest.json")
     write(dir, "alternate.json", { ...m, project: "Alternate", unitFiles: ["alt"] })
     write(dir, "alt/one.json", { id: "armor/helm", type: "armor", name: "Alt Helm", attrs: { slot: "Head" }, links: [{ role: "icon", asset: "art/helm.png" }] })
-    write(dir, "catalog.config.json", { version: 1, adapter: "manifest", options: { manifest: "alternate.json" }, review: { resolver: "strictest" } })
+    write(dir, "catalog.config.json", { version: 3, plugins: [{ plugin: "manifest", options: { file: "alternate.json" } }], review: { resolver: "strictest" } })
     git(dir, "add", "-A")
     git(dir, "commit", "-q", "-m", "alternate")
-    const ctx = await post("context", {})
-    assert.equal(ctx.context.branch, "alternate")
+    const ctx = await post("summary", {})
+    assert.equal(ctx.checkout.branch, "alternate")
     assert.equal(ctx.project, "Alternate")
     assert.equal(ctx.resolver, "strictest")
-    assert.deepEqual((await post("catalog.search", { section: "units" })).items.map((u: { name: string }) => u.name), ["Alt Helm"])
+    assert.deepEqual((await post("unit.search", {})).units.map((u: { name: string }) => u.name), ["Alt Helm"])
     git(dir, "checkout", "-q", "main")
-    const back = await post("context", {})
+    const back = await post("summary", {})
     assert.equal(back.project, "Testgame")
     assert.equal(back.resolver, "latest")
     assert.equal((await post("unit.get", { id: "armor/helm" })).review.parts.find((p: FrozenPart) => p.id === "icon").verdict, "changes")
     // Resolver change on a branch applies to the same records without rewriting them.
     git(dir, "checkout", "-q", "-b", "strict")
-    write(dir, "catalog.config.json", { version: 1, adapter: "manifest", review: { resolver: "strictest" } })
+    write(dir, "catalog.config.json", { version: 3, plugins: ["manifest"], review: { resolver: "strictest" } })
     assert.equal((await post("unit.get", { id: "armor/helm" })).review.parts.find((p: FrozenPart) => p.id === "icon").verdict, "changes")
-    // A changed project adapter module is re-imported.
-    write(dir, "adapter.mjs", "export default () => ({ sources: () => ['adapter.mjs'], load: async () => ({ project: 'Module A', schema: { types: { t: { label: 'T', fields: [], roles: [] } } }, units: [] }) });\n")
-    write(dir, "catalog.config.json", { version: 1, adapter: "./adapter.mjs" })
-    assert.equal((await post("context", {})).project, "Module A")
-    write(dir, "adapter.mjs", "export default () => ({ sources: () => ['adapter.mjs'], load: async () => ({ project: 'Module B', schema: { types: { t: { label: 'T', fields: [], roles: [] } } }, units: [] }) });\n")
-    assert.equal((await post("context", {})).project, "Module B")
+    // A changed project plugin module is imported again.
+    const plugin = (project: string): string => `export default { name: "module", sources: [{ name: "only", inputs: () => ["plugin.mjs"], load: async () => ({ project: "${project}", types: { t: { label: "T", fields: [], roles: [] } }, units: [] }) }] };\n`
+    write(dir, "plugin.mjs", plugin("Module A"))
+    write(dir, "catalog.config.json", { version: 3, plugins: ["./plugin.mjs"] })
+    assert.equal((await post("summary", {})).project, "Module A")
+    write(dir, "plugin.mjs", plugin("Module B"))
+    assert.equal((await post("summary", {})).project, "Module B")
   } finally {
     cleanup(dir)
   }
@@ -283,13 +301,14 @@ test("P3 a project preview declaration is frozen with its module, config, base a
     collections: [{ id: "row/ab", name: "Row", kind: "lineup", members: [{ unit: "armor/a" }, { unit: "armor/b" }] }],
     extra: { collectionKinds: { lineup: { label: "Lineup", preview: { label: "Lineup", module: "lineup", roles: ["model"], base: "art/stand.glb", config: { spacing: 1.75 } } } } }
   })
-  write(dir, "catalog.config.json", { version: 1, adapter: "manifest", previewModules: { lineup: "./previews/lineup.mjs" } })
+  write(dir, "catalog/previews.mjs", 'export default { name: "lineups", browserModules: { lineup: "previews/lineup.mjs" } };\n')
+  write(dir, "catalog.config.json", { version: 3, plugins: ["manifest", "./catalog/previews.mjs"] })
   write(dir, "previews/lineup.mjs", "export default function lineup(ctx) { return ctx.html`<div></div>`; }\n")
   const app = await open(dir)
   const col = await app.run("collection.get", { id: "row/ab" })
   assert.equal(col.preview.module, "lineup")
   assert.deepEqual(col.preview.config, { spacing: 1.75 })
-  assert.match(col.preview.moduleUrl, /^\/project\/preview\/lineup\?v=/)
+  assert.match(col.preview.moduleUrl, /^\/project\/module\/lineup\?v=/)
   assert.equal(col.preview.base.id, "art/stand.glb")
   assert.equal(col.preview.members.length, 2)
   const s = await W(app)("review.submit", { items: [{ target: { kind: "collection", id: "row/ab" }, parts: ["preview"] }] })
@@ -305,10 +324,10 @@ test("P3 a project preview declaration is frozen with its module, config, base a
   assert.notEqual(base.a.sha256, base.b.sha256)
   assert.match(base.a.url, /leaf=base/)
   assert.equal((await app.run("collection.get", { id: "row/ab" })).review.parts.find((p: FrozenPart) => p.id === "preview").verdict, null)
-  // Was `GET /project/preview/lineup` (200, module text) and `GET /project/preview/nope` (404).
-  const mod = await app.previewModule("lineup")
+  // Was `GET /project/module/lineup` (200, module text) and `GET /project/module/nope` (404).
+  const mod = await app.browserModule("lineup")
   assert.match(Buffer.from(mod.bytes).toString(), /lineup/)
-  await rejects(app.previewModule("nope"), "not_found")
+  await rejects(app.browserModule("nope"), "not_found")
   cleanup(dir)
 })
 
@@ -335,7 +354,7 @@ test("records written before request bindings existed still read, and their requ
   const note = (await run("note.create", { target: unit("armor/helm"), body: "Visor reads thin" }, "old-note")).note
   const submission = (await run("review.submit", { items: [{ target: unit("armor/helm") }] })).submission
   const review = await (await open(dir)).run("review.get", { submission: submission.id })
-  const verdict = (await run("review.decide", { submission: submission.id, item: review.items[0].id, whole: "approved" }, "old-verdict")).event
+  const decision = (await run("review.decide", { submission: submission.id, item: review.items[0].id, whole: "approved" }, "old-verdict")).decision
   // An earlier catalog wrote the request id without its binding; the machine-local journal is gone.
   const strip = (path: string): void => {
     const record = JSON.parse(readFileSync(join(dir, path), "utf8")) as Record<string, unknown>
@@ -344,12 +363,12 @@ test("records written before request bindings existed still read, and their requ
     writeFileSync(join(dir, path), `${JSON.stringify(record, null, 2)}\n`)
   }
   strip(`.catalog/notes/${note.id}.json`)
-  strip(`.catalog/reviews/${submission.id}/verdicts/${verdict.id}.json`)
+  strip(`.catalog/reviews/${submission.id}/decisions/${decision.id}.json`)
   rmSync(join(dir, ".catalog/.local"), { recursive: true, force: true })
 
   const app = await open(dir)
   assert.equal((await app.run("problems", {})).problems.length, 0)
-  assert.deepEqual((await app.run("notes.list", {})).notes.map((n: { id: string }) => n.id), [note.id])
+  assert.deepEqual((await app.run("note.list", {})).notes.map((n: { id: string }) => n.id), [note.id])
   const decided = await app.run("review.get", { submission: submission.id })
   assert.equal(decided.items[0].parts[0].verdict, "approved")
   // Nothing proves what those ids were bound to: reusing one is refused, never replayed.

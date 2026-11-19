@@ -1,6 +1,7 @@
-// Browser modules a plugin declares: a media kind's viewer (`mediaKinds[].web`) and collection
-// previews (`previews`). They are trusted project code that runs in the catalog page, so the
-// server hands out exactly the declared files and nothing beside them. A declaration is a
+// Browser modules a plugin declares: a media kind's viewer (`mediaKinds[].web`) and the
+// inspector, panel and preview modules under `browserModules`. They are trusted project code that
+// runs in the catalog page, so the server hands out exactly the declared files and nothing beside
+// them. A declaration is a
 // project-relative path, or a `file:` URL for a module that ships beside the plugin itself
 // (`new URL("./viewer.js", import.meta.url).href`), which is how a plugin outside the project
 // brings its own browser code.

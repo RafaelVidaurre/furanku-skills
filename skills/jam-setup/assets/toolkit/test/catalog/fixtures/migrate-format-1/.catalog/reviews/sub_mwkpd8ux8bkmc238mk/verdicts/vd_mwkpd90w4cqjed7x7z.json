@@ -1,0 +1,37 @@
+{
+  "id": "vd_mwkpd90w4cqjed7x7z",
+  "submission": "sub_mwkpd8ux8bkmc238mk",
+  "item": "it_mwkpd8peav4b783fn3",
+  "by": {
+    "name": "Rae Tester",
+    "kind": "human"
+  },
+  "at": "2026-11-17T13:02:57.008Z",
+  "comment": "Good pass.",
+  "requestId": "rq-decide-1",
+  "requestBinding": {
+    "action": "review.decide",
+    "digest": "3bd5e3b56a95ceef44b89ab1b0a6ad502dab76d0d6bf06d7af301bba4d2c9fd1",
+    "context": "ff52585e9d24:main"
+  },
+  "scope": {
+    "kind": "whole",
+    "parts": [
+      "capture:1",
+      "capture:2",
+      "icon",
+      "model",
+      "concept:art/sheet.png",
+      "attributes"
+    ]
+  },
+  "verdict": "approved",
+  "exceptions": {
+    "concept:art/sheet.png": "changes",
+    "capture:2": "rejected"
+  },
+  "partNotes": {
+    "concept:art/sheet.png": "The sheet is too dark.",
+    "icon": "Crisp."
+  }
+}

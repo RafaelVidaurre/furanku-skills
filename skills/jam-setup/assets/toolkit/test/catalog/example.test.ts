@@ -52,12 +52,12 @@ test("the sample project is a reviewable catalog with history, waiting work and 
 
   const app = await open(dir)
   const checkout = await app.run("checkout")
-  assert.equal(checkout.context.git, true)
-  assert.equal(checkout.context.branch, "main")
-  assert.ok(checkout.context.dirty > 0, "the frost lance edit is uncommitted")
+  assert.equal(checkout.checkout.git, true)
+  assert.equal(checkout.checkout.branch, "main")
+  assert.ok(checkout.checkout.dirty > 0, "the frost lance edit is uncommitted")
 
-  const reviews = await app.run("reviews.list", { pageSize: 50 })
-  assert.deepEqual(reviews.items.map((item: { title: string }) => item.title).sort(), [
+  const reviews = await app.run("review.list", { pageSize: 50 })
+  assert.deepEqual(reviews.submissions.map((item: { title: string }) => item.title).sort(), [
     "Ember Burst",
     "Frost Lance balance",
     "Helm crest",

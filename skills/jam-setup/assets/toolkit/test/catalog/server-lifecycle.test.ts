@@ -72,7 +72,7 @@ test("open starts a server that outlives the command, reuses it, links results t
     assert.deepEqual([record.url, record.port, record.host], [url, Number(new URL(url).port), hostname()])
     assert.ok(record.port >= 4600, "ports are taken from 4600 up")
     assert.equal(record.toolkit, JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version)
-    assert.equal(record.checkout, (await (await open(dir)).run("context", {})).context.worktree)
+    assert.equal(record.checkout, (await (await open(dir)).run("summary", {})).checkout.worktree)
     assert.ok(alive(record.pid) && record.pid !== process.pid)
     assert.equal((await fetch(url)).status, 200)
     const health = (await (await fetch(`${url}api/health`)).json()) as Any
@@ -95,19 +95,19 @@ test("open starts a server that outlives the command, reuses it, links results t
     assert.equal(review.url, submitted.submission.url)
     const decided = JSON.parse(run("run", "review.decide", ...asAgent, "--input", JSON.stringify({ submission: review.id, item: review.items[0].id, verdicts: { icon: "approved" } })).stdout)
     assert.equal(decided.url, `${url}#/reviews/s/${review.id}/${review.items[0].id}`)
-    const listed = JSON.parse(run("run", "reviews.list").stdout)
-    assert.deepEqual(listed.items.map((s: Any) => s.url).sort(), [early.submission.id, submitted.submission.id].map((id) => `${url}#/reviews/s/${id}`).sort())
+    const listed = JSON.parse(run("run", "review.list").stdout)
+    assert.deepEqual(listed.submissions.map((s: Any) => s.url).sort(), [early.submission.id, submitted.submission.id].map((id) => `${url}#/reviews/s/${id}`).sort())
     JSON.parse(run("run", "note.create", ...asAgent, "--input", JSON.stringify({ target: { kind: "unit", id: "armor/helm", part: "model" }, body: "Visor" })).stdout)
-    const inbox = JSON.parse(run("todo", "--json").stdout)
-    assert.deepEqual(inbox.waiting.map((w: Any) => w.url).sort(), listed.items.map((s: Any) => s.url).sort())
-    assert.equal(inbox.notes[0].url, `${url}#/content/u/armor%2Fhelm`)
-    assert.equal(JSON.parse(run("run", "unit.get", "--input", '{"id":"armor/helm"}').stdout).url, `${url}#/content/u/armor%2Fhelm`)
+    const inbox = JSON.parse(run("inbox", "--json").stdout)
+    assert.deepEqual(inbox.waiting.map((w: Any) => w.url).sort(), listed.submissions.map((s: Any) => s.url).sort())
+    assert.equal(inbox.notes[0].url, `${url}#/main/u/armor%2Fhelm`)
+    assert.equal(JSON.parse(run("run", "unit.get", "--input", '{"id":"armor/helm"}').stdout).url, `${url}#/main/u/armor%2Fhelm`)
     assert.equal(JSON.parse(run("run", "collection.get", "--input", '{"id":"outfit/iron"}').stdout).url, `${url}#/collections/c/outfit%2Firon`)
-    assert.equal(JSON.parse(run("run", "asset.get", "--input", '{"id":"art/helm.png"}').stdout).url, `${url}#/files/a/art%2Fhelm.png`)
+    assert.equal(JSON.parse(run("run", "asset.get", "--input", '{"id":"art/helm.png"}').stdout).url, `${url}#/assets/a/art%2Fhelm.png`)
     // The links open: the page is served at that address.
     assert.equal((await fetch(submitted.submission.url)).status, 200)
     // Any action can be sent to a server by its address; it answers as the CLI does in-process.
-    const remote = JSON.parse(run("run", "notes.list", "--url", url).stdout)
+    const remote = JSON.parse(run("run", "note.list", "--url", url).stdout)
     assert.equal(remote.total, 1)
 
     const stopped = run("stop")
@@ -273,8 +273,8 @@ test("viewer actions are listed everywhere and need a server to run", async () =
   // From T21: the action list a program reads includes the viewer actions.
   const list: Array<Any> = JSON.parse(run("actions", "--json").stdout).actions
   assert.ok(list.some((a) => a.name === "note.resolve") && list.some((a) => a.name === "viewer.capture"))
-  assert.deepEqual(list.filter((a) => a.kind === "viewer").map((a) => a.name), ["viewer.open", "viewer.state", "viewer.control", "viewer.capture", "viewer.close"])
-  assert.match(run("actions").stdout, /^viewer\.open\s+viewer\s+Open a unit/m)
+  assert.deepEqual(list.filter((a) => a.requires.includes("server")).map((a) => a.name), ["viewer.open", "viewer.state", "viewer.control", "viewer.capture", "viewer.close"])
+  assert.match(run("actions").stdout, /^viewer\.open\s+read\s+server\s+Open a unit/m)
   // Without a server there is no page to drive: the failure says how to get one.
   const none = run("run", "viewer.state", "--json")
   assert.equal(none.status, 1)
@@ -296,7 +296,7 @@ test("viewer actions are listed everywhere and need a server to run", async () =
     // An agent's write through the server is attributed as declared, like any other client's.
     const note = JSON.parse(run("run", "note.create", "--url", server.url, ...asAgent, "--input", '{"target":{"kind":"unit","id":"armor/helm"},"body":"Through the server"}').stdout)
     assert.deepEqual([note.note.by.name, note.note.by.kind], ["cli-bot", "agent"])
-    assert.equal((await W(await open(dir))("notes.list", {})).total, 1)
+    assert.equal((await W(await open(dir))("note.list", {})).total, 1)
   } finally {
     run("stop")
     cleanup(dir)

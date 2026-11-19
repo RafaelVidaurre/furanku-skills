@@ -15,7 +15,7 @@ const fixture = async (t: TestContext, run: (page: TestPage, url: string) => Pro
   let dir: string | undefined
   try {
     dir = await makeProject({
-      extra: { types: { ...TYPES, lore: { ...TYPES.lore, fields: [{ key: "role", label: "Role" }, { key: "setting", label: "Appears in" }] }, resource: { label: "Model", scope: "assets", roles: [], fields: [] } } },
+      extra: { types: { ...TYPES, lore: { ...TYPES.lore, fields: [{ key: "role", label: "Role" }, { key: "setting", label: "Appears in" }] }, resource: { label: "Model", scope: "material", roles: [], fields: [] } } },
       assets: { "art/player.glb": await glb() },
       units: [
         { id: "player", type: "armor", name: "Player", category: "Characters", links: [{ role: "model", asset: "art/player.glb" }] },
@@ -34,33 +34,33 @@ const fixture = async (t: TestContext, run: (page: TestPage, url: string) => Pro
 
 test("pending tab and filter queries never display another result count or cards", (t) =>
   fixture(t, async (page, url) => {
-    await page.goto(url + "#/assets")
-    await page.locator(".side").getByRole("link", { name: "All assets 8", exact: true }).waitFor()
+    await page.goto(url + "#/material")
+    await page.locator(".side").getByRole("link", { name: "All material 8", exact: true }).waitFor()
     let release: () => void = () => undefined
     let gate = new Promise<void>((resolve) => { release = resolve })
     let started: () => void = () => undefined
     const requestStarted = new Promise<void>((resolve) => { started = resolve })
-    await page.route("**/api/run/catalog.search", async (route) => {
+    await page.route("**/api/run/unit.search", async (route) => {
       const input = route.request().postDataJSON().input
-      if (input.scope === "content") {
+      if (input.scope === "main") {
         started()
         await gate
       }
       await route.continue()
     })
     try {
-      await page.locator(".primary-nav").getByRole("link", { name: "Content", exact: true }).click()
-      await page.waitForFunction(() => document.querySelector(".browse-head h1")?.textContent === "Content")
+      await page.locator(".primary-nav").getByRole("link", { name: "Main", exact: true }).click()
+      await page.waitForFunction(() => document.querySelector(".browse-head h1")?.textContent === "Main")
       await requestStarted
-      assert.equal(await page.locator(".side").getByRole("link", { name: /^All content/ }).innerText(), "All content")
+      assert.equal(await page.locator(".side").getByRole("link", { name: /^All main/ }).innerText(), "All main")
       assert.equal(await page.locator(".chips [aria-live]").count(), 0)
       assert.equal(await page.getByRole("listitem").count(), 0)
-      await shot(page, "content-pending")
+      await shot(page, "main-pending")
       release()
       await page.getByRole("listitem").filter({ hasText: "Player" }).waitFor()
       assert.equal(await page.locator(".chips [aria-live]").innerText(), "2")
       gate = new Promise<void>((resolve) => { release = resolve })
-      const filteredRequest = page.waitForRequest((req) => req.url().endsWith("/catalog.search") && req.postDataJSON().input.filters?.cat?.[0] === "Props")
+      const filteredRequest = page.waitForRequest((req) => req.url().endsWith("/unit.search") && req.postDataJSON().input.filters?.cat?.[0] === "Props")
       await page.locator(".side").getByRole("link", { name: "Props 1", exact: true }).click()
       await filteredRequest
       await page.waitForFunction(() => location.hash.includes("f.cat=Props"))
@@ -69,7 +69,7 @@ test("pending tab and filter queries never display another result count or cards
       release()
       await page.getByRole("listitem").filter({ hasText: "Tray" }).waitFor()
       assert.equal(await page.locator(".chips [aria-live]").innerText(), "1 of 2")
-      await shot(page, "content-filtered")
+      await shot(page, "main-filtered")
     } finally {
       release()
     }
@@ -78,7 +78,7 @@ test("pending tab and filter queries never display another result count or cards
 
 test("gallery cards lead with a preview and name, with no property summaries", (t) =>
   fixture(t, async (page, url) => {
-    await page.goto(url + "#/content")
+    await page.goto(url + "#/main")
     const player = page.getByRole("listitem").filter({ hasText: "Player" })
     await player.waitFor()
     await player.locator(".card-media img").evaluate((img: HTMLImageElement) => img.decode())
@@ -88,9 +88,9 @@ test("gallery cards lead with a preview and name, with no property summaries", (
     assert.equal(await tray.locator(".card-media").count(), 1)
     assert.doesNotMatch(await tray.innerText(), /Appears in|Role|Carryable|Hands Lab/)
     assert.equal(await tray.locator(".card-name").evaluate((el) => el.nextElementSibling!.className), "card-sub")
-    await shot(page, "content-cards")
+    await shot(page, "main-cards")
     await page.setViewportSize({ width: 390, height: 844 })
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
-    await shot(page, "content-cards-narrow")
+    await shot(page, "main-cards-narrow")
     assert.deepEqual(page.errors, [])
   }))

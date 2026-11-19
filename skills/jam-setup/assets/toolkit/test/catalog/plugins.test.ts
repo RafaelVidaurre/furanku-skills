@@ -6,12 +6,11 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from "
 import { join } from "node:path"
 import { test } from "node:test"
 import { fileURLToPath, pathToFileURL } from "node:url"
-import { definePlugin, Effect, type Plugin, Schema } from "../../src/catalog/plugin.ts"
+import { defineAction, definePlugin, Effect, optional, type Plugin, Schema, type SourceOutput, Text } from "../../src/catalog/plugin.ts"
 import { publishedSchemas } from "../../src/catalog/published.ts"
 import { jsonSchemaOf } from "../../src/kernel/decode.ts"
 import storybook from "../../examples/plugins/storybook.ts"
-import { Catalog } from "../../src/catalog/Catalog.ts"
-import { agent, cleanup, git, human, open, png, read, rejects, tmp, W, write } from "./helpers.ts"
+import { agent, cleanup, git, human, makeProject, open, png, read, rejects, tmp, TYPES, W, write } from "./helpers.ts"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any
@@ -22,7 +21,7 @@ const CAPTIONS = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHello\n\n00:00:03.500
 const storyProject = (review: Record<string, unknown> = { resolver: "human-first" }): string => {
   const dir = tmp("cc-story-")
   git(dir, "init", "-q")
-  write(dir, "catalog.config.json", { version: 2, plugins: ["./catalog/storybook.ts"], options: { storybook: { folder: "story" } }, review })
+  write(dir, "catalog.config.json", { version: 3, plugins: [{ plugin: "./catalog/storybook.ts", options: { folder: "story" } }], review })
   write(dir, "catalog/storybook.ts", `export { default } from ${JSON.stringify(pathToFileURL(join(EXAMPLES, "storybook.ts")).href)}\n`)
   mkdirSync(join(dir, "catalog"), { recursive: true })
   copyFileSync(join(EXAMPLES, "storyboard.mjs"), join(dir, "catalog/storyboard.mjs"))
@@ -46,19 +45,19 @@ const ids = (list: ReadonlyArray<{ id: string }>): Array<string> => list.map((en
 test("sources, scopes, enrich, relations and link meta: several sources merge into one catalog shaped by the plugin", async () => {
   const dir = storyProject()
   const app = await open(dir)
-  const context = await app.run("context", {})
-  assert.equal(context.project, "Storybook")
-  assert.deepEqual(context.plugins, ["media-core", storybook.name])
-  assert.equal(context.counts.units, 6)
-  assert.equal(context.problems, 0)
+  const summary = await app.run("summary", {})
+  assert.equal(summary.project, "Storybook")
+  assert.deepEqual(summary.plugins, ["media-core", storybook.name])
+  assert.equal(summary.counts.units, 6, "the plugin read its files under the folder its entry's options name")
+  assert.equal(summary.problems, 0)
   // Scopes replace the default split; a type names one, and search filters by it.
   const schema = await app.run("schema", {})
   assert.deepEqual(ids(schema.scopes), ["story", "cast"])
   assert.equal(schema.schema.types.scene.scope, "story")
   assert.equal(schema.unitScopes["character/ada"], "cast")
-  assert.equal((await app.run("catalog.search", { section: "units", scope: "story" })).total, 3)
-  assert.deepEqual(ids((await app.run("catalog.search", { section: "units", scope: "cast" })).items).sort(), ["character/ada", "character/bo", "character/cy"])
-  await rejects(app.run("catalog.search", { section: "units", scope: "content" }), "invalid")
+  assert.equal((await app.run("unit.search", { scope: "story" })).total, 3)
+  assert.deepEqual(ids((await app.run("unit.search", { scope: "cast" })).units).sort(), ["character/ada", "character/bo", "character/cy"])
+  await rejects(app.run("unit.search", { scope: "main" }), "invalid")
   // enrich: categories and a derived position, applied after the sources merged.
   const opening = await app.run("unit.get", { id: "scene/opening" })
   assert.equal(opening.organization.category, "Story/Scenes")
@@ -109,7 +108,7 @@ test("media kinds and probes: a plugin's kind is recognised by bytes; facts are 
   assert.deepEqual((await link()).facts.captions.facts, { cues: 3, lastCue: 70.25 })
   assert.equal((await app.stats()).probesMeasured, 2)
   // The probe is published with its fields; images have no probe here.
-  assert.deepEqual((await app.run("schema", {})).probes.map((p: Any) => [p.name, p.plugin, p.kinds]), [["captions", "storybook", ["captions"]]])
+  assert.deepEqual((await app.run("schema", {})).probes.map((p: Any) => [p.name, p.plugin, p.mediaKinds]), [["captions", "storybook", ["captions"]]])
   assert.deepEqual((await app.run("asset.get", { id: "story/opening.png" })).facts, {})
   // Bytes decide: a .vtt that is not WebVTT is invalid, and nothing is measured for it.
   write(dir, "story/opening.vtt", "not captions")
@@ -147,26 +146,31 @@ test("actions: project actions are listed with JSON Schema, validated, attribute
   const app = await open(dir)
   const listed = await app.discover()
   const outline = listed.find((a) => a.name === "storybook.outline")
-  assert.deepEqual([outline?.kind, outline?.plugin], ["read", "storybook"])
-  assert.deepEqual((outline?.input as Any).properties, { character: { type: "string" } })
+  assert.deepEqual([outline?.access, outline?.plugin], ["read", "storybook"])
+  assert.deepEqual((outline?.input as Any).properties, { character: { anyOf: [{ type: "string" }, { type: "null" }] } })
   assert.equal((outline?.input as Any).additionalProperties, false)
-  assert.equal(listed.find((a) => a.name === "storybook.flag")?.kind, "write")
+  // What it returns is published as its output.
+  assert.deepEqual(Object.keys((outline?.output as Any).properties), ["scenes"])
+  const flag = listed.find((a) => a.name === "storybook.flag")
+  assert.deepEqual([flag?.access, flag?.requires, flag?.output], ["write", ["actor"], undefined])
   assert.equal(listed.find((a) => a.name === "note.create")?.plugin, undefined)
   // A read needs no actor; its input is decoded with the declared schema.
   assert.deepEqual(ids((await app.run("storybook.outline", {})).scenes), ["opening", "chase", "finale"])
   assert.deepEqual(ids((await app.run("storybook.outline", { character: "bo" })).scenes), ["opening", "finale"])
+  assert.deepEqual(ids((await app.run("storybook.outline", { character: null })).scenes), ["opening", "chase", "finale"], "null is not given")
   await rejects(app.run("storybook.outline", { charcter: "bo" }), "invalid")
   await rejects(app.run("storybook.outline", { character: 7 }), "invalid")
   // A write needs a declared actor, which its nested catalog writes keep.
   await rejects(app.run("storybook.flag", { scene: "chase", reason: "too long" }), "invalid")
   const flagged = await W(app, agent)("storybook.flag", { scene: "chase", reason: "too long" }, "flag-1")
   assert.deepEqual(flagged.note.by, agent)
+  assert.equal(flagged.note.body, "Flagged by checker: too long", "a write's context has the declared actor")
   assert.deepEqual(flagged.note.target, { kind: "unit", id: "scene/chase" })
   // The same request id records once and returns the first result.
   const again = await W(app, agent)("storybook.flag", { scene: "chase", reason: "too long" }, "flag-1")
   assert.equal(again.note.id, flagged.note.id)
   assert.equal(again.replayed, true)
-  assert.equal((await app.run("notes.list", {})).total, 1)
+  assert.equal((await app.run("note.list", {})).total, 1)
   await rejects(W(app, agent)("storybook.flag", { scene: "chase", reason: "something else" }, "flag-1"), "conflict")
   // A failure inside a plugin action keeps its error code.
   await rejects(W(app, agent)("storybook.flag", { scene: "nowhere", reason: "x" }), "not_found")
@@ -183,41 +187,41 @@ test("resolvers and previews: a plugin's resolver is selected by name; its previ
   await new Promise((done) => setTimeout(done, 15))
   await W(app, agent)("review.decide", { submission: sub.submission.id, item, verdicts: { image: "changes" } })
   const verdict = async (): Promise<string> => (await app.run("unit.get", { id: "scene/chase" })).review.parts.find((p: Any) => p.id === "image").verdict
-  assert.equal((await app.run("context", {})).resolver, "human-first")
+  assert.equal((await app.run("summary", {})).resolver, "human-first")
   assert.equal(await verdict(), "approved", "the plugin's resolver keeps the person's verdict over the later agent one")
-  // The same events under the default resolver: no record changes, another reading.
+  // The same decisions under the default resolver: no record changes, another reading.
   write(dir, "catalog.config.json", { ...read(dir, "catalog.config.json"), review: { resolver: "latest" } })
   assert.equal(await verdict(), "changes")
   write(dir, "catalog.config.json", { ...read(dir, "catalog.config.json"), review: { resolver: "nobody-registered-this" } })
   assert.equal(await verdict(), "changes", "an unknown resolver keeps the last good settings")
   assert.match((await app.run("problems", {})).problems.map((p: Any) => p.error).join("\n"), /unknown verdict resolver nobody-registered-this/)
-  await rejects(open(dir).then((fresh) => fresh.run("context", {})), "invalid")
-  // Previews: named by the plugin, read from the project.
-  const module = await app.previewModule("storyboard")
+  await rejects(open(dir).then((fresh) => fresh.run("summary", {})), "invalid")
+  // Previews: browser modules named by the plugin, read from the project.
+  const module = await app.browserModule("storyboard")
   assert.deepEqual(Buffer.from(module.bytes), readFileSync(join(dir, "catalog/storyboard.mjs")))
-  assert.deepEqual((await app.run("schema", {})).previews, ["storyboard"])
-  await rejects(app.previewModule("other"), "not_found")
+  assert.match((await app.run("schema", {})).browserModules.storyboard, /^\/project\/module\/storyboard\?v=[0-9a-f]{16}$/)
+  await rejects(app.browserModule("other"), "not_found")
   cleanup(dir)
 })
 
-test("views and panels: a type names modules its plugin declares; a unit lists them with where each loads from", async () => {
+test("inspectors and panels: a type names modules its plugin declares; a unit lists them with where each loads from", async () => {
   const dir = storyProject()
   const app = await open(dir)
   const scene = await app.run("unit.get", { id: "scene/opening" })
-  assert.deepEqual(scene.views.map((v: Any) => [v.key, v.label, v.module, v.export, v.default, v.error]), [["beats", "Beats", "storybook", "beats", false, null]])
-  assert.match(scene.views[0].url, /^\/project\/view\/storybook\?v=[0-9a-f]{16}$/)
-  assert.deepEqual(scene.panels.map((p: Any) => [p.key, p.export, p.url === scene.views[0].url]), [["placement", "placement", true]])
-  assert.deepEqual((await app.run("unit.get", { id: "character/ada" })).views, [])
+  assert.deepEqual(scene.inspectors.map((v: Any) => [v.key, v.label, v.module, v.export, v.default, v.error]), [["beats", "Beats", "storybook", "beats", false, null]])
+  assert.match(scene.inspectors[0].url, /^\/project\/module\/storybook\?v=[0-9a-f]{16}$/)
+  assert.deepEqual(scene.panels.map((p: Any) => [p.key, p.export, p.url === scene.inspectors[0].url]), [["placement", "placement", true]])
+  assert.deepEqual((await app.run("unit.get", { id: "character/ada" })).inspectors, [])
   const schema = await app.run("schema", {})
-  assert.deepEqual(Object.keys(schema.views), ["storybook"])
-  assert.equal(schema.views.storybook.url, scene.views[0].url)
-  assert.deepEqual(schema.schema.types.scene.views.map((v: Any) => v.key), ["beats"])
+  // Inspector, panel and preview modules share one namespace.
+  assert.deepEqual(Object.keys(schema.browserModules), ["storyboard", "storybook"])
+  assert.equal(schema.browserModules.storybook, scene.inspectors[0].url)
+  assert.deepEqual(schema.schema.types.scene.inspectors.map((v: Any) => v.key), ["beats"])
   // Served by its declared name from beside the plugin, and nothing else is.
-  const viewModule = (name: string) => app.effect(Effect.flatMap(Catalog, (catalog) => catalog.viewModule(name)))
-  assert.deepEqual(Buffer.from((await viewModule("storybook")).bytes), readFileSync(join(EXAMPLES, "storybook.views.js")))
-  await rejects(viewModule("storyboard"), "not_found")
+  assert.deepEqual(Buffer.from((await app.browserModule("storybook")).bytes), readFileSync(join(EXAMPLES, "storybook.web.js")))
+  await rejects(app.browserModule("storybook.web.js"), "not_found")
 
-  // A module nobody declared, a unit narrowing its views, a malformed view: each said, none guessed.
+  // A module nobody declared, a unit narrowing its inspectors, a malformed inspector: each said, none guessed.
   const narrowed = definePlugin({
     name: "narrowed",
     sources: [{
@@ -225,34 +229,29 @@ test("views and panels: a type names modules its plugin declares; a unit lists t
       inputs: () => [],
       load: () => ({
         assetRoots: ["story"],
-        types: { prop: { label: "Prop", roles: [], views: [{ key: "inspect", label: "Inspector", module: "kit", default: true }, { key: "lost", label: "Lost", module: "undeclared" }, { key: "Bad Key", label: "x", module: "kit" }] } },
-        units: [{ id: "prop/lamp", type: "prop" }, { id: "prop/plain", type: "prop", views: ["inspect"] }]
+        types: { prop: { label: "Prop", roles: [], inspectors: [{ key: "inspect", label: "Inspector", module: "kit", default: true }, { key: "lost", label: "Lost", module: "undeclared" }, { key: "Bad Key", label: "x", module: "kit" }] } },
+        units: [{ id: "prop/lamp", type: "prop" }, { id: "prop/plain", type: "prop", inspectors: ["inspect"] }]
       })
     }],
-    views: { kit: "catalog/kit.js" }
+    browserModules: { kit: "catalog/kit.js" }
   })
   write(dir, "catalog/kit.js", "export default function (host) { host.textContent = 'kit' }\n")
-  write(dir, "catalog.config.json", { version: 2, plugins: ["narrowed"] })
+  write(dir, "catalog.config.json", { version: 3, plugins: ["narrowed"] })
   const other = await open(dir, { plugins: { narrowed } })
   const lamp = await other.run("unit.get", { id: "prop/lamp" })
-  assert.deepEqual(lamp.views.map((v: Any) => [v.key, v.default, v.export, !!v.url, v.error]), [
+  assert.deepEqual(lamp.inspectors.map((v: Any) => [v.key, v.default, v.export, !!v.url, v.error]), [
     ["inspect", true, "default", true, null],
-    ["lost", false, "default", false, 'view module "undeclared" is not declared by any plugin (a plugin lists it under views)']
+    ["lost", false, "default", false, 'browser module "undeclared" is not declared by any plugin (a plugin lists it under browserModules)']
   ])
-  assert.deepEqual((await other.run("unit.get", { id: "prop/plain" })).views.map((v: Any) => v.key), ["inspect"])
-  assert.match((await other.run("problems", {})).problems.map((p: Any) => p.error).join("\n"), /type prop: view Bad Key needs a unique key/)
-  // Version 1 named every project module under previewModules; views find theirs there too.
-  write(dir, "catalog.config.json", { version: 1, adapter: "./catalog/adapter.mjs", previewModules: { kit: "./catalog/kit.js" } })
-  write(dir, "catalog/adapter.mjs", "export default () => ({ sources: () => [], load: () => ({ assetRoots: ['story'], schema: { types: { prop: { label: 'Prop', roles: [], views: [{ key: 'inspect', label: 'Inspector', module: 'kit', default: true }] } } }, units: [{ id: 'prop/lamp', type: 'prop' }] }) })\n")
-  const v1 = await open(dir)
-  assert.match((await v1.run("unit.get", { id: "prop/lamp" })).views[0].url, /^\/project\/view\/kit\?v=/)
+  assert.deepEqual((await other.run("unit.get", { id: "prop/plain" })).inspectors.map((v: Any) => v.key), ["inspect"])
+  assert.match((await other.run("problems", {})).problems.map((p: Any) => p.error).join("\n"), /type prop: inspector Bad Key needs a unique key/)
   cleanup(dir)
 })
 
 test("plugin function results: a value, a promise or an Effect; a failure is a scoped problem, never a crash", async () => {
   const dir = tmp("cc-kinds-")
   git(dir, "init", "-q")
-  write(dir, "catalog.config.json", { version: 2, plugins: ["shapes"] })
+  write(dir, "catalog.config.json", { version: 3, plugins: ["shapes"] })
   const type = { label: "Shape", fields: [{ key: "sides", label: "Sides" }], roles: [] }
   const source = (name: string, load: Plugin["sources"] extends ReadonlyArray<infer S> | undefined ? S extends { load: infer L } ? L : never : never) => ({ name, inputs: () => [], load })
   let broken = true
@@ -271,19 +270,19 @@ test("plugin function results: a value, a promise or an Effect; a failure is a s
       if (broken) throw new Error("enrich exploded")
       return { units: { "shape/line": null } }
     },
-    actions: [{ name: "context", kind: "read", description: "shadows a built-in", input: Schema.Struct({}), run: () => ({ hijacked: true }) }]
+    actions: [{ name: "summary", access: "read", description: "shadows a built-in", input: Schema.Struct({}), run: () => ({ hijacked: true }) }]
   })
   // The composition root registers a plugin that lives outside src/catalog by name.
-  await rejects(open(dir).then((bare) => bare.run("context", {})), "invalid")
+  await rejects(open(dir).then((bare) => bare.run("summary", {})), "invalid")
   const app = await open(dir, { plugins: { shapes } })
-  assert.deepEqual(ids((await app.run("catalog.search", {})).items).sort(), ["shape/line", "shape/square", "shape/triangle"])
-  const context = await app.run("context", {})
-  assert.equal(context.hijacked, undefined, "a plugin cannot replace a built-in action")
-  const problems: Array<string> = (await app.run("problems", {})).problems.map((p: Any) => `${p.scope} | ${p.source} | ${p.error}`)
-  for (const expected of [/source throws failed: no shapes today/, /source fails failed: effect said no/, /type shape is already defined differently by source value/, /duplicate content id shape\/square/, /plugin shapes \| enrich by shapes: enrich exploded/, /action context has the name of a built-in action/]) {
+  assert.deepEqual(ids((await app.run("unit.search", {})).units).sort(), ["shape/line", "shape/square", "shape/triangle"])
+  const summary = await app.run("summary", {})
+  assert.equal(summary.hijacked, undefined, "a plugin cannot replace a built-in action")
+  const problems: Array<string> = (await app.run("problems", {})).problems.map((p: Any) => `${p.origin} | ${p.subject} | ${p.error}`)
+  for (const expected of [/source throws failed: no shapes today/, /source fails failed: effect said no/, /type shape is already defined differently by source value/, /duplicate unit id shape\/square/, /plugin shapes \| enrich by shapes: enrich exploded/, /action summary has the name of a built-in action/]) {
     assert.ok(problems.some((problem) => expected.test(problem)), `${expected} in\n${problems.join("\n")}`)
   }
-  assert.equal(context.problems, problems.length)
+  assert.equal(summary.problems, problems.length)
   assert.equal(existsSync(join(dir, ".catalog/notes")), false)
   broken = false
   cleanup(dir)
@@ -296,12 +295,12 @@ test("the README's example plugin works as printed", async () => {
   const dir = tmp("cc-readme-")
   git(dir, "init", "-q")
   // Only the import is rewritten: a temporary project has no installed toolkit beside it.
-  write(dir, "catalog/recipes.ts", example.replace('"../tools/jam/src/catalog/plugin.ts"', JSON.stringify(new URL("../../src/catalog/plugin.ts", import.meta.url).href)))
-  write(dir, "catalog.config.json", { version: 2, plugins: ["./catalog/recipes.ts"] })
+  write(dir, "catalog/recipes.ts", example.replace('"../tools/jam/catalog-plugin.ts"', JSON.stringify(new URL("../../catalog-plugin.ts", import.meta.url).href)))
+  write(dir, "catalog.config.json", { version: 3, plugins: ["./catalog/recipes.ts"] })
   write(dir, "recipes.json", [{ id: "stock", title: "Stock" }, { id: "soup", title: "Soup", photo: "photos/soup.png", uses: ["stock"] }])
   write(dir, "photos/soup.png", png(4, 4))
   const app = await open(dir)
-  assert.deepEqual([(await app.run("context", {})).project, (await app.run("context", {})).problems], ["Cookbook", 0])
+  assert.deepEqual([(await app.run("summary", {})).project, (await app.run("summary", {})).problems], ["Cookbook", 0])
   const stock = await app.run("unit.get", { id: "recipe/stock" })
   assert.deepEqual(stock.relations.map((r: Any) => [r.direction, r.label, ids(r.units)]), [["in", "Used in", ["recipe/soup"]]])
   const photos = (await app.run("doctor", {})).checks.find((check: Any) => check.name === "photos")
@@ -311,15 +310,15 @@ test("the README's example plugin works as printed", async () => {
 
 test("published schemas: the configuration and every record kind render as JSON Schema", () => {
   const rendered = Object.fromEntries(publishedSchemas.map((entry) => [entry.file, jsonSchemaOf(entry.schema) as Any]))
-  assert.deepEqual(Object.keys(rendered).sort(), ["catalog-categories.schema.json", "catalog-collection.schema.json", "catalog-label.schema.json", "catalog-note.schema.json", "catalog-submission.schema.json", "catalog-verdict.schema.json", "catalog.config.schema.json"])
+  assert.deepEqual(Object.keys(rendered).sort(), ["catalog-categories.schema.json", "catalog-collection.schema.json", "catalog-decision.schema.json", "catalog-note.schema.json", "catalog-organization.schema.json", "catalog-submission.schema.json", "catalog.config.schema.json"])
   // An identified schema is published as a reference into its definitions.
   const body = (file: string, name: string): Any => {
     assert.equal(rendered[file].$ref, `#/$defs/${name}`)
     return rendered[file].$defs[name]
   }
-  assert.deepEqual(body("catalog.config.schema.json", "CatalogConfig").properties.version, { type: "number", enum: [2] })
+  assert.deepEqual(body("catalog.config.schema.json", "CatalogConfig").properties.version, { type: "number", enum: [3] })
   assert.deepEqual(body("catalog-note.schema.json", "NoteRecord").required, ["id", "target", "body", "by", "at", "revision"])
-  assert.equal(body("catalog-verdict.schema.json", "VerdictRecord").properties.id.pattern, "^vd_[a-z0-9]+$")
+  assert.equal(body("catalog-decision.schema.json", "DecisionRecord").properties.id.pattern, "^dc_[a-z0-9]+$")
 })
 
 test("collection kinds: a member's own value reads as a count, or as written when the kind says text", async () => {
@@ -341,9 +340,125 @@ test("collection kinds: a member's own value reads as a count, or as written whe
       })
     }]
   })
-  write(dir, "catalog.config.json", { version: 2, plugins: ["pieces"] })
+  write(dir, "catalog.config.json", { version: 3, plugins: ["pieces"] })
   const app = await open(dir, { plugins: { pieces } })
   assert.deepEqual((await app.run("collection.get", { id: "family/wall" })).members.map((m: Any) => m.extra), ["Corner Outer", null])
   assert.deepEqual((await app.run("collection.get", { id: "crate/supplies" })).members.map((m: Any) => m.extra), ["×3"])
+  cleanup(dir)
+})
+
+/** A project whose one plugin reads its catalog from `shelf.json`, as source output. */
+const shelfProject = (output: SourceOutput, extra: Partial<Plugin> = {}) => {
+  const dir = tmp("cc-shelf-")
+  git(dir, "init", "-q")
+  write(dir, "catalog.config.json", { version: 3, plugins: ["shelf"] })
+  write(dir, "shelf.json", output)
+  const shelf = definePlugin({
+    name: "shelf",
+    sources: [{ name: "shelf", inputs: () => ["shelf.json"], load: ({ files }) => files.readJson("shelf.json") as Promise<SourceOutput> }],
+    ...extra
+  })
+  return { dir, plugins: { shelf } }
+}
+const BOOK = { label: "Book", fields: [], roles: [{ key: "cover", label: "Cover", mediaKinds: ["image"] }] }
+
+test("a project-owned collection hides a catalog-owned one with its id, and the hidden record is listed as a problem", async () => {
+  const { dir, plugins } = shelfProject({ types: { book: BOOK }, units: [{ id: "book/a", type: "book" }, { id: "book/b", type: "book" }] })
+  const app = await open(dir, { plugins })
+  await W(app)("collection.create", { id: "set/reading", name: "Reading list", members: ["book/a"] })
+  const [file] = readdirSync(join(dir, ".catalog/collections"))
+  // Later the project's sources define the same id.
+  write(dir, "shelf.json", { types: { book: BOOK }, units: [{ id: "book/a", type: "book" }, { id: "book/b", type: "book" }], collections: [{ id: "set/reading", name: "Shelf order", members: [{ unit: "book/b" }] }] })
+  assert.equal((await app.run("collection.get", { id: "set/reading" })).collection.name, "Shelf order", "the project's sources stay authoritative")
+  assert.deepEqual((await app.run("problems", {})).problems, [{
+    origin: "records",
+    subject: `.catalog/collections/${file}`,
+    error: "collection set/reading is also defined by the project's sources; this catalog-owned record is hidden",
+    recovery: "create it again under another id with collection.create and delete this one with collection.delete, or remove the collection from the project's sources"
+  }])
+  cleanup(dir)
+})
+
+test("a role key that is a reserved part name is dropped and reported; decision and view are ordinary role keys", async () => {
+  const reserved = ["attributes", "item", "capture", "inspector"]
+  const roles = [...[...reserved, "decision", "view"].map((key) => ({ key, label: key, mediaKinds: ["image"], many: true })), BOOK.roles[0]!]
+  const { dir, plugins } = shelfProject({ types: { book: { ...BOOK, roles } }, units: [{ id: "book/a", type: "book" }] })
+  const app = await open(dir, { plugins })
+  const schema = await app.run("schema", {})
+  assert.deepEqual(schema.schema.types.book.roles.map((role: Any) => role.key), ["decision", "view", "cover"])
+  const problems: Array<string> = (await app.run("problems", {})).problems.map((problem: Any) => problem.error)
+  for (const key of reserved) assert.ok(problems.includes(`type book: role ${key} uses a reserved part name`), `${key} in ${problems.join("; ")}`)
+  assert.equal(problems.length, reserved.length, problems.join("; "))
+  cleanup(dir)
+})
+
+test("a plugin action's optional input built with optional() accepts null as not given", async () => {
+  const { dir, plugins } = shelfProject({ types: { book: BOOK }, units: [{ id: "book/a", type: "book" }] }, {
+    actions: [defineAction({
+      name: "shelf.find",
+      access: "read",
+      description: "Books, optionally one",
+      input: Schema.Struct({ id: optional(Text) }),
+      run: (input) => ({ id: input.id ?? null })
+    })]
+  })
+  const app = await open(dir, { plugins })
+  assert.deepEqual(await app.run("shelf.find", { id: null }), { id: null })
+  assert.deepEqual(await app.run("shelf.find", { id: "book/a" }), { id: "book/a" })
+  await rejects(app.run("shelf.find", { id: "" }), "invalid")
+  cleanup(dir)
+})
+
+test("old keys in a source's output and an enrich patch are each a problem naming the field and its new key", async () => {
+  const GUIDE = "rename it; docs/catalog-migration.md lists every renamed key"
+  const output = {
+    types: { thing: { label: "Thing", fields: [], roles: [{ key: "cover", label: "Cover", kinds: ["image"], mediaKinds: ["image"] }], views: [] } },
+    units: [{ id: "thing/a", type: "thing", views: [] }, { id: "thing/b", type: "thing" }],
+    problems: [{ source: "shelf.json", error: "a shelf is crooked" }]
+  } as unknown as SourceOutput
+  const { dir, plugins } = shelfProject(output, { enrich: () => ({ units: { "thing/b": { name: "B", views: [] } as never } }) })
+  const app = await open(dir, { plugins })
+  const problems = (await app.run("problems", {})).problems
+  assert.deepEqual(problems.filter((p: Any) => p.recovery === GUIDE).map((p: Any) => [p.subject, p.error]), [
+    ["shelf", "types.thing.views is now inspectors"],
+    ["shelf", "types.thing.roles[0].kinds is now mediaKinds"],
+    ["shelf", "units[0] (thing/a).views is now inspectors"],
+    ["shelf", "problems[0].source is now subject"],
+    ["plugin shelf", 'units["thing/b"].views is now inspectors']
+  ])
+  assert.ok(problems.some((p: Any) => p.error === "a shelf is crooked"), "the problem itself is still reported")
+  cleanup(dir)
+})
+
+test("a version 2 manifest or unit file that still uses views or role kinds is a problem pointing to jam catalog migrate", async () => {
+  const armor = { ...TYPES.armor, roles: TYPES.armor.roles.map((role, index) => (index === 0 ? { ...role, kinds: ["image"] } : role)), views: [] }
+  const dir = await makeProject({
+    extra: { types: { ...TYPES, armor }, units: [{ id: "lore/a", type: "lore", name: "A", views: [] }] },
+    units: [{ id: "lore/b", type: "lore", name: "B", views: [] }, { id: "lore/c", type: "lore", name: "C" }]
+  })
+  const app = await open(dir)
+  const problems = (await app.run("problems", {})).problems
+  assert.deepEqual(problems.map((p: Any) => [p.origin, p.subject, p.error, p.recovery]), [
+    ["sources", "catalog.manifest.json", "types.armor.views is now inspectors", "run: jam catalog migrate"],
+    ["sources", "catalog.manifest.json", "types.armor.roles[0].kinds is now mediaKinds", "run: jam catalog migrate"],
+    ["sources", "catalog.manifest.json", "units[0] (lore/a).views is now inspectors", "run: jam catalog migrate"],
+    ["sources", "content/lore_b.json", "views is now inspectors", "run: jam catalog migrate"]
+  ])
+  assert.equal((await app.run("unit.get", { id: "lore/b" })).unit.name, "B", "the units still load")
+  cleanup(dir)
+})
+
+test("an edit to a module a plugin imports from the project reloads the plugin, as an edit to the plugin does", async () => {
+  const dir = tmp("cc-imports-")
+  git(dir, "init", "-q")
+  write(dir, "catalog.config.json", { version: 3, plugins: ["./catalog/p.mjs"] })
+  write(dir, "catalog/p.mjs", `import { label } from "./lib/label.mjs"
+export default { name: "p", sources: [{ name: "one", inputs: () => ["catalog"], load: () => ({ types: { thing: { label: "Thing" } }, units: [{ id: "a", type: "thing", name: label() }] }) }] }
+`)
+  write(dir, "catalog/lib/label.mjs", `export const label = () => "first"\n`)
+  const app = await open(dir)
+  assert.equal((await app.run("unit.get", { id: "a" })).unit.name, "first")
+  write(dir, "catalog/lib/label.mjs", `export const label = () => "second"\n`)
+  assert.equal((await app.run("unit.get", { id: "a" })).unit.name, "second")
   cleanup(dir)
 })

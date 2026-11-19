@@ -1,0 +1,14 @@
+{
+  "id": "nt_mwkpd939fkzmj3wamg",
+  "target": {
+    "kind": "asset",
+    "id": "art/sheet.png"
+  },
+  "body": "Export at twice the size.",
+  "by": {
+    "name": "Rae Tester",
+    "kind": "human"
+  },
+  "at": "2026-11-17T13:02:57.094Z",
+  "revision": 1
+}

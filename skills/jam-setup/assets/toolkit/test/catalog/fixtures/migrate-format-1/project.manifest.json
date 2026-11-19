@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "project": "Testgame",
+  "assetRoots": [
+    "art",
+    "captures"
+  ],
+  "types": {
+    "armor": {
+      "label": "Armor",
+      "thumb": "icon",
+      "fields": [
+        {
+          "key": "slot",
+          "label": "Slot"
+        },
+        {
+          "key": "armor",
+          "label": "Armor",
+          "kind": "number"
+        }
+      ],
+      "roles": [
+        {
+          "key": "icon",
+          "label": "Icon",
+          "kinds": [
+            "image"
+          ],
+          "expected": true
+        },
+        {
+          "key": "model",
+          "label": "Model",
+          "kinds": [
+            "model"
+          ]
+        },
+        {
+          "key": "concept",
+          "label": "Concept",
+          "kinds": [
+            "image"
+          ],
+          "many": true
+        }
+      ],
+      "views": [
+        {
+          "key": "turntable",
+          "label": "Turntable",
+          "module": "turntable",
+          "help": "Spins the model"
+        }
+      ]
+    },
+    "lore": {
+      "label": "Lore",
+      "fields": [
+        {
+          "key": "text",
+          "label": "Text"
+        }
+      ],
+      "roles": []
+    }
+  },
+  "collectionKinds": {
+    "outfit": {
+      "label": "Outfit",
+      "preview": {
+        "label": "Assembled",
+        "module": "assembled-mesh"
+      }
+    }
+  },
+  "units": [
+    {
+      "id": "lore/origin",
+      "type": "lore",
+      "name": "Origin Story",
+      "attrs": {
+        "text": "Long ago the iron mines opened."
+      }
+    },
+    {
+      "id": "armor/coat",
+      "type": "armor",
+      "name": "Wool Coat",
+      "attrs": {
+        "slot": "Body",
+        "armor": 3
+      },
+      "links": [
+        {
+          "role": "icon",
+          "asset": "art/coat.png"
+        }
+      ],
+      "views": []
+    }
+  ],
+  "unitFiles": [
+    "content"
+  ],
+  "collections": [
+    {
+      "id": "outfit/iron",
+      "name": "Iron Outfit",
+      "kind": "outfit",
+      "members": [
+        {
+          "unit": "armor/helm"
+        },
+        {
+          "unit": "armor/boots"
+        }
+      ]
+    }
+  ]
+}

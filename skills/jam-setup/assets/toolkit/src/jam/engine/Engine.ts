@@ -263,7 +263,8 @@ export class Engine extends Context.Service<Engine, {
             if (!entry.isFile()) continue
             const full = nodePath.join(entry.parentPath, entry.name)
             const relative = nodePath.relative(from, full).split(nodePath.sep).join("/")
-            if (relative.split("/").some((part) => part === "node_modules" || part === "__pycache__" || part === ".git")) continue
+            // The adapter's own tests and fixtures stay with the adapter; a project runs its commands, not its suite.
+            if (relative.split("/").some((part) => ["node_modules", "__pycache__", ".git", ".pytest_cache", "test", "tests"].includes(part))) continue
             const bytes = yield* Effect.tryPromise({ try: () => fsp.readFile(full), catch: asToolError("unavailable", `read ${full}`) })
             yield* files.writeBytes(`${to}/${relative}`, bytes)
             count++
@@ -310,6 +311,8 @@ export class Engine extends Context.Service<Engine, {
             }
             const dir = projectDir(adapter.id)
             const inPlace = nodePath.resolve(files.root, dir) === from
+            // A reinstall replaces the folder, so files the adapter no longer has do not linger.
+            if (!inPlace) yield* files.remove(dir, { noFollow: true })
             const count = inPlace ? 0 : yield* copyIn(from, dir)
             yield* configs.update((config) => ({ ...config, engine: { ...(isRecord(config["engine"]) ? config["engine"] : { facts: {} }), adapter: adapter.id } }))
             return { id: adapter.id, dir, files: count }

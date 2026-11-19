@@ -30,7 +30,7 @@ try {
   const { browser } = found
   try {
     const { app } = server
-    const subs: Array<Any> = (await app.run("reviews.list", { state: "all" })).items
+    const subs: Array<Any> = (await app.run("review.list", { state: "all" })).submissions
     const review = async (title: string): Promise<Any> => {
       const sub = subs.find((s) => s.title === title)
       if (!sub) throw new Error(`no review titled "${title}" in ${root}: this script captures the Hollowmere sample project (jam catalog example <dir>)`)
@@ -39,22 +39,24 @@ try {
     const set = await review("Ironclad Set")
     const helm = await review("Ironclad Helm first pass")
     const crest = await review("Helm crest")
+    // A comparison in the address is the JSON evidence.compare takes; absent b is current content.
+    const compare = (part: string) => `cmp=${encodeURIComponent(JSON.stringify({ a: { submission: helm.id, item: helm.items[0].id, part } }))}`
     const views: ReadonlyArray<readonly [name: string, hash: string]> = [
-      ["01-content-grid", "#/content"],
-      ["02-unit-multi-visual", "#/content/u/gear%2Fironclad-helm?part=model"],
-      ["03-asset-shared", "#/files/a/art%2Fconcepts%2Fironclad_sheet.png"],
+      ["01-main-grid", "#/main"],
+      ["02-unit-multi-media", "#/main/u/gear%2Fironclad-helm?part=model"],
+      ["03-asset-shared", "#/assets/a/art%2Fconcepts%2Fironclad_sheet.png"],
       ["04-collection-preview", "#/collections/c/set%2Fironclad"],
       ["05-member-context", "#/collections/c/set%2Fironclad/gear%2Fironclad-greaves"],
       ["06-review-queue", "#/reviews"],
       ["07-submission-item", `#/reviews/s/${set.id}/${set.items[0].id}`],
-      ["08-compare-3d", `#/content/u/gear%2Fironclad-helm?cmp=${helm.id}~${helm.items[0].id}~model`],
-      ["09-compare-image", `#/content/u/gear%2Fironclad-helm?cmp=${helm.id}~${helm.items[0].id}~icon`],
-      ["10-compare-attributes", `#/content/u/gear%2Fironclad-helm?cmp=${helm.id}~${helm.items[0].id}~attributes`],
+      ["08-compare-3d", `#/main/u/gear%2Fironclad-helm?${compare("model")}`],
+      ["09-compare-image", `#/main/u/gear%2Fironclad-helm?${compare("icon")}`],
+      ["10-compare-attributes", `#/main/u/gear%2Fironclad-helm?${compare("attributes")}`],
       ["11-notes", "#/notes"],
-      ["12-organize", "#/organize"],
-      ["13-textured-animated-model", "#/content/u/creature%2Fmire-lurker?part=model"],
+      ["12-organization", "#/organization"],
+      ["13-textured-animated-model", "#/main/u/creature%2Fmire-lurker?part=model"],
       ["14-evidence-views", `#/reviews/s/${crest.id}/${crest.items[0].id}?view=${crest.items[0].views[1].id}`],
-      ["15-missing-filter", "#/content?f.visual=missing%253Aicon%2Cmissing%253Amodel"],
+      ["15-missing-filter", "#/main?f.role=missing%253Aicon%2Cmissing%253Amodel"],
       ["16-needs-attention", "#/inbox"]
     ]
     for (const [width, height, suffix] of [[1440, 900, ""], [390, 844, "-narrow"]] as const) {

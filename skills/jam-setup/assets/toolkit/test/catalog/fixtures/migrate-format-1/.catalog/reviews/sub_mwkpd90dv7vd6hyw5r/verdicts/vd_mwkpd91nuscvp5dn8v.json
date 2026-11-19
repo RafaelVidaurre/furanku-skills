@@ -1,0 +1,22 @@
+{
+  "id": "vd_mwkpd91nuscvp5dn8v",
+  "submission": "sub_mwkpd90dv7vd6hyw5r",
+  "item": "it_mwkpd8vlgmjdzqcy3w",
+  "by": {
+    "name": "Rae Tester",
+    "kind": "human"
+  },
+  "at": "2026-11-17T13:02:57.035Z",
+  "comment": "The assembled view clips.",
+  "scope": {
+    "kind": "parts",
+    "parts": [
+      "member:armor/helm",
+      "preview"
+    ]
+  },
+  "verdicts": {
+    "member:armor/helm": "approved",
+    "preview": "changes"
+  }
+}

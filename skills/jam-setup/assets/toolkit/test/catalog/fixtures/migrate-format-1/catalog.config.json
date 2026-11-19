@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "plugins": [
+    "manifest"
+  ],
+  "options": {
+    "manifest": {
+      "file": "project.manifest.json"
+    }
+  },
+  "review": {
+    "resolver": "latest"
+  },
+  "display": {
+    "pixelArt": false
+  }
+}

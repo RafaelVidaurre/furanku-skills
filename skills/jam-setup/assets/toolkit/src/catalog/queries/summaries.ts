@@ -82,8 +82,8 @@ export const unitSummary = (p: Projection, unit: Unit) => {
     type: unit.type,
     typeLabel: type.label,
     thumb: thumbOf(p, unit),
-    roles: type.roles.filter((role) => unit.links.some((link) => link.role === role.key)).map((role) => ({ key: role.key, label: role.label, kind: role.kinds[0], shared: shared.has(role.key) })),
-    missing: missingRoles(p, unit).map((role) => ({ key: role.key, label: role.label, kind: role.kinds[0] })),
+    roles: type.roles.filter((role) => unit.links.some((link) => link.role === role.key)).map((role) => ({ key: role.key, label: role.label, kind: role.mediaKinds[0], shared: shared.has(role.key) })),
+    missing: missingRoles(p, unit).map((role) => ({ key: role.key, label: role.label, kind: role.mediaKinds[0] })),
     attrsPreview: unit.links.length > 0 ? null : type.fields.filter((field) => !field.derived && field.summary && unit.attrs[field.key] != null).slice(0, 2).map((field) => ({
       label: field.label,
       value: `${formatValue(p, unit.attrs[field.key], field)}${field.unit ? ` ${field.unit}` : ""}`
@@ -125,14 +125,17 @@ export const assetSummary = (p: Projection, asset: Asset) => {
   }
 }
 
+/** The address of a declared browser module, pinned to the revision with this SHA-256. */
+export const moduleUrl = (name: string, sha256: string): string => `/project/module/${encodeURIComponent(name)}?v=${sha256.slice(0, 16)}`
+
 /**
- * Where the page loads a declared module of type views and panels: by name, pinned to its bytes.
- * A module no plugin declares, or whose file is missing, is an error to show, never a substitute.
+ * Where the page loads a declared browser module of an inspector or panel: by name, pinned to its
+ * bytes. A module no plugin declares, or whose file is missing, is an error to show, never a substitute.
  */
-export const viewModuleOf = (p: Projection, name: string): { readonly url: string | null; readonly error: string | null } => {
-  if (!p.viewModules.has(name)) return { url: null, error: `view module "${name}" is not declared by any plugin (a plugin lists it under views)` }
-  const digest = p.viewModules.get(name) ?? null
+export const browserModuleOf = (p: Projection, name: string): { readonly url: string | null; readonly error: string | null } => {
+  if (!p.browserModules.has(name)) return { url: null, error: `browser module "${name}" is not declared by any plugin (a plugin lists it under browserModules)` }
+  const digest = p.browserModules.get(name) ?? null
   return digest === null
-    ? { url: null, error: `view module "${name}" is declared but its file is missing` }
-    : { url: `/project/view/${encodeURIComponent(name)}?v=${digest.slice(0, 16)}`, error: null }
+    ? { url: null, error: `browser module "${name}" is declared but its file is missing` }
+    : { url: moduleUrl(name, digest), error: null }
 }

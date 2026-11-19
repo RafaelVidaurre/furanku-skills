@@ -2,7 +2,7 @@
   "$schema": "../../../tools/jam/schemas/engine-adapter.schema.json",
   "id": "unreal",
   "label": "Unreal Engine",
-  "versions": "5.9",
+  "versions": "5.8, 5.9",
   "facts": {
     "unitsPerMeter": 100,
     "up": "+Z",
@@ -235,10 +235,11 @@
         "sources",
         "skinned",
         "bones-in-game",
-        "collision"
+        "collision",
+        "inventory"
       ],
       "timeoutSeconds": 1800,
-      "description": "Stored sources, skinned import and pose, bones in play, collision coverage"
+      "description": "Stored sources, skinned import and pose, bones in play, collision coverage, inventory against the editor's registry"
     },
     "conform-skeleton": {
       "run": [
@@ -247,6 +248,22 @@
       ],
       "timeoutSeconds": 3600,
       "description": "Rework a rigged or riggable character model into a skeleton profile's bone names and rest pose (Blender)"
+    },
+    "inventory": {
+      "run": [
+        "python",
+        "commands/engine_inventory.py"
+      ],
+      "timeoutSeconds": 1800,
+      "description": "Read every package under /Game and content plugins from its header, without the editor; only changed files again"
+    },
+    "previews": {
+      "run": [
+        "python",
+        "commands/engine_previews.py"
+      ],
+      "timeoutSeconds": 21600,
+      "description": "Images, GLB models and sounds of the content for the catalog: stored thumbnails without the editor, the rest through a rendering editor; only changed packages again"
     }
   },
   "docs": {
@@ -260,6 +277,8 @@
     "audio": "docs/audio.md",
     "locking": "docs/locking.md",
     "transport": "docs/transport.md",
-    "validation": "docs/validation.md"
+    "validation": "docs/validation.md",
+    "inventory": "docs/inventory.md",
+    "previews": "docs/previews.md"
   }
 }

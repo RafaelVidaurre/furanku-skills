@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "engine-inventory-receipt.schema.json",
+  "$ref": "#/$defs/EngineInventoryReceipt",
+  "$defs": {
+    "EngineInventoryReceipt": {
+      "type": "object",
+      "properties": {
+        "inventory": {
+          "type": "string",
+          "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+          "description": "The inventory file written"
+        },
+        "files": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "assets": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "read": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Files read in this run"
+        },
+        "reused": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Files taken unchanged from the previous inventory"
+        },
+        "removed": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Files in the previous inventory that are gone"
+        },
+        "unread": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Files the adapter could not read"
+        }
+      },
+      "required": [
+        "inventory",
+        "files",
+        "assets",
+        "read",
+        "reused",
+        "removed",
+        "unread"
+      ],
+      "additionalProperties": false,
+      "title": "Receipt printed by an adapter's inventory command"
+    }
+  }
+}

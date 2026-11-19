@@ -31,7 +31,7 @@ function NoteComposer({ target, parts }) {
   return html`<div class=${`note-new${draft.body ? ' active' : ''}`}>
     <textarea rows=${draft.body ? 3 : 1} placeholder="Add a note" aria-label="Add a note" value=${draft.body}
       onInput=${(e) => setD({ ...draft, body: e.target.value })} onKeyDown=${(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) add(); }}></textarea>
-    <${ErrorLine} error=${err} onRetry=${err && err.code !== 'context_changed' ? add : null} />
+    <${ErrorLine} error=${err} onRetry=${err && err.code !== 'checkout_changed' ? add : null} />
     ${draft.body && html`<div class="note-new-f">
       ${parts.length > 0 && html`<select aria-label="Part" value=${draft.part} onChange=${(e) => setD({ ...draft, part: e.target.value })}>
         <option value="">${target.kind === 'submission' ? 'Item' : 'Whole'}</option>${parts.map((p) => html`<option value=${p.id}>${p.label}</option>`)}</select>`}
@@ -53,7 +53,7 @@ export function NoteItem({ n, ctx, showTarget }) {
   return html`<article class=${`note${n.resolved ? ' resolved' : ''}`} aria-label="Note">
     <div class="note-h">
       ${showTarget && html`<a class="note-target" href=${targetHref(t)}>
-        ${n.thumb ? html`<${Thumb} asset=${n.thumb} size=${22} />` : html`<span class="kind-chip">${{ collection: 'Collection', submission: 'Review', unit: 'Content', asset: 'Asset' }[t.kind]}</span>`}
+        ${n.thumb ? html`<${Thumb} asset=${n.thumb} size=${22} />` : html`<span class="kind-chip">${{ collection: 'Collection', submission: 'Review', unit: 'Unit', asset: 'Asset' }[t.kind]}</span>`}
         ${n.targetName}</a>`}
       ${!n.targetExists && html`<span class="chip c-bad" title=${`${t.kind} ${t.id}`}>Target missing</span>`}
       ${foreign && !showTarget && html`<a class="chip" href=${targetHref(t)} title=${t.id}>${baseName(t.id)}</a>`}
@@ -94,13 +94,13 @@ function Resolve({ n, close }) {
 export function NotesView({ route }) {
   const st = route.query.get('state') ?? 'open';
   const k = route.query.get('k') ?? ''; const by = route.query.get('by') ?? ''; const q = route.query.get('q') ?? '';
-  const { data, error, reload } = useQuery('notes.list', { state: st, ...(k ? { targetKind: k } : {}), ...(by ? { by } : {}), ...(q ? { q } : {}), pageSize: 200 });
+  const { data, error, reload } = useQuery('note.list', { state: st, ...(k ? { targetKind: k } : {}), ...(by ? { by } : {}), ...(q ? { q } : {}), pageSize: 200 });
   const set = (x) => replace(withQuery(route, x));
   return html`<div class="page">
     <div class="list-bar">
       <span class="seg" role="radiogroup" aria-label="Note state">${[['open', 'Open'], ['resolved', 'Dealt with'], ['all', 'All']].map(([v, l]) => html`<button role="radio" aria-checked=${st === v} class=${`seg-b${st === v ? ' on' : ''}`} onClick=${() => set({ state: v === 'open' ? null : v })}>${l}<span class="count">${data?.counts[v] ?? ''}</span></button>`)}</span>
       <input class="search sm" type="search" placeholder="Filter" aria-label="Filter notes" value=${q} onInput=${(e) => set({ q: e.target.value })} data-list-search />
-      <select aria-label="On" value=${k} onChange=${(e) => set({ k: e.target.value })}><option value="">On anything</option><option value="unit">Entries</option><option value="collection">Collections</option><option value="asset">Files</option><option value="submission">Reviews</option></select>
+      <select aria-label="On" value=${k} onChange=${(e) => set({ k: e.target.value })}><option value="">On anything</option><option value="unit">Units</option><option value="collection">Collections</option><option value="asset">Assets</option><option value="submission">Reviews</option></select>
       <select aria-label="Author" value=${by} onChange=${(e) => set({ by: e.target.value })}><option value="">Anyone</option>${(data?.authors ?? []).map((p) => html`<option value=${p}>${p}</option>`)}</select>
     </div>
     <${ErrorLine} error=${error} onRetry=${reload} />

@@ -1,11 +1,11 @@
 ---
 name: jam-catalog
-description: Browse, organise and review a game project's content through its local catalog, and extend the catalog with plugins. Use when the user asks for the catalog or review link, asks what is waiting on them, wants to find or inspect an asset, file or tag content, leave or resolve a note, submit work for review or record a verdict, or when a project needs its own content types, checks or actions in the catalog.
+description: Browse, organise and review a game project's content through its local catalog, and extend the catalog with plugins. Use when the user asks for the catalog or review link, asks what is waiting on them, wants to find, inspect or tag units and assets, leave or resolve a note, submit work for review or record a verdict, when the catalog should show the project's own content (its engine assets, archetypes, server data), or when a project needs its own unit types, checks or actions in the catalog.
 ---
 
 # Content catalog
 
-The catalog shows what this checkout contains (uncommitted files included): content declared in the project's manifest, jam runs, and whatever project plugins add. Notes, categories, tags, collections, review submissions and verdicts are files under `.catalog/` that travel with Git. The catalog never commits or pushes.
+The catalog shows what this checkout contains (uncommitted files included): units declared in the project's manifest, jam runs, the game engine's assets when the `engine` plugin is listed, and whatever project plugins add. Notes, categories, tags, collections, review submissions and decisions are files under `.catalog/` that travel with Git. The catalog never commits or pushes.
 
 `jam` below is `node tools/jam/jam.mjs`; a missing toolkit is the `jam-recipe` skill's to route.
 
@@ -17,12 +17,12 @@ The catalog shows what this checkout contains (uncommitted files included): cont
 | Is it running, and where | `jam catalog status` |
 | Stop it | `jam catalog stop` |
 | The person reviews from another device through a private HTTPS proxy they run | `jam catalog open --allow-origin https://<proxy host>:<port>`: admits exactly that origin; give them the proxy's address |
-| Everything nobody has dealt with | `jam catalog todo`: reviews waiting, open notes, verdicts whose content changed since, problems |
+| Everything nobody has dealt with | `jam catalog inbox`: reviews waiting, open notes, parts changed since their verdict, problems |
 | Broken or missing media, unlinked files, plugin checks | `jam catalog doctor`, and `--fix` to apply the repairs it offers |
 
 Give the person the link every time you ask them to look at or decide something, including when they have had it before, and say it opens on the computer where the project is. With the server running, results that create or name a review carry its `url`: pass that one on, since it opens the review itself. Without a running server they carry only a `route`; run `jam catalog open` and read the review again with `review.get` to get the link.
 
-Done when the person has the link in the same message as the request, or `todo` has been read out as a short list. `todo` names who made each item, not who it waits on: say which ones need the person and which are yours.
+Done when the person has the link in the same message as the request, or `inbox` has been read out as a short list. `inbox` names who made each item, not who it waits on: say which ones need the person and which are yours.
 
 ## Read and write
 
@@ -36,16 +36,17 @@ jam catalog run <write action> --actor-kind agent --actor-name <your name> --req
 - A write names who acts. You are `--actor-kind agent` with a name that identifies you in the project's history (the agent and its role, such as `claude-props`). `--request-id` is any id you make up for this one write, such as `crate-tag-1`; reuse it on a retry so the same write records once.
 - Read an action's input schema before its first use (`jam catalog actions --json`). A unit's parts (`model`, `attributes`, ...) are listed by `unit.get` under its review parts.
 - A refusal prints `error:` and `fix:`; an input field that does not exist is refused, never ignored.
+- A refusal `unsupported` saying a file `was written by an older toolkit` means the project's catalog files predate this toolkit: follow `tools/jam/docs/catalog-migration.md`.
 - To look at something yourself: `jam catalog capture --target unit:<id> --part <part> --out <scratch folder>/<name>.png` (also `--mode clay|wireframe|textured`, `--camera`, `--animation`), then open the image. It needs no running server. Its `shows` field names exactly what was drawn. It is a catalog render, not a picture from an engine.
 
-Done when a follow-up read (`unit.get`, `notes.list`, `review.get`) shows what you wrote.
+Done when a follow-up read (`unit.get`, `note.list`, `review.get`) shows what you wrote.
 
 ## Filing content
 
 Every unit you add gets a home in the existing organisation, so a person browsing finds it beside its peers. Declaring bought or placeholder content is in `tools/jam/docs/external-content.md`.
 
-1. Read what exists: `organization.list` (categories and tags with counts), `catalog.search` with `{"section":"collections"}`, and `collections.membership` with the new unit ids.
-2. **Category:** the most specific existing one that fits. When none does, add a path in the same `Parent/Child` style as its neighbours; in a project with no categories yet, start from what the thing is in the game (`Props/Containers`), not where it came from (`category.create`, then `organize.set`).
+1. Read what exists: `organization.list` (categories and tags with counts), `collection.search`, and `collection.membership` with the new unit ids.
+2. **Category:** the most specific existing one that fits. When none does, add a path in the same `Parent/Child` style as its neighbours; in a project with no categories yet, start from what the thing is in the game (`Props/Containers`), not where it came from (`category.create`, then `organization.set`).
 3. **Collection:** add the unit to the set it belongs with (`collection.update` with `add`). Create one (`collection.create`) only for a real group of several units.
 4. **Tags:** reuse the existing spelling.
 
@@ -57,7 +58,7 @@ A step of a run is put in front of a person with `jam run request-review` (the `
 
 Look before you submit: capture each part the person will judge and open the images. Something visibly wrong (missing geometry, a blank texture, the wrong file) is fixed or reported, not sent for approval. Give the submission one view per thing to judge, each with a caption naming what it shows.
 
-Write the submission `note` in Markdown for the person deciding:
+Write the submission's `brief` in Markdown for the person deciding:
 
 - what they are deciding, numbered when there are several parts;
 - what changed since they last looked, and why;
@@ -66,16 +67,18 @@ Write the submission `note` in Markdown for the person deciding:
 
 Leave out what the page already shows (author, branch, commit) and what they will not open (hashes, request ids, tool logs). When a change is easiest to judge against what came before, give a view a `before` (an earlier file, or earlier frozen evidence) so the page offers a side-by-side.
 
-What the catalog cannot render itself (an engine screenshot or clip, a file as it was at a commit) goes in an item's `captures`, each `{ "label", "file" }` or a pair `{ "label", "before", "after", "labels": [..] }`, with `"renderer"` naming what drew it; a file is a checkout path or `{ "revision", "path" }`. Work that is not catalog content (lighting, tooling, a proposal) is an item without `target`: a `title` with captures, `text`, or both. Captures are decided like parts but never count as the content's own.
+What the catalog cannot render itself (an engine screenshot or clip, a file as it was at a commit) goes in an item's `captures`, each `{ "label", "file" }` or a pair `{ "label", "before", "after", "labels": [..] }`, with `"renderer"` naming what drew it; a file is a checkout path or `{ "revision", "path" }`. Work that is not catalog content (lighting, tooling, a proposal) is an item without `target`: a `title` with captures, `text`, or both. Captures are decided like parts but never count as the unit's own.
 
-A verdict is the person's. They give it in the browser. When they told you their decision instead, relay it with `review.decide` as yourself (`--actor-kind agent`) and add `"relay": {"by": "<the name they go by in the project>", "channel": "<where they said it>", "words": "<what they said, verbatim>"}`, with `whole` (or `verdicts` per part) set to one of `review.verdicts` in `catalog.config.json` (by default `approved`, `changes`, `rejected`). The record then shows it came through you, and a run's human gate accepts it as a relay. Their words set the scope: "the crate is fine" decides the model, not attributes they did not look at; ask when it is unclear. Never record your own judgement as a person's.
+A verdict is the person's. They give it in the browser. When they told you their decision instead, relay it with `review.decide` as yourself (`--actor-kind agent`) and add `"relay": {"by": "<the name they go by in the project>", "channel": "<where they said it>", "words": "<what they said, verbatim>"}`, with `whole` (or `verdicts` per part) set to one of `review.verdicts` in `catalog.config.json` (by default `approved`, `changes`, `rejected`). The record then shows it came through you, and a run's human gate accepts it as a relay. Their words set what the decision covers: "the crate is fine" decides the model, not attributes they did not look at; ask when it is unclear. Never record your own judgement as a person's.
 
 Notes have no replies. Mark one dealt with (`note.resolve`) only when what it says was actually handled.
 
-Done when `review.get` shows the submission or verdict, and the person has its `url`.
+Done when `review.get` shows the submission or decision, and the person has its `url`.
 
 ## Extending the catalog
 
-A project adds its own content sources, relations, media kinds, checks, actions, scopes, and type views and panels (its own inspector on a unit's page) with a plugin: a module listed under `plugins` in `catalog.config.json`, kept under `jam/catalog/`. The contract, with a complete small plugin, is `tools/jam/src/catalog/README.md` (section "Plugins"); `tools/jam/examples/plugins/storybook.ts` uses every extension point. `jam catalog example <new folder>` creates a sample project to try things in.
+When the person wants the catalog to show the project's own content (the game engine's assets, archetypes such as weapons or creatures, data from the server), follow `tools/jam/docs/catalog-integration.md`.
+
+A project adds its own sources, relations, media kinds, checks, actions, scopes, inspectors and panels (its own browser modules on a unit's page) with a plugin: a module listed under `plugins` in `catalog.config.json`, kept under `jam/catalog/`, that imports `tools/jam/catalog-plugin.ts`. The contract, with a complete small plugin, is `tools/jam/src/catalog/README.md` (section "Plugins"); `tools/jam/examples/plugins/storybook.ts` uses every extension point. `jam catalog example <new folder>` creates a sample project to try things in.
 
 Done when `jam catalog run problems` is empty and `jam catalog doctor` reports the plugin's checks.

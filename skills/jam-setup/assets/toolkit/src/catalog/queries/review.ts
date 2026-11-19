@@ -3,9 +3,9 @@
 import { digest } from "../../kernel/hash.ts"
 import { shortRef } from "../../kernel/Ids.ts"
 import { collectionParts, reviewAttrs, unitParts } from "../model/parts.ts"
-import type { Collection, FrozenPart, Part, SubmissionItem, SubmissionRecord, Target, VerdictRecord } from "../model/types.ts"
-import { eventVerdicts, resolveParts, type Rollup, summarize } from "../model/verdicts.ts"
-import { type EventSummary, factsOf, type ItemRef, type Projection, targetKey, type TargetReview, typeOf } from "../Projection.ts"
+import type { Collection, FrozenPart, Part, SubmissionItem, SubmissionRecord, Target, DecisionRecord } from "../model/types.ts"
+import { decisionVerdicts, resolveParts, type Rollup, summarize } from "../model/verdicts.ts"
+import { type DecisionSummary, factsOf, type ItemRef, type Projection, targetKey, type TargetReview, typeOf } from "../Projection.ts"
 
 export const BUILTIN_PREVIEW = "assembled-mesh"
 
@@ -46,10 +46,10 @@ export const previewSpec = (p: Projection, collection: Collection): PreviewSpec 
     )
   }
   const module = preview.module ?? BUILTIN_PREVIEW
-  const declared = p.previewModules.has(module)
+  const declared = p.browserModules.has(module)
   return {
     module,
-    moduleSha: declared ? p.previewModules.get(module) ?? "missing" : null,
+    moduleSha: declared ? p.browserModules.get(module) ?? "missing" : null,
     label: preview.label ?? "Preview",
     represents: preview.represents ?? "complete",
     roles,
@@ -115,20 +115,20 @@ export const currentDigest = (p: Projection, target: Target, partId: string): st
   return digest(Object.fromEntries(unitParts(unit, typeOf(p, unit)).map((part) => [part.id, currentDigest(p, { kind: "unit", id: unitId }, part.id)])))
 }
 
-export const eventSummary = (event: VerdictRecord, submission: SubmissionRecord | undefined): EventSummary => ({
-  id: event.id,
-  submission: event.submission,
+export const decisionSummary = (decision: DecisionRecord, submission: SubmissionRecord | undefined): DecisionSummary => ({
+  id: decision.id,
+  submission: decision.submission,
   ref: submission ? shortRef(submission.id) : null,
-  item: event.item,
-  by: event.by,
-  at: event.at,
-  scope: event.scope.kind,
-  verdicts: eventVerdicts(event),
-  comment: event.comment ?? "",
-  partNotes: event.partNotes ?? {},
-  ...(event.relay === undefined ? {} : { relay: event.relay })
+  item: decision.item,
+  by: decision.by,
+  at: decision.at,
+  covers: decision.covers.kind,
+  verdicts: decisionVerdicts(decision),
+  comment: decision.comment ?? "",
+  partComments: decision.partComments ?? {},
+  ...(decision.relay === undefined ? {} : { relay: decision.relay })
 })
-export const summaryOf = (p: Projection, event: VerdictRecord): EventSummary => eventSummary(event, p.items.get(event.item)?.submission)
+export const summaryOf = (p: Projection, decision: DecisionRecord): DecisionSummary => decisionSummary(decision, p.items.get(decision.item)?.submission)
 
 /**
  * Latest (configured) verdict per current part across every submission whose item targets this
@@ -139,12 +139,12 @@ export const reviewOf = (p: Projection, target: Target): TargetReview => {
   const known = p.reviews.get(key)
   if (known) return known
   const parts = partsOf(p, target).map((part) => ({ ...part, reviewable: p.policy.reviewable(part) }))
-  const resolved = resolveParts(p.eventsByTarget.get(key) ?? [], parts.map((part) => part.id), p.policy.resolver)
+  const resolved = resolveParts(p.decisionsByTarget.get(key) ?? [], parts.map((part) => part.id), p.policy.resolver)
   const out = parts.map((part) => {
     const hit = resolved[part.id]
-    if (!hit) return { ...part, verdict: null, event: null, changed: false }
-    const frozen = p.items.get(hit.event.item)?.item.parts.find((candidate) => candidate.id === part.id)?.evidence
-    return { ...part, verdict: hit.verdict, event: summaryOf(p, hit.event), changed: !!frozen && frozen.digest !== currentDigest(p, target, part.id) }
+    if (!hit) return { ...part, verdict: null, decision: null, changed: false }
+    const frozen = p.items.get(hit.decision.item)?.item.parts.find((candidate) => candidate.id === part.id)?.evidence
+    return { ...part, verdict: hit.verdict, decision: summaryOf(p, hit.decision), changed: !!frozen && frozen.digest !== currentDigest(p, target, part.id) }
   })
   const value: TargetReview = { parts: out, summary: summarize(out.filter((part) => part.reviewable)) }
   p.reviews.set(key, value)
@@ -156,20 +156,20 @@ export interface ItemPartState {
   readonly label: string
   readonly reviewable: boolean
   readonly verdict: string | null
-  readonly event: EventSummary | null
+  readonly decision: DecisionSummary | null
 }
 
-/** Where one submission item stands, from the events recorded on it. */
+/** Where one submission item stands, from the decisions recorded on it. */
 export const itemState = (
   p: Projection,
   submission: SubmissionRecord,
   item: SubmissionItem,
-  events: ReadonlyArray<VerdictRecord> = p.eventsByItem.get(item.id) ?? []
+  decisions: ReadonlyArray<DecisionRecord> = p.decisionsByItem.get(item.id) ?? []
 ): { readonly parts: ReadonlyArray<ItemPartState>; readonly summary: Rollup } => {
-  const resolved = resolveParts(events, item.parts.map((part) => part.id), p.policy.resolver)
+  const resolved = resolveParts(decisions, item.parts.map((part) => part.id), p.policy.resolver)
   const parts = item.parts.map((part: FrozenPart): ItemPartState => {
     const hit = resolved[part.id]
-    return { id: part.id, label: part.label, reviewable: p.policy.reviewable(part), verdict: hit?.verdict ?? null, event: hit ? eventSummary(hit.event, submission) : null }
+    return { id: part.id, label: part.label, reviewable: p.policy.reviewable(part), verdict: hit?.verdict ?? null, decision: hit ? decisionSummary(hit.decision, submission) : null }
   })
   return { parts, summary: summarize(parts.filter((part) => part.reviewable)) }
 }

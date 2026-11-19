@@ -4,7 +4,7 @@
 import * as Effect from "effect/Effect"
 import { isNonEmpty, isRecord } from "../../kernel/hash.ts"
 import type { MergedSources, ProblemInput, RoleInput } from "../plugin.ts"
-import type { Asset, CatalogSchema, CollectionKind, DisplayDef, FieldDef, Link, Member, MountDef, Problem, RoleDef, TypeDef, Unit, ViewDef } from "./types.ts"
+import type { Asset, CatalogSchema, CollectionKind, DisplayDef, FieldDef, InspectorDef, Link, Member, MountDef, Problem, RoleDef, TypeDef, Unit } from "./types.ts"
 
 export interface SourceCollection {
   readonly id: string
@@ -38,9 +38,9 @@ export interface NormalizeRules {
 const strings = (values: unknown): Array<string> => (Array.isArray(values) ? values.filter(isNonEmpty) : [])
 const optionalText = (value: unknown): value is string | null | undefined => value == null || isNonEmpty(value)
 
-/** A type's views or panels: each names a browser module a plugin declared, mounted per unit. */
-const mounts = (list: unknown, what: "view" | "panel", type: string, report: (error: string) => void): Array<ViewDef> => {
-  const out: Array<ViewDef> = []
+/** A type's inspectors or panels: each names a browser module a plugin declared, mounted per unit. */
+const mounts = (list: unknown, what: "inspector" | "panel", type: string, report: (error: string) => void): Array<InspectorDef> => {
+  const out: Array<InspectorDef> = []
   for (const entry of Array.isArray(list) ? list as ReadonlyArray<Record<string, unknown> | null> : []) {
     const key = entry?.["key"]
     const valid = isRecord(entry) && isNonEmpty(key) && /^[a-z0-9][a-z0-9_-]{0,63}$/.test(key) && isNonEmpty(entry["label"]) && isNonEmpty(entry["module"]) &&
@@ -55,9 +55,14 @@ const mounts = (list: unknown, what: "view" | "panel", type: string, report: (er
 }
 const display = (value: unknown): DisplayDef | null => (isRecord(value) && typeof value["pixelArt"] === "boolean" ? { pixelArt: value["pixelArt"] } : null)
 const METADATA = /(^|\/)(\.git|\.catalog)(\/|$)/
+/**
+ * Role keys that would collide with other part ids: the parts `attributes` and `item`, a `many`
+ * role's `capture:<n>` with captures, and `inspector:` with the page's selection.
+ */
+const RESERVED_ROLE_KEYS: ReadonlyArray<string> = ["attributes", "item", "capture", "inspector"]
 
 const normalizeSchema = (sources: MergedSources, rules: NormalizeRules, problems: Array<Problem>): CatalogSchema => {
-  const report = (error: string): void => void problems.push({ source: "schema", error, recovery: null })
+  const report = (error: string): void => void problems.push({ subject: "schema", error, recovery: null })
   const types: Record<string, TypeDef> = {}
   for (const [key, type] of Object.entries(sources.types)) {
     if (typeof type !== "object" || type === null || Array.isArray(type)) {
@@ -70,13 +75,17 @@ const normalizeSchema = (sources: MergedSources, rules: NormalizeRules, problems
     }
     const roles: Array<RoleDef> = []
     for (const role of (type.roles ?? []) as ReadonlyArray<RoleInput | null>) {
-      const valid = isNonEmpty(role?.key) && isNonEmpty(role?.label) && Array.isArray(role.kinds) && role.kinds.length > 0 &&
-        role.kinds.every((kind) => rules.kinds.includes(kind)) && !role.key.includes(":")
+      const valid = isNonEmpty(role?.key) && isNonEmpty(role?.label) && Array.isArray(role.mediaKinds) && role.mediaKinds.length > 0 &&
+        role.mediaKinds.every((kind) => rules.kinds.includes(kind)) && !role.key.includes(":")
       if (!valid || !role) {
         report(`type ${key}: role ${role?.key ?? "?"} is invalid`)
         continue
       }
-      roles.push({ key: role.key, label: role.label, kinds: role.kinds, many: !!role.many, expected: !!role.expected, help: role.help ?? null })
+      if (RESERVED_ROLE_KEYS.includes(role.key)) {
+        report(`type ${key}: role ${role.key} uses a reserved part name`)
+        continue
+      }
+      roles.push({ key: role.key, label: role.label, mediaKinds: role.mediaKinds, many: !!role.many, expected: !!role.expected, help: role.help ?? null })
     }
     const fields: Array<FieldDef> = (type.fields ?? []).filter((field) => isNonEmpty(field?.key) && isNonEmpty(field?.label)).map((field) => ({
       key: field.key,
@@ -90,7 +99,7 @@ const normalizeSchema = (sources: MergedSources, rules: NormalizeRules, problems
       summary: field.summary !== false
     }))
     types[key] = {
-      scope: type.scope ?? rules.scopes[0] ?? "content",
+      scope: type.scope ?? rules.scopes[0] ?? "main",
       label: isNonEmpty(type.label) ? type.label : key,
       roles,
       fields,
@@ -98,7 +107,7 @@ const normalizeSchema = (sources: MergedSources, rules: NormalizeRules, problems
       help: type.help ?? null,
       audioTranscript: type.audioTranscript ?? null,
       reviewAttributes: type.reviewAttributes !== false,
-      views: mounts(type.views, "view", key, report),
+      inspectors: mounts(type.inspectors, "inspector", key, report),
       panels: mounts(type.panels, "panel", key, report).map(({ default: _first, ...panel }): MountDef => panel),
       display: display(type.display)
     }
@@ -119,8 +128,8 @@ const normalizeSchema = (sources: MergedSources, rules: NormalizeRules, problems
 
 export const normalize = (sources: MergedSources, reported: ReadonlyArray<ProblemInput>, rules: NormalizeRules): Effect.Effect<Normalized> =>
   Effect.gen(function*() {
-    const problems: Array<Problem> = reported.map((p) => ({ source: p.source ?? "source", error: p.error ?? String(p), recovery: p.recovery ?? null }))
-    const report = (source: string, error: string): void => void problems.push({ source, error, recovery: null })
+    const problems: Array<Problem> = reported.map((p) => ({ subject: p.subject ?? "source", error: p.error ?? String(p), recovery: p.recovery ?? null }))
+    const report = (subject: string, error: string): void => void problems.push({ subject, error, recovery: null })
     const schema = normalizeSchema(sources, rules, problems)
     const assets = new Map<string, Asset>()
 
@@ -157,12 +166,12 @@ export const normalize = (sources: MergedSources, reported: ReadonlyArray<Proble
     for (const unit of sources.units) {
       const from = unit?.sources?.[0] ?? "source"
       if (!isNonEmpty(unit?.id) || !isNonEmpty(unit?.type)) {
-        report(from, "content entry without id or type")
+        report(from, "unit without id or type")
         continue
       }
       const earlier = units.get(unit.id)
       if (earlier) {
-        report(from, `duplicate content id ${unit.id} (also from ${earlier.sources[0] ?? "another source"})`)
+        report(from, `duplicate unit id ${unit.id} (also from ${earlier.sources[0] ?? "another source"})`)
         continue
       }
       const type = schema.types[unit.type]
@@ -174,12 +183,12 @@ export const normalize = (sources: MergedSources, reported: ReadonlyArray<Proble
       for (const link of unit.links ?? []) {
         const role = type.roles.find((candidate) => candidate.key === link?.role)
         if (!role) {
-          report(from, `${unit.id}: unknown visual role ${link?.role}`)
+          report(from, `${unit.id}: unknown role ${link?.role}`)
           continue
         }
         const asset = assets.get(link.asset) ?? (typeof link.asset === "string" ? yield* addAsset({ id: link.asset, path: link.asset }, from) : null)
         if (!asset) continue
-        if (asset.kind && !role.kinds.includes(asset.kind)) {
+        if (asset.kind && !role.mediaKinds.includes(asset.kind)) {
           report(from, `${unit.id}: ${role.label} does not accept ${asset.kind} (${asset.id})`)
           continue
         }
@@ -189,7 +198,7 @@ export const normalize = (sources: MergedSources, reported: ReadonlyArray<Proble
         }
         if (links.some((other) => other.role === role.key && other.asset === asset.id)) continue
         if (link.key != null && (!isNonEmpty(link.key) || link.key.length > 100 || links.some((other) => other.role === role.key && other.key === link.key))) {
-          report(from, `${unit.id}: invalid or duplicate visual key for ${role.key}`)
+          report(from, `${unit.id}: invalid or duplicate link key for ${role.key}`)
           continue
         }
         links.push({ role: role.key, asset: asset.id, ...(link.key == null ? {} : { key: link.key }), ...(isRecord(link.meta) ? { meta: link.meta } : {}) })
@@ -207,8 +216,8 @@ export const normalize = (sources: MergedSources, reported: ReadonlyArray<Proble
         adapterTags: strings(unit.tags),
         adapterCategory: unit.category ?? null,
         explain: isRecord(unit.explain) ? unit.explain : {},
-        // A unit may narrow its type's views (an entry the inspector cannot show lists none).
-        views: Array.isArray(unit.views) ? type.views.filter((view) => (unit.views as ReadonlyArray<unknown>).includes(view.key)).map((view) => view.key) : null
+        // A unit may narrow its type's inspectors (a unit an inspector cannot show lists none).
+        inspectors: Array.isArray(unit.inspectors) ? type.inspectors.filter((inspector) => (unit.inspectors as ReadonlyArray<unknown>).includes(inspector.key)).map((inspector) => inspector.key) : null
       })
     }
 

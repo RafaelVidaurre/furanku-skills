@@ -64,7 +64,7 @@ const relate = (defs: ReadonlyArray<Relation>, units: ReadonlyArray<Unit>, probl
       try {
         ids = [...new Set(def.from(unit).filter((id) => typeof id === "string" && id !== unit.id))]
       } catch (cause) {
-        problems.push({ source: `relation ${def.name}`, error: `${unit.id}: ${cause instanceof Error ? cause.message : String(cause)}`, recovery: null })
+        problems.push({ subject: `relation ${def.name}`, error: `${unit.id}: ${cause instanceof Error ? cause.message : String(cause)}`, recovery: null })
         continue
       }
       if (ids.length === 0) continue
@@ -109,8 +109,8 @@ export class Snapshot extends Context.Service<Snapshot, {
         const error = `source ${source.value.name} failed: ${what}`
         // Keep showing what loaded last; an empty catalog would hide every note and review.
         states.set(id, state
-          ? { ...state, fingerprint: print, failure: { source: id, error, recovery: "showing the last successfully loaded content; fix the source's input and refresh" } }
-          : { fingerprint: print, output: {}, failure: { source: id, error, recovery: `check ${CONFIG_FILE} and the source's files` } })
+          ? { ...state, fingerprint: print, failure: { subject: id, error, recovery: "showing the last successfully loaded content; fix the source's input and refresh" } }
+          : { fingerprint: print, output: {}, failure: { subject: id, error, recovery: `check ${CONFIG_FILE} and the source's files` } })
         return true
       }
 
@@ -151,10 +151,10 @@ export class Snapshot extends Context.Service<Snapshot, {
           for (const enricher of plugins.enrichers) {
             const patch = yield* Effect.result(fromPlugin(`enrich by ${enricher.plugin}`, () => enricher.value(merged.sources, enricher.context)))
             if (patch._tag === "Failure") {
-              reported.push({ source: `plugin ${enricher.plugin}`, error: patch.failure.message, recovery: "the plugin's changes are left out until it runs" })
+              reported.push({ subject: `plugin ${enricher.plugin}`, error: patch.failure.message, recovery: "the plugin's changes are left out until it runs" })
               continue
             }
-            merged = applyPatch(merged.sources, patch.success)
+            merged = applyPatch(merged.sources, patch.success, enricher.plugin)
             reported.push(...merged.problems)
           }
           const within = assetFiles(files.root, merged.sources.assetRoots.filter((root) => typeof root === "string"))

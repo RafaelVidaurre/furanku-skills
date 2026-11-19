@@ -9,19 +9,19 @@ test("a search shares one record snapshot across its rows and sees later externa
   const root = await standardProject({ units, collections: [] })
   try {
     const app = await open(root)
-    await W(app)("organize.bulk", { targets: units.map((u) => ({ kind: "unit", id: u.id })), addTags: ["placeholder"] })
+    await W(app)("organization.setMany", { targets: units.map((u) => ({ kind: "unit", id: u.id })), addTags: ["placeholder"] })
     // Version 1 counted calls to `app.records.list` and allowed 20; the counters of `app.stats()`
     // replace it, under the stricter rule of exactly one record scan and at most one projection.
     const before = await app.stats()
-    const found = await app.run("catalog.search", { filters: { tag: ["placeholder"] } })
+    const found = await app.run("unit.search", { filters: { tag: ["placeholder"] } })
     const after = await app.stats()
     assert.equal(found.total, units.length)
     const scans = after.recordScans - before.recordScans
     assert.equal(scans, 1, `one search rescanned repository records ${scans} times for ${units.length} rows`)
     assert.ok(after.projections - before.projections <= 1, `one search built ${after.projections - before.projections} projections`)
     const otherWriter = await open(root)
-    await W(otherWriter)("organize.bulk", { targets: [{ kind: "unit", id: units[0]!.id }], removeTags: ["placeholder"] })
-    assert.equal((await app.run("catalog.search", { filters: { tag: ["placeholder"] } })).total, units.length - 1)
+    await W(otherWriter)("organization.setMany", { targets: [{ kind: "unit", id: units[0]!.id }], removeTags: ["placeholder"] })
+    assert.equal((await app.run("unit.search", { filters: { tag: ["placeholder"] } })).total, units.length - 1)
   } finally {
     cleanup(root)
   }
@@ -38,7 +38,7 @@ test("context computes review counts from one record snapshot across the asynchr
     for (const item of sub.items) await run("review.decide", { submission: sub.id, item: item.id, whole: "approved" })
     // As above: `app.stats()` replaces the wrapped `app.records.list`, under the stricter rule.
     const before = await app.stats()
-    const context = await app.run("context")
+    const context = await app.run("summary")
     const after = await app.stats()
     assert.equal(context.counts.waiting, 0)
     assert.equal(context.counts.submissions, 1)

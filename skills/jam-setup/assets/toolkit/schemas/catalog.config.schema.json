@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "catalog.config.schema.json",
+  "$ref": "#/$defs/CatalogConfig",
+  "$defs": {
+    "CatalogConfig": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "version": {
+          "type": "number",
+          "enum": [
+            3
+          ]
+        },
+        "plugins": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "description": "A built-in name (manifest, jam) or a project-relative module (./catalog/plugin.ts)"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "A built-in name or a project-relative module"
+                  },
+                  "options": {
+                    "type": "object",
+                    "description": "This plugin's options"
+                  }
+                },
+                "required": [
+                  "plugin"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "description": "Plugins in load order: a built-in name or a project-relative module path, or { \"plugin\": <name or path>, \"options\": { … } }"
+        },
+        "review": {
+          "type": "object",
+          "properties": {
+            "resolver": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Verdict resolver: latest (default), strictest, or one a plugin registers"
+            },
+            "referenceRoles": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "Roles that are supporting material, not approval targets"
+            },
+            "verdicts": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "approved",
+                  "changes",
+                  "rejected"
+                ]
+              },
+              "description": "Verdicts reviewers may give"
+            }
+          },
+          "additionalProperties": false
+        },
+        "display": {
+          "type": "object",
+          "properties": {
+            "pixelArt": {
+              "type": "boolean",
+              "description": "Keep hard texels and show whole images in thumbnails and image viewers (pixel art). A type's own display wins"
+            }
+          },
+          "additionalProperties": false,
+          "description": "How images are shown, for types that do not say"
+        }
+      },
+      "required": [
+        "version"
+      ],
+      "additionalProperties": false,
+      "title": "catalog.config.json",
+      "description": "Catalog plugins with their options, review policy and display"
+    }
+  }
+}

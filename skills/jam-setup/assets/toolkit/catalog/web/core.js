@@ -8,10 +8,10 @@ export { useEffect, useLayoutEffect, useRef, useState, useCallback };
 export const enc = encodeURIComponent;
 
 // ---------- Server actions ----------
-// Every write carries the context it was prepared in and a request id that a retry reuses.
-// `ctx` is the small `context` answer the page polls; `schema` (types, scopes, media kinds) is
-// fetched again only when the context's `version` says it changed.
-export const session = { boot: null, ctx: null, schema: null, rev: 0, changed: null };
+// Every write carries the checkout key it was prepared in and a request id that a retry reuses.
+// `summary` is the small `summary` answer the page polls; `schema` (types, scopes, media kinds) is
+// fetched again only when the summary's `version` says it changed.
+export const session = { boot: null, summary: null, schema: null, rev: 0, changed: null };
 const schemaListeners = new Set();
 /** Called with each new schema, the first one included (app.js loads the kinds' modules from it). */
 export function onSchema(f) { schemaListeners.add(f); }
@@ -30,13 +30,13 @@ export async function call(action, input = {}, { requestId, write } = {}) {
     r = await fetch(`/api/run/${action}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-catalog-request': '1', 'x-catalog-client': 'web' },
-      body: JSON.stringify({ input, ...(write ? { requestId, context: session.boot?.context.key } : {}) }),
+      body: JSON.stringify({ input, ...(write ? { requestId, checkoutKey: session.boot?.checkout.key } : {}) }),
     });
   } catch (e) { throw new ActionError({ code: 'offline', message: 'The local catalog server is not reachable. Your text is kept; retry when it is running.' }, 0); }
   const j = await r.json().catch(() => ({ error: { code: 'internal', message: `HTTP ${r.status}` } }));
   if (!r.ok) {
     const err = new ActionError(j.error, r.status);
-    if (err.code === 'context_changed') { session.changed = err.details?.context ?? true; notify(); }
+    if (err.code === 'checkout_changed') { session.changed = err.details?.checkout ?? true; notify(); }
     throw err;
   }
   return j;
@@ -56,19 +56,19 @@ async function loadSchema() {
   await Promise.all([...schemaListeners].map((f) => f(schema)));
 }
 export async function boot() {
-  [session.boot] = await Promise.all([call('context'), loadSchema()]);
-  session.ctx = session.boot;
+  [session.boot] = await Promise.all([call('summary'), loadSchema()]);
+  session.summary = session.boot;
   notify();
   const poll = async () => {
     if (document.visibilityState !== 'visible') return;
     try {
-      const c = await call('context');
-      const prev = session.ctx;
+      const c = await call('summary');
+      const prev = session.summary;
       // The schema is large and changes rarely: it is fetched when the version moved, never per poll.
       if (c.version !== session.schema?.version) await loadSchema();
-      session.ctx = c;
-      if (c.context.key !== session.boot.context.key) session.changed = c.context;
-      if (prev && (c.version !== prev.version || c.records !== prev.records || c.context.head !== prev.context.head)) session.rev++;
+      session.summary = c;
+      if (c.checkout.key !== session.boot.checkout.key) session.changed = c.checkout;
+      if (prev && (c.version !== prev.version || c.records !== prev.records || c.checkout.head !== prev.checkout.head)) session.rev++;
       session.offline = false;
       notify();
     } catch { session.offline = true; notify(); }
@@ -78,12 +78,19 @@ export async function boot() {
 }
 
 // ---------- Scopes: the top-level split of units, as the project's schema declares it ----------
-export const scopes = () => session.schema?.scopes ?? [];
-export const scopeOf = (section) => scopes().find((s) => s.id === section) ?? null;
-export const defaultScope = () => scopes()[0]?.id ?? 'content';
-/** The sections that list things: every scope, plus collections and files. */
-export const isListSection = (section) => !!scopeOf(section) || section === 'collections' || section === 'files';
-export const sectionLabel = (section) => scopeOf(section)?.label ?? { collections: 'Collections', files: 'Files', reviews: 'Reviews', notes: 'Notes', inbox: 'Needs attention' }[section] ?? section;
+// A scope without units is not shown (two empty default sections ahead of a plugin's own would
+// open the catalog on an empty page); when no scope has units, the first one is.
+const allScopes = () => session.schema?.scopes ?? [];
+export const scopes = () => {
+  const used = new Set(Object.values(session.schema?.unitScopes ?? {}));
+  const shown = allScopes().filter((s) => used.has(s.id));
+  return shown.length > 0 ? shown : allScopes().slice(0, 1);
+};
+export const scopeOf = (section) => allScopes().find((s) => s.id === section) ?? null;
+export const defaultScope = () => scopes()[0]?.id ?? 'main';
+/** The sections that list things: every scope, plus collections and assets. */
+export const isListSection = (section) => !!scopeOf(section) || section === 'collections' || section === 'assets';
+export const sectionLabel = (section) => scopeOf(section)?.label ?? { collections: 'Collections', assets: 'Assets', reviews: 'Reviews', notes: 'Notes', inbox: 'Needs attention' }[section] ?? section;
 export const kindLabel = (kind) => mediaKind(kind)?.label ?? session.schema?.mediaKinds?.[kind]?.label ?? 'Unknown';
 /** Whether images of a type keep hard texels (pixel art): its own display, else the project's. No type: the project's. */
 export const pixelArt = (type) => !!((type && session.schema?.schema?.types?.[type]?.display) ?? session.schema?.display)?.pixelArt;
@@ -107,8 +114,8 @@ export function useQuery(action, input, enabled = true) {
   return { ...state, data: stale ? null : state.data, error: stale ? null : state.error, loading: stale || state.loading, stale, reload };
 }
 
-// ---------- Drafts: keyed by checkout context + stable target identity ----------
-const draftKey = (k) => `catalog-draft:${session.boot?.context.key}:${k}`;
+// ---------- Drafts: keyed by checkout key + stable target identity ----------
+const draftKey = (k) => `catalog-draft:${session.boot?.checkout.key}:${k}`;
 export let storageError = null;
 export function useDraft(key, initial) {
   const full = draftKey(key);
@@ -123,9 +130,9 @@ export function useDraft(key, initial) {
   return [v, set];
 }
 export function hasDraft(key) { try { return localStorage.getItem(draftKey(key)) != null; } catch { return false; } }
-export function otherContextDrafts() {
+export function otherCheckoutDrafts() {
   const out = [];
-  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('catalog-draft:') && !k.startsWith(`catalog-draft:${session.boot?.context.key}:`)) out.push(k); } } catch {}
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('catalog-draft:') && !k.startsWith(`catalog-draft:${session.boot?.checkout.key}:`)) out.push(k); } } catch {}
   return out;
 }
 const dirtyDrafts = new Set();
@@ -163,7 +170,7 @@ export function withQuery(r, changes) {
   return { ...r, query: q };
 }
 export const listParams = (q) => new URLSearchParams([...q].filter(([k]) => k === 'q' || k === 'page' || k.startsWith('f.')));
-const SECTION = { unit: [null, 'u'], collection: ['collections', 'c'], asset: ['files', 'a'] };
+const SECTION = { unit: [null, 'u'], collection: ['collections', 'c'], asset: ['assets', 'a'] };
 export function entityHref(kind, id, extra = {}) {
   if (kind === 'submission') return href({ section: 'reviews', kind: 's', id, member: extra.item, query: new URLSearchParams(Object.entries(extra).filter(([k]) => k !== 'item')) });
   const cur = parseHash();
@@ -218,7 +225,7 @@ export function Icon({ name, path, size = 14, cls = '' }) {
 // ---------- Small components ----------
 export function Person({ by }) {
   if (!by) return null;
-  const me = by.kind === 'human' && by.name === session.ctx?.actor;
+  const me = by.kind === 'human' && by.name === session.summary?.actor;
   return html`<span class="person" title=${by.kind === 'agent' ? `${by.name} (agent)` : by.name}>${by.kind === 'agent' && html`<${Icon} name="agent" size=${12} />`}${me ? 'You' : by.name}</span>`;
 }
 export const VERDICT = { approved: 'Approved', changes: 'Changes requested', rejected: 'Rejected' };

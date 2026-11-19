@@ -9,6 +9,9 @@ import { nowIso } from "../../kernel/Ids.ts"
 import type { Collection, CollectionRecord, Member } from "../model/types.ts"
 import type { Projection } from "../Projection.ts"
 import { Records } from "../Records.ts"
+import { CollectionRecord as CollectionRecordSchema } from "../records/schemas.ts"
+import { OpenRecord, Written } from "../results.ts"
+import { DeletedOutput } from "./notes.ts"
 import { cleanCategory, cleanTags } from "./organization.ts"
 
 const LOCK = "organization"
@@ -28,11 +31,36 @@ const owned = (p: Projection, id: string, refusal: (collection: Collection) => s
   return record ? Effect.succeed(record) : fail("forbidden", refusal(collection))
 }
 
+export const CollectionMembershipInput = Schema.Struct({ units: Schema.Array(Schema.String), q: optional(Schema.String) })
+export const CollectionMembershipOutput = Schema.Struct({
+  collections: Schema.Array(Schema.Struct({ id: Schema.String, name: Schema.String, category: Schema.NullOr(Schema.String), contains: Schema.Number, revision: Schema.NullOr(Schema.Number) }))
+})
+export const CollectionCreateInput = Schema.Struct({
+  name: Schema.String,
+  id: optional(Text),
+  kind: optional(Text),
+  category: Schema.optionalKey(Schema.Unknown),
+  tags: optional(Schema.Array(Schema.Unknown)),
+  members: optional(Schema.Array(MemberInput))
+})
+export const CollectionUpdateInput = Schema.Struct({
+  id: Text,
+  name: optional(Schema.String),
+  members: optional(Schema.Array(MemberInput)),
+  add: optional(Schema.Array(Text)),
+  remove: optional(Schema.Array(Text)),
+  expectedRevision: ExpectedRevision
+})
+export const CollectionDeleteInput = Schema.Struct({ id: Text, expectedRevision: ExpectedRevision })
+/** A catalog-owned collection as written. */
+export const CollectionOutput = Written({ collection: OpenRecord(CollectionRecordSchema.fields) })
+
 export const collectionActions = [
   read(
-    "collections.membership",
+    "collection.membership",
     "Catalog-owned collections with how many of the given units each contains",
-    Schema.Struct({ units: Schema.Array(Schema.String), q: optional(Schema.String) }),
+    CollectionMembershipInput,
+    CollectionMembershipOutput,
     (input, env) => {
       const q = (input.q ?? "").toLowerCase()
       return Effect.succeed({
@@ -52,14 +80,8 @@ export const collectionActions = [
   write(
     "collection.create",
     "Create a collection; members are references to content units",
-    Schema.Struct({
-      name: Schema.String,
-      id: optional(Text),
-      kind: optional(Text),
-      category: Schema.optionalKey(Schema.Unknown),
-      tags: optional(Schema.Array(Schema.Unknown)),
-      members: optional(Schema.Array(MemberInput))
-    }),
+    CollectionCreateInput,
+    CollectionOutput,
     LOCK,
     (input, env) =>
       Effect.gen(function*() {
@@ -95,14 +117,8 @@ export const collectionActions = [
   write(
     "collection.update",
     "Rename, reorder, add or remove members of a catalog-owned collection",
-    Schema.Struct({
-      id: Text,
-      name: optional(Schema.String),
-      members: optional(Schema.Array(MemberInput)),
-      add: optional(Schema.Array(Text)),
-      remove: optional(Schema.Array(Text)),
-      expectedRevision: ExpectedRevision
-    }),
+    CollectionUpdateInput,
+    CollectionOutput,
     LOCK,
     (input, env) =>
       Effect.gen(function*() {
@@ -123,7 +139,8 @@ export const collectionActions = [
   write(
     "collection.delete",
     "Delete a catalog-owned collection (members are untouched)",
-    Schema.Struct({ id: Text, expectedRevision: ExpectedRevision }),
+    CollectionDeleteInput,
+    DeletedOutput,
     LOCK,
     (input, env) =>
       Effect.gen(function*() {

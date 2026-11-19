@@ -8,7 +8,7 @@ export type ErrorCode =
   | "invalid" // the input is wrong; the message names the field and the expected form
   | "not_found"
   | "conflict" // a concurrent or repeated change; the caller should re-read and retry
-  | "context_changed" // the checkout moved under a pending write
+  | "checkout_changed" // the checkout moved under a pending write
   | "locked"
   | "unsupported"
   | "malformed" // a stored file cannot be read as what it should be

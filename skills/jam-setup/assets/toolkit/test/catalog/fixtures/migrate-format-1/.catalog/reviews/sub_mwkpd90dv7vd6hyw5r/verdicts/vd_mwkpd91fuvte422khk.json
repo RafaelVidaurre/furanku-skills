@@ -1,0 +1,33 @@
+{
+  "id": "vd_mwkpd91fuvte422khk",
+  "submission": "sub_mwkpd90dv7vd6hyw5r",
+  "item": "it_mwkpd8zop7atz8m5qt",
+  "by": {
+    "name": "checker",
+    "kind": "agent"
+  },
+  "at": "2026-11-17T13:02:57.027Z",
+  "relay": {
+    "by": "Rae Tester",
+    "channel": "chat",
+    "words": "Yes, halve the pulse."
+  },
+  "requestId": "rq-decide-3",
+  "requestBinding": {
+    "action": "review.decide",
+    "digest": "a0679a6fd5becebdff75e9fd0bfef67fee42e58d3679892441781c5eeeb23789",
+    "context": "ff52585e9d24:main"
+  },
+  "scope": {
+    "kind": "parts",
+    "parts": [
+      "decision"
+    ]
+  },
+  "verdicts": {
+    "decision": "approved"
+  },
+  "partNotes": {
+    "decision": "Halve it."
+  }
+}

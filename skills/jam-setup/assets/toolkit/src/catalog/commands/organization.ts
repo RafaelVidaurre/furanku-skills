@@ -2,18 +2,19 @@
 // records are catalog-owned; a source's own tags and categories are never changed here.
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import { ExpectedRevision, optional, targetOf, write } from "../action.ts"
+import { ExpectedRevision, optional, refOf, write } from "../action.ts"
 import { fail, type ToolError } from "../../kernel/errors.ts"
-import type { CollectionRecord, LabelRecord } from "../model/types.ts"
+import type { CollectionRecord, OrganizationRecord } from "../model/types.ts"
 import { type Projection, targetKey } from "../Projection.ts"
 import { organizationOf, organizationWith, type OrganizedKind } from "../queries/organization.ts"
 import { type RecordOp, Records } from "../Records.ts"
 import { isCategory, isTag } from "../records/schemas.ts"
+import { Organization, Written } from "../results.ts"
 import { unique } from "../support.ts"
 import { targetExists } from "./notes.ts"
 
 const LOCK = "organization"
-const Organized = targetOf(["unit", "asset", "collection"])
+const Organized = refOf(["unit", "asset", "collection"])
 // Tags and categories are cleaned and checked by the rules below, so the reason names the value.
 const TagList = Schema.Array(Schema.Unknown)
 const CategoryInput = Schema.Unknown.annotate({ description: 'A category path such as "Props/Lighting"; null or "" clears it' })
@@ -39,7 +40,7 @@ const requiredCategory = (value: unknown): Effect.Effect<string, ToolError> =>
   Effect.flatMap(cleanCategory(value), (path) => (path === null ? fail("invalid", "category path is required") : Effect.succeed(path)))
 
 /** The record operation that sets one target's organization (not yet applied). */
-const labelOp = (p: Projection, target: typeof Organized.Type, change: (current: Org) => Org, expectedRevision?: number | null) =>
+const organizationOp = (p: Projection, target: typeof Organized.Type, change: (current: Org) => Org, expectedRevision?: number | null) =>
   Effect.gen(function*() {
     if (!targetExists(p, target)) return yield* fail("not_found", `organization target ${target.kind}:${target.id} not found`)
     // A catalog-owned collection keeps its organization in its own record.
@@ -47,11 +48,11 @@ const labelOp = (p: Projection, target: typeof Organized.Type, change: (current:
       const record = p.records.collection.find((candidate) => candidate.id === target.id)!
       return { type: "update", kind: "collection", record: { ...record, ...change({ category: record.category ?? null, tags: record.tags }) }, expectedRevision } satisfies RecordOp
     }
-    const current = p.labels.get(targetKey(target))
-    if (current) return { type: "update", kind: "label", record: { ...current, ...change({ category: current.category, tags: current.tags }) }, expectedRevision } satisfies RecordOp
+    const current = p.organization.get(targetKey(target))
+    if (current) return { type: "update", kind: "organization", record: { ...current, ...change({ category: current.category, tags: current.tags }) }, expectedRevision } satisfies RecordOp
     if (expectedRevision) return yield* fail("conflict", "organization changed since it was read")
-    const record: LabelRecord = { target: { kind: target.kind, id: target.id }, ...change({ category: null, tags: [] }), revision: 1 }
-    return { type: "create", kind: "label", record } satisfies RecordOp
+    const record: OrganizationRecord = { target: { kind: target.kind, id: target.id }, ...change({ category: null, tags: [] }), revision: 1 }
+    return { type: "create", kind: "organization", record } satisfies RecordOp
   })
 
 const sameOrg = (a: Org, b: Org): boolean => a.category === b.category && a.tags.join("\n") === b.tags.join("\n")
@@ -59,10 +60,10 @@ const sameOrg = (a: Org, b: Org): boolean => a.category === b.category && a.tags
 /** Rewrite every catalog-owned organization record through one mapping, as one operation. */
 const organizationOps = (p: Projection, map: (current: Org) => Org): Array<RecordOp> => {
   const ops: Array<RecordOp> = []
-  for (const label of p.records.label) {
-    const current = { category: label.category, tags: label.tags }
+  for (const record of p.records.organization) {
+    const current = { category: record.category, tags: record.tags }
     const next = map(current)
-    if (!sameOrg(current, next)) ops.push({ type: "update", kind: "label", record: { ...label, ...next } })
+    if (!sameOrg(current, next)) ops.push({ type: "update", kind: "organization", record: { ...record, ...next } })
   }
   for (const collection of p.records.collection) {
     const current = { category: collection.category ?? null, tags: collection.tags }
@@ -79,19 +80,33 @@ const categoriesOp = (p: Projection, map: (categories: ReadonlyArray<string>) =>
 }
 const organized = (ops: ReadonlyArray<RecordOp>): number => ops.filter((op) => op.kind !== "categories").length
 
+export const OrganizationSetInput = Schema.Struct({ target: Organized, category: Schema.optionalKey(CategoryInput), tags: optional(TagList), expectedRevision: ExpectedRevision })
+export const OrganizationSetOutput = Written({ organization: Organization, revision: Schema.Number })
+export const OrganizationSetManyInput = Schema.Struct({ targets: Schema.Array(Organized), addTags: optional(TagList), removeTags: optional(TagList), category: Schema.optionalKey(CategoryInput) })
+export const OrganizationSetManyOutput = Written({ updated: Schema.Number })
+export const CategoryPathInput = Schema.Struct({ path: Schema.String })
+export const CategoryCreateOutput = Written({ category: Schema.String })
+export const RenameInput = Schema.Struct({ from: Schema.String, to: Schema.String })
+export const CategoryRenameOutput = Written({ renamed: Schema.Number, projectOwnedUnchanged: Schema.Number })
+export const CategoryDeleteOutput = Written({ cleared: Schema.Number })
+export const TagRenameOutput = Written({ renamed: Schema.Number })
+export const TagDeleteInput = Schema.Struct({ tag: Schema.String })
+export const TagDeleteOutput = Written({ removed: Schema.Number })
+
 export const organizationActions = [
   write(
-    "organize.set",
+    "organization.set",
     "Set category and/or tags of a unit, asset or collection",
-    Schema.Struct({ target: Organized, category: Schema.optionalKey(CategoryInput), tags: optional(TagList), expectedRevision: ExpectedRevision }),
+    OrganizationSetInput,
+    OrganizationSetOutput,
     LOCK,
     (input, env) =>
       Effect.gen(function*() {
         const p = env.projection
         const category = input.category !== undefined ? yield* cleanCategory(input.category) : undefined
         const tags = input.tags ? yield* cleanTags(input.tags) : undefined
-        const op = yield* labelOp(p, input.target, (current) => ({ category: category !== undefined ? category : current.category, tags: tags ?? current.tags }), input.expectedRevision)
-        const [written] = (yield* (yield* Records).apply([op])) as ReadonlyArray<LabelRecord | CollectionRecord>
+        const op = yield* organizationOp(p, input.target, (current) => ({ category: category !== undefined ? category : current.category, tags: tags ?? current.tags }), input.expectedRevision)
+        const [written] = (yield* (yield* Records).apply([op])) as ReadonlyArray<OrganizationRecord | CollectionRecord>
         const kind: OrganizedKind = input.target.kind
         const before = organizationOf(p, kind, input.target.id)
         // Answer from the record just written; the projection still shows the state before it.
@@ -103,9 +118,10 @@ export const organizationActions = [
       })
   ),
   write(
-    "organize.bulk",
+    "organization.setMany",
     "Add/remove tags or set the category of many targets at once",
-    Schema.Struct({ targets: Schema.Array(Organized), addTags: optional(TagList), removeTags: optional(TagList), category: Schema.optionalKey(CategoryInput) }),
+    OrganizationSetManyInput,
+    OrganizationSetManyOutput,
     LOCK,
     (input, env) =>
       Effect.gen(function*() {
@@ -116,7 +132,7 @@ export const organizationActions = [
         const category = input.category !== undefined ? yield* cleanCategory(input.category) : undefined
         if (new Set(targets.map(targetKey)).size !== targets.length) return yield* fail("invalid", "a target appears twice")
         const ops = yield* Effect.forEach(targets, (target) =>
-          labelOp(env.projection, target, (current) => ({
+          organizationOp(env.projection, target, (current) => ({
             category: category !== undefined ? category : current.category,
             tags: unique([...current.tags.filter((tag) => !remove.includes(tag)), ...add])
           })))
@@ -124,7 +140,7 @@ export const organizationActions = [
         return { updated: ops.length }
       })
   ),
-  write("category.create", "Register a category path (Parent/Child)", Schema.Struct({ path: Schema.String }), LOCK, (input, env) =>
+  write("category.create", "Register a category path (Parent/Child)", CategoryPathInput, CategoryCreateOutput, LOCK, (input, env) =>
     Effect.gen(function*() {
       const path = yield* requiredCategory(input.path)
       const current = env.projection.records.categories[0]
@@ -135,7 +151,8 @@ export const organizationActions = [
   write(
     "category.rename",
     "Rename a category path (applies to catalog-owned organization; descendants follow)",
-    Schema.Struct({ from: Schema.String, to: Schema.String }),
+    RenameInput,
+    CategoryRenameOutput,
     LOCK,
     (input, env) =>
       Effect.gen(function*() {
@@ -152,7 +169,7 @@ export const organizationActions = [
         return { renamed: organized(ops), projectOwnedUnchanged: projectOwned }
       })
   ),
-  write("category.delete", "Remove a category path from catalog-owned organization", Schema.Struct({ path: Schema.String }), LOCK, (input, env) =>
+  write("category.delete", "Remove a category path from catalog-owned organization", CategoryPathInput, CategoryDeleteOutput, LOCK, (input, env) =>
     Effect.gen(function*() {
       const path = yield* requiredCategory(input.path)
       const hit = (category: string | null): boolean => category === path || !!category?.startsWith(`${path}/`)
@@ -166,7 +183,8 @@ export const organizationActions = [
   write(
     "tag.rename",
     "Rename a catalog-owned tag; renaming onto an existing tag merges them",
-    Schema.Struct({ from: Schema.String, to: Schema.String }),
+    RenameInput,
+    TagRenameOutput,
     LOCK,
     (input, env) =>
       Effect.gen(function*() {
@@ -177,7 +195,7 @@ export const organizationActions = [
         return { renamed: ops.length }
       })
   ),
-  write("tag.delete", "Remove a catalog-owned tag everywhere", Schema.Struct({ tag: Schema.String }), LOCK, (input, env) =>
+  write("tag.delete", "Remove a catalog-owned tag everywhere", TagDeleteInput, TagDeleteOutput, LOCK, (input, env) =>
     Effect.gen(function*() {
       const tag = yield* cleanTag(input.tag)
       const ops = organizationOps(env.projection, (current) => ({ category: current.category, tags: current.tags.filter((existing) => existing !== tag) }))

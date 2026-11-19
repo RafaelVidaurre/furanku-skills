@@ -8,28 +8,28 @@ import { ensureHashed } from "../hashes.ts"
 import type { MediaKinds } from "../MediaKinds.ts"
 import { isItemEvidence, unitParts } from "../model/parts.ts"
 import type { Actor, Target } from "../model/types.ts"
-import { eventOrder, eventVerdicts } from "../model/verdicts.ts"
+import { decisionOrder, decisionVerdicts } from "../model/verdicts.ts"
 import { factsOf, type Projection, targetKey, typeOf } from "../Projection.ts"
 import { assetRoute, collectionRoute, unitRoute } from "../routes.ts"
 import { unique } from "../support.ts"
 import { noteView } from "./notes.ts"
 import { allTags, organizationOf } from "./organization.ts"
 import { currentDigest, openItemsFor, partAssets, previewSpec, reviewOf, summaryOf } from "./review.ts"
-import { assetRef, evidenceUrl, formatValue, missingRoles, roleLabel, thumbOf, unitSummary, viewModuleOf } from "./summaries.ts"
+import { assetRef, browserModuleOf, evidenceUrl, formatValue, missingRoles, moduleUrl, roleLabel, thumbOf, unitSummary } from "./summaries.ts"
 
 type FactsService = Facts["Service"]
 const newestFirst = <A extends { readonly at: string }>(list: Array<A>): Array<A> => list.sort((a, b) => b.at.localeCompare(a.at))
 
-/** Verdict events on a target, newest first, each with the content parts that changed since. */
+/** Decisions on a target, newest first, each with the content parts that changed since. */
 const historyFor = (p: Projection, target: Target) =>
-  [...(p.eventsByTarget.get(targetKey(target)) ?? [])].sort(eventOrder).reverse().map((event) => {
-    const { item, submission } = p.items.get(event.item)!
+  [...(p.decisionsByTarget.get(targetKey(target)) ?? [])].sort(decisionOrder).reverse().map((decision) => {
+    const { item, submission } = p.items.get(decision.item)!
     // A capture has no current version, so it never reads as content that changed.
-    const changedParts = Object.keys(eventVerdicts(event)).filter((part) => !isItemEvidence(part)).filter((part) => {
+    const changedParts = Object.keys(decisionVerdicts(decision)).filter((part) => !isItemEvidence(part)).filter((part) => {
       const frozen = item.parts.find((candidate) => candidate.id === part)?.evidence
       return !!frozen && frozen.digest !== currentDigest(p, target, part)
     })
-    return { ...summaryOf(p, event), title: submission.title, partLabels: Object.fromEntries(item.parts.map((part) => [part.id, part.label])), changedParts }
+    return { ...summaryOf(p, decision), title: submission.title, partLabels: Object.fromEntries(item.parts.map((part) => [part.id, part.label])), changedParts }
   })
 
 const unitRefs = (p: Projection, ids: ReadonlyArray<string>) =>
@@ -54,7 +54,7 @@ const relationsOf = (p: Projection, id: string) => {
 export const unitGet = (p: Projection, facts: FactsService, id: string): Effect.Effect<unknown, ToolError, MediaKinds | ProjectFiles> =>
   Effect.gen(function*() {
     const unit = p.snapshot.unitsById.get(id)
-    if (!unit) return yield* fail("not_found", `content ${id} is not in this checkout`)
+    if (!unit) return yield* fail("not_found", `unit ${id} is not in this checkout`)
     // A detail page names exact bytes (and probes are cached by digest): hash this unit's files.
     yield* ensureHashed(p, unit.links.map((link) => link.asset))
     const { assetsById, unitsById } = p.snapshot
@@ -94,8 +94,8 @@ export const unitGet = (p: Projection, facts: FactsService, id: string): Effect.
       relations: relationsOf(p, id),
       waiting: openItemsFor(p, { kind: "unit", id }),
       // Inspectors and sidebar sections the type mounts for this unit, each with where its module loads from.
-      views: type.views.filter((view) => unit.views === null || unit.views.includes(view.key)).map((view) => ({ ...view, ...viewModuleOf(p, view.module) })),
-      panels: type.panels.map((panel) => ({ ...panel, ...viewModuleOf(p, panel.module) })),
+      inspectors: type.inspectors.filter((inspector) => unit.inspectors === null || unit.inspectors.includes(inspector.key)).map((inspector) => ({ ...inspector, ...browserModuleOf(p, inspector.module) })),
+      panels: type.panels.map((panel) => ({ ...panel, ...browserModuleOf(p, panel.module) })),
       display: type.display ?? p.plugins.config.display
     }
   })
@@ -114,7 +114,7 @@ export const collectionGet = (p: Projection, id: string): Effect.Effect<unknown,
     const preview = spec && {
       label: spec.label,
       module: spec.module,
-      moduleUrl: spec.moduleSha && spec.moduleSha !== "missing" ? `/project/preview/${encodeURIComponent(spec.module)}?v=${spec.moduleSha.slice(0, 16)}` : null,
+      moduleUrl: spec.moduleSha && spec.moduleSha !== "missing" ? moduleUrl(spec.module, spec.moduleSha) : null,
       moduleError: spec.moduleSha === "missing" ? `Preview module "${spec.module}" is declared but its file is missing` : null,
       represents: spec.represents,
       config: spec.config,
@@ -189,10 +189,10 @@ export const assetGet = (p: Projection, facts: FactsService, id: string): Effect
           versions.set(sha, version)
           version.submissions.push({ submission: submission.id, ref: shortRef(submission.id), item: item.id, part: part.id, leaf, url: evidenceUrl(submission.id, item.id, part.id, leaf) })
           if (!direct) continue
-          for (const event of p.eventsByItem.get(item.id) ?? []) {
-            const verdict = eventVerdicts(event)[part.id]
+          for (const decision of p.decisionsByItem.get(item.id) ?? []) {
+            const verdict = decisionVerdicts(decision)[part.id]
             if (verdict) {
-              verdicts.push({ event: event.id, submission: submission.id, ref: shortRef(submission.id), item: item.id, part: part.id, partLabel: part.label, target: item.target, targetName: item.title, verdict, note: event.partNotes?.[part.id] ?? "", by: event.by, at: event.at, sha256: sha })
+              verdicts.push({ decision: decision.id, submission: submission.id, ref: shortRef(submission.id), item: item.id, part: part.id, partLabel: part.label, target: item.target, targetName: item.title, verdict, partComment: decision.partComments?.[part.id] ?? "", by: decision.by, at: decision.at, sha256: sha })
             }
           }
         }
