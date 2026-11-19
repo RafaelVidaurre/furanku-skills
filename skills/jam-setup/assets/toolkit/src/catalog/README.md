@@ -150,7 +150,7 @@ The built-in **manifest** plugin reads `catalog.manifest.json` (option `file`): 
 
 ### Relations
 
-`{ name, label, inverseLabel, from(unit) }` returns the ids a unit refers to. `unit.get` returns `relations`: one entry per direction that has units, `{ name, direction: "out" | "in", label, units: [{ id, name, exists, thumb }] }`, where the `in` side is computed from every other unit's `from`. No unit stores its referrers. The page shows both directions in a unit's Related block; a relation whose units a `refs` attribute shown with the unit's details (not a derived one) already lists is not shown twice.
+`{ name, label, inverseLabel, from(unit) }` returns the ids a unit refers to. `unit.get` returns `relations`: one entry per direction that has units, `{ name, direction: "out" | "in", label, units: [{ id, name, exists, thumb }] }`, where the `in` side is computed from every other unit's `from`. No unit stores its referrers. The page shows both directions in a unit's Related block; a relation whose units a `refs` attribute shown with the unit's details (not a derived one) already lists is not shown twice. A derived `refs` attribute whose units a relation shows there is left out of Technical details.
 
 ### Media kinds and probes
 
