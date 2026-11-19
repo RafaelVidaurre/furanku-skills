@@ -10,16 +10,18 @@ const { shot } = screenshots(import.meta.url)
 const PLUGIN = `export default {
   name: "rel",
   sources: [{ name: "kit", inputs: () => [], load: () => ({
-    types: { piece: { label: "Piece", fields: [{ key: "parts", label: "Parts", kind: "refs" }, { key: "built", label: "Built from", kind: "refs" }] } },
+    types: { piece: { label: "Piece", fields: [{ key: "parts", label: "Parts", kind: "refs" }, { key: "built", label: "Built from", kind: "refs" }, { key: "made", label: "Made", kind: "refs", derived: true }] } },
     units: [
       { id: "cart", type: "piece", name: "Cart", attrs: { parts: ["wheel"], built: ["plank"] } },
+      { id: "kiln", type: "piece", name: "Kiln", attrs: { made: ["plank"] } },
       { id: "wheel", type: "piece", name: "Wheel", attrs: {} },
       { id: "plank", type: "piece", name: "Plank", attrs: {} }
     ]
   }) }],
   relations: [
     { name: "parts", label: "Parts", inverseLabel: "Part of", from: (u) => u.attrs.parts ?? [] },
-    { name: "built", label: "Built from", inverseLabel: "Used to build", from: (u) => u.attrs.built ?? [] }
+    { name: "built", label: "Built from", inverseLabel: "Used to build", from: (u) => u.attrs.built ?? [] },
+    { name: "made", label: "Made", inverseLabel: "Made in", from: (u) => u.attrs.made ?? [] }
   ]
 }
 `
@@ -45,6 +47,10 @@ test("relations show in both directions on a unit's page, without repeating an a
     await page.locator("h1").filter({ hasText: "Cart" }).waitFor()
     // Both outgoing relations are already attributes of the details: no Related block.
     assert.equal(await page.getByRole("region", { name: "Related" }).count(), 0)
+    // A derived attribute the Related block shows is not listed again under Technical details.
+    await page.goto(server.url + "#/main/u/kiln")
+    await page.getByRole("region", { name: "Related" }).getByRole("link", { name: "Plank" }).waitFor()
+    assert.equal(await page.locator("details.disclosure").filter({ hasText: "Technical details" }).count(), 0)
     assert.deepEqual(page.errors, [])
   } finally {
     await browser.close()

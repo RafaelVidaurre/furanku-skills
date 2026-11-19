@@ -47,7 +47,7 @@ export function UnitDetail({ route, ctx }) {
   if (!d || d.unit.id !== id) return html`<${Loading} q=${q} />`;
   const target = { kind: 'unit', id };
   const contentFields = Object.keys(d.unit.attrs).filter(k => !d.type.fields.find(f => f.key === k)?.derived);
-  const technicalFields = d.type.fields.filter(f => f.derived && d.unit.attrs[f.key] != null);
+  const technicalFields = d.type.fields.filter(f => f.derived && d.unit.attrs[f.key] != null && !shownAsRelation(d, f));
   return html`<div class="detail">
     <header class="d-head">
       ${ctx && html`<${MemberNav} route=${route} col=${ctx} unitId=${id} />`}
@@ -123,7 +123,7 @@ function Value({ v, f, refs }) {
   return html`${String(v)}${f?.unit ? html`<span class="muted"> ${f.unit}</span>` : ''}`;
 }
 function Attributes({ d, technical = false }) {
-  const fields = d.type.fields.filter((f) => !!f.derived === technical && d.unit.attrs[f.key] != null);
+  const fields = d.type.fields.filter((f) => !!f.derived === technical && d.unit.attrs[f.key] != null && !(technical && shownAsRelation(d, f)));
   const extra = technical ? [] : Object.keys(d.unit.attrs).filter((k) => !d.type.fields.some((f) => f.key === k));
   if (!fields.length && !extra.length && !(technical && d.unit.sources.length)) return null;
   const groups = [...new Set(fields.map((f) => f.group ?? ''))];
@@ -137,8 +137,13 @@ function Attributes({ d, technical = false }) {
 // Both directions of every relation plugins declare ("Uses" / "Used by", "Made from" / "In the
 // engine"…). A relation whose units an attribute of the details already lists is not shown twice.
 const RELATED_SHOWN = 40;
+const sortedIds = (ids) => [...ids].sort().join('\n');
+/** A derived `refs` attribute that a relation already shows in the Related block is not listed again under Technical details. */
+function shownAsRelation(d, f) {
+  return f.kind === 'refs' && (d.relations ?? []).some((r) => r.units.length > 0 && sortedIds(r.units.map((u) => u.id)) === sortedIds([d.unit.attrs[f.key]].flat()));
+}
 function Relations({ d }) {
-  const sorted = (ids) => [...ids].sort().join('\n');
+  const sorted = sortedIds;
   // Only attributes shown with the unit's details count; derived ones sit under Technical details.
   const listed = d.type.fields.filter((f) => f.kind === 'refs' && !f.derived && d.unit.attrs[f.key] != null).map((f) => sorted([d.unit.attrs[f.key]].flat()));
   const shown = (d.relations ?? []).filter((r) => r.units.length > 0 && !listed.includes(sorted(r.units.map((u) => u.id))));
