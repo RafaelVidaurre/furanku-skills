@@ -425,6 +425,8 @@ export const enginePlugin = ({ inventory, importFiles, previews = noPreviews }: 
     sources: [defineSource({
       name: "inventory",
       inputs: () => [...inputs, ...index],
+      // The inputs follow from the last load alone.
+      scans: () => [],
       load: (context) =>
         Effect.flatMap(Effect.zip(inventory({}), Effect.map(previews.read, shown)), ([result, found]) =>
           Effect.promise(() => existingSources(sourceOutput(remember(result), context, found), context)))

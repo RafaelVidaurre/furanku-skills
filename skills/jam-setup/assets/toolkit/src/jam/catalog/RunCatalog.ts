@@ -41,6 +41,8 @@ export class RunCatalog extends Context.Service<RunCatalog, {
    * makes a step stale). Nothing else under the content roots reloads the catalog.
    */
   readonly inputs: Effect.Effect<ReadonlyArray<string>>
+  /** The folders `inputs` walks for run files. */
+  readonly scans: Effect.Effect<ReadonlyArray<string>, ToolError>
   /** The runs as types, units and problems. A run that cannot be read is one problem; the rest load. */
   readonly load: Effect.Effect<SourceOutput>
   /** Measured facts of one media file, by its project path. */
@@ -136,6 +138,7 @@ export class RunCatalog extends Context.Service<RunCatalog, {
 
       return {
         inputs,
+        scans: Effect.suspend(() => (folders === null ? runs.roots : Effect.succeed(folders))),
         load,
         measure: (path) =>
           Effect.gen(function*() {

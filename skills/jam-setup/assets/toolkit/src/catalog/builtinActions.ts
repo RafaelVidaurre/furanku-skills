@@ -151,7 +151,12 @@ const DoctorFields = {
 export const DoctorOutput = Schema.Struct(DoctorFields)
 export const DoctorFixOutput = Written(DoctorFields)
 
-const SearchText = { q: optional(Schema.String), filters: optional(Schema.Record(Schema.String, Schema.Array(Schema.String))).annotate({ description: "Facet key to selected values" }), ...Page }
+const SearchText = {
+  q: optional(Schema.String),
+  filters: optional(Schema.Record(Schema.String, Schema.Array(Schema.String))).annotate({ description: "Facet key to selected values" }),
+  ids: optional(Schema.Boolean).annotate({ description: "false: answer with an empty ids list (counts and pages only)" }),
+  ...Page
+}
 export const UnitSearchInput = Schema.Struct({ scope: optional(Schema.String).annotate({ description: "A scope id (see schema)" }), ...SearchText })
 export const UnitSearchOutput = Schema.Struct({ units: Schema.Array(UnitHit), scope: Schema.NullOr(Schema.String), ...SearchFields })
 export const CollectionSearchInput = Schema.Struct({ scope: optional(Schema.String).annotate({ description: "A scope id (see schema): collections with a member in it" }), ...SearchText })

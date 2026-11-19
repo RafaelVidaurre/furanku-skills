@@ -4,10 +4,12 @@
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as nodePath from "node:path"
 import { pathToFileURL } from "node:url"
 import { fail, type ToolError, toolError } from "../kernel/errors.ts"
 import { digest, isRecord, sha256 } from "../kernel/hash.ts"
 import { ProjectFiles } from "../kernel/ProjectFiles.ts"
+import { Changes, concerns } from "./Changes.ts"
 import { CatalogConfig, CatalogSetup, CONFIG_FILE, type PluginRef, type ResolvedConfig } from "./CatalogConfig.ts"
 import type { Problem } from "./model/types.ts"
 import { RESOLVERS, type Resolver } from "./model/verdicts.ts"
@@ -128,11 +130,12 @@ export class Plugins extends Context.Service<Plugins, {
   /** The plugin set of the current checkout, reloaded when its configuration or modules changed. */
   readonly current: Effect.Effect<PluginSet, ToolError>
 }>()("jam/catalog/Plugins") {
-  static readonly layerNoDeps: Layer.Layer<Plugins, never, CatalogConfig | ProjectFiles> = Layer.effect(
+  static readonly layerNoDeps: Layer.Layer<Plugins, never, CatalogConfig | ProjectFiles | Changes> = Layer.effect(
     Plugins,
     Effect.gen(function*() {
       const files = yield* ProjectFiles
       const configs = yield* CatalogConfig
+      const changes = yield* Changes
       const setup = yield* CatalogSetup
       const builtin: Readonly<Record<string, Plugin>> = { ...BUILTIN, ...setup.plugins }
       let last: PluginSet | null = null
@@ -210,15 +213,38 @@ export class Plugins extends Context.Service<Plugins, {
           return set
         })
 
+      const signatureOf = (state: { readonly config: ResolvedConfig; readonly signature: string }): Effect.Effect<string> =>
+        Effect.map(
+          Effect.forEach(moduleFilesOf(state.config), (path) => Effect.zipWith(moduleHash(path), importsHash(path), (own, imported) => `${own}:${imported}`)),
+          (hashes) => digest({ config: state.signature, modules: hashes })
+        )
+
+      // The last answer, where the change feed stood when it was read, and the files it was read from.
+      let answered: { mark: number; readonly concerns: (changed: ReadonlySet<string>) => boolean; readonly set: PluginSet } | null = null
       const current = Effect.gen(function*() {
+        const mark = yield* changes.mark
+        if (answered !== null) {
+          const changed = yield* changes.since(answered.mark)
+          if (changed !== null && !answered.concerns(changed)) {
+            answered.mark = mark
+            return answered.set
+          }
+        }
+        const set = yield* read
+        const code = moduleFilesOf(set.config).flatMap((path) => [path, ...(imports.get(path) ?? []).map((absolute) => nodePath.relative(files.root, absolute).split(nodePath.sep).join("/"))])
+        answered = { mark, concerns: concerns([CONFIG_FILE, ...code.filter((path) => !path.startsWith("../") && !nodePath.isAbsolute(path))]), set }
+        return set
+      })
+      const read = Effect.gen(function*() {
         const state = yield* configs.current
-        const hashes = yield* Effect.forEach(moduleFilesOf(state.config), (path) => Effect.zipWith(moduleHash(path), importsHash(path), (own, imported) => `${own}:${imported}`))
-        const signature = digest({ config: state.signature, modules: hashes })
+        const signature = yield* signatureOf(state)
         const configProblems = state.problem ? [state.problem] : []
         if (last?.signature === signature) return configProblems.length > 0 ? { ...last, problems: [...configProblems, ...last.problems] } : last
         const next = yield* Effect.result(load(state.config, signature))
         if (next._tag === "Success") {
-          last = next.success
+          // The modules a plugin imports are known only once it loaded: signed again with them,
+          // the next action finds this same set instead of loading every plugin a second time.
+          last = { ...next.success, signature: yield* signatureOf(state) }
           return configProblems.length > 0 ? { ...last, problems: [...configProblems, ...last.problems] } : last
         }
         if (!last) return yield* Effect.fail(next.failure)

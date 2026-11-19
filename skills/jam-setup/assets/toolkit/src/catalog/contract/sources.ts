@@ -150,6 +150,12 @@ export interface Source {
    * depend on what was loaded.
    */
   inputs(context: PluginContext): PluginResult<ReadonlyArray<string>>
+  /**
+   * Project-relative folders `inputs` walks to find its files; `[]` when `inputs` depends only
+   * on what was loaded. A running catalog asks `inputs` again only after a change under one of
+   * these folders or to an input. Without it, `inputs` is asked after any change in the project.
+   */
+  scans?(context: PluginContext): PluginResult<ReadonlyArray<string>>
   load(context: PluginContext): PluginResult<SourceOutput>
 }
 

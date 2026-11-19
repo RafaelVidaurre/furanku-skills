@@ -51,7 +51,7 @@ jam catalog run review.decide --actor-kind human \
 - `review.verdicts`: the verdicts reviewers may give, from `approved`, `changes`, `rejected`.
 - `display.pixelArt`: images keep hard texels in thumbnails and image viewers, for every type that does not set its own `display`. Thumbnails always show whole images; captures always keep smooth scaling.
 
-A running catalog follows the checkout. The file is read for every action and decoded when its bytes changed; plugins and project modules are imported again when theirs did (a branch switch, an edit). When the file or a plugin is broken, the last good settings stay in use and the failure is listed under problems; a catalog that has no good settings yet fails with the error.
+A running catalog follows the checkout. The file is decoded when its bytes changed; plugins and project modules are imported again when theirs did (a branch switch, an edit). A one-off command reads them for every action. The server instead watches the checkout's file changes: each request first settles the watch (it writes a marker under `.catalog/.local/changes/` and waits for its event, which follows every earlier change), then re-reads only the configuration, modules, source inputs, media files and records that changed. An answer therefore reflects the files as they were when it was asked for, and an idle checkout costs a request nothing. When the system's watcher fails or stops delivering, the server checks everything for every action, as a command does. When the file or a plugin is broken, the last good settings stay in use and the failure is listed under problems; a catalog that has no good settings yet fails with the error.
 
 ### Older files: `jam catalog migrate`
 
@@ -120,7 +120,7 @@ Every plugin function receives a context: `root` (absolute project root), `optio
 
 ### Sources
 
-`{ name, inputs(context), load(context) }`. `inputs` lists the project-relative files and folders the source reads. The source is loaded again only when one of them changed: authored data (`.json`, `.jsonl`, `.yaml`, `.yml`, `.toml`, `.ini`, `.csv`, `.tsv`) is compared by bytes, so an edit that keeps size and timestamp is still seen; anything else by size and modification time. `inputs` is called before each load and again after it, so the list may depend on what was loaded. A source that fails keeps its last loaded output and is listed as a problem; that includes an `inputs` that throws or returns something other than a list of paths. A source is never silently empty.
+`{ name, inputs(context), load(context) }`. `inputs` lists the project-relative files and folders the source reads. The source is loaded again only when one of them changed: authored data (`.json`, `.jsonl`, `.yaml`, `.yml`, `.toml`, `.ini`, `.csv`, `.tsv`) is compared by bytes, so an edit that keeps size and timestamp is still seen; anything else by size and modification time. `inputs` is called before each load and again after it, so the list may depend on what was loaded; the fingerprint taken after the load is the one kept, so a load that rewrites a file it reads does not look like a change. A running server asks `inputs` again only after some project file changed; a source whose `inputs` walks folders to find its files declares them as `scans(context)` (`[]` when its inputs follow from what it loaded), and is then asked only after a change under one of them or to an input. A source that fails keeps its last loaded output and is listed as a problem; that includes an `inputs` that throws or returns something other than a list of paths. A source is never silently empty.
 
 `load` returns any of:
 
@@ -210,7 +210,7 @@ Both report the same viewer state, `{ kind, status: "loading" | "ready" | "error
 - Paths under `.catalog` (records, evidence, locks, journal, caches) are read and written without following symbolic links.
 - A write may carry the `checkoutKey` it was prepared in (`checkout.key` from the `summary` action). After a branch switch it fails with `checkout_changed` (`details.checkout`).
 
-Record scans are incremental: each action lists the record folders once and reads only the files whose size or modification time changed.
+Record scans are incremental: each action lists the record folders once (a server, only after something under `.catalog/` changed) and reads only the files whose size or modification time changed.
 
 ## Reviews
 
@@ -244,7 +244,7 @@ Calling a name from before this rule fails `not_found` with a fix naming its rep
 | `inbox` | read | Reviews with undecided parts, open notes, parts changed since their verdict, problems |
 | `doctor` | read | Checks and what each one found; changes nothing |
 | `doctor.fix` | write | Apply the repairs that checks declare, then check again |
-| `unit.search`, `collection.search`, `asset.search` | read | Ranked search with facet counts and bounded pages: `{ units | collections | assets, total, page, pages, pageSize, all, q, filters, facets, ids }`, plus `scope` for units and collections |
+| `unit.search`, `collection.search`, `asset.search` | read | Ranked search with facet counts and bounded pages: `{ units | collections | assets, total, page, pages, pageSize, all, q, filters, facets, ids }`, plus `scope` for units and collections. `ids` lists every match; input `ids: false` leaves it empty |
 | `unit.get`, `collection.get`, `asset.get` | read | One unit, collection or asset in full |
 | `organization.list` | read | Categories and tags with usage counts |
 | `note.list`, `review.list`, `review.get` | read | Notes (`notes`); submissions (`submissions`); one submission with evidence status |
@@ -275,7 +275,7 @@ const program = Effect.gen(function*() {
 })
 ```
 
-`run` is typed for every built-in and viewer action by [`actionMap.ts`](actionMap.ts) (its input as sent and its result); any other name (a plugin's action) runs untyped. The service also gives `discover` (actions with their input and output JSON Schema), `checkout`, `defaultActor` (the local Git user, as a human), `config`, media access for serving (`assetFile`, `evidenceMedia`, `beforeMedia`, `browserModule(name)`, `kindModule`), `server` (the running server of this checkout, when there is one) and `writeLocal` for machine-local files. `CatalogDiagnostics.stats` counts work done (projections, record scans, source loads, files hashed, probes measured); the performance tests read it.
+`run` is typed for every built-in and viewer action by [`actionMap.ts`](actionMap.ts) (its input as sent and its result); any other name (a plugin's action) runs untyped. The service also gives `discover` (actions with their input and output JSON Schema), `checkout`, `defaultActor` (the local Git user, as a human), `config`, media access for serving (`assetFile`, `evidenceMedia`, `beforeMedia`, `browserModule(name)`, `kindModule`), `server` (the running server of this checkout, when there is one), `writeLocal` for machine-local files and `follow` (watch the checkout for as long as a scope is open; the server does). `CatalogDiagnostics.stats` counts work done (projections, record scans, source loads, input checks, files hashed, probes measured); the performance tests read it.
 
 An action reads the project through one projection: the snapshot of the sources, the records and the review policy at one moment, built once per action and passed to every query, so all rows and facets of an answer agree. A write takes its lock first and builds the projection under it. Requests that arrive together (a page fetching its thumbnails) share one check of the sources that began after they arrived, so a burst costs at most two checks.
 

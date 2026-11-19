@@ -16,6 +16,7 @@ import { commit, discard, ensureBase, ensureFormat, hasConflictMarkers, type Rec
 import { blobPath, EVIDENCE_PATH, fileKey, FORMAT, kindOfPath, KINDS, LOCAL_DIR, recordKey, recordPath, RECORDS_DIR } from "./records/layout.ts"
 import { RECORD_SCHEMAS } from "./records/schemas.ts"
 import { message } from "./support.ts"
+import { Changes, concerns } from "./Changes.ts"
 
 /** Every valid record at one moment. The same object is returned until a record file changes. */
 export type RecordsView = { readonly [K in RecordKind]: ReadonlyArray<RecordsByKind[K]> } & {
@@ -115,10 +116,16 @@ export class Records extends Context.Service<Records, {
   writeLocal(relative: string, bytes: Uint8Array): Effect.Effect<string, ToolError>
   readonly stats: Effect.Effect<RecordStats>
 }>()("jam/catalog/Records") {
-  static readonly layerNoDeps: Layer.Layer<Records, never, ProjectFiles> = Layer.effect(
+  static readonly layerNoDeps: Layer.Layer<Records, never, ProjectFiles | Changes> = Layer.effect(
     Records,
     Effect.gen(function*() {
       const files = yield* ProjectFiles
+      const changes = yield* Changes
+      // Where the change feed stood at the last scan; null after this process wrote a record,
+      // whose file events may not have arrived yet.
+      let scannedAt: number | null = null
+      const inRecords = concerns([RECORDS_DIR])
+      const writes = <A, E>(effect: Effect.Effect<A, E>): Effect.Effect<A, E> => Effect.ensuring(effect, Effect.sync(() => void (scannedAt = null)))
       const remembered = new Map<string, Remembered>()
       const queues = new Map<string, { readonly semaphore: Semaphore.Semaphore; users: number }>()
       let current: RecordsView | null = null
@@ -160,6 +167,15 @@ export class Records extends Context.Service<Records, {
       // Scans update the remembered files, so two actions arriving together take turns.
       const scanning = Semaphore.makeUnsafe(1)
       const view: Effect.Effect<RecordsView, ToolError> = scanning.withPermit(Effect.gen(function*() {
+        const mark = yield* changes.mark
+        if (current !== null && scannedAt !== null) {
+          const changed = yield* changes.since(scannedAt)
+          if (changed !== null && !inRecords(changed)) {
+            scannedAt = mark
+            return current
+          }
+        }
+        scannedAt = mark
         scans++
         const scan = yield* Effect.tryPromise({ try: () => scanRecords(files.root), catch: asToolError("unavailable", `read ${RECORDS_DIR}`) })
         let changed = current === null || scan.files.length !== remembered.size
@@ -390,7 +406,21 @@ export class Records extends Context.Service<Records, {
           return path
         })
 
-      return { view, readOne, apply, withLock, locks, unlock, replay, remember, putBlob, readBlob, blobState, writeLocal, stats: Effect.sync(() => ({ scans, parsed })) }
+      return {
+        view,
+        readOne,
+        apply: (ops) => writes(apply(ops)),
+        withLock,
+        locks,
+        unlock: (name) => writes(unlock(name)),
+        replay,
+        remember: (requestId, action, input, checkoutKey, result) => writes(remember(requestId, action, input, checkoutKey, result)),
+        putBlob: (bytes, extension) => writes(putBlob(bytes, extension)),
+        readBlob,
+        blobState,
+        writeLocal,
+        stats: Effect.sync(() => ({ scans, parsed }))
+      }
     })
   )
 }
