@@ -1,6 +1,6 @@
 {
   "name": "jam-toolkit",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "private": true,
   "type": "module",
   "description": "Jam toolkit: recipes, runs, spending ledger, providers, engine adapters and the content catalog.",
