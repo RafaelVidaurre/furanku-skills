@@ -13,6 +13,7 @@ import { definePlugin } from "../../src/catalog/plugin.ts"
 import { Ids } from "../../src/kernel/Ids.ts"
 import { Process } from "../../src/kernel/Process.ts"
 import { type App, cleanup, git, makeProject, open, png, read, standardProject, tmp, W, write } from "./helpers.ts"
+import { startServer } from "./server.ts"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any
@@ -238,4 +239,107 @@ test("time and ids come from injected services: records are reproducible under a
   assert.deepEqual(history.map((decision: Any) => [decision.id, decision.at, decision.verdicts.attributes]), [["dc_0005", "2030-01-02T04:34:06.000Z", "approved"], ["dc_0004", "2030-01-02T04:34:06.000Z", "changes"]])
   assert.equal((await app.run("unit.get", { id: "lore/origin" })).review.summary.state, "approved", "a tie on time is decided by id")
   cleanup(dir)
+})
+
+test("a source whose load rewrites one of its inputs (an inventory refreshed in place) is loaded once, not on every action", async () => {
+  const dir = tmp("cc-refreshed-")
+  git(dir, "init", "-q")
+  write(dir, "data/inventory.json", { generatedAt: 0 })
+  const refreshing = definePlugin({
+    name: "refreshing",
+    sources: [{
+      name: "inventory",
+      inputs: () => ["data/inventory.json"],
+      load: () => {
+        writeFileSync(join(dir, "data/inventory.json"), JSON.stringify({ generatedAt: Math.random() }))
+        return { types: { thing: { label: "Thing" } }, units: [{ id: "a", type: "thing", name: "A" }] }
+      }
+    }]
+  })
+  write(dir, "catalog.config.json", { version: 3, plugins: ["refreshing"] })
+  const app = await open(dir, { plugins: { refreshing } })
+  await app.run("summary", {})
+  for (let i = 0; i < 3; i++) assert.deepEqual((await cost(app, () => app.run("summary", {}))).loads, {})
+  cleanup(dir)
+})
+
+test("a project plugin that imports project modules is loaded once: the second action finds the same plugins", async () => {
+  const dir = tmp("cc-imported-")
+  git(dir, "init", "-q")
+  write(dir, "catalog.config.json", { version: 3, plugins: ["./catalog/p.mjs"] })
+  write(dir, "catalog/p.mjs", `import { label } from "./lib/label.mjs"
+export default { name: "p", sources: [{ name: "one", inputs: () => ["catalog/lib"], load: () => ({ types: { thing: { label: "Thing" } }, units: [{ id: "a", type: "thing", name: label() }] }) }] }
+`)
+  write(dir, "catalog/lib/label.mjs", `export const label = () => "first"\n`)
+  const app = await open(dir)
+  await app.run("summary", {})
+  assert.deepEqual(await cost(app, () => app.run("summary", {})), { projections: 0, scans: 1, parsed: 0, hashed: 0, loads: {} })
+  cleanup(dir)
+})
+
+test("a running server reads nothing for an action while nothing changed, and an edit made just before an action is in its answer", async () => {
+  const dir = await standardProject()
+  const s = await startServer(dir)
+  const checked = async (action: () => Promise<unknown>) => {
+    const before = await stats(s.app)
+    const spent = await cost(s.app, action)
+    return { ...spent, checks: (await stats(s.app)).inputChecks - before.inputChecks }
+  }
+  try {
+    // The first detail view hashes the unit's files, once per file version.
+    await s.app.run("unit.get", { id: "armor/helm" })
+    for (const action of [() => s.app.run("summary", {}), () => s.app.run("unit.search", { q: "iron" }), () => s.app.run("unit.get", { id: "armor/helm" }), () => s.app.run("organization.list", {})]) {
+      assert.deepEqual(await checked(action), { projections: 0, scans: 0, parsed: 0, hashed: 0, loads: {}, checks: 0 }, "nothing changed: nothing is read")
+    }
+    // A file no source reads changes nothing either.
+    write(dir, "notes/scratch.json", { x: 1 })
+    assert.deepEqual(await checked(() => s.app.run("summary", {})), { projections: 0, scans: 0, parsed: 0, hashed: 0, loads: {}, checks: 0 })
+    // An edit is seen by the very next action, without waiting for anything.
+    write(dir, "content/armor_helm.json", { ...read(dir, "content/armor_helm.json"), name: "Steel Helm" })
+    assert.equal((await s.app.run("unit.get", { id: "armor/helm" })).unit.name, "Steel Helm")
+    // A new unit file in a folder a source reads, and a record written by another process.
+    write(dir, "content/armor_cap.json", { id: "armor/cap", type: "armor", name: "Cap", attrs: { slot: "Head", armor: 1 }, links: [] })
+    assert.equal((await s.app.run("unit.get", { id: "armor/cap" })).unit.name, "Cap")
+    const other = await open(dir)
+    await W(other)("note.create", { target: unit("armor/cap"), body: "From another process" })
+    assert.equal((await s.app.run("note.list", {})).total, 1)
+  } finally {
+    await s.close()
+    cleanup(dir)
+  }
+})
+
+test("a running server asks a source that declares the folders it scans for its inputs only after a change there", async () => {
+  const dir = tmp("cc-scans-")
+  git(dir, "init", "-q")
+  write(dir, "runs/a/run.json", { id: "a" })
+  let asked = 0
+  const runs = definePlugin({
+    name: "runs",
+    sources: [{
+      name: "runs",
+      // Found by walking: what `inputs` returns depends on the files under runs/.
+      inputs: async (context) => (asked++, (await context.files.walk("runs")).filter((path) => path.endsWith("/run.json"))),
+      scans: () => ["runs"],
+      load: async (context) => ({
+        types: { run: { label: "Run" } },
+        units: await Promise.all((await context.files.walk("runs")).filter((path) => path.endsWith("/run.json")).map(async (path) => ({ id: (await context.files.readJson(path) as { id: string }).id, type: "run", name: path })))
+      })
+    }]
+  })
+  write(dir, "catalog.config.json", { version: 3, plugins: ["runs"] })
+  const s = await startServer(dir, { plugins: { runs } })
+  try {
+    await s.app.run("summary", {})
+    const before = asked
+    write(dir, "elsewhere/notes.json", { x: 1 })
+    await s.app.run("summary", {})
+    assert.equal(asked, before, "a change outside the scanned folders and the inputs does not ask")
+    write(dir, "runs/b/run.json", { id: "b" })
+    assert.deepEqual((await s.app.run("unit.search", {})).units.map((u: Any) => u.id).sort(), ["a", "b"])
+    assert.ok(asked > before)
+  } finally {
+    await s.close()
+    cleanup(dir)
+  }
 })

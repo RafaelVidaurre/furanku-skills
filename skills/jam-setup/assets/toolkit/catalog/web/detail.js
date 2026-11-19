@@ -252,7 +252,7 @@ function PreviewStage({ d }) {
 }
 function MemberPicker({ members, update }) {
   const [q, setQ] = useState('');
-  const { data } = useQuery('unit.search', { q, pageSize: 40 });
+  const { data } = useQuery('unit.search', { q, pageSize: 40, ids: false });
   const has = (id) => members.some((m) => m.id === id);
   return html`<div class="picker wide">
     <input value=${q} placeholder="Units" aria-label="Find units" onInput=${(e) => setQ(e.target.value)} />

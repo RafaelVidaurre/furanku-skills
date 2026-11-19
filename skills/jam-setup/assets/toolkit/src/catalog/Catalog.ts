@@ -4,6 +4,7 @@
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import type * as Scope from "effect/Scope"
 import { decode } from "../kernel/decode.ts"
 import { fail, type ToolError } from "../kernel/errors.ts"
 import { type Checkout, Git } from "../kernel/Git.ts"
@@ -15,6 +16,7 @@ import type { ActionName, ActionOutput, InputArgs, OtherAction } from "./actionM
 import { type ActionInfo, Actions, CatalogOutputCheck, checkOutput, unknownActionFix } from "./Actions.ts"
 import { assetFiles } from "./assetFiles.ts"
 import { type BrowserModule, moduleDigests, readBrowserModule } from "./browserModules.ts"
+import { Changes, concerns } from "./Changes.ts"
 import { CatalogConfig, CatalogSetup, type ResolvedConfig, type Setup } from "./CatalogConfig.ts"
 import { Evidence } from "./Evidence.ts"
 import { Facts } from "./Facts.ts"
@@ -57,6 +59,8 @@ export interface CatalogStats {
   readonly recordScans: number
   readonly recordsParsed: number
   readonly sourceLoads: Readonly<Record<string, number>>
+  /** Times a source's inputs were read to tell whether they changed. */
+  readonly inputChecks: number
   readonly filesHashed: number
   readonly probesMeasured: number
 }
@@ -97,9 +101,15 @@ export class Catalog extends Context.Service<Catalog, {
   readonly server: Effect.Effect<ServerRecord | null>
   /** Write a machine-local file such as a capture (`captures/<name>.png`); returns its project path. */
   writeLocal(relative: string, bytes: Uint8Array): Effect.Effect<string, ToolError>
+  /**
+   * Follow the checkout by the file changes the system reports, until the scope closes: an action
+   * then re-reads only inputs that changed instead of checking every one. For a process that
+   * keeps running (the server); without it every action checks everything.
+   */
+  readonly follow: Effect.Effect<void, never, Scope.Scope>
 }>()("jam/catalog/Catalog") {
   /** Toolkit-internal: the facade over services the caller provides. Use `layer` or `layerWith`. */
-  static readonly layerNoDeps: Layer.Layer<Catalog | CatalogDiagnostics, never, Actions | Plugins | CatalogConfig | Snapshot | ReviewPolicy | ServerState | ActionServices> = Layer.effectContext(
+  static readonly layerNoDeps: Layer.Layer<Catalog | CatalogDiagnostics, never, Actions | Plugins | CatalogConfig | Snapshot | ReviewPolicy | ServerState | Changes | ActionServices> = Layer.effectContext(
     Effect.gen(function*() {
       const services = yield* Effect.context<ActionServices>()
       const registry = yield* Actions
@@ -115,8 +125,41 @@ export class Catalog extends Context.Service<Catalog, {
       const files = yield* ProjectFiles
       const servers = yield* ServerState
       const checked = yield* CatalogOutputCheck
+      const changes = yield* Changes
       let lastProjection: { readonly made: string; readonly value: Projection } | null = null
       let projections = 0
+      // The digests of the declared browser modules in the project, while none of their files
+      // changed. A module beside a plugin outside the project is read every time: no event reports it.
+      let digests: { mark: number; readonly declared: string; readonly concerns: (changed: ReadonlySet<string>) => boolean; readonly modules: Map<string, string | null>; readonly kinds: Map<string, string | null> } | null = null
+      const outside = (declared: Readonly<Record<string, string>>) => Object.fromEntries(Object.entries(declared).filter(([, reference]) => reference.startsWith("file:")))
+      const inside = (declared: Readonly<Record<string, string>>) => Object.fromEntries(Object.entries(declared).filter(([, reference]) => !reference.startsWith("file:")))
+      const moduleVersions = (set: PluginSet): Effect.Effect<{ readonly modules: Map<string, string | null>; readonly kinds: Map<string, string | null> }> =>
+        Effect.gen(function*() {
+          const mark = yield* changes.mark
+          const declared = JSON.stringify([set.browserModules, set.kindModules])
+          let known = digests !== null && digests.declared === declared ? digests : null
+          if (known !== null) {
+            const changed = yield* changes.since(known.mark)
+            if (changed === null || known.concerns(changed)) known = null
+          }
+          if (known === null) {
+            known = {
+              mark,
+              declared,
+              concerns: concerns([...Object.values(inside(set.browserModules)), ...Object.values(inside(set.kindModules))]),
+              modules: yield* moduleDigests(files, inside(set.browserModules), "browser module"),
+              kinds: yield* moduleDigests(files, inside(set.kindModules), "media kind module")
+            }
+          }
+          known.mark = mark
+          digests = known
+          const order = (all: Readonly<Record<string, string>>, ...parts: ReadonlyArray<Map<string, string | null>>) =>
+            new Map(Object.keys(all).map((name) => [name, parts.find((part) => part.has(name))?.get(name) ?? null]))
+          return {
+            modules: order(set.browserModules, known.modules, yield* moduleDigests(files, outside(set.browserModules), "browser module")),
+            kinds: order(set.kindModules, known.kinds, yield* moduleDigests(files, outside(set.kindModules), "media kind module"))
+          }
+        })
 
       // The Git user rarely changes while a catalog runs; asking once keeps `summary` free of it.
       const defaultActor = yield* Effect.cached(Effect.map(git.userName, (name): Actor => ({ name: name ?? "Local user", kind: "human" })))
@@ -138,8 +181,7 @@ export class Catalog extends Context.Service<Catalog, {
           const effective = actions.problems.length > 0 ? { ...set, problems: [...set.problems, ...actions.problems] } : set
           const snapshot = yield* snapshots.current(set)
           const view = yield* records.view
-          const modules = yield* moduleDigests(files, set.browserModules, "browser module")
-          const kinds = yield* moduleDigests(files, set.kindModules, "media kind module")
+          const { modules, kinds } = yield* moduleVersions(set)
           // Nothing it is made of changed: the same projection (and what it already computed) serves again.
           const made = JSON.stringify([set.signature, effective.problems, [...modules], [...kinds]])
           if (lastProjection && lastProjection.made === made && lastProjection.value.snapshot === snapshot && lastProjection.value.records === view) return lastProjection.value
@@ -177,7 +219,8 @@ export class Catalog extends Context.Service<Catalog, {
             defaultActor: actor,
             run: nested,
             runRead,
-            refresh: project(set)
+            // What the action changed so far is read now.
+            refresh: Effect.andThen(changes.settle, project(set))
           })
 
           if (action.access === "read") return yield* handle(base(yield* project(set), runRead) as WriteEnv)
@@ -234,9 +277,12 @@ export class Catalog extends Context.Service<Catalog, {
             return result
           }))
         })
+      // Every way in starts by settling the change feed, so an answer reflects the files as they
+      // were when it was asked for. Nested runs inside an action do not settle again.
+      const current = Effect.andThen(changes.settle, plugins.current)
       const withProjection = <A>(use: (projection: Projection, set: PluginSet) => Effect.Effect<A, ToolError>): Effect.Effect<A, ToolError> =>
         Effect.gen(function*() {
-          const set = yield* plugins.current
+          const set = yield* current
           return yield* use(yield* project(set), set)
         })
 
@@ -257,7 +303,7 @@ export class Catalog extends Context.Service<Catalog, {
 
       // A result that names a review or a page says where to find it: a link when a server runs.
       const runLinked = (name: string, input?: unknown, meta?: RunMeta): Effect.Effect<unknown, ToolError> =>
-        Effect.flatMap(run(name, input, meta), (result) => {
+        Effect.flatMap(Effect.andThen(changes.settle, run(name, input, meta)), (result) => {
           const answer = hasRoutes(result) ? Effect.map(servers.known, (server) => linked(result, server?.url ?? null)) : Effect.succeed(result)
           if (!checked) return answer
           // What the caller receives is what the action declares, field for field.
@@ -270,17 +316,18 @@ export class Catalog extends Context.Service<Catalog, {
 
       const catalog: Catalog["Service"] = {
         run: runLinked as RunCatalogAction,
-        discover: Effect.map(plugins.current, (set) => registry.for(set).info),
+        discover: Effect.map(current, (set) => registry.for(set).info),
         checkout: git.checkout,
         defaultActor,
         config: Effect.map(configs.current, (state) => state.config),
         assetFile,
         evidenceMedia: (submission, item, part, leaf = "") => withProjection((projection) => evidenceMedia(projection, evidence, submission, item, part, leaf)),
         beforeMedia: (submission, item, view) => withProjection((projection) => beforeMedia(projection, evidence, submission, item, view)),
-        browserModule: (name) => Effect.flatMap(plugins.current, (set) => browserModule(set, name)),
-        kindModule: (kind) => Effect.flatMap(plugins.current, (set) => kindModule(set, kind)),
+        browserModule: (name) => Effect.flatMap(current, (set) => browserModule(set, name)),
+        kindModule: (kind) => Effect.flatMap(current, (set) => kindModule(set, kind)),
         server: servers.known,
-        writeLocal: records.writeLocal
+        writeLocal: records.writeLocal,
+        follow: changes.watch
       }
       const diagnostics: CatalogDiagnostics["Service"] = {
         stats: Effect.gen(function*() {
@@ -290,6 +337,7 @@ export class Catalog extends Context.Service<Catalog, {
             recordScans: recordStats.scans,
             recordsParsed: recordStats.parsed,
             sourceLoads: yield* snapshots.loads,
+            inputChecks: yield* snapshots.checks,
             filesHashed: yield* media.hashed,
             probesMeasured: yield* facts.measured
           }
@@ -307,7 +355,8 @@ export class Catalog extends Context.Service<Catalog, {
   static readonly layer: Layer.Layer<Catalog | CatalogDiagnostics, never, ProjectFiles | Git | Ids> = Catalog.layerNoDeps.pipe(
     Layer.provide(Layer.mergeAll(ReviewPolicy.layerNoDeps, Actions.layer)),
     Layer.provide(Layer.mergeAll(Plugins.layerNoDeps, Snapshot.layerNoDeps, Evidence.layerNoDeps)),
-    Layer.provide(Layer.mergeAll(MediaKinds.layerNoDeps, Records.layerNoDeps, Facts.layerNoDeps, CatalogConfig.layerNoDeps, ServerState.layerNoDeps))
+    Layer.provide(Layer.mergeAll(MediaKinds.layerNoDeps, Records.layerNoDeps, Facts.layerNoDeps, CatalogConfig.layerNoDeps, ServerState.layerNoDeps)),
+    Layer.provide(Changes.layerNoDeps)
   )
 
   /** The engine with plugins registered by name and command-line overrides (see `Setup`). */

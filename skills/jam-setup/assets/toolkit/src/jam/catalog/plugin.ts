@@ -80,6 +80,7 @@ export const jamPlugin = (runs: RunCatalogAccess): Plugin => {
     sources: [defineSource({
       name: "runs",
       inputs: () => runs((ledger) => ledger.inputs),
+      scans: () => runs((ledger) => ledger.scans),
       load: () => Effect.tap(runs((ledger) => ledger.load), (output) => Effect.sync(() => void (subjects = new Set((output.units ?? []).map((unit) => unit.id)))))
     })],
     enrich: (merged) => traceInputs(merged, subjects),

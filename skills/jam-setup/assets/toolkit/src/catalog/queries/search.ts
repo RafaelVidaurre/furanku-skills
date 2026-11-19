@@ -3,7 +3,7 @@
 import { fail } from "../../kernel/errors.ts"
 import * as Effect from "effect/Effect"
 import type { Asset, Collection, Unit } from "../model/types.ts"
-import { type Rank, rankDoc, type SearchDoc } from "../model/search.ts"
+import { type PreparedDoc, prepareDoc, prepareQuery, type Rank, rankPrepared, type SearchDoc } from "../model/search.ts"
 import { type ReviewState, STATE_LABEL } from "../model/verdicts.ts"
 import { ancestors, factsOf, type Projection, typeOf } from "../Projection.ts"
 import { paginate, unique } from "../support.ts"
@@ -118,12 +118,38 @@ const searchDoc = (p: Projection, section: Section, entry: Entry): SearchDoc => 
   return { name: asset.id.split("/").pop() ?? asset.id, id: asset.id, aliases: asset.label ? [asset.label] : [], facts: [...allTags(p, "asset", asset.id), category, asset.kind ?? ""] }
 }
 
+// What a search computes about each entry does not depend on the query: kept with the projection
+// it was computed from, so the next search over an unchanged catalog only ranks and counts.
+interface Prepared {
+  readonly facets: Record<string, Facet<Entry>>
+  readonly docs: Map<Entry, PreparedDoc>
+  readonly values: Map<string, ReadonlySet<string>>
+  /** Entry to its position by name, the order of equally ranked matches. */
+  readonly byName: Map<Entry, number>
+}
+const prepared = new WeakMap<Projection, Map<Section, Prepared>>()
+const prepare = (p: Projection, section: Section, entries: ReadonlyArray<Entry>): Prepared => {
+  const sections = prepared.get(p) ?? new Map<Section, Prepared>()
+  prepared.set(p, sections)
+  let found = sections.get(section)
+  if (!found) {
+    const nameOf = (entry: Entry): string => (entry as { name?: string }).name ?? entry.id
+    const collator = new Intl.Collator()
+    const byName = new Map([...entries].sort((a, b) => collator.compare(nameOf(a), nameOf(b))).map((entry, index) => [entry, index]))
+    found = { facets: facetsFor(p, section) as unknown as Record<string, Facet<Entry>>, docs: new Map(), values: new Map(), byName }
+    sections.set(section, found)
+  }
+  return found
+}
+
 export interface SearchInput {
   readonly scope?: string | null | undefined
   readonly q?: string | null | undefined
   readonly filters?: Readonly<Record<string, ReadonlyArray<string>>> | null | undefined
   readonly page?: number | null | undefined
   readonly pageSize?: number | null | undefined
+  /** false: `ids` is empty. Every match's id can be far larger than the page it comes with. */
+  readonly ids?: boolean | null | undefined
 }
 
 const searchIn = (p: Projection, section: Section, input: SearchInput) =>
@@ -137,16 +163,21 @@ const searchIn = (p: Projection, section: Section, input: SearchInput) =>
     const { assets, units, unitsById } = p.snapshot
     const inScope = (entry: Entry): boolean =>
       scope === null || (section === "units" ? (entry as Unit).scope === scope : section === "collections" ? (entry as Collection).members.some((member) => unitsById.get(member.unit)?.scope === scope) : true)
-    const all = ((section === "units" ? units : section === "collections" ? p.collections : assets) as ReadonlyArray<Entry>).filter(inScope)
-    const facets = facetsFor(p, section) as unknown as Record<string, Facet<Entry>>
+    const entries = (section === "units" ? units : section === "collections" ? p.collections : assets) as ReadonlyArray<Entry>
+    const all = entries.filter(inScope)
+    const memo = prepare(p, section, entries)
+    const facets = memo.facets
     for (const key of Object.keys(filters)) if (!facets[key]) return yield* fail("invalid", `unknown filter ${key}`)
 
     const ranked = new Map<Entry, Rank>()
+    const query = prepareQuery(q)
     for (const entry of all) {
-      const rank = rankDoc(q, searchDoc(p, section, entry))
+      let doc = memo.docs.get(entry)
+      if (!doc) memo.docs.set(entry, doc = prepareDoc(searchDoc(p, section, entry)))
+      const rank = rankPrepared(query, doc)
       if (rank) ranked.set(entry, rank)
     }
-    const cache = new Map<string, ReadonlySet<string>>()
+    const cache = memo.values
     const values = (entry: Entry, key: string): ReadonlySet<string> => {
       const id = `${key}\0${entry.id}`
       let known = cache.get(id)
@@ -156,8 +187,7 @@ const searchIn = (p: Projection, section: Section, input: SearchInput) =>
     const selected = Object.entries(filters)
     const passes = (entry: Entry, except?: string): boolean =>
       ranked.has(entry) && selected.every(([key, wanted]) => key === except || wanted.length === 0 || wanted.some((value) => values(entry, key).has(value)))
-    const nameOf = (entry: Entry): string => (entry as { name?: string }).name ?? entry.id
-    const matched = all.filter((entry) => passes(entry)).sort((a, b) => (ranked.get(b)!.score - ranked.get(a)!.score) || nameOf(a).localeCompare(nameOf(b)))
+    const matched = all.filter((entry) => passes(entry)).sort((a, b) => (ranked.get(b)!.score - ranked.get(a)!.score) || memo.byName.get(a)! - memo.byName.get(b)!)
 
     // A facet's counts apply every filter except its own, so its other values stay choosable.
     const facetOut: Record<string, { label: string; tree: boolean; values: Array<{ value: string; label: string; count: number; selected: boolean }> }> = {}
@@ -190,7 +220,7 @@ const searchIn = (p: Projection, section: Section, input: SearchInput) =>
       pageSize: page.pageSize,
       hits: page.items.map((entry) => ({ entry, ...match(entry) })),
       facets: facetOut,
-      ids: matched.map((entry) => entry.id)
+      ids: input.ids === false ? [] : matched.map((entry) => entry.id)
     }
   })
 

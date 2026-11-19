@@ -11,6 +11,7 @@ import { sha256 } from "../kernel/hash.ts"
 import { ProjectFiles } from "../kernel/ProjectFiles.ts"
 import { assetFiles } from "./assetFiles.ts"
 import { CONFIG_FILE } from "./CatalogConfig.ts"
+import { Changes, concerns } from "./Changes.ts"
 import { fingerprint } from "./fingerprint.ts"
 import { kindByExtension, MediaKinds } from "./MediaKinds.ts"
 import { applyPatch, mergeSources } from "./model/merge.ts"
@@ -46,6 +47,12 @@ interface SourceState {
   output: SourceOutput
   /** Set while the last load failed and an earlier output is still shown. */
   failure: ProblemInput | null
+  /** Where the change feed stood when `fingerprint` was taken, and the inputs it was taken of. */
+  mark: number
+  inputs: string
+  concerns: (changed: ReadonlySet<string>) => boolean
+  /** Whether changes concern the folders its inputs are found in; null when it does not say. */
+  scanned: ((changed: ReadonlySet<string>) => boolean) | null
 }
 
 interface Core {
@@ -84,18 +91,33 @@ export class Snapshot extends Context.Service<Snapshot, {
   current(plugins: PluginSet): Effect.Effect<SnapshotData>
   /** How many times each source (`plugin/source`) was loaded since this service started. */
   readonly loads: Effect.Effect<Readonly<Record<string, number>>>
+  /** How many times a source's inputs were fingerprinted (read to tell whether they changed). */
+  readonly checks: Effect.Effect<number>
 }>()("jam/catalog/Snapshot") {
-  static readonly layerNoDeps: Layer.Layer<Snapshot, never, ProjectFiles | MediaKinds> = Layer.effect(
+  static readonly layerNoDeps: Layer.Layer<Snapshot, never, ProjectFiles | MediaKinds | Changes> = Layer.effect(
     Snapshot,
     Effect.gen(function*() {
       const files = yield* ProjectFiles
       const media = yield* MediaKinds
+      const changes = yield* Changes
       const loads: Record<string, number> = {}
+      let checks = 0
+      const fingerprinted = (inputs: ReadonlyArray<string>): Effect.Effect<string> => Effect.suspend(() => (checks++, fingerprint(files, inputs)))
       let pluginSignature: string | null = null
       let states = new Map<string, SourceState>()
       let core: Core | null = null
       let last: SnapshotData | null = null
+      // The media facts of `last`: where the change feed stood when they were read, and which paths they cover.
+      let factsOf: { readonly core: Core; readonly mark: number; readonly concerns: (changed: ReadonlySet<string>) => boolean } | null = null
 
+      const scansOf = (source: Owned<Source>): Effect.Effect<((changed: ReadonlySet<string>) => boolean) | null> => {
+        const scans = source.value.scans
+        if (scans === undefined) return Effect.succeed(null)
+        return fromPlugin(`scans of source ${source.value.name}`, () => scans.call(source.value, source.context)).pipe(
+          Effect.map((folders) => (Array.isArray(folders) && folders.every((folder) => typeof folder === "string") ? concerns(folders as ReadonlyArray<string>) : null)),
+          Effect.catch(() => Effect.succeed(null))
+        )
+      }
       const inputsOf = (source: Owned<Source>): Effect.Effect<ReadonlyArray<string>, ToolError> =>
         fromPlugin(`inputs of source ${source.value.name}`, () => source.value.inputs(source.context)).pipe(
           Effect.flatMap((inputs) =>
@@ -105,37 +127,63 @@ export class Snapshot extends Context.Service<Snapshot, {
         )
 
       /** A source that could not say what it reads or could not load: its last output stays, with a problem. */
-      const failed = (id: string, source: Owned<Source>, state: SourceState | undefined, print: string, what: string): boolean => {
+      const failed = (id: string, source: Owned<Source>, state: SourceState | undefined, print: string, what: string, seen: Seen): boolean => {
         const error = `source ${source.value.name} failed: ${what}`
         // Keep showing what loaded last; an empty catalog would hide every note and review.
         states.set(id, state
-          ? { ...state, fingerprint: print, failure: { subject: id, error, recovery: "showing the last successfully loaded content; fix the source's input and refresh" } }
-          : { fingerprint: print, output: {}, failure: { subject: id, error, recovery: `check ${CONFIG_FILE} and the source's files` } })
+          ? { ...state, ...seen, fingerprint: print, failure: { subject: id, error, recovery: "showing the last successfully loaded content; fix the source's input and refresh" } }
+          : { ...seen, fingerprint: print, output: {}, failure: { subject: id, error, recovery: `check ${CONFIG_FILE} and the source's files` } })
         return true
       }
+      type Seen = Pick<SourceState, "mark" | "inputs" | "concerns" | "scanned">
+      const seenAt = (mark: number, inputs: ReadonlyArray<string>, scanned: SourceState["scanned"]): Seen => ({ mark, inputs: inputs.join("\n"), concerns: concerns(inputs), scanned })
 
       /** Bring one source up to date; true when its output changed. */
       const refresh = (source: Owned<Source>): Effect.Effect<boolean> =>
         Effect.gen(function*() {
           const id = sourceId(source)
           const state = states.get(id)
+          const mark = yield* changes.mark
+          // Nothing changed that its inputs, or the folders they are found in, could follow from:
+          // what it would declare and read is what it did last time.
+          if (state !== undefined) {
+            const changed = yield* changes.since(state.mark)
+            if (changed !== null && (changed.size === 0 || (state.scanned !== null && !state.scanned(changed) && !state.concerns(changed)))) {
+              state.mark = mark
+              return false
+            }
+          }
+          const scanned = yield* scansOf(source)
           const declared = yield* Effect.result(inputsOf(source))
           if (declared._tag === "Failure") {
             // Without its inputs a source cannot be told fresh from stale: it is a problem, never an empty list.
             const print = `inputs failed: ${declared.failure.message}`
-            return state?.fingerprint === print ? false : failed(id, source, state, print, declared.failure.message)
+            return state?.fingerprint === print ? false : failed(id, source, state, print, declared.failure.message, seenAt(mark, [], null))
           }
           const before = declared.success
-          const print = yield* fingerprint(files, before)
-          if (state?.fingerprint === print) return false
+          // Nothing it reads changed since it was last fingerprinted: the same, without reading a file.
+          if (state !== undefined && state.inputs === before.join("\n")) {
+            const changed = yield* changes.since(state.mark)
+            if (changed !== null && !state.concerns(changed)) {
+              state.mark = mark
+              state.scanned = scanned
+              return false
+            }
+          }
+          const print = yield* fingerprinted(before)
+          if (state?.fingerprint === print) {
+            states.set(id, { ...state, ...seenAt(mark, before, scanned) })
+            return false
+          }
           loads[id] = (loads[id] ?? 0) + 1
           const loaded = yield* Effect.result(fromPlugin(`source ${source.value.name}`, () => source.value.load(source.context)))
-          if (loaded._tag === "Failure") return failed(id, source, state, print, loaded.failure.message.replace(`source ${source.value.name}: `, ""))
+          if (loaded._tag === "Failure") return failed(id, source, state, print, loaded.failure.message.replace(`source ${source.value.name}: `, ""), seenAt(mark, before, scanned))
           // What a source reads may depend on what it loaded (a manifest naming its folders).
           const after = yield* Effect.result(inputsOf(source))
-          if (after._tag === "Failure") return failed(id, source, { fingerprint: print, output: loaded.success ?? {}, failure: null }, print, after.failure.message)
-          const same = after.success.length === before.length && after.success.every((input, index) => input === before[index])
-          states.set(id, { fingerprint: same ? print : yield* fingerprint(files, after.success), output: loaded.success ?? {}, failure: null })
+          if (after._tag === "Failure") return failed(id, source, { ...seenAt(mark, before, scanned), fingerprint: print, output: loaded.success ?? {}, failure: null }, print, after.failure.message, seenAt(mark, before, scanned))
+          // The inputs are fingerprinted again after the load: a source that refreshes a file it
+          // reads (an engine inventory written in place) would otherwise look changed on every action.
+          states.set(id, { ...seenAt(mark, after.success, scanned), fingerprint: yield* fingerprinted(after.success), output: loaded.success ?? {}, failure: null })
           return true
         })
 
@@ -208,6 +256,15 @@ export class Snapshot extends Context.Service<Snapshot, {
             core = { signature: sha256(`${plugins.signature}\n${signature}`), data: yield* build(plugins) }
           }
           const { data, signature } = core
+          const factsMark = yield* changes.mark
+          // No media file (nor a folder holding one) changed since their facts were read: they still hold.
+          if (last !== null && factsOf !== null && factsOf.core === core) {
+            const changed = yield* changes.since(factsOf.mark)
+            if (changed !== null && !factsOf.concerns(changed)) {
+              factsOf = { ...factsOf, mark: factsMark }
+              return last
+            }
+          }
           const within = assetFiles(files.root, data.assetRoots)
           const facts = yield* Effect.forEach(data.assets, (asset) => media.facts(asset, plugins.mediaKinds, within), { concurrency: 16 })
           yield* media.persist
@@ -216,12 +273,13 @@ export class Snapshot extends Context.Service<Snapshot, {
             return `${asset.id}:${fact.state}:${fact.token ?? ""}:${fact.error ?? ""}`
           }).join("\n"))
           const version = `${signature.slice(0, 6)}${mediaSignature.slice(0, 6)}`
+          factsOf = { core, mark: factsMark, concerns: factsOf?.core === core ? factsOf.concerns : concerns(data.assets.map((asset) => asset.path)) }
           if (last !== null && last.version === version && last.units === data.units) return last
           last = { ...data, version, facts: new Map(data.assets.map((asset, index) => [asset.id, facts[index]!])) }
           return last
         })
 
-      return { current, loads: Effect.sync(() => ({ ...loads })) }
+      return { current, loads: Effect.sync(() => ({ ...loads })), checks: Effect.sync(() => checks) }
     })
   )
 }

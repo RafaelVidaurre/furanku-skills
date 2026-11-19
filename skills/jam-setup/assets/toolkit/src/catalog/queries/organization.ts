@@ -47,27 +47,36 @@ export const allTags = (p: Projection, kind: OrganizedKind, id: string): Array<s
   return unique([...organization.projectTags, ...organization.tags])
 }
 
-/** Every category and tag with how many units, collections and assets carry it. */
+/** Every category and tag with how many units, collections and assets carry it. One pass over the entities. */
 export const organizationList = (p: Projection) => {
-  const { assets, units } = p.snapshot
-  const counts = (matches: (kind: OrganizedKind, id: string) => boolean) => ({
-    units: units.filter((unit) => matches("unit", unit.id)).length,
-    collections: p.collections.filter((collection) => matches("collection", collection.id)).length,
-    assets: assets.filter((asset) => matches("asset", asset.id)).length
-  })
-  const categories = [...p.categories].sort().map((path) => ({
-    path,
-    ...counts((kind, id) => {
-      const category = organizationOf(p, kind, id).category
-      return category === path || !!category?.startsWith(`${path}/`)
-    })
-  }))
-  const every = [
-    ...units.map((unit) => allTags(p, "unit", unit.id)),
-    ...p.collections.map((collection) => allTags(p, "collection", collection.id)),
-    ...assets.map((asset) => allTags(p, "asset", asset.id))
-  ]
-  const projectTags = new Set([...units.flatMap((unit) => unit.adapterTags), ...assets.flatMap((asset) => asset.adapterTags), ...p.collections.flatMap((collection) => collection.adapterTags)])
-  const tags = unique(every.flat()).sort().map((tag) => ({ tag, projectOwned: projectTags.has(tag), ...counts((kind, id) => allTags(p, kind, id).includes(tag)) }))
-  return { categories, tags }
+  type Counts = { units: number; collections: number; assets: number }
+  const field = { unit: "units", collection: "collections", asset: "assets" } as const
+  const zero = (): Counts => ({ units: 0, collections: 0, assets: 0 })
+  const byCategory = new Map([...p.categories].map((path) => [path, zero()]))
+  const byTag = new Map<string, Counts>()
+  const projectTags = new Set<string>()
+  const count = (kind: OrganizedKind, id: string): void => {
+    const organization = organizationOf(p, kind, id)
+    for (const tag of organization.projectTags) projectTags.add(tag)
+    // A category counts what it holds directly and what its subcategories hold.
+    const category = organization.category
+    if (category) {
+      for (let end = category.length; end > 0; end = category.lastIndexOf("/", end - 1)) {
+        const counts = byCategory.get(category.slice(0, end))
+        if (counts) counts[field[kind]]++
+      }
+    }
+    for (const tag of unique([...organization.projectTags, ...organization.tags])) {
+      const counts = byTag.get(tag) ?? zero()
+      counts[field[kind]]++
+      byTag.set(tag, counts)
+    }
+  }
+  for (const unit of p.snapshot.units) count("unit", unit.id)
+  for (const collection of p.collections) count("collection", collection.id)
+  for (const asset of p.snapshot.assets) count("asset", asset.id)
+  return {
+    categories: [...byCategory.keys()].sort().map((path) => ({ path, ...byCategory.get(path)! })),
+    tags: [...byTag.keys()].sort().map((tag) => ({ tag, projectOwned: projectTags.has(tag), ...byTag.get(tag)! }))
+  }
 }

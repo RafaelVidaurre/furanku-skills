@@ -74,6 +74,8 @@ export class CatalogServer extends Context.Service<CatalogServer, {
         const allowOrigins = options.allowOrigins ?? []
         const config = { web: nodePath.join(toolkitRoot, "catalog", "web"), modules: browserModules(), identity: { pid: options.pid, toolkit: options.toolkit, root }, allowed: yield* allowedOrigins(allowOrigins) }
         const bound = yield* Deferred.make<number>()
+        // A server answers many actions over a long time: it follows the checkout by file events.
+        yield* catalog.follow
 
         const listenOn = (port: number) =>
           Layer.buildWithScope(
@@ -95,6 +97,8 @@ export class CatalogServer extends Context.Service<CatalogServer, {
         } else yield* listenOn(options.port)
 
         const port = yield* Deferred.await(bound)
+        // The first page view should not wait for every source to load: loading starts now.
+        yield* Effect.forkIn(Effect.ignore(catalog.run("summary")), scope)
         const url = `http://${LOOPBACK}:${port}/`
         const record = options.record && (yield* state.known) === null
         if (record) {

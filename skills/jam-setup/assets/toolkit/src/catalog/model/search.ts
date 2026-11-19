@@ -40,25 +40,53 @@ export interface Rank {
   readonly member?: { readonly id: string; readonly name: string } | null
 }
 
+/** A document with its text normalized once, to rank against many queries. */
+export interface PreparedDoc {
+  readonly name: string
+  readonly id: string
+  readonly aliases: ReadonlyArray<string>
+  readonly nameWords: ReadonlySet<string>
+  readonly aliasWords: ReadonlySet<string>
+  readonly factText: string
+  readonly members: ReadonlyArray<{ readonly id: string; readonly name: string; readonly words: ReadonlySet<string>; readonly text: string }>
+}
+
+export const prepareDoc = (doc: SearchDoc): PreparedDoc => {
+  const aliases = (doc.aliases ?? []).map(norm)
+  return {
+    name: norm(doc.name),
+    id: norm(doc.id),
+    aliases,
+    nameWords: new Set([...words(doc.name), ...words(doc.id)]),
+    aliasWords: new Set(aliases.flatMap((alias) => alias.split(/[\s/.]+/))),
+    factText: (doc.facts ?? []).map(norm).join(" "),
+    members: (doc.members ?? []).map((member) => ({
+      id: member.id,
+      name: member.name,
+      words: new Set([...words(member.name), ...words(member.id)]),
+      text: `${norm(member.name)} ${norm(member.id)}`
+    }))
+  }
+}
+
+/** A query normalized once, to rank many documents with. */
+export interface Query {
+  readonly text: string
+  readonly words: ReadonlyArray<string>
+}
+export const prepareQuery = (query: string): Query => ({ text: norm(query), words: words(query) })
+
 /** Rank a document against a query; null when some query word matches nothing. */
-export const rankDoc = (query: string, doc: SearchDoc): Rank | null => {
-  const q = norm(query)
+export const rankDoc = (query: string, doc: SearchDoc): Rank | null => rankPrepared(prepareQuery(query), prepareDoc(doc))
+
+export const rankPrepared = (query: Query, doc: PreparedDoc): Rank | null => {
+  const q = query.text
   if (!q) return { score: 0 }
-  const name = norm(doc.name)
-  const id = norm(doc.id)
+  const { name, id, aliases, nameWords, aliasWords, factText, members: memberDocs } = doc
   if (q === name || q === id) return { score: 1000 }
   if (name.startsWith(q) || id.startsWith(q)) return { score: 800 }
-  const aliases = (doc.aliases ?? []).map(norm)
   if (aliases.some((alias) => alias === q || alias.startsWith(q))) return { score: 700 }
-  const queryWords = words(query)
-  const nameWords = new Set([...words(doc.name), ...words(doc.id)])
-  const aliasWords = new Set(aliases.flatMap((alias) => alias.split(/[\s/.]+/)))
-  const factText = (doc.facts ?? []).map(norm).join(" ")
-  const memberDocs = (doc.members ?? []).map((member) => ({
-    ...member,
-    words: new Set([...words(member.name), ...words(member.id)]),
-    text: `${norm(member.name)} ${norm(member.id)}`
-  }))
+  const queryWords = query.words
   let score = 0
   let member: Rank["member"] = null
   for (const word of queryWords) {

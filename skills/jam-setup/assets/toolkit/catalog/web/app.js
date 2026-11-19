@@ -143,9 +143,9 @@ function GlobalSearch() {
     let live = true;
     const h = setTimeout(async () => {
       const [u, c, a] = await Promise.all([
-        call('unit.search', { q: t, pageSize: 5 }).catch(() => ({ units: [] })),
-        call('collection.search', { q: t, pageSize: 5 }).catch(() => ({ collections: [] })),
-        call('asset.search', { q: t, pageSize: 5 }).catch(() => ({ assets: [] })),
+        call('unit.search', { q: t, pageSize: 5, ids: false }).catch(() => ({ units: [] })),
+        call('collection.search', { q: t, pageSize: 5, ids: false }).catch(() => ({ collections: [] })),
+        call('asset.search', { q: t, pageSize: 5, ids: false }).catch(() => ({ assets: [] })),
       ]);
       if (!live) return;
       setRes([
@@ -179,9 +179,9 @@ function Side({ route }) {
   const s = useSession();
   const scope = currentScope(route.section);
   const area = scope?.id;
-  const units = useQuery('unit.search', { scope: area, pageSize: 1 }, !!area).data;
-  const cols = useQuery('collection.search', { pageSize: 1 }).data;
-  const assets = useQuery('asset.search', { pageSize: 1 }).data;
+  const units = useQuery('unit.search', { scope: area, pageSize: 1, ids: false }, !!area).data;
+  const cols = useQuery('collection.search', { pageSize: 1, ids: false }).data;
+  const assets = useQuery('asset.search', { pageSize: 1, ids: false }).data;
   const sel = selectedFacets(route);
   const only = (k, v) => sel[k]?.length === 1 && sel[k][0] === v && Object.keys(sel).length === 1;
   const none = Object.keys(sel).length === 0;
