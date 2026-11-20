@@ -7,7 +7,7 @@ Serves the sound and voice routes. Unit: ElevenLabs credits. `jam audio` drives 
 - **Program:** `elevenlabs` (`npm i -g @elevenlabs/cli`, or `brew install elevenlabs/tap/elevenlabs`). `jam provider probe elevenlabs` says whether it runs. A path other than the one on PATH goes under `providers.elevenlabs` in `jam.local.json`.
 - **Sign-in:** the person runs `elevenlabs auth login` (it opens a browser), or provides `ELEVENLABS_API_KEY` in the environment through their own secret handling. An agent never asks for, places or echoes a key.
 - **Windows:** an npm install is a `.cmd` launcher, which `jam audio` refuses because prompts cannot be passed through it safely. Point `providers.elevenlabs` at the program's executable or at its JavaScript entry file.
-- **Hosted MCP server:** for browsing and designing voices in conversation only. Its sound-effects node uses the deprecated model and it returns expiring links, so generation for the project goes through `jam audio`.
+- **Hosted MCP server:** for browsing and designing voices in conversation only. Its sound-effects node uses the deprecated model and it returns expiring links, so generation for the project goes through `jam audio`. When the server adds permissions (two read scopes on 2026-11-17), each connected client asks the person to consent again before its tools answer.
 
 Free calls: `jam audio voice voices` (lists voices), and the account read `jam audio` makes before and after each paid call.
 

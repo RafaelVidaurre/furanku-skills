@@ -21,12 +21,14 @@ Follow the host's own rules for which account and model a launched agent uses; d
 One fresh top-level `codex exec` per independent image, never `resume` or `fork`; an edit of one chosen image may continue that image's own session.
 
 ```
-codex exec --cd . --sandbox workspace-write --json --output-last-message <folder>/result.txt -- 'Read <folder>/brief.md. Use $imagegen and its built-in tool to generate exactly one image with the prompt under "Image prompt", unchanged in content. Copy the original file into <folder>/ and report its path, the exact prompt sent, the image inputs used and any visible deviation. If the tool is missing or fails, report and stop: no retry, no API fallback, no installs.'
+codex exec --cd . --sandbox workspace-write --json --output-last-message <folder>/result.txt -- 'Read <folder>/brief.md. Use $imagegen and its built-in tool to generate exactly one image with the prompt under "Image prompt", unchanged in content. Copy the original file into <folder>/ and report its path, the exact prompt sent, the image inputs used and any visible deviation. If the tool is missing or fails, report and stop: no retry, no API fallback, no installs.' </dev/null
 ```
 
 - `<folder>/brief.md` holds the exact image prompt under its own heading, separate from scope and authorization. The launched agent executes it; it does not redesign it.
 - Attach reference images with `-i <file>`, once per file. A file name in the prompt attaches nothing. Because `-i` takes several values, pass the prompt on standard input or after `--`.
 - Quote the prompt so `$imagegen` reaches the agent unchanged.
+- Keep `</dev/null` when the prompt is an argument: a piped standard input is appended to the prompt, and one left open is waited on.
+- In a folder Codex has not trusted, project config and project MCP servers stay off even with `workspace-write`; the built-in tool and a user-scope `$imagegen` do not need them. Leave out `--trust`: it saves trust for the project, which is the person's setting.
 - `--json` and `--output-last-message` are text outputs. The image is wherever the agent copied it.
 
 ## Evidence
@@ -35,4 +37,4 @@ A zero exit code or a report that says "generated" is not an image. Open the ret
 
 If the process loses its response, read that invocation's events and output folder before considering another generation.
 
-Record the result with `--tool "codex <version>, built-in image tool"`. One generation and file hand-off was verified on macOS with CLI 0.167.0 and ChatGPT sign-in; editing and other platforms were not.
+Record the result with `--tool "codex <version>, built-in image tool"`. One generation and file hand-off was verified on macOS with CLI 0.167.0 and ChatGPT sign-in. With CLI 0.171.0 a capability-only run of this command in an untrusted folder found the tool and `$imagegen`, and `--json` and `--output-last-message` still wrote their output (2026-11-20). Editing and other platforms were not verified.

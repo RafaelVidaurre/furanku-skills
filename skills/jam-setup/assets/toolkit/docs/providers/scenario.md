@@ -43,8 +43,8 @@ The server assumes no default team or project. Resolve `team_id` and `project_id
 - Wait with `jobs_wait`; after a timeout continue with its `pending_job_ids`. Never submit a second `model_run` to poll.
 - After a lost create response, look in `jobs_list` in the same scope before anything else.
 - `job_cancel` rejects most generation jobs. Failed jobs are reimbursed, with a moderation exception.
-- After each 3D job the model has a cooldown. A second job on it answers HTTP 429 with the wait in the body (one read "wait 2298 seconds"). Cooldowns are per model: run the next job on another suitable 3D model and say which. `consumption_limit_get` reads the real limits.
-- Concurrency, quota and plan refusals are different 429s with different remedies; report which one it was.
+- After each 3D job the model has a cooldown. A second job on it answers HTTP 429 with the wait in the body (one read "wait 2298 seconds"). Cooldowns are per model: run the next job on another suitable 3D model and say which. `consumption_limit_get` reads the real limits and the Compute Units left.
+- Concurrency, quota and plan refusals are different 429s with different remedies: after any 429, stop before the next `model_run`, read which one it was and report it.
 - Download with `asset_download`. Keep the asset id; its link is for the download only.
 
-Researched 2026-11-10 from the guide and skills above; the pacing facts were observed during a game jam in November 2026.
+Researched 2026-11-10 from the guide and skills above, rechecked against skills v0.62 on 2026-11-20; the pacing facts were observed during a game jam in November 2026.
