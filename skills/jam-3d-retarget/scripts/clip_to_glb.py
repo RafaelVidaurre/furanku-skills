@@ -12,11 +12,13 @@ checked against them, not taken on trust. An FBX file that declares another up a
 since one of the two is wrong; pass --ignore-declared once you have confirmed the flags (the printed height is the
 skeleton's real size, and retarget.py accepts the facing).
 
-The file must hold exactly one skeleton (an FBX with several needs --armature <name>) and at least one animation. The
-skeleton's rest pose is kept, every frame is kept at the file's own frame rate with the first at time 0, and nothing but
-the skeleton is written. A BVH animation is named --name (default: the file's name without its extension); FBX takes
-keep their names, or take --name when there is one. Prints one JSON object: the output, the animations, frames, frame
-rate, what the file declares (FBX), and the skeleton's height above its lowest joint in metres, for a check of --scale.
+The file must hold exactly one skeleton (an FBX with several needs --armature <name>) and at least one animation on it.
+The skeleton's rest pose is kept and nothing but the skeleton and its own animations is written. Keys are written one per
+frame of the file's own frame rate, whole or not (29.97 stays 29.97), with the first at time 0; the written file is read
+back and refused unless its key spacing is that rate and it holds exactly the animations printed. A BVH animation is
+named --name (default: the file's name without its extension); FBX takes keep their names, or take --name when there is
+one. Prints one JSON object: the output, the animations, frames, frame rate, what the file declares (FBX), and the
+skeleton's height above its lowest joint in metres, for a check of --scale.
 """
 import argparse
 import json
@@ -24,6 +26,9 @@ import os
 import sys
 
 import bpy
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from jamretarget import gltf  # noqa: E402
 
 AXES = ("X", "Y", "Z", "-X", "-Y", "-Z")
 
@@ -35,6 +40,37 @@ def negate(axis):
 def fail(message):
     print("error: " + message, file=sys.stderr)
     sys.exit(2)
+
+
+def fcurves(action):
+    if hasattr(action, "fcurves"):                       # Blender before layered actions
+        return list(action.fcurves)
+    return [fc for layer in action.layers for strip in layer.strips for bag in strip.channelbags for fc in bag.fcurves]
+
+
+def stretch(actions, factor):
+    """Move every key (and its handles) of the actions from frame f to frame f * factor."""
+    for act in actions:
+        for fc in fcurves(act):
+            for k in fc.keyframe_points:
+                k.co.x *= factor; k.handle_left.x *= factor; k.handle_right.x *= factor
+            fc.update()
+
+
+def check_written(path, expected, rate):
+    """Refuse a written file whose animations are not exactly `expected` ({name: frames}) or whose keys are not one per
+    frame at `rate`."""
+    names = [a["name"] for a in gltf.Gltf(path).animations()]
+    if sorted(names) != sorted(expected):
+        fail("the written file holds the animations %s, not %s" % (", ".join(names) or "none", ", ".join(sorted(expected))))
+    for anim in gltf.Gltf(path).animations():
+        times = gltf.key_times(anim)
+        if len(times) != expected[anim["name"]]:
+            fail("%s: %d keys were written for %d frames" % (anim["name"], len(times), expected[anim["name"]]))
+        if len(times) > 1:
+            step = (times[-1] - times[0]) / (len(times) - 1)
+            if abs(step * rate - 1) > gltf.WHOLE_RATE or gltf.frame_rate(times) is None:
+                fail("%s: the written keys are %.6g s apart, not one frame at %g fps" % (anim["name"], step, rate))
 
 
 def declared_fbx(path):
@@ -122,10 +158,22 @@ def main():
         fail("%s holds no animation on %s" % (a.motion, arm.name))
     if a.name and len(actions) > 1:
         fail("--name renames one animation; %s holds %d (%s)" % (a.motion, len(actions), ", ".join(act.name[len(prefix):] for act in actions)))
+    for act in [act for act in bpy.data.actions if act not in actions]:
+        bpy.data.actions.remove(act)                      # the exporter writes every action that fits the skeleton
     for act in actions:
         act.name = a.name or (act.name[len(prefix):] if prefix else os.path.splitext(os.path.basename(a.motion))[0])
+    # Both importers set the scene to the file's frame rate as Blender plays it: fps / fps_base (29.97 is 30 / 1.001).
+    rate = scene.render.fps / scene.render.fps_base
+    if kind == ".fbx":
+        # Blender's FBX importer puts a key at its time in seconds times the whole-number fps, so the frames of a file
+        # at a rate that is not whole fall between Blender's frames; this puts frame k of the file on frame k.
+        stretch(actions, 1.0 / scene.render.fps_base)
+    # Blender's glTF exporter turns frames into seconds by fps x fps_base (not its own playback rate, fps / fps_base),
+    # so the rate the exporter writes is set that way.
+    scene.render.fps_base = rate / scene.render.fps
     first = min(act.frame_range[0] for act in actions); last = max(act.frame_range[1] for act in actions)
     scene.frame_start, scene.frame_end = int(round(first)), int(round(last))
+    frames = {act.name: int(round(act.frame_range[1] - act.frame_range[0])) + 1 for act in actions}
     lowest = min((arm.matrix_world @ b.head_local).z for b in arm.data.bones)
     highest = max((arm.matrix_world @ b.head_local).z for b in arm.data.bones)
     bpy.ops.object.select_all(action="DESELECT"); arm.select_set(True)
@@ -133,9 +181,9 @@ def main():
     bpy.ops.export_scene.gltf(filepath=os.path.abspath(a.out), export_format="GLB", use_selection=True, export_yup=True,
                               export_animations=True, export_force_sampling=True, export_frame_range=False,
                               export_animation_mode="ACTIONS", export_anim_slide_to_zero=True, export_optimize_animation_size=False)
-    fps = scene.render.fps / scene.render.fps_base
-    print(json.dumps({"model": a.out.replace(os.sep, "/"), "animations": [{"name": act.name, "frames": int(round(act.frame_range[1] - act.frame_range[0])) + 1}
-                                                                          for act in actions],
+    check_written(os.path.abspath(a.out), frames, rate)
+    fps = float(round(rate)) if abs(rate - round(rate)) < gltf.WHOLE_RATE * rate else rate
+    print(json.dumps({"model": a.out.replace(os.sep, "/"), "animations": [{"name": n, "frames": f} for n, f in frames.items()],
                       "fps": fps, "declared": declared, "applied": {"up": a.up, "facing": a.facing, "metresPerUnit": a.scale},
                       "skeletonHeightMeters": round(highest - lowest, 4)}))
 

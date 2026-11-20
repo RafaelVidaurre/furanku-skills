@@ -20,6 +20,10 @@ FINGERS = tuple("%s-%d.%s" % (f, j, s) for f in FINGER_NAMES for j in (1, 2, 3) 
 ALL = BODY + FINGERS
 # What every map must place: the hips carry travel; arms and legs fix the sides, the facing and the leg length.
 REQUIRED = ("hips", "head") + tuple("%s.%s" % (n, s) for n in ("upper-arm", "lower-arm", "hand", "upper-leg", "lower-leg", "foot") for s in SIDES)
+# Joints every rest posture places in mirror pairs across the body, A-pose or T-pose alike: their right-to-left line is
+# the skeleton's side line.
+SIDE_PAIRS = ("upper-leg", "upper-arm")
+FACING_DEGREES = 10.0
 
 
 class SkeletonError(ValueError):
@@ -105,8 +109,8 @@ class Skeleton:
     armature node with a scale, count). at: {landmark: node}. root: the hips' parent when that parent is a joint of the
     file's skin, else None. Rest pose: the nodes' own transforms as stored."""
 
-    def __init__(self, path, table, role):
-        self.path, self.role = path, role
+    def __init__(self, path, table, role, facing_degrees=FACING_DEGREES):
+        self.path, self.role, self.facing_tolerance = path, role, facing_degrees
         self.model = gltf.Gltf(path)
         m = self.model
         names = {}
@@ -154,7 +158,8 @@ class Skeleton:
         return all(k in self.at for k in landmarks)
 
     def _check(self):
-        """Refuse a rest pose this skill cannot read: not upright in the glTF frame, sides swapped, facing backward."""
+        """Refuse a rest pose this skill cannot read: not upright in the glTF frame, turned away from +Z, sides swapped.
+        A mirrored bone is refused by the transfer, which knows which bones it drives."""
         P = self.pos
         foot = min(P("foot.l")[1], P("foot.r")[1])
         self.height = float(P("head")[1] - foot)
@@ -163,16 +168,24 @@ class Skeleton:
         lean = mathx.angle_between(P("head") - P("hips"), np.array([0.0, 1.0, 0.0]))
         if lean > 30:
             raise SkeletonError("%s: hips to head lean %.0f degrees from +Y; the rest pose must stand upright" % (self.role, lean))
-        swapped = [j for j in ("upper-arm", "hand", "upper-leg", "foot") if P(j + ".l")[0] <= P(j + ".r")[0]]
-        if swapped:
-            raise SkeletonError("%s: left joints are not on +X of right ones (%s): the character faces -Z or the map swaps sides"
-                                % (self.role, ", ".join(swapped)))
-        if self.has("toes.l", "toes.r"):
-            if all(P("toes." + s)[2] <= P("foot." + s)[2] for s in SIDES):
-                raise SkeletonError("%s: the toes are behind the ankles; the character faces -Z, glTF's front is +Z" % self.role)
-        else:
+        self.facing = self.measure_facing()
+        side, feet = self.facing["sideLineDegrees"], self.facing["feetDegrees"]
+        if abs(side) > 90:
+            raise SkeletonError("%s: left joints are not on +X of right ones (the hips' and shoulders' right-to-left line points "
+                                "%.0f degrees from +X): the character faces -Z or the map swaps sides" % (self.role, side))
+        if feet is not None and abs(feet) > 90:
+            raise SkeletonError("%s: the toes are behind the ankles (the feet point %.0f degrees from +Z); the character faces -Z "
+                                "and its map swaps sides, glTF's front is +Z" % (self.role, feet))
+        turned = [(what, deg) for what, deg in (("the hips' and shoulders' right-to-left line is turned %.1f degrees from +X", side),
+                                                ("the feet, ankle to toes, point %.1f degrees from +Z", feet))
+                  if deg is not None and abs(deg) > self.facing_tolerance]
+        if turned:
+            raise SkeletonError("%s: the character is turned about +Y instead of facing +Z: %s (--facing-degrees %g). Turn the file "
+                                "to face +Z (for BVH or FBX, convert again with the axis it faces), or check the map's sides"
+                                % (self.role, "; ".join(what % deg for what, deg in turned), self.facing_tolerance))
+        if feet is None:
             self.findings.append({"level": "warning", "code": "no-toes", "message": "%s has no toes landmarks; its facing was "
-                                  "checked from its sides only" % self.role})
+                                  "checked from its hips and shoulders only" % self.role})
         spread = self.bind_spread()
         if spread is not None and spread > 0.01 * self.height:
             self.findings.append({"level": "warning", "code": "posed", "message": "%s: the nodes stand %.3f m away from the skin's bind "
@@ -182,6 +195,24 @@ class Skeleton:
         scale = np.linalg.norm(self.rest_world[self.at["hips"], :3, :3], axis=0)
         if np.max(scale) - np.min(scale) > 1e-4 * np.max(scale):
             raise SkeletonError("%s: the hips carry a non-uniform scale; only uniform scales are read" % self.role)
+
+    def measure_facing(self):
+        """How far the rest pose is turned about +Y from facing +Z, in degrees (positive turns +Z toward +X), read two
+        ways on the ground plane: from the side line (the mean right-to-left direction of the hip and shoulder joints,
+        which should point along +X) and from the feet (the mean ankle-to-toes direction of both feet, which should
+        point along +Z; feet turned out alike cancel). feetDegrees is None without toes on both sides."""
+        P = self.pos
+        side = sum(mathx.unit(P(j + ".l") - P(j + ".r")) for j in SIDE_PAIRS)
+        degrees = lambda y, x: round(float(np.degrees(np.arctan2(y, x))), 3) + 0.0      # + 0.0: no -0.0 in the report
+        out = {"sideLineDegrees": degrees(-side[2], side[0]), "feetDegrees": None}
+        if self.has("toes.l", "toes.r"):
+            ahead = sum(mathx.unit((P("toes." + s) - P("foot." + s)) * [1.0, 0.0, 1.0]) for s in SIDES)
+            out["feetDegrees"] = degrees(ahead[0], ahead[2])
+        return out
+
+    def mirrors(self, node):
+        """True when a node's rest transform mirrors: its world matrix, or its own scale, has a negative determinant."""
+        return bool(np.linalg.det(self.rest_world[node, :3, :3]) < 0 or np.prod(self.rest[2][node]) < 0)
 
     def bind_spread(self):
         """How far the stored node pose is from the skin's bind pose: the largest distance between where two joints put
@@ -198,4 +229,4 @@ class Skeleton:
                 "landmarks": {k: self.bone_of[k] for k in ALL if k in self.at},
                 "root": self.model.name(self.root) if self.root is not None else None,
                 "unmappedJoints": self.unmapped,
-                "heightMeters": round(self.height, 4), "legLengthMeters": round(self.leg_length, 4)}
+                "heightMeters": round(self.height, 4), "legLengthMeters": round(self.leg_length, 4), "facing": self.facing}
