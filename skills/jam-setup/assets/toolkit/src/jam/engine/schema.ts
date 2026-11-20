@@ -82,7 +82,7 @@ export const AdapterCommand = Schema.Struct({
   run: Schema.NonEmptyArray(Schema.String).pipe(Schema.annotate({
     description: "Program and arguments. `python`, `blender` and `node` resolve to the machine's own; a path that exists in the adapter folder resolves there; {adapter}, {project} and {toolkit} are substituted. The command's own arguments are appended."
   })),
-  kinds: opt(Schema.Array(Id).pipe(Schema.annotate({ description: "For import: the asset kinds this command accepts" }))),
+  kinds: opt(Schema.Array(Id).pipe(Schema.annotate({ description: "For import: the asset kinds this command accepts (static, skinned, animation, textures, audio, ...). A recipe step conditioned on a kind runs only when it is listed." }))),
   timeoutSeconds: opt(PositiveInt),
   description: opt(Schema.String)
 })
@@ -110,12 +110,13 @@ export const Adapter = Schema.Struct({
 }).pipe(Schema.annotate({ identifier: "EngineAdapter", title: "Engine adapter (adapter.json or a shipped preset)" }))
 export type Adapter = typeof Adapter.Type
 
-/** What `import` prints. Reimporting the same source keeps the id. */
+/** What `import` prints. Reimporting the same source keeps the id. A skinned import lists its skinned asset first; an animation import lists each animation asset with its skeleton. */
 export const EngineAsset = Schema.Struct({
   id: Text.pipe(Schema.annotate({ description: "The engine's own id for the asset" })),
   kind: Text,
   source: opt(PortablePath),
-  sha256: opt(Schema.String)
+  sha256: opt(Schema.String),
+  skeleton: opt(Text.pipe(Schema.annotate({ description: "For an animation: the engine id of the skeleton it plays on" })))
 })
 export type EngineAsset = typeof EngineAsset.Type
 

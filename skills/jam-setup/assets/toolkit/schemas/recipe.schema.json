@@ -232,13 +232,18 @@
                     "maxLength": 64,
                     "description": "The project's engine adapter provides this command: import, inspect, conform-skeleton, or one of the adapter's own"
                   },
+                  "kind": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                    "maxLength": 64,
+                    "description": "With engine: that command lists this kind among its kinds, e.g. {\"engine\": \"import\", \"kind\": \"animation\"}"
+                  },
                   "budget": {
                     "type": "object",
                     "description": "The run's budget has these field values, e.g. {\"kind\": \"deforming\"}"
                   }
                 },
-                "additionalProperties": false,
-                "description": "The step applies only when this holds; otherwise it is skipped automatically and later steps treat it as satisfied"
+                "additionalProperties": false
               },
               "remove": {
                 "type": "boolean",

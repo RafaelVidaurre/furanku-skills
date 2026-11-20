@@ -372,6 +372,11 @@
                           },
                           "sha256": {
                             "type": "string"
+                          },
+                          "skeleton": {
+                            "type": "string",
+                            "pattern": "\\S",
+                            "description": "For an animation: the engine id of the skeleton it plays on"
                           }
                         },
                         "required": [

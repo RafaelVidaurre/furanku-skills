@@ -2,7 +2,7 @@
 
 Project A and project B below are two private projects used read-only for testing: UE 5.8 with 4,108 packages, and UE 5.9 with 1,198 packages.
 
-No Unreal editor was available where this adapter was assembled, except for the inventory (below). Nothing else here was run in an editor after it was changed. Read each row as: where the code came from, what was changed, what was run since.
+No Unreal editor was available where this adapter was assembled, except for the inventory, the previews and the animation import (below). Nothing else here was run in an editor after it was changed. Read each row as: where the code came from, what was changed, what was run since.
 
 **Jam** means: run as part of the game-jam project this adapter was extracted from (Unreal 5.9, Blender 5.1, November 2026), in the form it had there. Every script from the jam was then changed mechanically: its body wrapped in `main(ARGS)`, project literals replaced by arguments, and its result returned instead of printed or written to a fixed file.
 
@@ -21,6 +21,7 @@ No Unreal editor was available where this adapter was assembled, except for the 
 | `check_pose.py` | Jam: headless pose check, by commandlet | Skeleton, reference mesh, animations, frames and bones are arguments |
 | `compare_bones_in_game.py` | Jam: during Play In Editor | Reference mesh name is an argument; fails clearly when it is not in play |
 | `export_skeleton_reference.py` | Jam: reference export, by commandlet | Assets and output folder are arguments |
+| `import_animation.py` | **New**, written for this adapter; run on 2026-11-20 (below) | |
 | `import_static.py` | **New, never run.** The jam imported static meshes by hand through the editor's static-mesh toolset ([import.md](import.md)) | Whole script. It refuses to overwrite, and reports what it could not apply under `unavailable` |
 | `inspect_asset.py` | **New, never run.** Bounds, slots, skeleton, vertex and section counts and collision shape counts use calls from the jam's checks; triangle count, LOD count, Nanite state, bone names, sound and texture facts use calls the jam did not make | Each fact is read separately; one the engine refuses is named under `unavailable` and left out of the receipt |
 
@@ -48,6 +49,15 @@ Written for this adapter, not from the jam. On 2026-11-17, on a Mac:
 - **Project B,** listing `/Script/Engine.DataAsset`: the file reader selected 5 assets through the project's headers; the editor added the `PrimaryDataAsset -> DataAsset` parent and selected 28 (all 19 `Outfit`s, the sound event tables, input actions). The 28 engine-valued assets agree with the file's values on every property a file sets, and add the defaults the files leave out: `MassKg: 75.0` on 7 outfits, `Accessories: []` on 14, `ExteriorLpf: 8000`, `InteriorLpf: 8000` and `Priority: 1` on the acoustic presets. The run took 330 s the first time (two editor starts) and 120 s afterwards: this project's editor takes about 100 s to start on that Mac.
 - **The project's module did not load at first:** its `Binaries` folder is a link to another volume, so the library paths the Mac build writes, relative to where the build thought the library was, resolve from the wrong place. The check used an editor project in the wrapper that links the real Content, Config, Plugins and Source and holds a copy of the module with absolute library paths. A project laid out like this needs the same, or its Binaries as a real folder.
 - **Not checked:** engines other than 5.8 and 5.9; C++ headers whose `UCLASS(...)` nests parentheses more than two deep (the parse skips such a class).
+
+## Animation import (`engine_import.py --kind animation`, `editor/import_animation.py`, `jam_unreal/gltf.py`)
+
+Written for this adapter. On 2026-11-20, on a Mac, through real headless editors (commandlet transport, `-nullrhi`), on scratch projects holding only the fixtures of `commands/test/fixtures/animation/` (a column skinned to a three-bone chain, made in Blender 5.1):
+- **5.9.0 and 5.8.4:** `test_animation.py`'s editor test passed on both (`JAM_UNREAL_EDITOR=<UnrealEditor-Cmd>`): the skinned mesh imported by a plain import task gave a skeleton; a one-animation clip landed as one sequence on it (30 frames, 30 fps, 1.0 s, stored source project-relative), twice under the same id; a two-animation clip gave two sequences named after their animations; a clip whose spine bone is named otherwise was refused before import.
+- **The motion arrived:** on 5.9 the sampled spine rotation of the imported sequences peaked at 39.4 degrees (keyed 40) and 59.5 degrees (keyed 60) at the keyed frames, back to under 1 degree at the end.
+- **Through the toolkit:** with the adapter installed in a 5.9 scratch project, `jam engine show` listed the kind, `jam engine import --kind animation --target <receipt file>` resolved the receipt's skeletal mesh, and a whole `animation` run recorded its import step with the sequence id and skeleton.
+- **Found on the way:** an import task given an Interchange pipeline as its options ignored it and built a new skeleton; the pipeline has to go to the Interchange manager as an override. A sequence moved after import resolved its stored source from its new folder, to a path outside the project; the command therefore imports in place under its final name.
+- **Not checked:** clips from motion providers or real characters, root motion, curves and morph targets, non-1 scale or other axes than glTF's, a `command` transport to a running editor, Windows.
 
 ## Previews
 

@@ -20,7 +20,7 @@ describe("shipped recipes", () => {
       const recipes = yield* Recipes
       const checks = new Set((yield* (yield* Checks).list).map((check) => check.id))
       const ids = yield* recipes.shipped
-      assert.deepEqual([...ids].sort(), ["asset", "character", "image", "prop", "provider-test", "sfx", "voice-line"])
+      assert.deepEqual([...ids].sort(), ["animation", "asset", "character", "image", "prop", "provider-test", "sfx", "voice-line"])
       for (const id of ids) {
         const resolved = yield* recipes.get(id)
         assert.ok(resolved.when, `${id} says which requests it is for`)

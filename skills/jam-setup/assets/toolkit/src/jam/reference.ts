@@ -4,6 +4,7 @@ import * as Command from "effect/cli/Command"
 import * as CommandSpec from "effect/cli/CommandSpec"
 import * as Option from "effect/Option"
 import { publishedSchemas } from "../catalog/published.ts"
+import { ClipSpec } from "./animation/clip.ts"
 import { AudioUnit, LinesFile, SpeakersFile } from "./audio/schema.ts"
 import { JamConfig, LocalConfig } from "./config/schema.ts"
 import { Adapter, EngineInventory, EnginePreviews, Handoff, RECEIPTS } from "./engine/schema.ts"
@@ -24,6 +25,7 @@ export const PUBLISHED: ReadonlyArray<Published> = [
   { file: "engine-inventory.schema.json", schema: EngineInventory },
   { file: "engine-previews.schema.json", schema: EnginePreviews },
   { file: "landmarks.schema.json", schema: LandmarkFile },
+  { file: "animation-clip.schema.json", schema: ClipSpec },
   { file: "run.schema.json", schema: Run },
   { file: "audio-unit.schema.json", schema: AudioUnit },
   { file: "audio-lines.schema.json", schema: LinesFile },

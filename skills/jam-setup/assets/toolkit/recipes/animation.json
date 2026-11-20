@@ -1,0 +1,154 @@
+{
+  "$schema": "../schemas/recipe.schema.json",
+  "version": 1,
+  "id": "animation",
+  "title": "Animation clip",
+  "description": "From a brief to one animation clip on the project's rigged humanoid: a clip spec, optional key poses, motion by hand, by retargeting or from a motion provider, retargeting onto the project rig when needed, a clip check on that rig, and an optional engine import.",
+  "when": "An animation for a character that is already rigged: a walk, an attack, a transition between two poses, a clip from a library or from footage.",
+  "steps": [
+    {
+      "id": "define",
+      "title": "Clip spec",
+      "skill": "jam-3d-animate",
+      "guide": "toolkit:docs/recipes/animation.md#define",
+      "produces": [
+        {
+          "role": "spec",
+          "kind": "data",
+          "max": 1
+        }
+      ],
+      "checks": [
+        "clip-spec"
+      ],
+      "review": "human"
+    },
+    {
+      "id": "keyposes",
+      "title": "Key poses on the project rig",
+      "needs": [
+        "define"
+      ],
+      "skill": "jam-3d-animate",
+      "guide": "toolkit:docs/recipes/animation.md#keyposes",
+      "optional": true,
+      "produces": [
+        {
+          "role": "keyposes",
+          "kind": "model",
+          "max": 1
+        }
+      ],
+      "review": "human"
+    },
+    {
+      "id": "motion",
+      "title": "Motion",
+      "needs": [
+        "define",
+        "keyposes"
+      ],
+      "skill": "jam-3d-animate",
+      "guide": "toolkit:docs/recipes/animation.md#motion",
+      "paid": true,
+      "produces": [
+        {
+          "role": "clip",
+          "kind": "any",
+          "max": 1
+        }
+      ],
+      "review": "agent"
+    },
+    {
+      "id": "retarget",
+      "title": "Retarget onto the project rig",
+      "needs": [
+        "motion"
+      ],
+      "skill": "jam-3d-retarget",
+      "guide": "toolkit:docs/recipes/animation.md#retarget",
+      "optional": true,
+      "produces": [
+        {
+          "role": "clip",
+          "kind": "model",
+          "max": 1
+        }
+      ],
+      "review": "agent"
+    },
+    {
+      "id": "check",
+      "title": "Clip check on the project rig",
+      "needs": [
+        "motion",
+        "retarget"
+      ],
+      "skill": "jam-3d-animate",
+      "guide": "toolkit:docs/recipes/animation.md#check",
+      "produces": [
+        {
+          "role": "clip",
+          "kind": "model",
+          "max": 1
+        },
+        {
+          "role": "evidence",
+          "kind": "any",
+          "min": 1
+        }
+      ],
+      "checks": [
+        "clip-report"
+      ],
+      "review": "human"
+    },
+    {
+      "id": "import",
+      "title": "Engine import",
+      "needs": [
+        "check"
+      ],
+      "skill": "jam-engine",
+      "guide": "toolkit:docs/recipes/animation.md#import",
+      "optional": true,
+      "when": {
+        "engine": "import",
+        "kind": "animation"
+      },
+      "run": [
+        "engine",
+        "import",
+        "--kind",
+        "animation",
+        "--run",
+        "{id}",
+        "--target",
+        "<engine id of the skinned asset, or its import receipt>"
+      ],
+      "review": "none"
+    },
+    {
+      "id": "delivery",
+      "title": "Final clip and sign-off",
+      "needs": [
+        "check",
+        "import"
+      ],
+      "guide": "toolkit:docs/recipes/animation.md#delivery",
+      "produces": [
+        {
+          "role": "clip",
+          "kind": "model",
+          "max": 1
+        }
+      ],
+      "checks": [
+        "clip-report",
+        "delivery-closure"
+      ],
+      "review": "human"
+    }
+  ]
+}

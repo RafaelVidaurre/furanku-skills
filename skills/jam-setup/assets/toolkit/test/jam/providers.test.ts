@@ -18,7 +18,7 @@ describe("the provider registry", () => {
   it("ships descriptors as data and lets a project add or replace one; an unconfigured provider is simply disabled", async () => {
     const root = jamProject({ files: { "jam/providers/acme.json": descriptor("acme"), "jam/providers/meshy.json": descriptor("meshy", { label: "Our Meshy account" }) } })
     const entries = await jam(root, Effect.flatMap(Providers, (providers) => providers.list))
-    assert.deepEqual(entries.map((entry) => [entry.descriptor.id, entry.source]), [["acme", "project"], ["agent-image", "shipped"], ["codex", "shipped"], ["elevenlabs", "shipped"], ["meshy", "project"], ["scenario", "shipped"], ["tripo", "shipped"]])
+    assert.deepEqual(entries.map((entry) => [entry.descriptor.id, entry.source]), [["acme", "project"], ["agent-image", "shipped"], ["codex", "shipped"], ["elevenlabs", "shipped"], ["meshy", "project"], ["motionbricks", "shipped"], ["scenario", "shipped"], ["tripo", "shipped"]])
     const listed = cli(root, "provider", "list", "--json").json<{ providers: Array<{ id: string; label: string; routes: Array<string>; spend: { enabled: boolean; summary: string } }> }>().providers
     const byId = Object.fromEntries(listed.map((row) => [row.id, row]))
     assert.equal(byId["meshy"]!.label, "Our Meshy account")

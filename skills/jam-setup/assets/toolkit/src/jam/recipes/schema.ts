@@ -22,8 +22,9 @@ export type Produces = typeof Produces.Type
 /** When a step applies. Every part given must hold. */
 export const Condition = Schema.Struct({
   engine: opt(Id.pipe(Schema.annotate({ description: "The project's engine adapter provides this command: import, inspect, conform-skeleton, or one of the adapter's own" }))),
+  kind: opt(Id.pipe(Schema.annotate({ description: "With engine: that command lists this kind among its kinds, e.g. {\"engine\": \"import\", \"kind\": \"animation\"}" }))),
   budget: opt(Schema.Record(Schema.String, Schema.Unknown).pipe(Schema.annotate({ description: "The run's budget has these field values, e.g. {\"kind\": \"deforming\"}" })))
-})
+}).pipe(Schema.check(Schema.makeFilter((condition) => (condition.kind !== undefined && condition.engine === undefined ? "kind needs engine: the command whose kinds it is" : undefined))))
 export type Condition = typeof Condition.Type
 
 export const Step = Schema.Struct({

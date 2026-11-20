@@ -33,6 +33,8 @@ interface RunTarget {
 }
 
 const LANDMARKS_ROLE = "landmarks"
+/** The import kind for animation clips; its sources are a run's recorded `clip` files. */
+const ANIMATION = "animation"
 
 /** The step a recipe marks as performed by `jam engine <command>`. */
 const stepFor = (context: RunContext, command: string, named: string | undefined): Effect.Effect<ResolvedStep, ToolError> => {
@@ -67,8 +69,8 @@ const audioFromNeeds = (context: RunContext, step: ResolvedStep): ReadonlyArray<
   return []
 }
 
-const sourcesFor = (context: RunContext, step: ResolvedStep, given: ReadonlyArray<string>, command: string, what: "model" | "audio" = "model"): Effect.Effect<ReadonlyArray<string>, ToolError> => {
-  const sources = given.length > 0 ? given : what === "audio" ? audioFromNeeds(context, step) : fromNeeds(context, step, "model")
+const sourcesFor = (context: RunContext, step: ResolvedStep, given: ReadonlyArray<string>, command: string, what: "model" | "clip" | "audio" = "model"): Effect.Effect<ReadonlyArray<string>, ToolError> => {
+  const sources = given.length > 0 ? given : what === "audio" ? audioFromNeeds(context, step) : fromNeeds(context, step, what)
   return sources.length > 0
     ? Effect.succeed(sources)
     : fail("conflict", `nothing to ${command}: the steps ${step.id} needs (${step.needs.join(", ") || "none"}) have no recorded ${what}`, {
@@ -89,7 +91,19 @@ export interface ImportInput extends RunTarget {
   readonly slots?: ReadonlyArray<string>
   /** Skeleton profile a skinned import binds to. */
   readonly skeleton?: string | undefined
+  /** What an animation plays on: an engine id, or a project file holding the import receipt of that asset. */
+  readonly target?: string | undefined
 }
+
+/** The engine id an animation plays on: given as such, or the first asset of an import receipt (a skinned import lists its skinned asset first). */
+const targetOf = (given: string): Effect.Effect<string, ToolError, ProjectFiles> =>
+  Effect.gen(function*() {
+    const files = yield* ProjectFiles
+    if (!given.toLowerCase().endsWith(".json") || !(yield* files.exists(given).pipe(Effect.catch(() => Effect.succeed(false))))) return given
+    const receipt = yield* Effect.flatMap(files.readJson(given), decode(ImportReceipt, { what: `--target ${given}`, strict: false, fix: "give the receipt a skinned import printed, or the engine id of the asset" }))
+    const first = receipt.assets[0]
+    return first !== undefined ? first.id : yield* fail("invalid", `--target ${given}: the receipt lists no asset`)
+  })
 
 /**
  * `jam engine import`. The adapter's command receives
@@ -106,12 +120,19 @@ export const importFor = (input: ImportInput): Effect.Effect<HostedResult, ToolE
     if (command != null && command.kinds !== undefined && !command.kinds.includes(input.kind)) {
       return yield* fail("invalid", `--kind ${input.kind}: this adapter imports ${command.kinds.join(", ")}`)
     }
-    const sources = context === null || step === null ? input.files : yield* sourcesFor(context, step, input.files, "import", input.kind.startsWith("audio") ? "audio" : "model")
+    const animation = input.kind === ANIMATION
+    if (animation && input.target === undefined) {
+      return yield* fail("invalid", "--kind animation needs --target: the skinned asset or skeleton already in the engine that the clip plays on", {
+        fix: "pass --target <engine id>, or --target <the receipt file of that asset's import>"
+      })
+    }
+    const target = input.target === undefined ? undefined : yield* targetOf(input.target)
+    const sources = context === null || step === null ? input.files : yield* sourcesFor(context, step, input.files, "import", input.kind.startsWith("audio") ? "audio" : animation ? "clip" : "model")
     if (sources.length === 0) return yield* fail("invalid", "name the files to import, or the run whose result to import with --run <id>")
     const budget = context?.ref.run.budget
     const skeleton = input.skeleton ?? (budget == null ? undefined : context?.config.budgets[budget]?.skeleton)
-    const flags = [...pair("--destination", input.destination), ...(input.slots ?? []).flatMap((slot) => ["--slot", slot]), ...pair("--skeleton", skeleton), ...(input.extra ?? [])]
-    const outcome = yield* engine.run("import", ["--kind", input.kind, ...sources, ...flags], resumeLine("import", input, ["--kind", input.kind, ...(input.run === undefined ? sources : [])]))
+    const flags = [...pair("--destination", input.destination), ...(input.slots ?? []).flatMap((slot) => ["--slot", slot]), ...pair("--skeleton", skeleton), ...pair("--target", target), ...(input.extra ?? [])]
+    const outcome = yield* engine.run("import", ["--kind", input.kind, ...sources, ...flags], resumeLine("import", input, ["--kind", input.kind, ...pair("--target", input.target), ...(input.run === undefined ? sources : [])]))
     if (outcome.status !== "ran" || context === null || step === null) return { outcome }
     const receipt = yield* decode(ImportReceipt, { what: `import receipt of adapter ${outcome.adapter}`, code: "malformed", strict: false })(outcome.receipt)
     const evidence = `${context.ref.dir}/engine-import-${(yield* nowIso).replace(/[^0-9]/g, "").slice(0, 14)}.json`
@@ -122,7 +143,7 @@ export const importFor = (input: ImportInput): Effect.Effect<HostedResult, ToolE
       files: [],
       evidence: [`receipt=${evidence}`],
       inputs: sources,
-      note: `Imported ${sources.join(", ")} as ${input.kind} through engine adapter ${outcome.adapter}.`,
+      note: `Imported ${sources.join(", ")} as ${input.kind}${target === undefined ? "" : ` onto ${target}`} through engine adapter ${outcome.adapter}.`,
       tool: `engine adapter ${outcome.adapter} import`,
       engineAssets: receipt.assets,
       arguments: ["--kind", input.kind, ...flags]

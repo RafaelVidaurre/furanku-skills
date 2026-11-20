@@ -8,10 +8,10 @@ import sys
 
 from .errors import AdapterError
 
-ASSET_KINDS = ("static-mesh", "skeletal-mesh", "texture", "material", "material-instance", "sound-wave", "sound-source")
+ASSET_KINDS = ("static-mesh", "skeletal-mesh", "animation-sequence", "texture", "material", "material-instance", "sound-wave", "sound-source")
 
 
-def asset(asset_id, kind, source=None, sha256=None):
+def asset(asset_id, kind, source=None, sha256=None, skeleton=None):
     if kind not in ASSET_KINDS:
         raise AdapterError("invalid", "unknown asset kind %r" % kind)
     out = {"id": asset_id, "kind": kind}
@@ -19,6 +19,8 @@ def asset(asset_id, kind, source=None, sha256=None):
         out["source"] = source
     if sha256:
         out["sha256"] = sha256
+    if skeleton:
+        out["skeleton"] = skeleton
     return out
 
 

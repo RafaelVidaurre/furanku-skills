@@ -1,0 +1,50 @@
+{
+  "$schema": "../schemas/provider.schema.json",
+  "id": "motionbricks",
+  "label": "NVIDIA MotionBricks",
+  "unit": { "id": "gpu-time", "label": "time on an NVIDIA GPU the person runs, own or rented; no charge per job", "paid": false },
+  "capabilities": {
+    "motion": {
+      "modes": ["inbetween"],
+      "inputs": { "min": 1, "max": 4 },
+      "note": "From the last four poses (30 Hz) to 1 to 4 target poses: 18 to 58 frames per generation (about 0.6 to 1.9 s), chained for longer motion. SOMA skeleton only: poses go in and clips come out on SOMA, so retargeting carries them between the project rig and SOMA both ways. No text or scene input; flat ground; fingers are not animated."
+    }
+  },
+  "transports": [
+    { "kind": "skill", "name": "jam-3d-motionbricks", "note": "Generation runs on a host that meets MotionBricks' requirements (an NVIDIA GPU of compute capability 7.5 or higher with a CUDA 12 driver, Windows or Linux x86-64); the skill's host check says whether a machine does. Packing and unpacking may run on another machine." }
+  ],
+  "pacing": { "concurrent": 1, "typicalWait": "Seconds per request once a TensorRT plan exists; the first run of a precision on a host builds its plan, which takes minutes." },
+  "quote": { "kind": "none", "how": "No price per job. On a rented GPU its hourly rate applies, billed by its host outside this ledger." },
+  "rig": {
+    "landmarks": {
+      "Hips": "hips",
+      "Spine1": "spine",
+      "Chest": "chest",
+      "Neck1": "neck",
+      "Head": "head",
+      "LeftShoulder": "shoulder.l",
+      "LeftArm": "upper-arm.l",
+      "LeftForeArm": "lower-arm.l",
+      "LeftHand": "hand.l",
+      "LeftLeg": "upper-leg.l",
+      "LeftShin": "lower-leg.l",
+      "LeftFoot": "foot.l",
+      "LeftToeBase": "toes.l",
+      "RightShoulder": "shoulder.r",
+      "RightArm": "upper-arm.r",
+      "RightForeArm": "lower-arm.r",
+      "RightHand": "hand.r",
+      "RightLeg": "upper-leg.r",
+      "RightShin": "lower-leg.r",
+      "RightFoot": "foot.r",
+      "RightToeBase": "toes.r"
+    }
+  },
+  "recovery": "Nothing is charged, so a lost result is generated again from the same request. Identical inputs on the same backend and precision give the same motion.",
+  "skills": ["jam-3d-motionbricks"],
+  "docs": "docs/providers/motionbricks.md",
+  "notes": [
+    "Generation needs an NVIDIA GPU under Windows or Linux; there is no macOS build.",
+    "The sample motions NVIDIA ships are for evaluation only: never ship them, or target poses or motion taken from them."
+  ]
+}

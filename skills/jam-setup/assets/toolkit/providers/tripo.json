@@ -4,10 +4,15 @@
   "label": "Tripo",
   "unit": { "id": "credits", "label": "Tripo credits (API and Studio balances are separate)", "paid": true },
   "capabilities": {
-    "mesh": { "modes": ["text", "multiview"], "inputs": { "min": 2, "max": 4 }, "note": "`make` accepts 2 to 4 images for multiview. Text-to-model suits a connectivity test, not production design." }
+    "mesh": { "modes": ["text", "multiview"], "inputs": { "min": 2, "max": 4 }, "note": "`make` accepts 2 to 4 images for multiview. Text-to-model suits a connectivity test, not production design." },
+    "motion": {
+      "modes": ["library"],
+      "note": "Up to 5 preset clips per request, applied only to a model Tripo rigged: 11 presets on v3.0 biped rigs, 90+ on v1.0 biped rigs, one per creature type. Output skeleton: Tripo's own bone naming or a standard naming chosen when rigging a biped; no joint list is published. Frame rate and clip length are not stated. Retargeting brings the clips onto the project rig."
+    }
   },
   "transports": [
     { "kind": "cli", "command": "tripo", "probe": ["--version"], "npmLauncher": true },
+    { "kind": "mcp", "server": "tripo", "note": "Official server `npx -y tripo-cli mcp`; with `--toolset full` it serves rig check, rig, animate and download." },
     { "kind": "browser", "note": "Studio. API-key sign-in does not identify the Studio account; its balance and prices are separate." }
   ],
   "pacing": { "concurrent": 1 },

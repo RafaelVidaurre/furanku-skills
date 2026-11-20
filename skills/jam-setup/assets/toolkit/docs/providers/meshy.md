@@ -1,6 +1,6 @@
 # Meshy
 
-Serves the mesh route. Unit: Meshy credits. The neutral procedure is [providers.md](../providers.md); this page holds what is true of Meshy only. Model ids, limits and prices are dated observations: read the live help before building on one.
+Serves the mesh and motion routes. Unit: Meshy credits. The neutral procedure is [providers.md](../providers.md); this page holds what is true of Meshy only. Model ids, limits and prices are dated observations: read the live help before building on one.
 
 ## Reach
 
@@ -37,8 +37,19 @@ Verified when `meshy auth status` and `meshy balance --format json --no-update-c
 - Multi-image generation has no Smart Topology. Its remesh option is `triangle` (default) or `quad` with a target count.
 - Smart Topology exists for one image (and text preview), outputs triangles only, and covers 100 to 30,000 faces depending on the model. Meshy recommends it for assets with a face budget instead of remeshing a dense mesh down. That advice favours single-view; put the trade-off to the person as the neutral mesh-input rule says.
 - A quad setting does not prove exported quads or usable edge flow.
-- Remesh: 100 to 300,000 faces. UV unwrap: GLB input of at most 40,000 faces; it triangulates quads and returns an untextured model with new UVs. Retexture keeps the existing UVs only with `enable_original_uv: true`. Rigging is for humanoids only.
+- Remesh: 100 to 300,000 faces. UV unwrap: GLB input of at most 40,000 faces; it triangulates quads and returns an untextured model with new UVs. Retexture keeps the existing UVs only with `enable_original_uv: true`.
 - `latest` moves; pin the model. `lowpoly` is deprecated in favour of Smart Topology ([deprecations](https://docs.meshy.ai/api/deprecations.md)).
+
+## Motion (checked 2026-11-20)
+
+From the API docs ([rigging](https://docs.meshy.ai/api/rigging.md), [animation](https://docs.meshy.ai/api/animation.md), [animation library](https://docs.meshy.ai/api/animation-library.md), [text to motion](https://docs.meshy.ai/api/text-to-motion.md), [pricing](https://docs.meshy.ai/api/pricing.md), changelog up to 2026-11-18). The CLI has `rigging`, `animate`, `text-to-motion` and `animation-catalog`.
+
+- **Clips play only on a rig Meshy builds.** The animation call takes a Meshy rigging task, never a skeleton the person already has. Rigging takes a textured GLB facing +Z, at most 380,000 triangles, of a humanoid or a four-legged animal (`animation_type` `biped` or `quadruped`).
+- **Output skeleton.** By default the 24-bone `meshyrig`, in centimetres; its joint names are not published (its fingers, with `include_fingers`, use Mixamo names). For bipeds `skeleton_template` builds instead one of `mixamo`, `ue5_mannequin`, `unity_humanoid`, `max_biped`, `maya_human_ik`, `blender_rigify_basic_human`, `cc5_hd_neutral_base`, `daz_genesis9`, in metres; a model Meshy cannot rig on that skeleton fails the task. When the project rig is one of these, the clip may need no retargeting; otherwise retargeting brings it onto the project rig. The CLI's rigging flags do not cover `animation_type`, `skeleton_template` or `include_fingers`: send them in its JSON body. The MCP server (0.6.12) cannot set them at all.
+- **Library.** One to ten clips per request (`action_ids`), returned as one file with one clip per action, GLB and FBX, at 24, 25, 30 or 60 fps (default 30). The catalog lists the clip ids and costs no credits; it held about 650 biped and 130 quadruped clips on 2026-11-20, and retired ids disappear. Native frame rate and any in-place switch are not documented.
+- **Text.** A prompt of up to 400 characters and a `duration` of 2 to 10 s in 0.5 s steps. `prime` returns FBX, `swift` BVH. The clip "doesn't need a character model"; its skeleton is not documented. Only a biped rig takes it, as a clip named `retarget_clip`.
+- **Prices (API, in credits):** rigging 5, animation 3 per action, text 10 (`prime`) or 3 (`swift`). Charged when the task is created.
+- **Output rights** ([terms](https://www.meshy.ai/terms-of-use), updated 2026-09-19): on a paid plan the customer owns the output; on Free, Meshy owns it and licenses it under CC BY 4.0. Outputs may not be used to train models competitive with Meshy, and non-Enterprise inputs and outputs may be used to improve Meshy's services.
 
 ## Job custody
 

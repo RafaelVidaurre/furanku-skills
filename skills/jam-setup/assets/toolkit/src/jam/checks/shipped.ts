@@ -7,6 +7,7 @@ import { Git } from "../../kernel/Git.ts"
 import { isRecord, isUnder } from "../../kernel/hash.ts"
 import { Process } from "../../kernel/Process.ts"
 import { ProjectFiles } from "../../kernel/ProjectFiles.ts"
+import { ClipSpec } from "../animation/clip.ts"
 import type { Problem } from "../common.ts"
 import { Config } from "../config/Config.ts"
 import { Engine } from "../engine/Engine.ts"
@@ -118,6 +119,67 @@ const deformationEvidence = (files: ProjectFiles["Service"]): Check => ({
         if (Array.isArray(glb["problems"]) && glb["problems"].length > 0) {
           problems.push({ message: `${file.path}: the exported model has problems: ${glb["problems"].map(String).join("; ")}` })
         }
+      }
+      return problems
+    })
+})
+
+const SPEC = "spec"
+const CLIP = "clip"
+
+/** A clip spec decodes against its schema and names a rig and a skeleton map that exist. */
+const clipSpec = (files: ProjectFiles["Service"]): Check => ({
+  id: "clip-spec",
+  description: "The clip spec is valid and names a project rig and skeleton map that exist",
+  when: "status",
+  run: (input) =>
+    Effect.gen(function*() {
+      const specs = input.record.files.filter((file) => file.role === SPEC)
+      if (specs.length !== 1) return [{ message: `the step needs exactly one clip spec; the record has ${specs.length}`, fix: `record it as --file ${SPEC}=<clip.json> (schemas/animation-clip.schema.json in the toolkit)` }]
+      const path = specs[0]!.path
+      const raw = yield* files.readJson(path).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      if (raw === undefined) return [{ message: `${path} is not readable JSON` }]
+      const decoded = yield* Effect.result(decode(ClipSpec, { what: path })(raw))
+      if (decoded._tag === "Failure") return [{ message: decoded.failure.message, fix: "see schemas/animation-clip.schema.json in the toolkit" }]
+      const spec = decoded.success
+      const problems: Array<Problem> = []
+      for (const [field, named] of [["rig.model", spec.rig.model], ["rig.map", spec.rig.map], ...(spec.keyPoses === undefined ? [] : [["keyPoses.file", spec.keyPoses.file]])] as const) {
+        if (!(yield* files.exists(named).pipe(Effect.catch(() => Effect.succeed(false))))) problems.push({ message: `${path}: ${field} ${named} does not exist` })
+      }
+      return problems
+    })
+})
+
+/**
+ * A clip is judged by its clip report: a JSON file with `passed` and the clip it measured as
+ * `clip` ({path, sha256}). The report must pass and be about the clip this record holds.
+ */
+const clipReport = (files: ProjectFiles["Service"]): Check => ({
+  id: "clip-report",
+  description: "A clip report among the step's evidence passed, measured on the clip this record holds",
+  when: "status",
+  run: (input) =>
+    Effect.gen(function*() {
+      const clips = input.record.files.filter((file) => file.role === CLIP).map((file) => file.sha256)
+      const candidates = [...input.record.files.filter((file) => file.role !== CLIP), ...input.record.evidence].filter((file) => file.path.toLowerCase().endsWith(".json"))
+      const problems: Array<Problem> = []
+      let found = 0
+      for (const file of candidates) {
+        const report = yield* files.readJson(file.path).pipe(Effect.catch(() => Effect.succeed(null)))
+        if (!isRecord(report) || typeof report["passed"] !== "boolean") continue
+        const measured = isRecord(report["clip"]) ? report["clip"]["sha256"] : undefined
+        if (typeof measured !== "string") continue
+        found++
+        if (report["passed"] !== true) {
+          const failures = Array.isArray(report["failures"]) ? report["failures"].map(String) : []
+          problems.push({ message: `${file.path}: the clip failed its check${failures.length === 0 ? "" : `: ${failures.join("; ")}`}`, fix: "fix the motion, retarget or contacts and check again; the report names what failed" })
+        }
+        if (clips.length > 0 && !clips.includes(measured)) {
+          problems.push({ message: `${file.path} measured another clip than the one recorded`, fix: "record the clip the report was written for, or check the recorded clip again" })
+        }
+      }
+      if (found === 0) {
+        return [{ message: "the step needs a clip report: a JSON file with passed and the clip it measured ({path, sha256}) as clip", fix: `add it as --file evidence=<clip-report.json>, beside --file ${CLIP}=<clip.glb>` }]
       }
       return problems
     })
@@ -286,6 +348,8 @@ export const shippedChecks: Effect.Effect<ReadonlyArray<Check>, never, Git | Eng
     budgetGeometry,
     budgetTexture,
     deformationEvidence(files),
+    clipSpec(files),
+    clipReport(files),
     deliveryClosure,
     engineInspect,
     { id: "loudness", description: "Processed audio meets the loudness target (supplied by the audio tools)", when: "record" },

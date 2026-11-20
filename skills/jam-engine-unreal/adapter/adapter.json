@@ -96,6 +96,7 @@
       "staticMesh": "SM_",
       "skeletalMesh": "SK_",
       "skeleton": "SKEL_",
+      "animSequence": "AS_",
       "physicsAsset": "PHYS_",
       "texture": "T_",
       "material": "M_",
@@ -112,6 +113,7 @@
       "destinations": {
         "static": null,
         "skinned": null,
+        "animation": null,
         "textures": null,
         "audio": null
       },
@@ -204,6 +206,7 @@
       "kinds": [
         "static",
         "skinned",
+        "animation",
         "textures",
         "audio",
         "audio-variants"

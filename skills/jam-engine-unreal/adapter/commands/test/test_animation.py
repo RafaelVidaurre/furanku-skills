@@ -1,0 +1,147 @@
+"""Animation import (`engine_import.py --kind animation`): what the adapter reads from a clip without the engine, the
+arguments it sends the editor and the receipt it prints. The last test runs a real headless editor and is skipped
+unless JAM_UNREAL_EDITOR names an UnrealEditor-Cmd (5.8 or later):
+
+    JAM_UNREAL_EDITOR=<path to UnrealEditor-Cmd> python3 -m pytest <this file> -rs
+
+The clips in fixtures/animation/ are made by fixtures/animation/make_clips.py in Blender.
+"""
+import json
+import os
+import shutil
+import struct
+import subprocess
+import sys
+
+import pytest
+
+from jam_unreal import gltf, paths, receipts
+from jam_unreal.errors import AdapterError
+
+COMMANDS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "animation")
+EDITOR = os.environ.get("JAM_UNREAL_EDITOR")
+
+
+def glb(path, doc):
+    text = json.dumps(doc).encode("utf-8")
+    text += b" " * (-len(text) % 4)
+    with open(path, "wb") as f:
+        f.write(struct.pack("<III", gltf.GLB_MAGIC, 2, 20 + len(text)) + struct.pack("<II", len(text), gltf.JSON_CHUNK) + text)
+    return path
+
+
+def test_a_clip_names_its_skinned_joints_and_animations():
+    assert gltf.clip_facts(os.path.join(FIXTURES, "two.glb")) == {"joints": ["root", "hips", "spine"], "animations": ["Bow", "Wave"]}
+    assert gltf.clip_facts(os.path.join(FIXTURES, "wrong.glb"))["joints"] == ["root", "hips", "chest"]
+
+
+@pytest.mark.parametrize("doc, message", [
+    ({"nodes": [{"name": "a"}], "skins": [{"joints": [0]}]}, "holds no animation"),
+    ({"nodes": [{"name": "a"}], "animations": [{"name": "Walk"}]}, "holds no skin"),
+    ({"nodes": [{}], "skins": [{"joints": [0]}], "animations": [{}]}, "joint node 0 has no name"),
+])
+def test_a_file_that_cannot_be_a_clip_is_refused(tmp_path, doc, message):
+    with pytest.raises(AdapterError, match=message):
+        gltf.clip_facts(glb(str(tmp_path / "a.glb"), doc))
+    (tmp_path / "b.glb").write_bytes(b"not a glb at all, just text")
+    with pytest.raises(AdapterError, match="not a glTF binary"):
+        gltf.clip_facts(str(tmp_path / "b.glb"))
+
+
+def test_an_animation_receipt_names_the_skeleton_each_sequence_plays_on():
+    assert receipts.asset("/Game/A/AS_Walk", "animation-sequence", "Art/walk.glb", "ab", "/Game/A/SKEL_Hero") == {
+        "id": "/Game/A/AS_Walk", "kind": "animation-sequence", "source": "Art/walk.glb", "sha256": "ab", "skeleton": "/Game/A/SKEL_Hero"}
+
+
+# ---- the command, with a fake editor bridge
+def run_command(tmp_path, *args, local=None):
+    env = dict(os.environ, JAM_PROJECT_ROOT=str(tmp_path), JAM_ENGINE_SETTINGS=json.dumps(local or {}))
+    done = subprocess.run([sys.executable, os.path.join(COMMANDS, "engine_import.py"), *args], cwd=str(tmp_path), capture_output=True, text=True, env=env)
+    return done.returncode, json.loads(done.stdout), done.stderr
+
+
+BRIDGE = """import json, sys
+args = json.loads(open(sys.argv[1]).read().split("ARGS = json.loads(", 1)[1].split("\\n", 1)[0][:-1].strip("'\\"").encode().decode("unicode_escape"))
+open(sys.argv[2], "w").write(json.dumps(args))
+print(json.dumps({"assets": [{"id": args["dest"] + "/" + args["name"] + n, "skeleton": "/Game/Hero/SKEL_Hero", "source": args["source"]} for n in NAMES],
+                  "other": [], "projectDir": "/x"}))
+"""
+
+
+def project(tmp_path, names):
+    (tmp_path / "Game.uproject").write_text("{}")
+    (tmp_path / "Art").mkdir()
+    for name in ("clip.glb", "two.glb"):
+        shutil.copy(os.path.join(FIXTURES, name), str(tmp_path / "Art" / name))
+    bridge = tmp_path / "bridge.py"
+    bridge.write_text("NAMES = %r\n%s" % (names, BRIDGE))
+    return {"transport": {"kind": "command", "run": [sys.executable, str(bridge), "{script}", str(tmp_path / "sent.json")]}}
+
+
+def test_animation_import_sends_the_clip_joints_target_and_name_and_lists_each_sequence(tmp_path):
+    local = project(tmp_path, [""])
+    code, receipt, _ = run_command(tmp_path, "--kind", "animation", "Art/clip.glb", "--target", "/Game/Hero/SK_Hero.SK_Hero", "--destination", "/Game/Hero/Animations", "--name", "HeroWave", local=local)
+    assert code == 0
+    assert receipt == {"assets": [{"id": "/Game/Hero/Animations/AS_HeroWave", "kind": "animation-sequence", "source": "Art/clip.glb",
+                                   "sha256": paths.sha256(str(tmp_path / "Art" / "clip.glb")), "skeleton": "/Game/Hero/SKEL_Hero"}]}
+    sent = json.loads((tmp_path / "sent.json").read_text())
+    assert {k: sent[k] for k in ("source", "target", "joints", "dest", "name")} == {
+        "source": "Art/clip.glb", "target": "/Game/Hero/SK_Hero", "joints": ["root", "hips", "spine"], "dest": "/Game/Hero/Animations", "name": "AS_HeroWave"}
+
+
+def test_the_folder_comes_from_the_project_and_the_name_from_the_file(tmp_path):
+    local = project(tmp_path, ["Bow", "Wave"])
+    (tmp_path / "jam.config.json").write_text(json.dumps({"engine": {"adapter": "unreal", "facts": {"extra": {"destinations": {"animation": "/Game/Anims"}}}}}))
+    code, receipt, _ = run_command(tmp_path, "--kind", "animation", "Art/two.glb", "--target", "/Game/Hero/SKEL_Hero", local=local)
+    assert code == 0 and [a["id"] for a in receipt["assets"]] == ["/Game/Anims/AS_twoBow", "/Game/Anims/AS_twoWave"]
+
+
+@pytest.mark.parametrize("args, message", [
+    (["Art/clip.glb"], "needs --target"),
+    (["Art/clip.glb", "Art/two.glb", "--target", "/Game/H/SKEL_H"], "exactly one clip"),
+    (["Art/walk.fbx", "--target", "/Game/H/SKEL_H"], "from a .glb file"),
+    (["Art/clip.glb", "--target", "/Game/H/SKEL_H"], "no content folder for animation"),
+])
+def test_what_an_animation_import_refuses(tmp_path, args, message):
+    local = project(tmp_path, [""])
+    (tmp_path / "Art" / "walk.fbx").write_bytes(b"fbx")
+    code, receipt, _ = run_command(tmp_path, "--kind", "animation", *args, local=local)
+    assert code == 1 and message in receipt["error"]["message"]
+
+
+# ---- a real editor
+UPROJECT = {"FileVersion": 3, "Plugins": [{"Name": "PythonScriptPlugin", "Enabled": True}, {"Name": "Interchange", "Enabled": True}, {"Name": "InterchangeEditor", "Enabled": True}]}
+IMPORT_MESH = """import os, unreal
+proj = unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir())
+t = unreal.AssetImportTask(); t.filename = os.path.join(proj, "Art", "mesh.glb"); t.destination_path = "/Game/Hero"; t.automated = True; t.save = True
+unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([t])
+"""
+
+
+@pytest.mark.skipif(not EDITOR, reason="set JAM_UNREAL_EDITOR to an UnrealEditor-Cmd to import through a real editor")
+def test_a_real_editor_imports_a_clip_onto_an_existing_skeleton_and_refuses_one_on_another(tmp_path):
+    (tmp_path / "Game.uproject").write_text(json.dumps(UPROJECT))
+    (tmp_path / "Art").mkdir()
+    for name in ("mesh.glb", "clip.glb", "two.glb", "wrong.glb"):
+        shutil.copy(os.path.join(FIXTURES, name), str(tmp_path / "Art" / name))
+    (tmp_path / "import_mesh.py").write_text(IMPORT_MESH)
+    with open(str(tmp_path / "editor.log"), "w") as log:
+        subprocess.run([EDITOR, str(tmp_path / "Game.uproject"), "-run=pythonscript", "-script=" + str(tmp_path / "import_mesh.py"),
+                        "-unattended", "-nosplash", "-nullrhi", "-stdout"], stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, timeout=900)
+    meshes = [os.path.join(d, f) for d, _, files in os.walk(str(tmp_path / "Content")) for f in files if f.endswith(".uasset")]
+    skeleton = next("/Game/" + os.path.relpath(m, str(tmp_path / "Content"))[:-len(".uasset")] for m in meshes if m.endswith("_Skeleton.uasset"))
+    local = {"transport": {"kind": "commandlet", "editor": EDITOR}}
+    args = ("--target", skeleton, "--destination", "/Game/Hero/Animations")
+    for _ in range(2):   # a second import of the same clip keeps its id
+        code, receipt, err = run_command(tmp_path, "--kind", "animation", "Art/clip.glb", "--name", "Wave", "--details", "details.json", *args, local=local)
+        assert code == 0, err
+        assert [(a["id"], a["skeleton"], a["source"]) for a in receipt["assets"]] == [("/Game/Hero/Animations/AS_Wave", skeleton, "Art/clip.glb")]
+    details = json.loads((tmp_path / "details.json").read_text())["assets"][0]
+    assert (details["frames"], details["fps"], details["seconds"]) == (30, 30.0, 1.0)
+    code, receipt, err = run_command(tmp_path, "--kind", "animation", "Art/two.glb", "--name", "Hero", *args, local=local)
+    assert code == 0, err
+    assert [a["id"] for a in receipt["assets"]] == ["/Game/Hero/Animations/AS_HeroBow", "/Game/Hero/Animations/AS_HeroWave"]
+    assert (tmp_path / "Content" / "Hero" / "Animations" / "AS_HeroBow.uasset").is_file()
+    code, receipt, _ = run_command(tmp_path, "--kind", "animation", "Art/wrong.glb", *args, local=local)
+    assert code == 1 and "lacks the clip's bones chest" in receipt["error"]["message"]
