@@ -50,8 +50,37 @@ class InputError(ValueError):
 # ---------------------------------------------------------------- validation (stdlib only)
 
 def _number(v):
-    """A finite JSON number; true and false are not numbers here."""
-    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+    """A finite JSON number that a float holds; true and false are not numbers here, nor an integer too large for a
+    float."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return False
+    try:
+        return math.isfinite(float(v))
+    except OverflowError:
+        return False
+
+
+class NumberError(ValueError, argparse.ArgumentTypeError):
+    pass
+
+
+def finite_number(text):
+    """A command-line number: finite, so nan, inf and values beyond a float are refused (argparse type)."""
+    try:
+        value = float(text)
+    except (TypeError, ValueError):
+        raise NumberError(f"{text!r} is not a number")
+    if not math.isfinite(value):
+        raise NumberError(f"{text!r} is not a finite number")
+    return value
+
+
+def distance(text):
+    """A command-line distance in metres: a finite number, 0 or more (argparse type)."""
+    value = finite_number(text)
+    if value < 0:
+        raise NumberError(f"{text!r} is not a distance in metres, 0 or more")
+    return value
 
 
 def _whole(v):

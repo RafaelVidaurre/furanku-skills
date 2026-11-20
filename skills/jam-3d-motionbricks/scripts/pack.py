@@ -68,7 +68,7 @@ def target_option(target, key, value):
             if not 1 <= target["poses"] <= generate.POSES_PER_TOKEN:
                 raise PackError(f"{flag} must be 1 to 4 for target {target['file']}")
         elif field == "start":
-            target["start"] = float(value)
+            target["start"] = generate.finite_number(value)
         elif field == "early":
             target["early"] = int(value)
         else:
@@ -192,11 +192,11 @@ def parse_args(argv):
     parser.add_argument("context")
     parser.add_argument("request")
     parser.add_argument("--skeleton", required=True)
-    parser.add_argument("--floor-tolerance", type=float, required=True)
+    parser.add_argument("--floor-tolerance", type=generate.distance, required=True)
     parser.add_argument("--target", action=_Target, required=True)
     for name in TARGET_OPTIONS:
         parser.add_argument("--" + name.replace("_", "-"), dest=name, action=_TargetOption)
-    parser.add_argument("--context-end", type=float)
+    parser.add_argument("--context-end", type=generate.finite_number)
     parser.add_argument("--context-hold", action="store_true")
     parser.add_argument("--tokens", default="8-14")
     parser.add_argument("--precision", choices=generate.PRECISIONS, default="fp32")
@@ -205,11 +205,8 @@ def parse_args(argv):
     parser.add_argument("--motionbricks-version", default=DEFAULT_VERSION)
     parser.add_argument("--onnx-sha256")
     parser.add_argument("--model-name", default=DEFAULT_MODEL)
-    parser.add_argument("--rest-tolerance", type=float, default=0.01)
-    args = parser.parse_args(argv)
-    if args.floor_tolerance < 0:
-        raise PackError("--floor-tolerance is a distance in metres, 0 or more")
-    return args
+    parser.add_argument("--rest-tolerance", type=generate.distance, default=0.01)
+    return parser.parse_args(argv)
 
 
 def main(argv):

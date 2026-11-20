@@ -151,7 +151,9 @@ export const importFor = (input: ImportInput): Effect.Effect<HostedResult, ToolE
     // An animation imported for a run names the run, so a later attempt of the same run may replace the sequence an earlier one made.
     const runId = animation && context !== null ? context.ref.run.id : undefined
     const flags = [...pair("--destination", input.destination), ...(input.slots ?? []).flatMap((slot) => ["--slot", slot]), ...pair("--skeleton", skeleton), ...pair("--target", target), ...pair("--name", name), ...pair("--run", runId), ...(input.extra ?? [])]
-    const outcome = yield* engine.run("import", ["--kind", input.kind, ...sources, ...flags], resumeLine("import", input, ["--kind", input.kind, ...pair("--target", input.target), ...(input.run === undefined ? sources : [])]))
+    // The resume line repeats what was given; what the run supplies (sources, name, skeleton) it supplies again.
+    const given = [...pair("--destination", input.destination), ...(input.slots ?? []).flatMap((slot) => ["--slot", slot]), ...pair("--skeleton", input.skeleton), ...pair("--target", input.target), ...pair("--name", input.name)]
+    const outcome = yield* engine.run("import", ["--kind", input.kind, ...sources, ...flags], resumeLine("import", input, ["--kind", input.kind, ...given, ...(input.run === undefined ? sources : [])]))
     if (outcome.status !== "ran" || context === null || step === null) return { outcome }
     const receipt = yield* decode(ImportReceipt, { what: `import receipt of adapter ${outcome.adapter}`, code: "malformed", strict: false })(outcome.receipt)
     const evidence = `${context.ref.dir}/engine-import-${(yield* nowIso).replace(/[^0-9]/g, "").slice(0, 14)}.json`

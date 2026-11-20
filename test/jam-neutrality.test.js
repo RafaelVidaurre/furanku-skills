@@ -59,9 +59,11 @@ const ENGINES = [
 
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// Motion and rigging vendors the animation provider survey (docs/research) found, which ship no
-// descriptor. The survey may name them; the jam skills, recipes and toolkit docs may not.
-const SURVEYED = ["NVIDIA", "Uthana", "Viggle", "Kimodo", "GEM-X", "Cartwheel", "Move AI", "Plask", "DeepMotion", "QuickMagic", "Mixamo", "Rokoko", "Cascadeur", "HY-Motion", "Rodin", "Deemos"];
+// Motion and rigging vendors and products the animation provider survey (docs/research) names, which
+// ship no descriptor. The survey may name them; the jam skills, recipes and toolkit docs may not.
+const SURVEYED = ["NVIDIA", "Uthana", "Viggle", "Kimodo", "GEM-X", "Cartwheel", "Move AI", "Plask", "DeepMotion", "QuickMagic",
+  "Adobe", "Mixamo", "Autodesk", "Maya", "MotionMaker", "Flow Studio", "Wonder Studio", "Rokoko", "Cascadeur",
+  "Tencent", "Hunyuan", "HY-Motion", "Rodin", "Deemos", "Anything World", "Everything Universe"];
 
 // Vendor names are data: the id and label of every shipped provider that is reached through something
 // other than the running agent's own tools, and the surveyed vendors. Each term lists the providers it

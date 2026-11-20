@@ -259,6 +259,17 @@ def test_malformed_result_entries_are_named_not_raised(change, message):
     assert any(message in e for e in errors), errors
 
 
+@pytest.mark.parametrize("path", [("frames", 0, 0, 3), ("root", 0, 6), ("contacts", "values", 0, 0)])
+@pytest.mark.parametrize("value", [10 ** 400, float("nan"), float("inf")])
+def test_numbers_a_float_cannot_hold_are_named_not_raised(path, value):
+    res = result(skeleton(), segments=(18,))
+    where = res
+    for key in path[:-1]:
+        where = where[key]
+    where[path[-1]] = value
+    assert generate.validate_result(res)
+
+
 def test_booleans_are_not_numbers_in_a_request():
     req = request(skeleton())
     req["settings"]["tokens"] = {"min": True, "max": 9}
@@ -378,8 +389,28 @@ def test_pack_refuses_misplaced_or_bad_target_options(argv):
 def test_pack_floor_tolerance_has_no_default():
     with pytest.raises(SystemExit):
         pack.parse_args(["context.glb", "request.json", "--skeleton", "s.json", "--target", "t.glb"])
-    with pytest.raises(pack.PackError):
-        pack.parse_args(["c.glb", "r.json", "--skeleton", "s.json", "--floor-tolerance", "-0.1", "--target", "t.glb"])
+
+
+@pytest.mark.parametrize("argv", [
+    ["--floor-tolerance", "-0.1", "--target", "t.glb"],
+    ["--floor-tolerance", "nan", "--target", "t.glb"],
+    ["--floor-tolerance", "inf", "--target", "t.glb"],
+    ["--floor-tolerance", "0.02", "--target", "t.glb", "--start", "nan"],
+    ["--floor-tolerance", "0.02", "--target", "t.glb", "--context-end", "nan"],
+    ["--floor-tolerance", "0.02", "--target", "t.glb", "--rest-tolerance", "nan"],
+    ["--floor-tolerance", "1" + "0" * 400, "--target", "t.glb"],
+])
+def test_pack_refuses_numbers_that_are_not_finite(argv, capsys):
+    with pytest.raises((SystemExit, pack.PackError)) as exc:
+        pack.parse_args(["c.glb", "r.json", "--skeleton", "s.json"] + argv)
+    assert isinstance(exc.value, pack.PackError) or exc.value.code == 2
+
+
+@pytest.mark.parametrize("value", ["nan", "-inf", "-0.01", "x"])
+def test_unpack_seam_tolerance_is_a_finite_distance(value, capsys):
+    with pytest.raises(SystemExit) as exc:
+        unpack.main(["result.json", "out", "--skeleton", "s.json", "--rig", "r.glb", "--seam-tolerance", value])
+    assert exc.value.code == 2 and "--seam-tolerance" in capsys.readouterr().err
 
 
 def test_unpack_reorders_result_joints_and_fills_missing_ones():
@@ -432,7 +463,7 @@ def status(reqs):
 def test_a_qualifying_host_without_install_qualifies_but_is_not_ready():
     report = host_check.summarize(facts(), host_check.evaluate(facts()))
     s = status(report["requirements"])
-    assert s["os"] == s["nvidia-gpu"] == s["compute-capability"] == s["driver"] == s["driver-cuda"] == s["glibc"] == "pass"
+    assert s["os"] == s["nvidia-gpu"] == s["compute-capability"] == s["device"] == s["driver"] == s["driver-cuda"] == s["glibc"] == "pass"
     assert report["qualifies"] is True and report["ready"] is False and s["motionbricks"] == "unknown"
 
 
@@ -440,8 +471,6 @@ def test_a_qualifying_host_without_install_qualifies_but_is_not_ready():
     ({"os": "Darwin", "machine": "arm64", "nvidiaSmi": False, "gpus": []}, {"os", "nvidia-gpu"}),
     ({"gpus": [{"index": 0, "name": "Tesla P100", "computeCapability": "6.0", "driver": "550.1"}]}, {"compute-capability"}),
     ({"gpus": [{"index": 0, "name": "RTX", "computeCapability": "8.6", "driver": "470.82"}], "driverCuda": "11.4"}, {"driver", "driver-cuda"}),
-    ({"device": "cuda:1"}, {"compute-capability"}),  # one GPU: cuda:1 names none
-    ({"device": "cpu"}, {"compute-capability"}),
     ({"glibc": "2.17"}, {"glibc"}),
     ({"nvidiaSmi": True, "gpus": []}, {"nvidia-gpu"}),
 ])
@@ -451,24 +480,51 @@ def test_unmet_requirements_fail_and_disqualify(over, failing):
     assert failing <= failed and report["qualifies"] is False and report["missing"]
 
 
+@pytest.mark.parametrize("device", ["cuda:1", "cpu"])  # one GPU: cuda:1 names none; cpu is no CUDA device
+def test_a_device_that_names_no_gpu_fails_but_the_machine_still_qualifies(device):
+    report = host_check.summarize(facts(device=device), host_check.evaluate(facts(device=device)))
+    s = status(report["requirements"])
+    assert s["device"] == "fail" and s["compute-capability"] == "pass"
+    assert report["qualifies"] is True and report["ready"] is False
+
+
 def test_the_gpu_the_device_names_is_judged_and_every_gpu_reported():
     two = host_check.parse_gpus(QUERY)  # cuda:? = RTX 3060 (passes) or P100 (fails)
-    # CUDA orders devices fastest first and nvidia-smi by bus, so without more an ordinal is not a GPU.
-    reqs = host_check.evaluate(facts(gpus=two))
-    s = status(reqs)
-    assert s["compute-capability"] == "unknown"
-    found = next(r["found"] for r in reqs if r["id"] == "compute-capability")
-    assert "--import-check" in found and "RTX 3060" in found and "P100" in found
+    # CUDA orders devices fastest first and nvidia-smi by bus, so without more an ordinal is not a GPU: the machine
+    # qualifies on its RTX 3060, and is not ready until it is known which GPU the device is.
+    report = host_check.summarize(facts(gpus=two), host_check.evaluate(facts(gpus=two)))
+    s = status(report["requirements"])
+    assert s["compute-capability"] == "pass" and s["device"] == "unknown"
+    assert report["qualifies"] is True and report["ready"] is False
+    found = next(r["found"] for r in report["requirements"] if r["id"] == "device")
+    assert "--import-check" in found and "CUDA_DEVICE_ORDER=PCI_BUS_ID" in found and "RTX 3060" in found and "P100" in found
     # With bus order set, the ordinal is nvidia-smi's index.
-    assert status(host_check.evaluate(facts(gpus=two, cudaDeviceOrder="PCI_BUS_ID", device="cuda:1")))["compute-capability"] == "fail"
-    assert status(host_check.evaluate(facts(gpus=two, cudaDeviceOrder="PCI_BUS_ID")))["compute-capability"] == "pass"
+    assert status(host_check.evaluate(facts(gpus=two, cudaDeviceOrder="PCI_BUS_ID", device="cuda:1")))["device"] == "fail"
+    assert status(host_check.evaluate(facts(gpus=two, cudaDeviceOrder="PCI_BUS_ID")))["device"] == "pass"
     # The import check says which GPU Warp's device is, by bus id.
     seen = {"path": "/mb", "exists": False, "imports": {"cuda": True, "device": "same name", "pciBusId": "00000000:02:00"}}
     gpu, how = host_check.select_gpu(facts(gpus=two, motionbricks=seen, device="cuda:0"))  # Warp's form of the bus id
     assert gpu["name"] == "Tesla P100-PCIE-16GB" and how == "as Warp reported it"
     # When every GPU is judged alike, which one it is does not matter.
     good = [dict(g, computeCapability="8.6") for g in two]
-    assert status(host_check.evaluate(facts(gpus=good)))["compute-capability"] == "pass"
+    assert status(host_check.evaluate(facts(gpus=good)))["device"] == "pass"
+    # No GPU that meets it: the machine does not qualify.
+    old = [dict(g, computeCapability="6.0") for g in two]
+    report = host_check.summarize(facts(gpus=old), host_check.evaluate(facts(gpus=old)))
+    assert status(report["requirements"])["compute-capability"] == "fail" and report["qualifies"] is False
+
+
+def test_a_plan_for_one_of_several_gpus_is_not_called_fitting_while_the_device_is_unknown():
+    two = [dict(g, computeCapability="8.6") for g in host_check.parse_gpus(QUERY)]  # both qualify; the plan is for the first
+    mb = {"path": "/mb", "exists": True, "version": "0.2.0", "venvPython": "/py", "venvPythonVersion": "3.12.7",
+          "onnx": {"file": "mmm_v6_soma_fp32.onnx", "present": True, "lfsPointer": False, "bytes": 1, "sha256": "aa"},
+          "tensorrt": "10.8.0.43", "planEntries": [plan_meta()]}
+    plan = next(r for r in host_check.evaluate(facts(gpus=two, motionbricks=copy.deepcopy(mb))) if r["id"] == "plan")
+    assert plan["status"] == "warn" and "which GPU the device is" in plan["found"]
+    known = facts(gpus=two, motionbricks=copy.deepcopy(mb), cudaDeviceOrder="PCI_BUS_ID")
+    assert status(host_check.evaluate(known))["plan"] == "pass"
+    alike = [dict(two[0], index=1, pciBusId="00000000:02:00.0"), two[0]]  # two of the same GPU: the plan fits either
+    assert status(host_check.evaluate(facts(gpus=alike, motionbricks=copy.deepcopy(mb))))["plan"] == "pass"
 
 
 def test_disk_space_is_a_warning_never_a_failure():
@@ -613,25 +669,40 @@ def _moving(frames_count, speed_at):
     return skel, frames
 
 
-def test_a_seam_is_judged_against_the_motion_around_it():
-    """The seam of a smooth motion moves no joint farther than the frames around it; a pop at the seam does, however
-    large the motion elsewhere in the clip, and the person's tolerance decides whether that excess is a pop."""
-    res = result(skeleton(), segments=(20, 18))  # 37 frames; frame 19 ends the first generation, the seam is the step into frame 20
-    skel, smooth = _moving(37, lambda k: 0.01 + 0.0005 * k)   # accelerating, no pop
-    seam = unpack.steps(skel, smooth, res, tolerance=0.0)["seams"][0]
-    assert seam["frame"] == 20 and seam["excess"] <= 1e-6 and seam["pops"] is False
-    # a 5 cm pop at the seam, with a 20 cm step elsewhere in the clip that used to hide it
-    skel, popped = _moving(37, lambda k: 0.05 if k == 20 else 0.20 if k == 30 else 0.01)
-    report = unpack.steps(skel, popped, res, tolerance=0.02)
-    seam = report["seams"][0]
-    assert report["largest"]["metres"] == 0.2 and seam["metres"] == 0.05 and seam["around"] == 0.01
-    assert seam["excess"] == 0.04 and seam["ratio"] == 5.0 and seam["pops"] is True
-    assert unpack.steps(skel, popped, res, tolerance=0.05)["seams"][0]["pops"] is False
-    assert unpack.steps(skel, popped, res)["seams"][0]["pops"] is None  # no tolerance, no judgement
+def seam(speed_at, tolerance=0.03):
+    """The seam of a two-generation clip (frame 19 ends the first, the seam is the step into frame 20) whose root
+    travels along +X at speed_at(k) metres per frame."""
+    res = result(skeleton(), segments=(20, 18))  # 37 frames
+    skel, frames = _moving(37, speed_at)
+    return unpack.steps(skel, frames, res, tolerance=tolerance)
 
 
-def test_a_seam_after_stillness_has_no_ratio():
-    res = result(skeleton(), segments=(20, 18))
-    skel, frames = _moving(37, lambda k: 0.05 if k == 20 else 0.0)
-    seam = unpack.steps(skel, frames, res, tolerance=0.01)["seams"][0]
-    assert seam["ratio"] is None and seam["metres"] == seam["excess"] == 0.05 and seam["pops"] is True
+@pytest.mark.parametrize("name, speed_at, jump", [
+    ("forward jump, from stillness", lambda k: 0.05 if k == 20 else 0.0, 0.05),
+    ("forward jump while moving", lambda k: 0.25 if k == 20 else 0.05, 0.20),
+    ("backward jump while moving forward", lambda k: -0.05 if k == 20 else 0.15, 0.20),
+    ("small backward jump while moving forward", lambda k: -0.03 if k == 20 else 0.05, 0.08),
+])
+def test_a_jump_at_a_seam_pops_whichever_way_it_goes(name, speed_at, jump):
+    s = seam(speed_at)["seams"][0]
+    assert s["frame"] == 20 and abs(s["metres"] - jump) < 1e-4 and s["around"] == 0.0 and s["ratio"] is None
+    assert abs(s["excess"] - jump) < 1e-4 and s["pops"] is True, name
+
+
+@pytest.mark.parametrize("name, speed_at", [
+    ("steady", lambda k: 0.05),
+    ("accelerating", lambda k: 0.01 + 0.0005 * k),
+    ("a sharp, smooth speed peak on the seam", lambda k: 0.2 * max(0.0, math.cos(math.pi * (k - 20) / 6))),
+])
+def test_smooth_motion_through_a_seam_does_not_pop(name, speed_at):
+    s = seam(speed_at, tolerance=0.0)["seams"][0]
+    assert s["excess"] <= 1e-6 and s["pops"] is False, name
+
+
+def test_a_seam_is_judged_against_its_own_neighbourhood_and_the_persons_tolerance():
+    # a 4 cm jump at the seam, with a 20 cm step elsewhere in the clip that must not hide it
+    report = seam(lambda k: 0.05 if k == 20 else 0.20 if k == 30 else 0.01, tolerance=0.02)
+    s = report["seams"][0]
+    assert report["largest"]["metres"] == 0.2 and s["excess"] == 0.04 and s["pops"] is True
+    assert seam(lambda k: 0.05 if k == 20 else 0.01, tolerance=0.05)["seams"][0]["pops"] is False
+    assert seam(lambda k: 0.05 if k == 20 else 0.01, tolerance=None)["seams"][0]["pops"] is None  # no tolerance, no judgement

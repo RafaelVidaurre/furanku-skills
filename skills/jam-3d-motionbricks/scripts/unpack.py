@@ -7,9 +7,10 @@
 soma_skeleton.py builds, or the SOMA file the poses were retargeted onto. Any animation it holds is dropped; the
 written clip holds the generated animation only.
 
---seam-tolerance  how far (metres) a joint may move at a seam between chained generations beyond the farthest it moves
-         in a frame around the seam before the seam counts as a pop. It is the person's (for instance the jump their
-         clip spec accepts) and has no default; a result that chains generations needs it.
+--seam-tolerance  how far (metres) a joint may jump at a seam between chained generations, measured as how much more
+         its velocity changes there than in the frames around the seam, before the seam counts as a pop. It is the
+         person's (for instance the jump their clip spec accepts) and has no default; a result that chains generations
+         needs it.
 
 Writes to out-dir:
   <name>.glb     the rig with one animation, <name>, at 30 fps; frame 0 is the last context pose
@@ -56,32 +57,42 @@ def seam_frames(result, frame_count):
 def steps(skel, frames, result, tolerance=None, window=SEAM_WINDOW):
     """The largest one-frame move of any joint, and each seam between generations judged against the motion around it.
 
-    For every joint, its move into the seam's frame is compared with its own largest one-frame move over `window`
-    frames on each side (the seam's own step excluded); `excess` is how much farther it moves at the seam. A smooth
-    hand-over has no excess; a pop has some. The joint with the largest excess is reported, with `ratio`
-    (metres / around, null when the joint was still around the seam) and, given the person's tolerance, `pops`."""
+    A seam is a pop when a joint's velocity changes there more than it does around it. For every joint the change in
+    velocity at a frame j is |p[j+1] - 2 p[j] + p[j-1]|; a jump of d between frames k-1 and k (k the seam's frame)
+    changes the velocity by about d at k-1 and again at k, whichever way it jumps, while smooth motion, however fast,
+    changes it no more at the seam than in the frames beside it. `metres` is the larger change at k-1 and k, `around`
+    the largest change over `window` frames on each side of those two, and `excess` = metres - around. The joint with
+    the largest excess is reported, with `ratio` (metres / around, null when the joint moved steadily or not at all
+    around the seam) and, given the person's tolerance, `pops`."""
     world = [m.forward_kinematics(skel["parents"], f) for f in frames]
     names = skel["joints"]
+    n = len(world)
 
     def joint_step(k, i):
         return m.vlen(m.vsub(world[k][i][0], world[k - 1][i][0]))
 
+    def velocity_change(j, i):
+        p0, p1, p2 = world[j - 1][i][0], world[j][i][0], world[j + 1][i][0]
+        return m.vlen([p2[a] - 2 * p1[a] + p0[a] for a in range(3)])
+
     def step(k):
         d, i = max((joint_step(k, i), i) for i in range(len(names)))
         return {"metres": round(d, 4), "frame": k, "joint": names[i]}
-    every = [step(k) for k in range(1, len(world))]
+    every = [step(k) for k in range(1, n)]
     seams = []
-    for k in seam_frames(result, len(world)):
-        around_frames = [j for j in range(k - window, k + window + 1) if j != k and 1 <= j < len(world)]
+    for k in seam_frames(result, n):
+        at = [j for j in (k - 1, k) if 1 <= j < n - 1]
+        around = [j for j in range(k - 1 - window, k + window + 1) if j not in (k - 1, k) and 1 <= j < n - 1]
         worst = None
         for i in range(len(names)):
-            here = joint_step(k, i)
-            around = max((joint_step(j, i) for j in around_frames), default=0.0)
-            if worst is None or here - around > worst[0]:
-                worst = (here - around, i, here, around)
-        excess, i, here, around = worst
-        seams.append({"frame": k, "joint": names[i], "metres": round(here, 4), "around": round(around, 4),
-                      "excess": round(excess, 4), "ratio": round(here / around, 3) if around > 1e-9 else None,
+            here = max((velocity_change(j, i) for j in at), default=0.0)
+            near = max((velocity_change(j, i) for j in around), default=0.0)
+            if worst is None or here - near > worst[0]:
+                worst = (here - near, i, here, near)
+        excess, i, here, near = worst
+        excess = round(excess, 4)  # judged as reported, so rounding noise in steady motion is no excess
+        seams.append({"frame": k, "joint": names[i], "metres": round(here, 4), "around": round(near, 4),
+                      "excess": excess, "ratio": round(here / near, 3) if near > 1e-9 else None,
                       "window": window, "pops": None if tolerance is None else excess > tolerance,
                       "largestAnyJoint": step(k)})
     return {"largest": max(every, key=lambda e: e["metres"]) if every else None, "seamTolerance": tolerance, "seams": seams}
@@ -120,7 +131,7 @@ def main(argv):
     parser.add_argument("--skeleton", required=True)
     parser.add_argument("--rig", required=True)
     parser.add_argument("--name", default="generated")
-    parser.add_argument("--seam-tolerance", type=float)
+    parser.add_argument("--seam-tolerance", type=generate.distance)
     args = parser.parse_args(argv)
     from mbx import blend
     try:
@@ -134,8 +145,6 @@ def main(argv):
         if len(result["segments"]) > 1 and args.seam_tolerance is None:
             raise ValueError(f"this result chains {len(result['segments'])} generations: give --seam-tolerance <metres>, "
                              "the person's limit for a jump at a seam, to judge them")
-        if args.seam_tolerance is not None and args.seam_tolerance < 0:
-            raise ValueError("--seam-tolerance is a distance in metres, 0 or more")
         blend.reset()
         arm = blend.import_armature(args.rig, skel["joints"])
         dropped = blend.clear_animations()
