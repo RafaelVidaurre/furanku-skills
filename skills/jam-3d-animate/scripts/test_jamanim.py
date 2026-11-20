@@ -3,6 +3,7 @@ measurements and travel. Run with `python3 -m pytest`."""
 import json
 import math
 import os
+import re
 import struct
 import sys
 
@@ -18,25 +19,41 @@ FPS = 30.0
 
 
 def good_spec(**over):
-    doc = {"id": "walk", "purpose": "a walk cycle", "rig": {"model": "rig.glb", "map": "map.json"}, "fps": 30, "length": 1.0,
-           "loop": True, "root": "in-place", "ground": "flat",
+    doc = {"id": "walk", "purpose": "a walk cycle", "rig": {"model": "rig.glb", "map": "map.json"}, "fps": 30,
+           "length": {"min": 1.0, "max": 1.0}, "loop": True, "root": {"mode": "in-place"}, "ground": {"kind": "flat"},
            "accept": {"footSlide": 0.01, "penetration": 0.005, "boundaryJump": 0.01, "loopSeam": 0.01}}
     doc.update(over)
     return doc
 
 
+TOOLKIT_SCHEMA = os.path.join(HERE, "..", "..", "jam-setup", "assets", "toolkit", "schemas", "animation-clip.schema.json")
+
+
 # ---- clip spec -----------------------------------------------------------------------------------------------------
 
-def test_spec_short_forms_normalize_to_the_long_form(tmp_path):
-    s = spec.normalize(good_spec(keyPoses=[{"name": "contact", "time": 0.0}, {"name": "passing", "time": 0.25}]), str(tmp_path), check_files=False)
+def test_spec_reads_the_one_shape_of_each_field():
+    s = spec.normalize(good_spec(keyPoses={"file": "anim/keyposes.glb", "poses": [{"name": "contact", "time": 0.0}, {"name": "passing", "time": 0.25}]}),
+                       check_files=False)
     assert s["root"] == {"mode": "in-place", "bone": None}
-    assert s["ground"] == {"flat": True, "description": "flat"}
+    assert s["ground"] == {"kind": "flat", "description": None}
     assert s["length"] == {"min": 1.0, "max": 1.0}
-    assert s["keyPoses"]["file"] == os.path.join(str(tmp_path), "keyposes.glb") and [p["name"] for p in s["keyPoses"]["poses"]] == ["contact", "passing"]
+    assert s["keyPoses"]["file"] == "anim/keyposes.glb" and [p["name"] for p in s["keyPoses"]["poses"]] == ["contact", "passing"]
     assert s["contacts"] == {"detect": None, "planted": []}
-    s = spec.normalize(good_spec(root={"mode": "root-motion", "bone": "root"}, ground={"description": "a stair of 0.18 m"},
-                                 length={"min": 0.8, "max": 1.2}), str(tmp_path), check_files=False)
-    assert s["root"] == {"mode": "root-motion", "bone": "root"} and s["ground"]["flat"] is False and s["length"]["max"] == 1.2
+    s = spec.normalize(good_spec(root={"mode": "root-motion", "bone": "root"}, ground={"kind": "change", "description": "a stair of 0.18 m"},
+                                 length={"min": 0.8, "max": 1.2}), check_files=False)
+    assert s["root"] == {"mode": "root-motion", "bone": "root"} and s["ground"] == {"kind": "change", "description": "a stair of 0.18 m"}
+    assert s["length"]["max"] == 1.2
+
+
+@pytest.mark.parametrize("field,value", [
+    ("length", 1.0), ("root", "in-place"), ("ground", "flat"), ("ground", {"description": "a stair"}), ("ground", {"kind": "change"}),
+    ("keyPoses", [{"name": "contact", "time": 0.0}]), ("root", {"mode": "in-place", "bone": "root"}), ("id", "Walk Cycle"),
+    ("keyPoses", {"poses": [{"name": "contact", "time": 0.0}]}),
+])
+def test_spec_refuses_any_other_shape(field, value):
+    with pytest.raises(spec.SpecError) as e:
+        spec.normalize(good_spec(**{field: value}), check_files=False)
+    assert any(p.startswith(field) for p in e.value.problems), e.value.problems
 
 
 def test_spec_requires_every_threshold_and_ships_none():
@@ -47,6 +64,8 @@ def test_spec_requires_every_threshold_and_ships_none():
     with pytest.raises(spec.SpecError) as e:
         spec.normalize(good_spec(loop=False), check_files=False)
     assert "loopSeam: only for a clip with loop true" in str(e.value)
+    with pytest.raises(spec.SpecError, match="accept.footSlide"):
+        spec.normalize(good_spec(accept={"footSlide": 0, "penetration": 0.005, "boundaryJump": 0.01, "loopSeam": 0.01}), check_files=False)
     s = spec.normalize(good_spec(loop=False, accept={"footSlide": 0.01, "penetration": 0.005, "boundaryJump": 0.01}), check_files=False)
     assert "loopSeam" not in s["accept"]
 
@@ -61,34 +80,60 @@ def test_spec_names_every_problem_at_once():
 
 def test_spec_checks_key_poses_and_contacts():
     with pytest.raises(spec.SpecError) as e:
-        spec.normalize(good_spec(keyPoses=[{"name": "a", "time": 0.5}, {"name": "a", "time": 0.2}, {"name": "b", "time": 3.0}],
-                                 contacts={"detect": {"height": -1, "speed": 1}, "planted": [{"limb": "tail", "from": 0, "to": 1}]}), check_files=False)
+        spec.normalize(good_spec(keyPoses={"file": "keyposes.glb", "poses": [{"name": "a", "time": 0.5}, {"name": "a", "time": 0.2}, {"name": "b", "time": 3.0}]},
+                                 contacts={"detect": {"height": 0, "speed": 1}, "planted": [{"limb": "tail", "from": 0, "to": 1}]}), check_files=False)
     text = str(e.value)
     assert "names must be unique" in text and "time order" in text and "past the clip's length" in text
     assert "contacts.detect" in text and "contacts.planted[0]" in text
 
 
-def test_spec_paths_resolve_beside_the_spec_then_here(tmp_path, monkeypatch):
-    (tmp_path / "spec").mkdir(); (tmp_path / "project" / "rig").mkdir(parents=True)
-    (tmp_path / "spec" / "map.json").write_text("{}")
-    (tmp_path / "project" / "rig" / "rig.glb").write_bytes(b"")
-    monkeypatch.chdir(tmp_path / "project")
-    s = spec.normalize(good_spec(rig={"model": "rig/rig.glb", "map": "map.json"}), str(tmp_path / "spec"))
-    assert s["rig"]["model"] == str(tmp_path / "project" / "rig" / "rig.glb")
-    assert s["rig"]["map"] == str(tmp_path / "spec" / "map.json")
+def test_spec_paths_are_project_relative_and_open_from_the_project_root(tmp_path, monkeypatch):
+    (tmp_path / "rig").mkdir(); (tmp_path / "anim").mkdir()
+    (tmp_path / "rig" / "rig.glb").write_bytes(b"")
+    (tmp_path / "rig" / "map.json").write_text("{}")
+    doc = good_spec(rig={"model": "rig/rig.glb", "map": "rig/map.json"}, keyPoses={"file": "anim/keyposes.glb", "poses": [{"name": "a", "time": 0}]})
+    s = spec.normalize(doc, str(tmp_path))                                  # the key-pose file is made later: not required here
+    assert s["rig"]["model"] == os.path.join(str(tmp_path), "rig/rig.glb") and s["keyPoses"]["file"] == os.path.join(str(tmp_path), "anim/keyposes.glb")
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "anim" / "clip.json").write_text(json.dumps(doc))
+    assert spec.load("anim/clip.json")["rig"]["map"] == "rig/map.json"       # not beside clip.json: from the project root
+    for bad in ("/abs/rig.glb", "../rig.glb", "rig/./rig.glb", "rig\\rig.glb", "C:/rig.glb"):
+        with pytest.raises(spec.SpecError, match="rig.model: a project-relative path"):
+            spec.normalize(good_spec(rig={"model": bad, "map": "rig/map.json"}), check_files=False)
     with pytest.raises(spec.SpecError) as e:
-        spec.normalize(good_spec(rig={"model": "nowhere.glb", "map": "map.json"}), str(tmp_path / "spec"))
+        spec.normalize(good_spec(rig={"model": "nowhere.glb", "map": "rig/map.json"}))
     assert "rig.model: no file at nowhere.glb" in str(e.value)
 
 
-def test_clip_spec_command(tmp_path, capsys):
+def test_spec_reader_follows_the_toolkit_schema():
+    """The toolkit's schema is the spec's one definition; this reader must accept the same fields and values."""
+    if not os.path.isfile(TOOLKIT_SCHEMA):
+        pytest.skip("the jam toolkit's sources are not beside this skill")
+    with open(TOOLKIT_SCHEMA, encoding="utf-8") as f:
+        clip = json.load(f)["$defs"]["AnimationClip"]
+    props = clip["properties"]
+    assert tuple(props) == spec.TOP_KEYS
+    assert set(clip["required"]) == {k for k in spec.TOP_KEYS if k not in ("$schema", "keyPoses", "contacts")}
+    assert tuple(props["accept"]["properties"]) == spec.ACCEPT_KEYS and set(props["accept"]["required"]) == set(spec.ACCEPT_KEYS) - {"loopSeam"}
+    assert tuple(props["contacts"]["properties"]["planted"]["items"]["properties"]["limb"]["enum"]) == spec.LIMBS
+    assert props["root"]["properties"]["mode"]["enum"] == ["in-place", "root-motion"]
+    assert [g["properties"]["kind"]["enum"][0] for g in props["ground"]["anyOf"]] == ["flat", "change"]
+    assert props["length"]["required"] == ["min", "max"]
+    assert props["id"]["pattern"] == spec.ID.pattern
+    portable = re.compile(props["rig"]["properties"]["model"]["pattern"])
+    for path in ("rig.glb", "a/b.glb", "/a.glb", "a/../b", "./a", "a//b", "a\\b", "C:/a", "a/", ".hidden/x"):
+        assert bool(portable.match(path)) == bool(spec.PORTABLE.match(path)), path
+
+
+def test_clip_spec_command(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     (tmp_path / "rig.glb").write_bytes(b"")
     (tmp_path / "map.json").write_text(json.dumps({"label": "x", "landmarks": {"Hips": "hips"}}))
     (tmp_path / "clip.json").write_text(json.dumps(good_spec()))
-    assert clip_spec.main([str(tmp_path / "clip.json")]) == 0
+    assert clip_spec.main(["clip.json"]) == 0
     assert json.loads(capsys.readouterr().out)["root"]["mode"] == "in-place"
     (tmp_path / "clip.json").write_text(json.dumps(good_spec(fps="thirty")))
-    assert clip_spec.main([str(tmp_path / "clip.json")]) == 1
+    assert clip_spec.main(["clip.json"]) == 1
     assert "error: fps:" in capsys.readouterr().out
 
 

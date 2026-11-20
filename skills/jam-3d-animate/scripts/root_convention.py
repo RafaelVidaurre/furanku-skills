@@ -1,4 +1,5 @@
-"""Put a clip's travel where its clip spec says: removed (in-place) or on the root (root-motion). Runs in Blender.
+"""Put a clip's travel where its clip spec says: removed (in-place) or on the root (root-motion). Runs in Blender,
+from the project root (the spec's paths are project-relative).
 
     blender --background --python-exit-code 1 --python root_convention.py -- <clip.glb> <clip.json> <out-dir>
             [--animation <name>] [--travel line|hips] [--loop-end auto|open|duplicate] [--name <file name without .glb>]

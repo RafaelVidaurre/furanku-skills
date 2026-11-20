@@ -141,7 +141,7 @@ def seam_jumps(rel):
 def loop_end(frames, fps, length, rel=None):
     """("open" | "duplicate", how it was decided) for a looping clip.
 
-    From the spec when its length is one number: a cycle of L seconds has L*fps frames when the last frame is one
+    From the spec when its length is fixed (min equal to max): a cycle of L seconds has L*fps frames when the last frame is one
     before the first pose comes round again, and one more when it repeats the first pose. For a length range, from
     the poses: the last frame repeats the first when most moving points end where they began, closer than half their
     usual step between frames."""

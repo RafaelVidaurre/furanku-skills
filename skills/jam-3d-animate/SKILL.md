@@ -9,7 +9,7 @@ Four words carry this skill. The **clip spec** (`clip.json`) says what one clip 
 
 A clip is a glTF binary (`.glb`) holding the skinned project rig and one named animation, in metres, +Y up, the character facing +Z, sampled on whole frames of the spec's frame rate. Engines convert it in their adapter, never here.
 
-`<S>` is this skill's `scripts/` folder. Commands are written for a project with the jam toolkit, where `jam` is `node tools/jam/jam.mjs` and paths are project-relative (when the toolkit is missing and wanted, use the `jam-setup` skill). Without the toolkit the same scripts run as `blender --background --python-exit-code 1 --python <script> -- <arguments>` and `python3 <script> <arguments>`; each script's header lists its arguments. They were written and run with Blender 5.1.
+`<S>` is this skill's `scripts/` folder. Commands are written for a project with the jam toolkit, where `jam` is `node tools/jam/jam.mjs`, paths are project-relative and every script runs from the project root (when the toolkit is missing and wanted, use the `jam-setup` skill). Without the toolkit the same scripts run from the project root as `blender --background --python-exit-code 1 --python <script> -- <arguments>` and `python3 <script> <arguments>`; each script's header lists its arguments. They were written and run with Blender 5.1.
 
 ## Make a clip
 
@@ -17,13 +17,13 @@ A clip is a glTF binary (`.glb`) holding the skinned project rig and one named a
 
    `jam python <S>/clip_spec.py <clip.json>`
 
-   Done when it exits 0. In a run: `jam run record <id> define --file <clip.json> --note "<purpose; who set the thresholds>"`.
+   Done when it exits 0 and the person has accepted the spec. In a run: `jam run record <id> define --file spec=<clip.json> --note "<purpose; who set the thresholds>"`; the toolkit's `clip-spec` check holds it to the toolkit's schema, which is the spec's definition.
 
-2. **Key poses**, when the spec lists them. In Blender, pose the project rig for each one and keep each pose as an action named exactly as in `keyPoses`, in the rig's `.blend` or in a separate `.blend` or `.glb`. Then:
+2. **Key poses**, when the spec lists them. In Blender, pose the project rig for each one and keep each pose as an action named exactly as in `keyPoses.poses`, in a `.blend` or `.glb` beside the rig (or as animations of `rig.model` itself). Then:
 
-   `jam blender <S>/keyposes.py -- <rig.glb | rig.blend> <clip.json> <out-dir> [--poses <file with the pose actions>]`
+   `jam blender <S>/keyposes.py -- <clip.json> [--poses <file with the pose actions>]`
 
-   It writes `keyposes.glb` (one key per pose at its frame) and `keyposes.json`. Done when it exits 0 and the person has seen each pose on the rig and accepted it. In a run: `jam run record <id> keyposes --file keyposes=<out-dir>/keyposes.glb --evidence <out-dir>/keyposes.json --tool "Blender <version>, jam-3d-animate keyposes.py" --note "..."`; without key poses, `jam run skip <id> keyposes --reason "..."`.
+   It writes the spec's `keyPoses.file` (one key per pose at its frame) and a manifest beside it with the extension `.json`. Done when it exits 0 and the person has seen each pose on the rig and accepted it. In a run: `jam run record <id> keyposes --file keyposes=<keyPoses.file> --evidence <manifest .json> --tool "Blender <version>, jam-3d-animate keyposes.py" --note "..."`; without key poses, `jam run skip <id> keyposes --reason "..."`.
 
 3. **Choose the route.** Read [references/routes.md](references/routes.md): list the routes this setup can actually call (Blender here, a source clip the project may use, providers whose descriptor serves `motion` in the mode the clip needs, probed this session), price each, and offer them with their cost; the person chooses. Done when the route, the provider and model or source, the expected cost and the person's choice are written down.
 
@@ -32,7 +32,7 @@ A clip is a glTF binary (`.glb`) holding the skinned project rig and one named a
    - **retarget**: hand the source clip, its skeleton map, `rig.model` and `rig.map` to the `jam-3d-retarget` skill;
    - **provider**: load its page or skill, run a paid job through the ledger (`jam job open` … `jam job done`), keep the outputs untouched, and have `jam-3d-retarget` bring motion on another skeleton onto the project rig.
 
-   Done when a `.glb` with the motion on the project rig exists (the check confirms the skeleton) and any job is settled. In a run, record `motion` with what routes.md lists for the route, and `retarget` as `jam-3d-retarget` says or `jam run skip <id> retarget --reason "the motion is on the project rig"`.
+   Done when a `.glb` with the motion on the project rig exists (the check confirms the skeleton) and any job is settled. In a run, record the clip as the route returned it, `jam run record <id> motion --file clip=<clip> --note "..."` with the provenance routes.md lists for the route, then `retarget` as `jam-3d-retarget` says, or `jam run skip <id> retarget --reason "the motion is on the project rig"`.
 
 5. **Put the travel where the spec says.**
 
@@ -48,11 +48,13 @@ A clip is a glTF binary (`.glb`) holding the skinned project rig and one named a
 
    Done when it exits 0 (`"passed": true`), every entry in `unmeasured` has been judged by the person from the sheet or video, and you have looked at the sheet and video and can state that the motion does what the purpose says, or which fault it shows. A failure goes back to step 4 or 5 through check.md's table; a threshold changes only when the person decides so.
 
-7. **Deliver.** In a run:
+7. **Deliver.** In a run, record the check, then (after any engine import) the delivery:
 
    `jam run record <id> check --file clip=<clip.glb> --file evidence=<out-dir>/clip-report.json --file evidence=<out-dir>/clip-sheet.png [--file evidence=<out-dir>/clip.mp4] --tool "Blender <version>, jam-3d-animate root_convention.py and clip_check.py" --note "<root convention and travel reading, anything unmeasured and the person's judgement>" --accept "<what you saw in the sheet and video>"`
 
-   `jam run next <id>` names the roles each file takes. Putting the clip into an engine is the `jam-engine` skill's `import --kind animation`, when the adapter has it (`jam engine show`); otherwise the step is skipped. Outside a run, done when the person has the clip, `clip.json`, the report, the sheet and the video, with your finding.
+   `jam run record <id> delivery --file clip=<clip.glb> --file evidence=<out-dir>/clip-report.json --note "..."`
+
+   The toolkit's `clip-report` check accepts a step only with a report that passed and measured the recorded clip. Putting the clip into an engine is the `jam-engine` skill's `import --kind animation`, when the adapter has it (`jam engine show`); otherwise the step is skipped. Done when the delivery is recorded; outside a run, when the person has the clip, `clip.json`, the report, the sheet and the video, with your finding.
 
 ## Check a clip made elsewhere
 

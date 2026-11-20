@@ -1,17 +1,16 @@
-"""Write keyposes.glb: the project rig with one animation holding one key per named pose, at the times the clip spec
-gives them. Runs in Blender.
+"""Write the key-pose file the clip spec names (`keyPoses.file`): the project rig (`rig.model`) with one animation
+holding one key per named pose, at the times the spec gives them. Runs in Blender, from the project root.
 
-    blender --background --python-exit-code 1 --python keyposes.py -- <rig.glb | rig.blend> <clip.json> <out-dir>
-            [--poses <file.blend | file.glb>]
+    blender --background --python-exit-code 1 --python keyposes.py -- <clip.json> [--poses <file.blend | file.glb>]
 
 Each pose is an action (in a .blend) or an animation (in a .glb) named exactly as the pose is in the spec's
-`keyPoses.poses`; its first frame is the pose. They come from --poses, else from the rig file itself (a .blend where the
-person posed the rig and stored each pose as an action, such as a pose library). The poses must be on the project rig:
-the same bone names, and the same rest pose within a millimetre. Each bone's pose is copied in the rig's own space,
-parents first.
+`keyPoses.poses`; its first frame is the pose. They come from --poses (a .blend where the person posed the rig and kept
+each pose as an action, such as a pose library, or a .glb), else from rig.model itself. The poses must be on the
+project rig: the same bone names, and the same rest pose within a millimetre. Each bone's pose is copied in the rig's
+own space, parents first.
 
-Writes <out-dir>/keyposes.glb (the animation is named "<spec id>-keyposes"; keys at whole frames of the spec's fps) and
-keyposes.json, which lists each pose with its time, frame and the action it came from.
+Writes keyPoses.file (the animation is named "<spec id>-keyposes"; keys at whole frames of the spec's fps) and, beside
+it with the extension .json, a manifest listing each pose with its time, frame and the action it came from.
 """
 import argparse
 import json
@@ -32,7 +31,7 @@ def fail(msg):
 
 def parse(argv):
     p = argparse.ArgumentParser(prog="keyposes.py", description=__doc__.split("\n\n")[0])
-    p.add_argument("rig"); p.add_argument("spec"); p.add_argument("out"); p.add_argument("--poses")
+    p.add_argument("spec"); p.add_argument("--poses")
     return p.parse_args(argv)
 
 
@@ -77,7 +76,7 @@ def in_order(arm):
 def main():
     a = parse(jamanim.script_args(sys.argv))
     try:
-        s = specs.load(a.spec, check_files=False)
+        s = specs.load(a.spec)
     except specs.SpecError as e:
         fail("the clip spec is not usable: %s" % e)
     if not s["keyPoses"]:
@@ -87,7 +86,8 @@ def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
     scene.render.fps, scene.render.fps_base = int(round(fps)), int(round(fps)) / fps
-    rig = the_armature(load_into_scene(a.rig), a.rig)
+    rig_path = s["rig"]["model"]
+    rig = the_armature(load_into_scene(rig_path), rig_path)
     source = the_armature(load_into_scene(a.poses), a.poses) if a.poses else rig
 
     names = {b.name for b in rig.data.bones}
@@ -109,7 +109,7 @@ def main():
         found[pose["name"]] = act
     missing = [n for n, act in found.items() if act is None]
     if missing:
-        fail("no action or animation named %s in %s (it has: %s)" % (", ".join(missing), a.poses or a.rig,
+        fail("no action or animation named %s in %s (it has: %s)" % (", ".join(missing), a.poses or rig_path,
                                                                       ", ".join(x.name for x in bpy.data.actions) or "none"))
 
     # read each pose off the source, in the rig's own space
@@ -151,18 +151,19 @@ def main():
         for ob in [source] + list(source.children):
             bpy.data.objects.remove(ob)
     scene.frame_start, scene.frame_end = min(frames), max(frames)
-    os.makedirs(a.out, exist_ok=True)
-    out_glb = os.path.join(a.out, "keyposes.glb")
+    out_glb = s["keyPoses"]["file"]
+    os.makedirs(os.path.dirname(os.path.abspath(out_glb)), exist_ok=True)
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.export_scene.gltf(filepath=os.path.abspath(out_glb), export_format="GLB", use_selection=True, export_yup=True,
                               export_animations=True, export_animation_mode="ACTIONS", export_force_sampling=False,
                               export_optimize_animation_size=False, export_apply=False)
     manifest = {"tool": "jam-3d-animate keyposes.py " + jamanim.VERSION, "blender": bpy.app.version_string,
-                "rig": report.stamp("rig", a.rig), "spec": report.stamp("spec", a.spec),
+                "rig": report.stamp("rig", rig_path), "spec": report.stamp("spec", a.spec),
                 "poses-from": report.stamp("poses", a.poses) if a.poses else None,
                 "animation": out_action.name, "fps": fps, "poses": rows, "output": report.stamp("keyposes", out_glb)}
-    report.write(os.path.join(a.out, "keyposes.json"), manifest)
-    print(json.dumps({"keyposes": out_glb.replace(os.sep, "/"), "animation": out_action.name, "poses": rows}))
+    manifest_path = os.path.splitext(out_glb)[0] + ".json"
+    report.write(manifest_path, manifest)
+    print(json.dumps({"keyposes": out_glb.replace(os.sep, "/"), "manifest": manifest_path.replace(os.sep, "/"), "animation": out_action.name, "poses": rows}))
 
 
 if __name__ == "__main__":

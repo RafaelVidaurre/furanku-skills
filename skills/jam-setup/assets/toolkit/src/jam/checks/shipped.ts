@@ -127,7 +127,7 @@ const deformationEvidence = (files: ProjectFiles["Service"]): Check => ({
 const SPEC = "spec"
 const CLIP = "clip"
 
-/** A clip spec decodes against its schema and names a rig and a skeleton map that exist. */
+/** A clip spec decodes against its schema and names a rig and a skeleton map that exist. Its key-pose file is made later, by the keyposes step. */
 const clipSpec = (files: ProjectFiles["Service"]): Check => ({
   id: "clip-spec",
   description: "The clip spec is valid and names a project rig and skeleton map that exist",
@@ -143,7 +143,7 @@ const clipSpec = (files: ProjectFiles["Service"]): Check => ({
       if (decoded._tag === "Failure") return [{ message: decoded.failure.message, fix: "see schemas/animation-clip.schema.json in the toolkit" }]
       const spec = decoded.success
       const problems: Array<Problem> = []
-      for (const [field, named] of [["rig.model", spec.rig.model], ["rig.map", spec.rig.map], ...(spec.keyPoses === undefined ? [] : [["keyPoses.file", spec.keyPoses.file]])] as const) {
+      for (const [field, named] of [["rig.model", spec.rig.model], ["rig.map", spec.rig.map]] as const) {
         if (!(yield* files.exists(named).pipe(Effect.catch(() => Effect.succeed(false))))) problems.push({ message: `${path}: ${field} ${named} does not exist` })
       }
       return problems

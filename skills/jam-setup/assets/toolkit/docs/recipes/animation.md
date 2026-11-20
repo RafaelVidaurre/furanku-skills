@@ -14,11 +14,11 @@ Write the clip spec, `clip.json`, against `schemas/animation-clip.schema.json` i
 jam run record <id> define --file spec=<clip.json>
 ```
 
-The `clip-spec` check validates it and confirms the rig, the map and the key-pose file it names exist. The person accepts the spec: it is what the clip is judged against.
+The `clip-spec` check validates it and confirms the rig and the map it names exist; the key-pose file it names is made at the next step. The person accepts the spec: it is what the clip is judged against.
 
 ## keyposes
 
-Optional: skip it with a reason for a library clip or footage, where the poses come with the motion. Otherwise pose the project rig at each key pose the spec names and save them as `keyposes.glb`, one animation with one key per pose at its time. The person accepts the poses before any motion is made.
+Optional: skip it with a reason for a library clip or footage, where the poses come with the motion. Otherwise pose the project rig at each key pose the spec names and save them in the file its `keyPoses.file` names: the rig with one animation holding one key per pose at its time. The person accepts the poses before any motion is made.
 
 ```
 jam run record <id> keyposes --file keyposes=<keyposes.glb>

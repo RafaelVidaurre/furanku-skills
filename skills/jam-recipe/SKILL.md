@@ -1,6 +1,6 @@
 ---
 name: jam-recipe
-description: Make game content with the jam toolkit by following a recipe (a written, checkable workflow) from a brief to delivered files, and write or change recipes. Use when the user asks to make a 3D asset, prop, character or model, a sound effect or a voiced line; when a brief names a recipe or a run id; when checking or resuming work in progress; when existing or bought files should enter the workflow part-way; when a project needs its own steps, gates or checks; or when a workflow that was just improvised should become repeatable.
+description: Make game content with the jam toolkit by following a recipe (a written, checkable workflow) from a brief to delivered files, and write or change recipes. Use when the user asks to make a 3D asset, prop, character or model, an animation clip for a rigged character, a sound effect or a voiced line; when a brief names a recipe or a run id; when checking or resuming work in progress; when existing or bought files should enter the workflow part-way; when a project needs its own steps, gates or checks; or when a workflow that was just improvised should become repeatable.
 ---
 
 # Recipes and runs

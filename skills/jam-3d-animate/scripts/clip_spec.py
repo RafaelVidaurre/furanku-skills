@@ -1,10 +1,10 @@
-"""Check a clip spec (clip.json) and print it in its long form. Plain Python, no Blender.
+"""Check a clip spec (clip.json) against the toolkit's clip-spec shape, and that its rig's skeleton map is usable.
+Plain Python, no Blender. Run it from the project root: the spec's paths are project-relative.
 
     python3 clip_spec.py <clip.json> [--no-files]
 
-Exits 0 and prints the spec with every path resolved when it is complete; exits 1 and prints one line per problem
-otherwise. --no-files skips checking that the rig and its skeleton map exist. The fields are described in
-jamanim/spec.py and references/clip-spec.md.
+Exits 0 and prints the spec when it is complete; exits 1 and prints one line per problem otherwise. --no-files skips
+checking that the rig and its skeleton map exist. The fields are described in references/clip-spec.md.
 """
 import argparse
 import json

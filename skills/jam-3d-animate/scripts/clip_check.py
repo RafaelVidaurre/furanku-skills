@@ -1,4 +1,5 @@
-"""Check an animation clip on the project rig against its clip spec. Runs in Blender.
+"""Check an animation clip on the project rig against its clip spec. Runs in Blender,
+from the project root (the spec's paths are project-relative).
 
     blender --background --python-exit-code 1 --python clip_check.py -- <clip.glb> <clip.json> <out-dir>
             [--animation <name>] [--contact-height <m> --contact-speed <m/s>]
@@ -363,7 +364,7 @@ def main():
     W = arm.matrix_world
     rest_point = {lm: (W @ arm.pose.bones[bone].head).z for _, lm, bone in keys}
     soles = [x for x in (lowest(feet[l]) for l in ("foot.l", "foot.r")) if x is not None]
-    flat = s["ground"]["flat"]
+    flat = s["ground"]["kind"] == "flat"
     if soles:
         ground, ground_from = min(soles), "the lowest foot vertex with the rig at rest"
     else:
@@ -481,7 +482,7 @@ def main():
            "rig": {"model": report.stamp("rig", s["rig"]["model"]), "map": report.stamp("map", s["rig"]["map"])},
            "frame": {"units": "meters", "up": "+Y", "front": "+Z"},
            "fps": fps, "frames": frames, "seconds": round(duration, 4), "loop": s["loop"],
-           "ground": {"flat": flat, "description": s["ground"]["description"], "height": report.mm(ground), "from": ground_from},
+           "ground": {"kind": s["ground"]["kind"], "description": s["ground"]["description"], "height": report.mm(ground), "from": ground_from},
            "detect": dict(detect, **{"from": detect_from}),
            "restHeights": {k: report.mm(v) for k, v in rest_heights.items()},
            "penetrationMeasuredOn": "foot mesh vertices" if soles else "foot joints at their rest height",

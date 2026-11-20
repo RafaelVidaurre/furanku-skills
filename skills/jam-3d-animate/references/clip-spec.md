@@ -1,6 +1,6 @@
 # The clip spec
 
-`clip.json` says what one clip must be before any motion exists. Every route and the check read it. The exact shape is the toolkit's schema (`tools/jam/schemas/animation-clip.schema.json`); `scripts/jamanim/spec.py` reads the same fields and `clip_spec.py` checks a file against them.
+`clip.json` says what one clip must be before any motion exists. Every route and the check read it. Its definition is the jam toolkit's schema, `tools/jam/schemas/animation-clip.schema.json` in a project with the toolkit; the template below is the same shape for a project without it, and `clip_spec.py` accepts exactly that shape. Each field has one form.
 
 ## Ask, then write
 
@@ -11,11 +11,11 @@ Settle each field with the person. A value comes from them, from the project's o
 | `id`, `purpose` | What the clip is for, in one sentence: the action, and where it plays | The route, the key poses, how you judge the sheet |
 | `rig.model`, `rig.map` | Which rigged `.glb` is the character, and its skeleton map (bone name → landmark). A rig made with the rigging skill has its landmark file; any other needs a map written as that skill's landmark reference describes | Everything is measured on this rig; clips on other skeletons are retargeted onto it |
 | `fps` | The frame rate the project's clips use | Every key falls on a whole frame of it |
-| `length` | Seconds, or a range when any length in it will do | Checked against the delivered clip |
+| `length` | Seconds as `{min, max}`: a range when any length in it will do, `min` equal to `max` for a fixed length | Checked against the delivered clip |
 | `loop` | Does the clip repeat seamlessly? | Adds the loop-seam check and its threshold |
-| `root` | `in-place` (travel removed, the game moves the character) or `root-motion` (the clip moves it). For root motion: the bone that carries travel, or none when the rig has no ground-level root and the hips carry it | `root_convention.py` puts the travel there; the check reads the seam relative to it |
-| `ground` | `flat`, or a description of the height change the clip crosses (a stair, a ledge) | Penetration is measured only on flat ground |
-| `keyPoses` | The poses that must appear, each with a name and a time. Ask for them when the motion has moments that matter (a contact, the peak of a jump, an impact) or the route needs them (`inbetween`) | Step 2 builds `keyposes.glb` from them |
+| `root` | `mode`: `in-place` (travel removed, the game moves the character) or `root-motion` (the clip moves it). For root motion, `bone`: the ground-level root bone that carries travel; leave it out when the rig has none and the hips carry travel | `root_convention.py` puts the travel there; the check reads the seam relative to it |
+| `ground` | `kind`: `flat`, or `change` with a `description` of the height change the clip crosses (a stair, a ledge) | Penetration is measured only on flat ground |
+| `keyPoses` | The poses that must appear, each with a name (lowercase, hyphens) and a time, and the project path of the file step 2 writes them to. Ask for them when the motion has moments that matter (a contact, the peak of a jump, an impact) or the route needs them (`inbetween`) | Step 2 builds that file from them |
 | `contacts.planted` | Which feet (or hands) should be planted when, when the person knows | Reported beside the detected contacts so you can see where they disagree |
 | `contacts.detect` | How close to its resting height (metres) and how slow (m/s) a foot must be to count as planted | Which frames the slide and penetration windows cover |
 | `accept` | The largest foot slide while planted, penetration below the ground, jump at the first or last frame, and (when looping) loop seam that the project accepts, in metres | Pass or fail of the check |
@@ -39,21 +39,19 @@ Every `<…>` is the person's or the project's answer; nothing here is a suggest
   "purpose": "<what the clip is for, in one sentence>",
   "rig": {"model": "<project rig .glb>", "map": "<its skeleton map .json>"},
   "fps": <frames per second>,
-  "length": <seconds> | {"min": <seconds>, "max": <seconds>},
+  "length": {"min": <seconds>, "max": <seconds>},
   "loop": true | false,
   "root": {"mode": "in-place"} | {"mode": "root-motion"} | {"mode": "root-motion", "bone": "<root bone>"},
-  "ground": "flat" | "<the height change the clip crosses>",
-  "keyPoses": {"file": "keyposes.glb", "poses": [{"name": "<pose>", "time": <seconds>}, ...]},
+  "ground": {"kind": "flat"} | {"kind": "change", "description": "<the height change the clip crosses>"},
+  "keyPoses": {"file": "<project path of keyposes.glb>", "poses": [{"name": "<pose>", "time": <seconds>}, ...]},
   "contacts": {"detect": {"height": <metres>, "speed": <metres per second>},
                "planted": [{"limb": "foot.l" | "foot.r" | "hand.l" | "hand.r", "from": <seconds>, "to": <seconds>}, ...]},
   "accept": {"footSlide": <metres>, "penetration": <metres>, "boundaryJump": <metres>, "loopSeam": <metres, only when looping>}
 }
 ```
 
-`keyPoses` and `contacts` are optional; without `contacts.detect` the check takes the two detection numbers on its command line. Distances are metres and speeds metres per second, in the clip's glTF frame (+Y up, the character faces +Z, +X is its left). A relative path is looked up beside `clip.json`, then from the current folder.
-
-Short forms are accepted: `"root": "in-place"`, `"ground": "<description>"`, and `keyPoses` as the bare list of poses (the file is then `keyposes.glb` beside `clip.json`).
+`keyPoses` and `contacts` are optional; without `contacts.detect` the check takes the two detection numbers on its command line. `id` and pose names are lowercase letters, digits and single hyphens. Every number is above zero; distances are metres and speeds metres per second, in the clip's glTF frame (+Y up, the character faces +Z, +X is its left). Paths are project-relative with forward slashes, opened from the project root (not from beside `clip.json`).
 
 ## A loop's last frame
 
-A cycle of L seconds at f fps either ends one frame before its first pose comes round again (L·f frames, "open-end") or repeats the first pose as its last frame (L·f + 1 frames, "duplicate-end"). With one number for `length`, the frame count says which; with a range, the scripts read it from the poses. Ask which the engine's import expects when the person knows; the check accepts both.
+A cycle of L seconds at f fps either ends one frame before its first pose comes round again (L·f frames, "open-end") or repeats the first pose as its last frame (L·f + 1 frames, "duplicate-end"). With a fixed `length` (`min` equal to `max`), the frame count says which; with a range, the scripts read it from the poses. Ask which the engine's import expects when the person knows; the check accepts both.

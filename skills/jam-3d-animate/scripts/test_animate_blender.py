@@ -27,9 +27,10 @@ ACCEPT = {"footSlide": 0.01, "penetration": 0.005, "boundaryJump": 0.01, "loopSe
 DETECT = {"height": 0.01, "speed": 0.5}
 
 
-def blender(script, *args):
+def blender(script, *args, cwd=None):
+    """Run a script as a project would: from the project root (`cwd`), where the spec's paths start."""
     done = subprocess.run([BLENDER, "--background", "--factory-startup", "--python-exit-code", "1", "--python", os.path.join(HERE, script), "--"]
-                          + [str(a) for a in args], capture_output=True, text=True)
+                          + [str(a) for a in args], capture_output=True, text=True, cwd=cwd)
     log = done.stdout + done.stderr
     last = [line for line in done.stdout.splitlines() if line.startswith("{")]
     return done.returncode, log, (json.loads(last[-1]) if last else None)
@@ -41,8 +42,8 @@ def read(path):
 
 
 def write_spec(folder, name="clip.json", **over):
-    doc = {"id": "walk", "purpose": "a test walk cycle", "rig": {"model": "rig.glb", "map": "map.json"}, "fps": 30, "length": 1.0,
-           "loop": True, "root": {"mode": "root-motion"}, "ground": "flat", "contacts": {"detect": DETECT}, "accept": dict(ACCEPT)}
+    doc = {"id": "walk", "purpose": "a test walk cycle", "rig": {"model": "rig.glb", "map": "map.json"}, "fps": 30, "length": {"min": 1.0, "max": 1.0},
+           "loop": True, "root": {"mode": "root-motion"}, "ground": {"kind": "flat"}, "contacts": {"detect": DETECT}, "accept": dict(ACCEPT)}
     doc.update(over)
     path = os.path.join(folder, name)
     with open(path, "w", encoding="utf-8") as f:
@@ -67,7 +68,7 @@ def make(tmp_path_factory):
 
 def check(folder, *extra, spec="clip.json", clip="clip.glb", out="check"):
     out = os.path.join(folder, out)
-    code, log, _ = blender("clip_check.py", os.path.join(folder, clip), os.path.join(folder, spec), out, "--sheet-frames", "4", "--size", "160x200", *extra)
+    code, log, _ = blender("clip_check.py", os.path.join(folder, clip), os.path.join(folder, spec), out, "--sheet-frames", "4", "--size", "160x200", *extra, cwd=folder)
     path = os.path.join(out, "clip-report.json")
     return code, log, (read(path) if os.path.isfile(path) else None)
 
@@ -142,7 +143,7 @@ def test_a_loop_ending_on_its_first_pose(make):
 def test_in_place_takes_off_travel_and_keeps_the_pelvis(make):
     folder = make("clean", "--poses")
     write_spec(folder, "in-place.json", root={"mode": "in-place"})
-    code, log, out = blender("root_convention.py", os.path.join(folder, "clip.glb"), os.path.join(folder, "in-place.json"), os.path.join(folder, "rc"))
+    code, log, out = blender("root_convention.py", os.path.join(folder, "clip.glb"), os.path.join(folder, "in-place.json"), os.path.join(folder, "rc"), cwd=folder)
     assert code == 0, log[-2000:]
     before, after = out["hips"]["before"], out["hips"]["after"]
     assert before["alongRange"] == pytest.approx(29 / 30, abs=2e-3) and after["alongRange"] < 2e-3     # travel gone
@@ -162,7 +163,7 @@ def test_in_place_takes_off_travel_and_keeps_the_pelvis(make):
 def test_root_motion_moves_travel_onto_the_root_bone(make):
     folder = make("rooted", "--root-bone", "--names", "camel")
     write_spec(folder, root={"mode": "root-motion", "bone": "root"})
-    code, log, out = blender("root_convention.py", os.path.join(folder, "clip.glb"), os.path.join(folder, "clip.json"), os.path.join(folder, "rc"))
+    code, log, out = blender("root_convention.py", os.path.join(folder, "clip.glb"), os.path.join(folder, "clip.json"), os.path.join(folder, "rc"), cwd=folder)
     assert code == 0, log[-2000:]
     assert out["travelOn"] == "root" and out["hips"]["overRoot"]["alongRange"] < 2e-3
     a, b = gltf.Gltf(os.path.join(folder, "clip.glb")), gltf.Gltf(out["clip"])
@@ -193,7 +194,7 @@ def test_a_clip_on_another_skeleton_fails_the_skeleton_check(make):
 
 def test_ground_that_is_not_flat_leaves_penetration_to_a_person(make):
     folder = make("clean", "--poses")
-    write_spec(folder, "stairs.json", ground="steps up one stair of 0.18 m")
+    write_spec(folder, "stairs.json", ground={"kind": "change", "description": "steps up one stair of 0.18 m"})
     code, _, r = check(folder, spec="stairs.json", out="stairs")
     assert code == 0 and r["passed"] and r["unmeasured"] == ["penetration"]
     assert r["accept"]["penetration"]["passed"] is None and "not flat" in r["accept"]["penetration"]["unmeasured"]
@@ -212,19 +213,18 @@ def test_contact_detection_numbers_come_from_the_spec_or_the_command(make):
 def test_key_poses_are_written_on_the_rig_at_their_times(make):
     folder = make("clean", "--poses")
     write_spec(folder, "kp.json", keyPoses={"file": "kp/keyposes.glb", "poses": [{"name": "contact", "time": 0.0}, {"name": "passing", "time": 0.4}]})
-    code, log, out = blender("keyposes.py", os.path.join(folder, "rig.glb"), os.path.join(folder, "kp.json"), os.path.join(folder, "kp"),
-                             "--poses", os.path.join(folder, "poses.glb"))
+    code, log, out = blender("keyposes.py", "kp.json", "--poses", "poses.glb", cwd=folder)
     assert code == 0, log[-2000:]
     assert [(p["name"], p["frame"]) for p in out["poses"]] == [("contact", 0), ("passing", 12)]
-    k, c = gltf.Gltf(out["keyposes"]), gltf.Gltf(os.path.join(folder, "clip.glb"))
+    assert out["keyposes"] == "kp/keyposes.glb" and os.path.isfile(os.path.join(folder, "kp", "keyposes.json"))   # where the spec says
+    k, c = gltf.Gltf(os.path.join(folder, out["keyposes"])), gltf.Gltf(os.path.join(folder, "clip.glb"))
     assert k.animation_names() == ["walk-keyposes"] and k.key_times() == pytest.approx([0.0, 0.4], abs=1e-5)
     ck, cc = k.channels(), c.channels()
     for t_key, t_clip in ((0.0, 0.0), (0.4, 7 / 30)):              # make_test_clip.py takes "passing" from frame 7
         wk, wc = k.pose_world(t_key, channels=ck), c.pose_world(t_clip, channels=cc)
         assert max(float(np.abs(wk[n][:3, 3] - wc[n][:3, 3]).max()) for n, _ in c.skeleton()) < 1e-4
-    write_spec(folder, "kp-missing.json", keyPoses=[{"name": "reach", "time": 0.0}])
-    code, log, _ = blender("keyposes.py", os.path.join(folder, "rig.glb"), os.path.join(folder, "kp-missing.json"), os.path.join(folder, "kp2"),
-                           "--poses", os.path.join(folder, "poses.glb"))
+    write_spec(folder, "kp-missing.json", keyPoses={"file": "kp2/keyposes.glb", "poses": [{"name": "reach", "time": 0.0}]})
+    code, log, _ = blender("keyposes.py", "kp-missing.json", "--poses", "poses.glb", cwd=folder)
     assert code == 1 and "no action or animation named reach" in log
 
 

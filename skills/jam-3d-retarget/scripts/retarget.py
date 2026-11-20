@@ -16,7 +16,7 @@ Every animation of the source is retargeted (or those named with --animation), s
 frame rate, or at --fps. Contacts: `auto` finds windows where a source ankle or toes joint moves slower than
 --contact-speed source heights per second for --contact-min-frames frames and holds the target's joint still there with
 two-bone IK, blended in and out over --contact-blend frames; a contacts file names the windows instead (feet, toes or
-hands; references/contacts.md); `none` turns the correction off.
+hands; references/method.md, Contacts); `none` turns the correction off.
 
 The round trip retargets the result back onto the source (without contact correction) and compares it with the source:
 it passes when every joint both maps place returns within --round-trip-tolerance source heights and

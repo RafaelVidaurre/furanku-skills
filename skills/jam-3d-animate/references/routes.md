@@ -27,7 +27,7 @@ Done when the route, the provider and model or source clip, the expected cost an
 Key the clip in Blender on the project rig.
 
 1. Open the rig (the `.blend`, or import `rig.model`). Set the scene frame rate to the spec's `fps` and the frame range to the clip's frames: `length × fps` frames for a loop that ends one frame before its first pose comes round, one more when it repeats the first pose, `length × fps + 1` for a clip that does not loop.
-2. Start from `keyposes.glb` when there is one: import it and keep its action; every key pose sits on its frame.
+2. Start from the key-pose file (`keyPoses.file`) when there is one: import it and keep its action; every key pose sits on its frame.
 3. Key the motion between the poses. Hold planted feet still in the world (an IK target per foot keeps them still while the body moves); put travel on the hips, or on the spec's root bone, as the body would travel. Step 5 of the skill moves or removes it to match the spec.
 4. Export a `.glb`: +Y up, the rig and its mesh only, this action only (remove the others), sampled on every frame, named after the clip. In Python: `bpy.ops.export_scene.gltf(filepath=..., export_format="GLB", export_yup=True, export_animations=True, export_animation_mode="ACTIONS", export_force_sampling=True)`.
 
@@ -43,7 +43,7 @@ Done when the clip on the project rig exists.
 
 1. Read the provider's page or skill (the descriptor's `docs`) and the live schema of the operation: inputs, limits, plan access.
 2. Build the request from the spec:
-   - `inbetween`: the key poses, on the provider's skeleton. When that is not the project rig, `jam-3d-retarget` moves `keyposes.glb` onto it (project map to the descriptor's `rig.landmarks`).
+   - `inbetween`: the key poses, and whatever else the provider's page or skill asks for (such as a few frames of context leading into the motion, keyed on the project rig like the key poses), on the provider's skeleton. When that is not the project rig, `jam-3d-retarget` moves each file onto it, with the project map as the source map and the provider's skeleton map (its skill's map file, or the descriptor's `rig.landmarks` written to a file) as the target map.
    - `text`: a prompt from `purpose` and the action, and the length.
    - `video`: the footage.
    - `library`: the action's id from the provider's catalog.
@@ -55,11 +55,11 @@ Done when the job is settled and the clip on the project rig exists.
 
 ## What each route records
 
-The `motion` step records the clip with where it came from:
+The `motion` step records the clip as the route returned it, `jam run record <id> motion --file clip=<clip> --note "..."`, with where it came from:
 
-| Route | Record with |
+| Route | Add |
 | --- | --- |
 | By hand | `--tool "Blender <version>, keyed by <who>"` |
 | Retarget | `--source "<where the clip came from>" --source-evidence <licence or origin document>`, then the retarget step as `jam-3d-retarget` says |
 | Provider, paid | `--job <job>` |
-| Provider, local or included | `--tool "<provider, model and version>"` |
+| Provider, local or included | `--tool "<provider, model and version>"`, and the request and result files as `--evidence` |

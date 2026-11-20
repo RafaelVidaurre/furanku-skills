@@ -278,23 +278,25 @@ First use walks you through approving which model tools may run on your machine.
 | --- | --- |
 | Entry | `jam-setup` installs, upgrades and configures. `jam-recipe` follows a recipe from brief to delivery and writes or changes recipes |
 | Operations | `jam-style`, `jam-concept`, `jam-turnaround`, `jam-3d-model`, `jam-3d-retopo`, `jam-3d-uv`, `jam-3d-texture`, `jam-3d-rig`: one operation each, usable inside a recipe or alone |
+| Animation | `jam-3d-animate` defines a clip with you, makes it by the route your setup allows and checks it on your rig. `jam-3d-retarget` moves animation between humanoid skeletons. `jam-3d-motionbricks` generates in-between motion with NVIDIA MotionBricks on a machine that meets its requirements |
 | Engine | `jam-engine` chooses, uses and writes engine adapters. `jam-engine-unreal` is the Unreal Engine adapter |
 | Catalog | `jam-catalog` browses, organises and reviews content, and extends the catalog with plugins |
 | Audio | `jam-sfx` for sound effects, `jam-voice` for voiced dialogue |
 
 ```bash
-npx skills add rafaelvidaurre/furanku-skills --skill jam-setup jam-recipe jam-style jam-concept jam-turnaround jam-3d-model jam-3d-retopo jam-3d-uv jam-3d-texture jam-3d-rig jam-engine jam-engine-unreal jam-catalog jam-sfx jam-voice
+npx skills add rafaelvidaurre/furanku-skills --skill jam-setup jam-recipe jam-style jam-concept jam-turnaround jam-3d-model jam-3d-retopo jam-3d-uv jam-3d-texture jam-3d-rig jam-3d-animate jam-3d-retarget jam-3d-motionbricks jam-engine jam-engine-unreal jam-catalog jam-sfx jam-voice
 ```
 
 ```text
 > Set up jam in this project.
 > Help me find an art style for my game.
 > Run the prop recipe for a wooden barrel.
+> Make a two-second wave for our rigged hero.
 > Give me the review link.
 > Our props get a paint-over before the turnaround. Add that step to our recipe.
 ```
 
-**Engines and providers.** No skill or recipe names an engine or a vendor, and a test in this repository fails when one does. Work ends at neutral files (GLB, PNG, WAV). An engine adapter supplies the engine's conventions and, optionally, commands that import and inspect; with no adapter the engine steps are skipped and the run still delivers. Generation services are described by data files, and the agent drives each service's own tool. Descriptors ship for Meshy, Scenario, Tripo, ElevenLabs, the Codex CLI's image tool and the agent's own image tool; you use your own accounts, and paid work is off until you set a limit.
+**Engines and providers.** No skill or recipe names an engine or a vendor, and a test in this repository fails when one does. Work ends at neutral files (GLB, PNG, WAV). An engine adapter supplies the engine's conventions and, optionally, commands that import and inspect; with no adapter the engine steps are skipped and the run still delivers. Generation services are described by data files, and the agent drives each service's own tool. Descriptors ship for Meshy, Scenario, Tripo, ElevenLabs, NVIDIA MotionBricks, the Codex CLI's image tool and the agent's own image tool; you use your own accounts, and paid work is off until you set a limit.
 
 What has been validated and what has not:
 
@@ -305,7 +307,7 @@ What has been validated and what has not:
 
 **Changed from version 1:**
 
-- Recipes replace the fixed list of stages. The shipped ones are `asset`, `prop`, `character`, `image`, `sfx`, `voice-line` and `provider-test`.
+- Recipes replace the fixed list of stages. The shipped ones are `asset`, `prop`, `character`, `animation`, `image`, `sfx`, `voice-line` and `provider-test`.
 - `jam-3d`, `jam-3d-prop` and `jam-3d-character` are gone. `jam-recipe` is the entry point, and `jam recipe list` says which recipe a request is for. The prop and character procedures are the `prop` and `character` recipes with a guide per step; rigging is `jam-3d-rig`; fitting a rig to the Unreal Mannequin and the import scripts moved into `jam-engine-unreal`. The swappable character parts and outfit workflows were one game's assembly and were dropped; `jam-recipe` shows how a project adds such steps to its own recipe.
 - Steps are recorded with flags, and the tool hashes, measures and validates. No command takes a hand-written JSON record.
 - One review system: a person approves in the catalog, or an agent records the person's answer as a relay with their words. One setting lowers the gates for a crunch.

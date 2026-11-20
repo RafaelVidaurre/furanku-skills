@@ -83,8 +83,7 @@ const files = async (root: string) => {
   const dir = "work/.scratch/walk/1"
   write(root, "art/hero/hero.glb", await glb({ triangles: 200 }))
   write(root, "art/hero/hero.map.json", JSON.stringify({ label: "hero", landmarks: { pelvis: "hips" } }))
-  const { keyPoses: _poses, ...spec } = SPEC
-  write(root, `${dir}/clip.json`, JSON.stringify(spec))
+  write(root, `${dir}/clip.json`, JSON.stringify(SPEC))
   write(root, `${dir}/provider.bvh`, "HIERARCHY\nROOT Hips\n")
   write(root, `${dir}/walk.glb`, await glb({ triangles: 200 }))
   return { dir, spec: `${dir}/clip.json`, raw: `${dir}/provider.bvh`, clip: `${dir}/walk.glb` }
@@ -107,7 +106,7 @@ describe("the animation recipe", () => {
       await start(root, "animation", "walk")
       const made = await files(root)
 
-      // define: the spec must be valid and name files that exist.
+      // define: the spec must be valid and name a rig and map that exist; its key-pose file is made at the keyposes step.
       write(root, `${made.dir}/bad.json`, JSON.stringify({ ...readJson(root, made.spec), rig: { ...SPEC.rig, map: "art/hero/missing.json" } }))
       assert.match((await recordFailure(root, "walk", "define", { files: [`spec=${made.dir}/bad.json`], tool: "editor" })).message, /rig.map art\/hero\/missing.json does not exist/)
       await record(root, "walk", "define", { files: [`spec=${made.spec}`], tool: "editor", accept: "the person set the thresholds" })

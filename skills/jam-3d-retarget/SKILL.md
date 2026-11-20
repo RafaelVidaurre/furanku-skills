@@ -56,7 +56,7 @@ Three words carry this skill. A **landmark map** says which bone of a skeleton s
 
    `jam run record <id> retarget --file clip=<out-dir>/retargeted.glb --evidence report=<out-dir>/retarget-report.json --evidence sheet=<out-dir>/evidence/<animation>-sheet.png --tool "jam-3d-retarget retarget.py, Python <version>" --note "<source clip, maps, frame rate, contacts choice>" --accept "<what you saw in the sheets>"`
 
-   Use the roles `jam run next <id>` names when they differ from these. Done when the command reports the step recorded. Outside a run, done when the person has the retargeted file, the report, the sheets and your row-by-row finding.
+   Done when the command reports the step recorded. Outside a run, done when the person has the retargeted file, the report, the sheets and your row-by-row finding.
 
 ## What carries over
 

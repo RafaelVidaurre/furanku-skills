@@ -1,31 +1,20 @@
-"""The clip spec (clip.json): what one animation clip must be, written with the person before any motion is made.
+"""Read a clip spec (clip.json). Its shape is the jam toolkit's `schemas/animation-clip.schema.json`; this reader
+accepts exactly that shape, so the scripts run the same with the toolkit and without it. references/clip-spec.md
+describes the fields.
 
-    {
-      "id": "<clip id>", "purpose": "<what the clip is for>",
-      "rig": {"model": "<project rig .glb>", "map": "<its skeleton map .json>"},
-      "fps": <frames per second>, "length": <seconds> or {"min": <s>, "max": <s>}, "loop": true | false,
-      "root": {"mode": "in-place"} or {"mode": "root-motion", "bone": "<root bone>"} (no bone: the hips carry travel),
-      "ground": "flat" or {"description": "<the height change the clip crosses>"},
-      "keyPoses": {"file": "keyposes.glb", "poses": [{"name": "<pose>", "time": <s>}, ...]},          (optional)
-      "contacts": {"detect": {"height": <m>, "speed": <m/s>},                                        (optional)
-                   "planted": [{"limb": "foot.l", "from": <s>, "to": <s>}, ...]},
-      "accept": {"footSlide": <m>, "penetration": <m>, "boundaryJump": <m>, "loopSeam": <m, loops only>}
-    }
-
-Distances are metres and speeds metres per second, in the clip's glTF frame. `root` and `ground` may also be written
-as the bare strings "in-place" / "root-motion" and "flat" / "<description>"; `keyPoses` as the bare list of poses (the
-file then defaults to keyposes.glb beside clip.json). Every number under `accept` and `contacts.detect` comes from the
-project or the person: nothing here supplies one.
-
-Relative paths are looked up beside clip.json first, then from the current folder.
+Paths in a spec are project-relative (forward slashes, no `.` or `..` segments) and are opened from the project root:
+the current folder, which is where `jam python` and `jam blender` run every script.
 """
 import json
 import numbers
 import os
+import re
 
 ACCEPT_KEYS = ("footSlide", "penetration", "boundaryJump", "loopSeam")
 LIMBS = ("foot.l", "foot.r", "hand.l", "hand.r")
 TOP_KEYS = ("$schema", "id", "purpose", "rig", "fps", "length", "loop", "root", "ground", "keyPoses", "contacts", "accept")
+ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+PORTABLE = re.compile(r"^(?![A-Za-z]:)(?!/)(?!.*\\)(?!.*(?:^|/)\.{0,2}(?:/|$)).+$")
 
 
 class SpecError(ValueError):
@@ -38,106 +27,121 @@ def _num(v):
     return isinstance(v, numbers.Real) and not isinstance(v, bool)
 
 
-def resolve_path(base_dir, path):
-    """The first of <base_dir>/<path> and <cwd>/<path> that exists; the first when neither does."""
-    if os.path.isabs(path):
-        return path
-    beside = os.path.normpath(os.path.join(base_dir, path))
-    if os.path.exists(beside):
-        return beside
-    here = os.path.normpath(os.path.abspath(path))
-    return here if os.path.exists(here) else beside
+def _positive(v):
+    return _num(v) and v > 0
 
 
-def normalize(doc, base_dir=".", check_files=True):
-    """The spec in its one long form, with paths resolved; raises SpecError naming every problem."""
+def _id(v):
+    return isinstance(v, str) and len(v) <= 64 and ID.match(v) is not None
+
+
+def _text(v):
+    return isinstance(v, str) and v.strip() != ""
+
+
+def _unknown(problems, where, obj, known):
+    for k in obj:
+        if k not in known:
+            problems.append("%s: unknown field %r (known: %s)" % (where, k, ", ".join(known)))
+
+
+def _path(problems, field, value, root, check_files):
+    if not isinstance(value, str) or not PORTABLE.match(value):
+        problems.append("%s: a project-relative path with forward slashes is required (got %r)" % (field, value))
+        return None
+    path = os.path.join(root, value) if root else value
+    if check_files and not os.path.isfile(path):
+        problems.append("%s: no file at %s" % (field, value))
+    return path
+
+
+def normalize(doc, root=None, check_files=True):
+    """The spec with its paths joined to `root` (the project root; None: the current folder) and absent optional
+    fields filled as None or empty; raises SpecError naming every problem."""
     problems = []
     if not isinstance(doc, dict):
         raise SpecError(["clip.json must hold one JSON object"])
-    for k in doc:
-        if k not in TOP_KEYS:
-            problems.append("unknown field %r (known: %s)" % (k, ", ".join(TOP_KEYS[1:])))
+    _unknown(problems, "clip.json", doc, TOP_KEYS)
     out = {}
-    for k in ("id", "purpose"):
-        if not isinstance(doc.get(k), str) or not doc[k].strip():
-            problems.append("%s: a non-empty string is required" % k)
-        out[k] = doc.get(k)
+    if not _id(doc.get("id")):
+        problems.append("id: lowercase letters, digits and single hyphens, at most 64 characters, is required")
+    out["id"] = doc.get("id")
+    if not _text(doc.get("purpose")):
+        problems.append("purpose: one sentence saying what the clip is for is required")
+    out["purpose"] = doc.get("purpose")
 
     rig = doc.get("rig")
-    if not isinstance(rig, dict) or not isinstance(rig.get("model"), str) or not isinstance(rig.get("map"), str):
+    out["rig"] = None
+    if not isinstance(rig, dict):
         problems.append('rig: {"model": "<project rig .glb>", "map": "<its skeleton map .json>"} is required')
-        out["rig"] = None
     else:
-        out["rig"] = {"model": resolve_path(base_dir, rig["model"]), "map": resolve_path(base_dir, rig["map"])}
-        if check_files:
-            for role in ("model", "map"):
-                if not os.path.isfile(out["rig"][role]):
-                    problems.append("rig.%s: no file at %s" % (role, rig[role]))
+        _unknown(problems, "rig", rig, ("model", "map"))
+        out["rig"] = {k: _path(problems, "rig." + k, rig.get(k), root, check_files) for k in ("model", "map")}
 
     fps = doc.get("fps")
-    if not _num(fps) or fps <= 0:
+    if not _positive(fps):
         problems.append("fps: a positive number of frames per second is required")
     out["fps"] = fps
 
     length = doc.get("length")
-    if _num(length) and length > 0:
-        out["length"] = {"min": float(length), "max": float(length)}
-    elif isinstance(length, dict) and _num(length.get("min")) and _num(length.get("max")) and 0 < length["min"] <= length["max"]:
-        out["length"] = {"min": float(length["min"]), "max": float(length["max"])}
+    out["length"] = None
+    if not isinstance(length, dict) or not _positive(length.get("min")) or not _positive(length.get("max")) or length["min"] > length["max"]:
+        problems.append('length: {"min": <seconds>, "max": <seconds>} with 0 < min <= max is required (a fixed length has min equal to max)')
     else:
-        problems.append('length: seconds (a positive number) or {"min": s, "max": s} with 0 < min <= max is required')
-        out["length"] = None
+        _unknown(problems, "length", length, ("min", "max"))
+        out["length"] = {"min": float(length["min"]), "max": float(length["max"])}
 
     if not isinstance(doc.get("loop"), bool):
         problems.append("loop: true or false is required")
     out["loop"] = doc.get("loop")
 
-    root = doc.get("root")
-    if isinstance(root, str):
-        root = {"mode": root}
-    if not isinstance(root, dict) or root.get("mode") not in ("in-place", "root-motion"):
-        problems.append('root: "in-place", "root-motion", or {"mode": "root-motion", "bone": "<root bone>"} is required')
-        out["root"] = None
+    root_ = doc.get("root")
+    out["root"] = None
+    if not isinstance(root_, dict) or root_.get("mode") not in ("in-place", "root-motion"):
+        problems.append('root: {"mode": "in-place"} or {"mode": "root-motion"} (with "bone" when a ground-level root bone carries travel) is required')
     else:
-        bone = root.get("bone")
-        if bone is not None and (root["mode"] != "root-motion" or not isinstance(bone, str) or not bone):
+        _unknown(problems, "root", root_, ("mode", "bone"))
+        bone = root_.get("bone")
+        if bone is not None and (root_["mode"] != "root-motion" or not _text(bone)):
             problems.append("root.bone: a bone name, and only with root-motion")
-        out["root"] = {"mode": root["mode"], "bone": bone}
+        out["root"] = {"mode": root_["mode"], "bone": bone}
 
     ground = doc.get("ground")
-    if ground == "flat" or (isinstance(ground, dict) and ground.get("kind") == "flat"):
-        out["ground"] = {"flat": True, "description": "flat"}
-    elif isinstance(ground, str) and ground.strip():
-        out["ground"] = {"flat": False, "description": ground}
-    elif isinstance(ground, dict) and isinstance(ground.get("description"), str) and ground["description"].strip():
-        out["ground"] = {"flat": False, "description": ground["description"]}
+    out["ground"] = None
+    if isinstance(ground, dict) and ground.get("kind") == "flat":
+        _unknown(problems, "ground", ground, ("kind",))
+        out["ground"] = {"kind": "flat", "description": None}
+    elif isinstance(ground, dict) and ground.get("kind") == "change" and _text(ground.get("description")):
+        _unknown(problems, "ground", ground, ("kind", "description"))
+        out["ground"] = {"kind": "change", "description": ground["description"]}
     else:
-        problems.append('ground: "flat" or a description of the height change the clip crosses is required')
-        out["ground"] = None
+        problems.append('ground: {"kind": "flat"} or {"kind": "change", "description": "<the height change the clip crosses>"} is required')
 
     kp = doc.get("keyPoses")
     out["keyPoses"] = None
     if kp is not None:
-        if isinstance(kp, list):
-            kp = {"file": "keyposes.glb", "poses": kp}
         poses = kp.get("poses") if isinstance(kp, dict) else None
-        if not isinstance(poses, list) or not poses or not isinstance(kp.get("file"), str):
-            problems.append('keyPoses: {"file": "keyposes.glb", "poses": [{"name", "time"}, ...]} with at least one pose')
+        if not isinstance(poses, list) or not poses or "file" not in kp:
+            problems.append('keyPoses: {"file": "<keyposes.glb>", "poses": [{"name", "time"}, ...]} with at least one pose')
         else:
-            names = []
+            _unknown(problems, "keyPoses", kp, ("file", "poses"))
+            path = _path(problems, "keyPoses.file", kp["file"], root, False)
+            good = []
             for i, p in enumerate(poses):
-                if not isinstance(p, dict) or not isinstance(p.get("name"), str) or not p["name"] or not _num(p.get("time")) or p["time"] < 0:
-                    problems.append("keyPoses.poses[%d]: {\"name\": <non-empty>, \"time\": <seconds >= 0>}" % i)
+                if not isinstance(p, dict) or not _id(p.get("name")) or not _num(p.get("time")) or p["time"] < 0:
+                    problems.append('keyPoses.poses[%d]: {"name": <lowercase id>, "time": <seconds >= 0>}' % i)
                     continue
-                names.append(p["name"])
+                _unknown(problems, "keyPoses.poses[%d]" % i, p, ("name", "time"))
+                good.append({"name": p["name"], "time": float(p["time"])})
+            names = [p["name"] for p in good]
             if len(set(names)) != len(names):
                 problems.append("keyPoses.poses: names must be unique")
-            times = [p["time"] for p in poses if isinstance(p, dict) and _num(p.get("time"))]
+            times = [p["time"] for p in good]
             if times != sorted(times):
                 problems.append("keyPoses.poses: list the poses in time order")
             if out["length"] and times and max(times) > out["length"]["max"] + 1e-9:
                 problems.append("keyPoses.poses: a pose at %.3f s is past the clip's length" % max(times))
-            out["keyPoses"] = {"file": resolve_path(base_dir, kp["file"]), "poses": [dict(name=p["name"], time=float(p["time"])) for p in poses if isinstance(p, dict) and _num(p.get("time"))]}
+            out["keyPoses"] = {"file": path, "poses": good}
 
     contacts = doc.get("contacts")
     out["contacts"] = {"detect": None, "planted": []}
@@ -145,16 +149,24 @@ def normalize(doc, base_dir=".", check_files=True):
         if not isinstance(contacts, dict):
             problems.append('contacts: {"detect": {"height", "speed"}, "planted": [...]}')
         else:
+            _unknown(problems, "contacts", contacts, ("detect", "planted"))
             det = contacts.get("detect")
             if det is not None:
-                if not isinstance(det, dict) or not _num(det.get("height")) or not _num(det.get("speed")) or det["height"] < 0 or det["speed"] < 0:
-                    problems.append("contacts.detect: {\"height\": metres above the planted height, \"speed\": metres per second}, both >= 0")
+                if not isinstance(det, dict) or not _positive(det.get("height")) or not _positive(det.get("speed")):
+                    problems.append('contacts.detect: {"height": <metres>, "speed": <metres per second>}, both above 0')
                 else:
+                    _unknown(problems, "contacts.detect", det, ("height", "speed"))
                     out["contacts"]["detect"] = {"height": float(det["height"]), "speed": float(det["speed"])}
-            for i, w in enumerate(contacts.get("planted") or []):
-                if not isinstance(w, dict) or w.get("limb") not in LIMBS or not _num(w.get("from")) or not _num(w.get("to")) or w["from"] > w["to"]:
-                    problems.append("contacts.planted[%d]: {\"limb\": one of %s, \"from\": s, \"to\": s} with from <= to" % (i, ", ".join(LIMBS)))
+            planted = contacts.get("planted", [])
+            if not isinstance(planted, list):
+                problems.append("contacts.planted: a list of windows")
+                planted = []
+            for i, w in enumerate(planted):
+                if (not isinstance(w, dict) or w.get("limb") not in LIMBS or not _num(w.get("from")) or not _num(w.get("to"))
+                        or w["from"] < 0 or w["from"] > w["to"]):
+                    problems.append('contacts.planted[%d]: {"limb": one of %s, "from": s, "to": s} with 0 <= from <= to' % (i, ", ".join(LIMBS)))
                 else:
+                    _unknown(problems, "contacts.planted[%d]" % i, w, ("limb", "from", "to"))
                     out["contacts"]["planted"].append({"limb": w["limb"], "from": float(w["from"]), "to": float(w["to"])})
 
     accept = doc.get("accept")
@@ -162,14 +174,12 @@ def normalize(doc, base_dir=".", check_files=True):
     if not isinstance(accept, dict):
         problems.append("accept: the thresholds the check enforces are required (%s)" % ", ".join(ACCEPT_KEYS))
     else:
-        for k in accept:
-            if k not in ACCEPT_KEYS:
-                problems.append("accept: unknown threshold %r (known: %s)" % (k, ", ".join(ACCEPT_KEYS)))
+        _unknown(problems, "accept", accept, ACCEPT_KEYS)
         wanted = [k for k in ACCEPT_KEYS if k != "loopSeam" or doc.get("loop") is True]
         for k in wanted:
             v = accept.get(k)
-            if not _num(v) or v < 0:
-                problems.append("accept.%s: metres (a number >= 0) from the project or the person is required" % k)
+            if not _positive(v):
+                problems.append("accept.%s: metres above 0, from the project or the person, is required" % k)
             else:
                 out["accept"][k] = float(v)
         if doc.get("loop") is False and "loopSeam" in accept:
@@ -179,13 +189,14 @@ def normalize(doc, base_dir=".", check_files=True):
     return out
 
 
-def load(path, check_files=True):
+def load(path, root=None, check_files=True):
+    """Read and check the spec at `path`; its own paths are joined to `root` (None: the current folder)."""
     with open(path, encoding="utf-8") as f:
         try:
             doc = json.load(f)
         except ValueError as e:
             raise SpecError(["%s is not JSON: %s" % (path, e)])
-    return normalize(doc, os.path.dirname(os.path.abspath(path)), check_files)
+    return normalize(doc, root, check_files)
 
 
 def frame_of(seconds, fps):
