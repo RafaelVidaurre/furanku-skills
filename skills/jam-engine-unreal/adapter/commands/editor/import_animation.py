@@ -1,13 +1,15 @@
 """Import the animations of one glTF clip onto a skeleton already in the project. Runs inside the Unreal editor.
 
 ARGS: {"source": "<project-relative glb>", "sha256": "...", "target": "<skeleton, or skeletal mesh whose skeleton to use>",
-       "joints": ["<every joint the clip's skin holds, as Unreal names its bone>"], "dest": "/Game/Characters/Hero/Animations", "name": "AS_HeroWalk"}
+       "joints": ["<every joint the clip's skin holds, as Unreal names its bone>"], "dest": "/Game/Characters/Hero/Animations", "name": "AS_HeroWalk",
+       "planned": ["<the sequence ids the import will make>"]}
 
 A clip whose joints the skeleton lacks is refused before anything is imported: its animation would play on nothing.
-The clip goes through Interchange's generic pipeline with "import only animations" on the target skeleton, straight
-into `dest` under `name`: one animation becomes `<dest>/<name>`, several become `<dest>/<name><animation name>` (the
-importer's own rule). Importing again replaces those sequences in place. Nothing is renamed afterwards: a moved asset
-resolves its stored source from its new folder and loses it.
+So is a clip whose sequences would replace an asset imported from another file. The clip goes through Interchange's
+generic pipeline with "import only animations" on the target skeleton, straight into `dest` under `name`: one
+animation becomes `<dest>/<name>`, several become `<dest>/<name><animation name>` (the importer's own rule). Importing
+the same file again replaces its sequences in place. Nothing is renamed afterwards: a moved asset resolves its stored
+source from its new folder and loses it.
 """
 # jam: include editor_shared
 import unreal
@@ -24,6 +26,13 @@ def main(ARGS):
     missing = [j for j in ARGS["joints"] if j not in bones]
     if missing:
         raise RuntimeError("skeleton %s lacks the clip's bones %s; retarget the clip onto this skeleton first" % (skeleton_id, ", ".join(missing[:12])))
+    for planned in ARGS.get("planned") or []:
+        if not eal.does_asset_exist(planned):
+            continue
+        existing = eal.load_asset(planned)
+        if not isinstance(existing, unreal.AnimSequence):
+            raise RuntimeError("%s exists and is not an animation sequence: import the clip under another name" % planned)
+        jam_refuse_other_source(planned, existing, ARGS["source"])
 
     pipeline = unreal.InterchangeGenericAssetsPipeline()
     common = pipeline.get_editor_property("common_skeletal_meshes_and_animations_properties")

@@ -7,7 +7,7 @@
     "mesh": { "modes": ["text", "multiview"], "inputs": { "min": 2, "max": 4 }, "note": "`make` accepts 2 to 4 images for multiview. Text-to-model suits a connectivity test, not production design." },
     "motion": {
       "modes": ["library"],
-      "note": "Up to 5 preset clips per request, applied only to a model Tripo rigged: 11 presets on v3.0 biped rigs, 90+ on v1.0 biped rigs, one per creature type. Output skeleton: Tripo's own bone naming or a standard naming chosen when rigging a biped; no joint list is published. Frame rate and clip length are not stated. Retargeting brings the clips onto the project rig."
+      "note": "Up to 5 preset clips per request, applied only to a model Tripo rigged: 11 presets on v3.0 biped rigs, 90+ on v1.0 biped rigs, one per creature type. Output skeleton: Tripo's own bone naming or a standard naming chosen when rigging a biped; no joint list is published. Frame rate and clip length are not stated. Retargeting brings the clips onto the project rig, through a landmark map written from the downloaded clip (no rig.landmarks: see docs/providers.md, Motion)."
     }
   },
   "transports": [

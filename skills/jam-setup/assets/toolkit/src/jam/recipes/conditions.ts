@@ -2,6 +2,7 @@
 // skipped automatically, so one recipe works with any engine adapter and with none.
 import { digest } from "../../kernel/hash.ts"
 import type { Budget } from "../config/schema.ts"
+import { takesKind } from "../engine/schema.ts"
 import type { Condition } from "./schema.ts"
 
 export interface ConditionFacts {
@@ -31,9 +32,9 @@ export const evaluateCondition = (condition: Condition, facts: ConditionFacts): 
   const unmet: Array<string> = []
   if (condition.engine !== undefined) {
     parts.push(`engine provides ${condition.engine}${condition.kind === undefined ? "" : ` --kind ${condition.kind}`}`)
-    if (facts.engine.commands.has(condition.engine) && condition.kind !== undefined && !(facts.engine.kinds.get(condition.engine) ?? []).includes(condition.kind)) {
-      const listed = facts.engine.kinds.get(condition.engine)
-      unmet.push(`engine adapter ${facts.engine.id}'s ${condition.engine} command ${listed === undefined ? "lists no kinds" : `takes ${listed.join(", ")}`}, not ${condition.kind}`)
+    const listed = facts.engine.kinds.get(condition.engine)
+    if (facts.engine.commands.has(condition.engine) && condition.kind !== undefined && !takesKind(listed, condition.kind)) {
+      unmet.push(`engine adapter ${facts.engine.id}'s ${condition.engine} command ${listed === undefined ? `lists no kinds, and takes ${condition.kind} only when it lists it` : `takes ${listed.join(", ")}, not ${condition.kind}`}`)
     }
     if (!facts.engine.commands.has(condition.engine)) {
       unmet.push(

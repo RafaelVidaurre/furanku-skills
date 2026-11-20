@@ -34,6 +34,7 @@ From the API v3 docs ([rig check](https://developers.tripo3d.ai/en/docs/animatio
 - **Rig check** (free) takes GLB, FBX, OBJ or STL up to 150 MB and returns whether the model can be rigged and a recommended rig type (biped, quadruped, hexapod, octopod, avian, serpentine, aquatic).
 - **Rig models.** `v1.0-20240301` (default): bipeds only, the 90+ `preset:biped:*` clips. `v3.0-20260909`: "recommended for humanoid characters", requested explicitly. `v2.5-20260210`: creatures. Output `glb` (default) or `fbx`.
 - **Output skeleton.** For bipeds `spec` picks the bone naming: `tripo` (default) or `mixamo`, and on v3.0 also `actorcore`, `unity`, `unreal` or `vrm`. No joint list is published. Retargeting brings the clip onto the project rig unless its skeleton is the project's.
+- **Landmark map.** The descriptor has no `rig.landmarks`, because no joint list is published: before retargeting, write a map of the skeleton in the downloaded clip, as [providers.md](../providers.md#motion) says.
 - **Presets.** Up to 5 per request. v3.0 bipeds: `idle, walk, run, dive, climb, jump, slash, shoot, hurt, fall, turn`; creatures one each. `animate_in_place` plays a clip "in place without displacement". Frame rate, clip length and presets for avian rigs are not stated.
 - **Prices:** "1 credit = $0.01 USD". Rig check free, rig 25 credits, retarget 10 per animation; "Failed and cancelled tasks are not charged."
 - **Limits:** 10 rig-check, rig or retarget tasks at a time per account (HTTP 429 beyond). From 2026-12-01 API outputs are kept "for a maximum of 7 days".

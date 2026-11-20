@@ -236,14 +236,15 @@
                     "type": "string",
                     "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
                     "maxLength": 64,
-                    "description": "With engine: that command lists this kind among its kinds, e.g. {\"engine\": \"import\", \"kind\": \"animation\"}"
+                    "description": "With engine: that command takes this kind, e.g. {\"engine\": \"import\", \"kind\": \"animation\"} (an adapter command's kinds field says which it takes)"
                   },
                   "budget": {
                     "type": "object",
                     "description": "The run's budget has these field values, e.g. {\"kind\": \"deforming\"}"
                   }
                 },
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "The step applies only when this holds; otherwise it is skipped automatically and later steps treat it as satisfied"
               },
               "remove": {
                 "type": "boolean",

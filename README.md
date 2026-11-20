@@ -296,7 +296,7 @@ npx skills add rafaelvidaurre/furanku-skills --skill jam-setup jam-recipe jam-st
 > Our props get a paint-over before the turnaround. Add that step to our recipe.
 ```
 
-**Engines and providers.** No skill or recipe names an engine or a vendor, and a test in this repository fails when one does. Work ends at neutral files (GLB, PNG, WAV). An engine adapter supplies the engine's conventions and, optionally, commands that import and inspect; with no adapter the engine steps are skipped and the run still delivers. Generation services are described by data files, and the agent drives each service's own tool. Descriptors ship for Meshy, Scenario, Tripo, ElevenLabs, NVIDIA MotionBricks, the Codex CLI's image tool and the agent's own image tool; you use your own accounts, and paid work is off until you set a limit.
+**Engines and providers.** Engines and vendors are named only where naming one is the point: an engine's adapter skill, engine presets, provider descriptors and provider pages, and a provider's own skill (`jam-3d-motionbricks`), which names its own vendor and no other. A test in this repository fails when any other jam skill, recipe or toolkit source names one. Work ends at neutral files (GLB, PNG, WAV). An engine adapter supplies the engine's conventions and, optionally, commands that import and inspect; with no adapter the engine steps are skipped and the run still delivers. Generation services are described by data files, and the agent drives each service's own tool. Descriptors ship for Meshy, Scenario, Tripo, ElevenLabs, NVIDIA MotionBricks, the Codex CLI's image tool and the agent's own image tool; you use your own accounts, and paid work is off until you set a limit.
 
 What has been validated and what has not:
 

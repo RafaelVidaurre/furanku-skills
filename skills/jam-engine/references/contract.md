@@ -76,7 +76,7 @@ What the toolkit passes after the verb:
 
 | Verb | Arguments | Receipt |
 | --- | --- | --- |
-| `import` | `--kind <kind> <file>... [--destination <where>] [--skeleton <profile id>] [--target <engine id>]` (the kind must be in `kinds` when that is listed) | `{"assets": [{"id", "kind", "source"?, "sha256"?, "skeleton"?}]}`: the engine's id of each asset made or updated, with the source file and its hash where it has one. **Idempotent: importing the same source to the same place again returns the same id.** With `--run`, the toolkit records the step with these ids |
+| `import` | `--kind <kind> <file>... [--destination <where>] [--skeleton <profile id>] [--target <engine id>] [--name <asset name>]` (the kind must be one the command takes: see Import kinds) | `{"assets": [{"id", "kind", "source"?, "sha256"?, "skeleton"?}]}`: the engine's id of each asset made or updated, with the source file and its hash where it has one. **Idempotent: importing the same source to the same place again returns the same id.** With `--run`, the toolkit records the step with these ids |
 | `inspect` | whatever follows the verb; by convention the asset id | `{"id", "kind"?, "bounds"?: {"min", "max"}, "pivot"?, "triangles"?, "vertices"?, "materials"?, "skeleton"?: {"root", "bones"}, "collision"?: {"shapes", "kinds"?}}`. Lengths in **meters** whatever the engine's unit; `materials` are slot names in slot order. Leave out what the engine did not give |
 | `conform-skeleton` | `--skeleton <id> [--out <folder>] <model>...` | `{"model": "<project file>", "skeleton"?, "evidence"?: [files]}`: the reworked model, recorded as the step's model |
 | `inventory` | `--out <file> [--previous <file>] [--engine]` | `{"inventory", "files", "assets", "read", "reused", "removed", "unread"}` after writing the inventory file (`schemas/engine-inventory.schema.json`); reuse the `--previous` entries whose size and mtime are unchanged; start the engine only with `--engine` |
@@ -85,13 +85,13 @@ What the toolkit passes after the verb:
 
 ### Import kinds
 
-`kinds` lists what `import` accepts. A recipe step conditioned on a kind (`"when": {"engine": "import", "kind": "animation"}`) runs only when the kind is listed, so list every kind the command handles; `jam engine show` prints them.
+`kinds` lists what `import` accepts; list every kind the command handles, and `jam engine show` prints them. A command that lists no kinds takes any kind except `animation`, which it takes only when listed. `jam engine import` refuses a kind the command does not take, and a recipe step conditioned on a kind (`"when": {"engine": "import", "kind": "animation"}`) is skipped by the same rule.
 
 | Kind | Takes | Receipt |
 | --- | --- | --- |
 | `static` | One model file | The mesh first, then the materials and textures it made |
 | `skinned` | One skinned model file; `--skeleton` names the skeleton profile it binds to | **The skinned asset first**, then the rest: a receipt of this import is what an animation import's `--target` may name |
-| `animation` | One clip file (glTF binary: the skinned rig and its named animations, meters, `+Y` up, facing `+Z`) whose skeleton matches a skinned asset already in the engine; `--target <engine id>` names that asset or its skeleton. The toolkit resolves a receipt file given as `--target` to the receipt's first asset | One asset per animation in the file, each with `skeleton`: the engine id of the skeleton it plays on. Refuse a clip whose bones the target's skeleton lacks, rather than importing a clip that plays on nothing |
+| `animation` | One clip file in the clip format of `jam-3d-animate`, whose skeleton matches a skinned asset already in the engine; `--target <engine id>` names that asset or its skeleton. The toolkit resolves a receipt file given as `--target` to the receipt's first asset, and for a run passes `--name <the run's clip spec id>` | One asset per animation in the file, each with `skeleton`: the engine id of the skeleton it plays on. Refuse a clip whose bones the target's skeleton lacks, rather than importing a clip that plays on nothing, and refuse to replace an asset that was imported from another file |
 | `textures`, `audio`, ... | The adapter's own | The adapter's own |
 
 An adapter that cannot import a kind leaves it out of `kinds`; the step that needs it is then skipped with that reason on record.

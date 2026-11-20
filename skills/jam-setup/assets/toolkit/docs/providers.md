@@ -55,23 +55,9 @@ A `motion` route makes an animation clip for a rigged humanoid. Its descriptor's
 | `video` | footage of a performer |
 | `library` | the provider's preset clips, applied to a rig |
 
-A clip comes out on the provider's skeleton: the one its descriptor's `rig.landmarks` maps, or the one `capabilities.motion.note` names. The note also says when the provider animates only its own auto-rigged copy of a mesh. A clip on any skeleton other than the project rig reaches it through retargeting (`jam-3d-retarget`), which takes a landmark map of each skeleton; `rig.landmarks` is the provider's, when its joint names are published. The clip is judged after that, on the project rig. A paid motion job goes through the run's ledger like any other.
+A clip comes out on the provider's skeleton: the one its descriptor's `rig.landmarks` maps, or the one `capabilities.motion.note` names. The note also says when the provider animates only its own auto-rigged copy of a mesh. A clip on any skeleton other than the project rig reaches it through retargeting (`jam-3d-retarget`), which takes a landmark map of each skeleton; `rig.landmarks` is the provider's, when its joint names are published. When the descriptor has no `rig.landmarks`, write a landmark map of the skeleton in the downloaded clip, as `jam-3d-retarget`'s maps reference says. The clip is judged after that, on the project rig. A paid motion job goes through the run's ledger like any other.
 
-### Known, not described
-
-The animation provider survey (2026-11-20) found these usable for games but with no transport the contract knows or with terms still to check, so no descriptor ships for them. A project that settles what is missing may describe one in `jam/providers/<id>.json`.
-
-| Provider | Modes | What a descriptor would need |
-| --- | --- | --- |
-| Uthana | text, video | A transport: it offers a GraphQL API with Python and npm clients, no CLI or MCP server. It is the only service found that animates the person's own uploaded character |
-| Viggle | text, video | A transport: a REST API only. Output on its own 50-joint or MetaHuman-style rigs |
-| NVIDIA Kimodo | text, inbetween | A skill or command that runs the released model on an NVIDIA GPU and writes files; output on SOMA |
-| NVIDIA GEM-X | video | An exporter from its tensor output to a clip file, and a transport |
-| Cartwheel | text, video | Its output skeleton, limits and who owns the output, which its docs do not state; it has an MCP server |
-| Move AI | video | A legal reading of its licence clause on using output "as an input for any AI System" |
-| Plask | video | Its API's output format, which is undocumented, and terms that cover the API |
-
-Services whose terms bar agent use, commercial output or machine-learning use of the output, or whose API is gated behind approval, are not listed.
+A project may describe another motion provider in `jam/providers/<id>.json` (see Adding a provider).
 
 ## Local tools are routes too
 

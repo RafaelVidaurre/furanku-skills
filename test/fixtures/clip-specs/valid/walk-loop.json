@@ -1,0 +1,52 @@
+{
+  "id": "walk-loop",
+  "purpose": "The hero's default walk, looped under player control.",
+  "rig": {
+    "model": "art/hero/hero.glb",
+    "map": "art/hero/hero.map.json"
+  },
+  "fps": 30,
+  "length": {
+    "min": 1,
+    "max": 1.2
+  },
+  "loop": true,
+  "root": {
+    "mode": "in-place"
+  },
+  "ground": {
+    "kind": "flat"
+  },
+  "keyPoses": {
+    "file": "work/walk/keyposes.glb",
+    "poses": [
+      {
+        "name": "contact-left",
+        "time": 0
+      },
+      {
+        "name": "contact-right",
+        "time": 0.5
+      }
+    ]
+  },
+  "contacts": {
+    "detect": {
+      "height": 0.03,
+      "speed": 0.2
+    },
+    "planted": [
+      {
+        "limb": "foot.l",
+        "from": 0,
+        "to": 0.3
+      }
+    ]
+  },
+  "accept": {
+    "footSlide": 0.02,
+    "penetration": 0.01,
+    "boundaryJump": 0.05,
+    "loopSeam": 0.01
+  }
+}

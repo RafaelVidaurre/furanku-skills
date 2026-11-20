@@ -53,6 +53,7 @@ Scenario hosts other vendors' rigging and motion models and runs them like any m
 | text, video | `model_viggle-text-to-motion`, `model_viggle-video-to-motion-3d` | GLB or FBX; `rig` `mixamo` ("generic 50-joint rig you can retarget onto any character"), `metahuman` or `metahuman_body`; video `targetFps` up to 120 |
 
 - The output skeleton is the vendor's, with that vendor's limits; retargeting brings it onto the project rig. Hosted options are a subset of the vendor's own API.
+- **Landmark map.** The descriptor has no `rig.landmarks`, because each hosted model's skeleton is its vendor's: before retargeting, write a map of the skeleton in the downloaded clip, as [providers.md](../providers.md#motion) says.
 - No CU price per motion job is published: a dry run gives the exact one.
 - API access needs a paid plan ("The Free plan cannot use the API"). Generated assets are assigned to the person, "including commercial use"; on Free they are "for personal and evaluation use only". Hosted third-party models are "subject to any applicable usage policies of those providers" ([terms](https://www.scenario.com/terms-and-conditions) v2.1.1).
 

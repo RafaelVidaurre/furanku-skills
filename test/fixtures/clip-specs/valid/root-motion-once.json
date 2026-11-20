@@ -1,0 +1,27 @@
+{
+  "id": "step-up",
+  "purpose": "Steps up onto a ledge.",
+  "rig": {
+    "model": "art/hero/hero.glb",
+    "map": "art/hero/hero.map.json"
+  },
+  "fps": 29.97,
+  "length": {
+    "min": 2,
+    "max": 2
+  },
+  "loop": false,
+  "root": {
+    "mode": "root-motion",
+    "bone": "root"
+  },
+  "ground": {
+    "kind": "change",
+    "description": "a 30 cm step up at 0.4 s"
+  },
+  "accept": {
+    "footSlide": 0.02,
+    "penetration": 0.01,
+    "boundaryJump": 0.05
+  }
+}

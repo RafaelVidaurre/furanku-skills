@@ -62,7 +62,8 @@
             "min",
             "max"
           ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "description": "Seconds: any length from min to max. A fixed length has min equal to max."
         },
         "loop": {
           "type": "boolean"
@@ -87,7 +88,8 @@
           "required": [
             "mode"
           ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "description": "Where the clip's travel goes. bone is given with root-motion only."
         },
         "ground": {
           "anyOf": [
@@ -183,7 +185,7 @@
                 ],
                 "additionalProperties": false
               },
-              "description": "Named poses with their intended times, in the order of their keys"
+              "description": "Named poses with their intended times, in the order of their keys: each name once, in time order, none after length.max"
             }
           },
           "required": [
@@ -246,9 +248,10 @@
                   "from",
                   "to"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "One limb planted from one time to another; from is not after to"
               },
-              "description": "Which feet or hands should be planted when, reported beside the detected contacts"
+              "description": "Which feet or hands should be planted when; the clip check measures each of these windows"
             }
           },
           "additionalProperties": false
@@ -269,7 +272,7 @@
             "boundaryJump": {
               "type": "number",
               "exclusiveMinimum": 0,
-              "description": "Most a joint may jump at the first or the last frame"
+              "description": "Most a joint may jump from one frame to the next beyond the motion around it: at the first or the last frame, or anywhere inside the clip"
             },
             "loopSeam": {
               "type": "number",
@@ -297,7 +300,9 @@
         "ground",
         "accept"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "title": "Clip spec (clip.json): one animation clip on the project rig. Paths are project-relative.",
+      "description": "Beyond each field's own shape: accept.loopSeam is given exactly when loop is true; key poses have distinct names, are in time order and none is after length.max. Numbers are finite; an optional field is left out, never null."
     }
   }
 }

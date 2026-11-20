@@ -78,7 +78,7 @@ The figure is far more regular than any character and proves less than the runs 
 
 ## Not validated
 
-- **Any engine.** No output was imported into a game engine or played with an animation. Bone axes, units and naming were checked only in the glTF files themselves.
+- **Engines, beyond one run.** On 2026-11-20 the test humanoid, bound by `bind.py` with the landmark skeleton, was imported into one engine as a skinned mesh and played a clip retargeted onto it, during an `animation` recipe run (`jam-3d-animate`'s validation reference has the numbers). The engine renamed the dotted bone names (`foot.l` became `foot_l`). No real character was imported, and the shipped profiles were not played in an engine.
 - **Fingers on a real character with separate fingers.** Finger weights ran on the test figure and on one character with joined fingers.
 - **Garments across both legs.** One aproned character, which fails the default limits by design; see [troubleshooting.md](troubleshooting.md).
 - **Coarse meshes.** The blend band is 3% of the height along edges; on a mesh whose edges at a region border are longer than that, weights stop at the border. The real characters' edges are one to three centimetres (estimated from their size and triangle counts).

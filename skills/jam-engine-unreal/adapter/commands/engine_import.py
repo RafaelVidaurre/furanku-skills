@@ -19,7 +19,8 @@ physicsAsset and normalGreen for it; flags win over it. A texture given without 
 Prints {"assets": [{"id", "kind", "source", "sha256", "skeleton"?}]}. Importing the same source to the same destination
 again reimports into the same asset id; a static mesh that already exists is refused (docs/import.md, "Replacing a mesh").
 An animation clip is a .glb holding the skinned rig and its named animations; it is refused when the target's skeleton
-lacks any of its joints, and each animation sequence is listed with the skeleton it plays on.
+lacks any of its joints, or when a sequence it would make exists and was imported from another file. Each animation
+sequence is listed with the skeleton it plays on; a sequence the editor did not save fails the import.
 """
 import argparse
 import json
@@ -215,8 +216,12 @@ def import_animation(cfg, a):
     planned = [paths.asset_id(dest, name)] if len(facts["animations"]) == 1 else [paths.asset_id(dest, name + cli.asset_name(n)) for n in facts["animations"]]
     lock(cfg, planned)
     result, = cli.editor(cfg, "import-animation", [("animation", "import_animation", {
-        "source": source, "sha256": digest, "target": paths.package_of(a.target), "joints": [gltf.unreal_name(j) for j in facts["joints"]], "dest": dest, "name": name})])
+        "source": source, "sha256": digest, "target": paths.package_of(a.target), "joints": [gltf.unreal_name(j) for j in facts["joints"]], "dest": dest, "name": name,
+        "planned": planned})])
     cli.write_details(cfg, a.details, result)
+    if result.get("saved") is not True:
+        raise AdapterError("save-failed", "the editor imported %s but did not save every sequence (%s)" % (source, ", ".join(item["id"] for item in result.get("assets") or [])),
+                           fix="look at the editor's log for the save error (a read-only or locked file), fix it, and import again")
     for path in result.get("other") or []:
         receipts.note("the import also made %s, which is not an animation" % path)
     return receipts.import_receipt([

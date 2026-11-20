@@ -60,7 +60,7 @@ Done when the receipt lists the mesh, `jam engine inspect` shows its skeleton an
 
 ## Animation clip
 
-One glTF clip (`.glb`: the skinned rig with one or more named animations) onto a skeleton already in the project:
+One glTF clip (`.glb`: the skinned rig with its named animations; a delivered clip holds one) onto a skeleton already in the project:
 
 ```
 jam engine import --kind animation <clip.glb> --target <skeleton or skeletal mesh id> [--name <Name>] [--destination /Game/Characters/<Name>/Animations]
@@ -68,7 +68,8 @@ jam engine import --kind animation <clip.glb> --target <skeleton or skeletal mes
 
 - `--target` is the skeleton, or a skeletal mesh whose skeleton is used. With `--run`, the toolkit also takes the receipt of the skinned import and passes its first asset, the skeletal mesh.
 - The command reads the clip's skinned joints from the file and refuses it, before importing anything, when the target's skeleton lacks any of them (`retarget the clip onto this skeleton first`). Extra bones in the skeleton are fine.
-- It imports through Interchange's generic pipeline with "import only animations" on the target skeleton, straight into the destination: one animation becomes `<dest>/AS_<Name>`, several become `<dest>/AS_<Name><animation name>`, the importer's own rule. Importing the same clip again replaces the sequences under the same ids. Nothing is renamed afterwards, because a moved sequence looks for its stored source from its new folder and loses it.
+- It imports through Interchange's generic pipeline with "import only animations" on the target skeleton, straight into the destination: one animation becomes `<dest>/AS_<Name>`, several become `<dest>/AS_<Name><animation name>`, the importer's own rule. With `--run` the toolkit passes the run's clip spec id as `--name`. Importing the same file again replaces its sequences under the same ids; a sequence imported from another file is never replaced: the import is refused before anything is imported, naming the sequence and its file (import under another `--name`, or delete the old sequence first). Nothing is renamed afterwards, because a moved sequence looks for its stored source from its new folder and loses it.
+- A sequence the editor did not save fails the import with `save-failed`.
 - Each receipt entry carries `skeleton`, the skeleton the sequence plays on; `--details` adds its frame count, frame rate and length as the engine reads them.
 
 Done when the receipt lists one sequence per animation in the file, each on the target's skeleton, and the details' frame count and rate are the clip's.

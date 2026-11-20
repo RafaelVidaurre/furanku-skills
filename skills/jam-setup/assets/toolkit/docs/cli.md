@@ -919,6 +919,7 @@ jam engine import [<file...>] [flags]
 | `--slot <string>` (repeatable) | Which engine material a slot of the model uses, as name=material. Repeat per slot. |
 | `--skeleton <string>` | Skeleton profile a skinned import binds to (default: the one the run's budget names) |
 | `--target <string>` | For --kind animation: what the clip plays on, a skinned asset or skeleton already in the engine, as its engine id or as the import receipt file that made it |
+| `--name <string>` | The engine asset's name (default: the adapter's own rule; for --kind animation with --run, the id of the run's clip spec) |
 | `--run <string>` | Work on this run's result and record the step the recipe marks for this command |
 | `--step <string>` | The step to record, when the recipe has several for this command |
 

@@ -67,6 +67,8 @@ describe("doctor", () => {
     assert.match(found.detail, /\.other-agent\/skills\/jam-uv is now jam-3d-uv/)
     assert.match(found.detail, /jam\/recipes\/statue\.json step mesh names jam-model, now jam-3d-model/)
     assert.doesNotMatch(found.detail, /jam-3d-uv\/|turnaround/)
+    assert.match(found.detail, /looked in \.agents\/skills, \.other-agent\/skills and the project's recipes, not in skills installed for your user outside the project\)$/)
+    assert.match(found.fix!, /remove old names from your user's skills too/)
     assert.match(found.fix!, /install jam-3d-rig, jam-3d-uv with "npx skills add rafaelvidaurre\/furanku-skills --skill <name>" and remove the old folders/)
     assert.match(found.fix!, /change the "skill" of those steps to the new name/)
     assert.match(found.fix!, /docs\/setup\.md#renamed-skills/)
