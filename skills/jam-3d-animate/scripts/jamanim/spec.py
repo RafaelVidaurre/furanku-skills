@@ -1,11 +1,12 @@
 """Read a clip spec (clip.json). Its shape is the jam toolkit's `schemas/animation-clip.schema.json`; this reader
-accepts exactly that shape, so the scripts run the same with the toolkit and without it. references/clip-spec.md
-describes the fields.
+accepts exactly the specs that schema and the toolkit's own cross-field rules accept, so the scripts run the same with
+the toolkit and without it. references/clip-spec.md describes the fields.
 
 Paths in a spec are project-relative (forward slashes, no `.` or `..` segments) and are opened from the project root:
 the current folder, which is where `jam python` and `jam blender` run every script.
 """
 import json
+import math
 import numbers
 import os
 import re
@@ -13,8 +14,12 @@ import re
 ACCEPT_KEYS = ("footSlide", "penetration", "boundaryJump", "loopSeam")
 LIMBS = ("foot.l", "foot.r", "hand.l", "hand.r")
 TOP_KEYS = ("$schema", "id", "purpose", "rig", "fps", "length", "loop", "root", "ground", "keyPoses", "contacts", "accept")
-ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-PORTABLE = re.compile(r"^(?![A-Za-z]:)(?!/)(?!.*\\)(?!.*(?:^|/)\.{0,2}(?:/|$)).+$")
+ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+# The schema's patterns are JavaScript regular expressions; these match the same strings (whole string, JavaScript's
+# `.` and `\s`).
+_DOT = "[^\n\r  ]"
+PORTABLE = re.compile(r"(?![A-Za-z]:)(?!/)(?!.*\\)(?!%s*(?:^|/)\.{0,2}(?:/|$))%s+" % (_DOT, _DOT))
+_NOT_SPACE = re.compile("[^\t\n\x0b\x0c\r    -     　﻿]")
 
 
 class SpecError(ValueError):
@@ -24,7 +29,7 @@ class SpecError(ValueError):
 
 
 def _num(v):
-    return isinstance(v, numbers.Real) and not isinstance(v, bool)
+    return isinstance(v, numbers.Real) and not isinstance(v, bool) and math.isfinite(v)
 
 
 def _positive(v):
@@ -32,11 +37,11 @@ def _positive(v):
 
 
 def _id(v):
-    return isinstance(v, str) and len(v) <= 64 and ID.match(v) is not None
+    return isinstance(v, str) and len(v) <= 64 and ID.fullmatch(v) is not None
 
 
 def _text(v):
-    return isinstance(v, str) and v.strip() != ""
+    return isinstance(v, str) and _NOT_SPACE.search(v) is not None
 
 
 def _unknown(problems, where, obj, known):
@@ -46,7 +51,7 @@ def _unknown(problems, where, obj, known):
 
 
 def _path(problems, field, value, root, check_files):
-    if not isinstance(value, str) or not PORTABLE.match(value):
+    if not isinstance(value, str) or not PORTABLE.fullmatch(value):
         problems.append("%s: a project-relative path with forward slashes is required (got %r)" % (field, value))
         return None
     path = os.path.join(root, value) if root else value
@@ -55,14 +60,17 @@ def _path(problems, field, value, root, check_files):
     return path
 
 
-def normalize(doc, root=None, check_files=True):
+def normalize(doc, root=None, check_files=True, thresholds=True):
     """The spec with its paths joined to `root` (the project root; None: the current folder) and absent optional
-    fields filled as None or empty; raises SpecError naming every problem."""
+    fields filled as None or empty; raises SpecError naming every problem. thresholds=False leaves `accept` unread (the
+    clip check's --measure-only), so a spec without thresholds yet can be measured."""
     problems = []
     if not isinstance(doc, dict):
         raise SpecError(["clip.json must hold one JSON object"])
     _unknown(problems, "clip.json", doc, TOP_KEYS)
     out = {}
+    if "$schema" in doc and not isinstance(doc["$schema"], str):
+        problems.append("$schema: a string")
     if not _id(doc.get("id")):
         problems.append("id: lowercase letters, digits and single hyphens, at most 64 characters, is required")
     out["id"] = doc.get("id")
@@ -102,7 +110,7 @@ def normalize(doc, root=None, check_files=True):
     else:
         _unknown(problems, "root", root_, ("mode", "bone"))
         bone = root_.get("bone")
-        if bone is not None and (root_["mode"] != "root-motion" or not _text(bone)):
+        if "bone" in root_ and (root_["mode"] != "root-motion" or not _text(bone)):
             problems.append("root.bone: a bone name, and only with root-motion")
         out["root"] = {"mode": root_["mode"], "bone": bone}
 
@@ -117,9 +125,9 @@ def normalize(doc, root=None, check_files=True):
     else:
         problems.append('ground: {"kind": "flat"} or {"kind": "change", "description": "<the height change the clip crosses>"} is required')
 
-    kp = doc.get("keyPoses")
     out["keyPoses"] = None
-    if kp is not None:
+    if "keyPoses" in doc:
+        kp = doc["keyPoses"]
         poses = kp.get("poses") if isinstance(kp, dict) else None
         if not isinstance(poses, list) or not poses or "file" not in kp:
             problems.append('keyPoses: {"file": "<keyposes.glb>", "poses": [{"name", "time"}, ...]} with at least one pose')
@@ -139,19 +147,19 @@ def normalize(doc, root=None, check_files=True):
             times = [p["time"] for p in good]
             if times != sorted(times):
                 problems.append("keyPoses.poses: list the poses in time order")
-            if out["length"] and times and max(times) > out["length"]["max"] + 1e-9:
-                problems.append("keyPoses.poses: a pose at %.3f s is past the clip's length" % max(times))
+            if out["length"] and times and max(times) > out["length"]["max"]:
+                problems.append("keyPoses.poses: a pose at %.3f s is past the clip's length (length.max %.3f s)" % (max(times), out["length"]["max"]))
             out["keyPoses"] = {"file": path, "poses": good}
 
-    contacts = doc.get("contacts")
     out["contacts"] = {"detect": None, "planted": []}
-    if contacts is not None:
+    if "contacts" in doc:
+        contacts = doc["contacts"]
         if not isinstance(contacts, dict):
             problems.append('contacts: {"detect": {"height", "speed"}, "planted": [...]}')
         else:
             _unknown(problems, "contacts", contacts, ("detect", "planted"))
-            det = contacts.get("detect")
-            if det is not None:
+            if "detect" in contacts:
+                det = contacts["detect"]
                 if not isinstance(det, dict) or not _positive(det.get("height")) or not _positive(det.get("speed")):
                     problems.append('contacts.detect: {"height": <metres>, "speed": <metres per second>}, both above 0')
                 else:
@@ -170,10 +178,13 @@ def normalize(doc, root=None, check_files=True):
                     out["contacts"]["planted"].append({"limb": w["limb"], "from": float(w["from"]), "to": float(w["to"])})
 
     accept = doc.get("accept")
-    out["accept"] = {}
-    if not isinstance(accept, dict):
+    out["accept"] = None
+    if not thresholds:
+        pass
+    elif not isinstance(accept, dict):
         problems.append("accept: the thresholds the check enforces are required (%s)" % ", ".join(ACCEPT_KEYS))
     else:
+        out["accept"] = {}
         _unknown(problems, "accept", accept, ACCEPT_KEYS)
         wanted = [k for k in ACCEPT_KEYS if k != "loopSeam" or doc.get("loop") is True]
         for k in wanted:
@@ -182,21 +193,26 @@ def normalize(doc, root=None, check_files=True):
                 problems.append("accept.%s: metres above 0, from the project or the person, is required" % k)
             else:
                 out["accept"][k] = float(v)
-        if doc.get("loop") is False and "loopSeam" in accept:
+        if doc.get("loop") is not True and "loopSeam" in accept:
             problems.append("accept.loopSeam: only for a clip with loop true")
     if problems:
         raise SpecError(problems)
     return out
 
 
-def load(path, root=None, check_files=True):
-    """Read and check the spec at `path`; its own paths are joined to `root` (None: the current folder)."""
+def _no_constants(name):
+    raise ValueError("%s is not a JSON number" % name)
+
+
+def load(path, root=None, check_files=True, thresholds=True):
+    """Read and check the spec at `path`; its own paths are joined to `root` (None: the current folder). Infinity and
+    NaN are not JSON and are refused."""
     with open(path, encoding="utf-8") as f:
         try:
-            doc = json.load(f)
+            doc = json.load(f, parse_constant=_no_constants)
         except ValueError as e:
             raise SpecError(["%s is not JSON: %s" % (path, e)])
-    return normalize(doc, root, check_files)
+    return normalize(doc, root, check_files, thresholds)
 
 
 def frame_of(seconds, fps):
