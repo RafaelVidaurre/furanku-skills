@@ -27,6 +27,6 @@ It needs, in `jam.config.json` under `engine.facts.extra.audio`:
   "author": "<text stored as the asset's author>" }
 ```
 
-The values shown are the jam's (UE 5.9's editor toolsets); read the names your editor exposes before setting them. The patch is the project's own asset and must exist: one with a `Play` trigger, `Variants` (wave array), `VariantIndices` and `Label` inputs, and `Left`, `Right` and `Finished` outputs. The script reaches the MetaSound toolsets through the editor Python tool's `call_tool` and uses top-level await, so it needs a `command` transport with `"await": true` or a handoff ([transport.md](transport.md)).
+The values shown are UE 5.9's toolset names (checked on 5.9.0 on 2026-11-20); read the names your editor's `list_toolsets` shows before setting them. They come from the `MetaSoundToolset` plugin, which the project must enable (or `AllToolsets`); 5.8 has no such plugin, so this command needs 5.9. The patch is the project's own asset and must exist: one with a `Play` trigger, `Variants` (wave array), `VariantIndices` and `Label` inputs, and `Left`, `Right` and `Finished` outputs. The script reaches the MetaSound toolsets through the editor Python tool's `call_tool` and uses top-level await, so it needs a `command` transport with `"await": true` or a handoff ([transport.md](transport.md)).
 
 Done when the receipt lists the Source and it plays a different take on repeated triggers in the editor.

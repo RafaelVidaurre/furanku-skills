@@ -81,9 +81,19 @@ def test_file_faults_are_named(change, message):
 
 # ---- bone-name tables ----------------------------------------------------------------------------------------------
 
-def test_shipped_table_places_every_core_landmark_and_no_other():
-    table = lm.load_table(load(TABLE))
-    assert sorted(table.values()) == sorted(lm.CORE)
+@pytest.mark.parametrize("name", ["left-right-camelcase.json", "mixamo.json"])
+def test_shipped_auto_rig_tables_place_every_landmark_once(name):
+    table = lm.load_table(load(os.path.join(SKILL, "assets", "landmark-maps", name)))
+    assert sorted(table.values()) == sorted(lm.ALL)
+
+
+def test_mixamo_table_reads_a_prefixed_skeleton_with_the_spine_numbered_from_the_bottom():
+    table = lm.load_table(load(os.path.join(SKILL, "assets", "landmark-maps", "mixamo.json")))
+    bones = {"mixamorig:" + bone: (i, 0, 0) for i, bone in enumerate(table)}
+    bones["mixamorig:Spine1"] = bones["mixamorig:HeadTop_End"] = (9, 9, 9)
+    placed, unmapped, missing = lm.map_bones(bones, table, strip_prefix="mixamorig:")
+    assert missing == [] and sorted(unmapped) == ["mixamorig:HeadTop_End", "mixamorig:Spine1"]
+    assert placed["spine"] == bones["mixamorig:Spine"] and placed["chest"] == bones["mixamorig:Spine2"]
 
 
 def test_identity_table_reads_a_landmark_named_skeleton_with_or_without_a_skin(tmp_path, capsys):
@@ -116,8 +126,8 @@ def test_map_bones_reports_unmapped_and_missing():
     bones = {"ns:" + bone: (i, 0, 0) for i, bone in enumerate(table)}
     bones["ns:Spine01"] = (9, 9, 9); del bones["ns:LeftToeBase"]
     placed, unmapped, missing = lm.map_bones(bones, table, strip_prefix="ns:")
-    assert unmapped == ["ns:Spine01"] and missing == ["toes.l"] and len(placed) == 20
-    assert lm.map_bones(bones, table)[2] == list(lm.CORE)                       # without the prefix nothing matches
+    assert unmapped == ["ns:Spine01"] and missing == ["toes.l"] and len(placed) == len(lm.ALL) - 1
+    assert lm.map_bones(bones, table)[2] == list(lm.CORE)                       # without the prefix nothing matches; fingers are optional
     with pytest.raises(lm.LandmarkError, match="more than one bone"):
         lm.map_bones({"Hips": (0, 0, 0), "pelvis": (0, 0, 0)}, {"Hips": "hips", "pelvis": "hips"})
 
@@ -467,13 +477,13 @@ def write_rig(path, names_parents_positions, root_scale=1.0, weights=None, joint
 
 
 def rig_from_table(pts_gltf):
-    """Joints named as the shipped table expects, at glTF-frame positions, plus the bones the table leaves out."""
+    """Joints named as the shipped table expects, at glTF-frame positions, plus the bones the table leaves out; fingers only where placed."""
     table = lm.load_table(load(TABLE))
     order = ["Hips", "Spine02", "Spine01", "Spine", "neck", "Head", "head_end"]
     joints = [("Hips", None, pts_gltf["hips"]), ("Spine02", 0, pts_gltf["spine"]), ("Spine01", 1, tuple(np.add(pts_gltf["spine"], pts_gltf["chest"]) / 2)),
               ("Spine", 2, pts_gltf["chest"]), ("neck", 3, pts_gltf["neck"]), ("Head", 4, pts_gltf["head"]), ("head_end", 5, (0, 1.7, 0))]
     for bone, landmark in table.items():
-        if bone not in order:
+        if bone not in order and landmark in pts_gltf:
             parent = table_parent(table, landmark, [j[0] for j in joints])
             joints.append((bone, parent, pts_gltf[landmark]))
     return joints

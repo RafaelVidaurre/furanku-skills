@@ -17,21 +17,22 @@ Verified with `tripo doctor --json` and `tripo balance --json`. Report installed
 
 ## Pricing a job
 
-`tripo make ... --dry-run --json` prints the normalized request, warnings, removed fields, the view mapping and `generation_credits_estimate`. That is an offline list-price estimate (`--list-price`): it leaves out chain steps it cannot estimate and does not check plan access. Name the model explicitly; CLI defaults and presets can pick a more expensive one.
+`tripo make ... --dry-run --json` prints the normalized request, warnings, removed fields, the view mapping and `generation_credits_estimate`. That is an offline list-price estimate (`--list-price`): it leaves out chain steps it cannot estimate and does not check plan access. Name the model explicitly with `--model`: in CLI 0.11.2 the default, presets included, is `tripo-p2` (`P2-20260801`), listed at 100 to 130 credits for a textured model against 10 to 50 for `tripo-v3.1` (its bundled docs, read 2026-11-20). Put that difference to the person before choosing.
 
 ## Mesh generation
 
 - `make` takes 2 to 4 images for multiview. Send individual views and read the normalized mapping in the dry run.
 - Text-to-model suits a connectivity test, not production work.
+- PBR maps are off unless asked for (`-p pbr=true`).
 - `face_limit` and generated UVs and textures are still measured and reviewed like any other result.
-- Auto-rigging says nothing about fitting the project's own skeleton.
+- Auto-rigging says nothing about fitting the project's own skeleton. A quadruped is rigged with `rig-v2.5` unless a rig model is named; jam-rig binds humanoids only.
 
 ## Job custody
 
 - Record the task id at once; the real charge is the task's `credits_consumed`.
 - After a timeout: `tripo task watch <id> --download`. After a failed download: `tripo task get <id> --download`. Never `redo` to recover.
 - A lost create response stays `lost` until provider history and balance are reconciled.
-- Exit code 4 means insufficient credits: stop paid commands and tell the person.
+- Exit code 4 means insufficient credits: stop paid commands and give the person the top-up link from the error's `suggestion`. The CLI's skill lists the other exit codes; branch on them, not on message text.
 - The CLI's `task.json` can hold temporary links and machine paths. Keep it in ignored scratch; record ids, settings, the charge and file hashes instead.
 
 Studio's export menu offered USD, FBX, OBJ, STL, GLB and 3MF on 2026-11-14; check the current menu. A format on the menu is not proof it imports or keeps topology.
