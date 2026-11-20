@@ -28,7 +28,7 @@ Recipe: `id`, `title`, `when` (which requests it is for; `jam recipe list` print
 | `reviewer` | Who decides a `human` gate, as a person or role (`"art lead"`). Status, `run next` and review requests name them |
 | `paid`, `maxJobs` | The step may open provider jobs; the most it may open in one run |
 | `optional` | The step may be skipped with a reason |
-| `when` | The step applies only when this holds: `{"engine": "<command>"}` (the engine adapter provides that command) or `{"budget": {"kind": "deforming"}}` (the run's budget has those values). Otherwise it is skipped automatically |
+| `when` | The step applies only when this holds: `{"engine": "<command>"}` (the engine adapter provides that command), `{"engine": "import", "kind": "<kind>"}` (and lists that kind among the command's `kinds`) or `{"budget": {"kind": "deforming"}}` (the run's budget has those values). Otherwise it is skipped automatically |
 | `run` | A jam subcommand that does the step unattended, as an array of arguments (`["engine", "import", "--kind", "static", "--run", "{id}"]`); `{id}`, `{run}` and `{dir}` are substituted |
 | `after`, `remove` | Placement and removal in an extending recipe |
 

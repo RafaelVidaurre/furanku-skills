@@ -4,9 +4,10 @@ import * as Effect from "effect/Effect"
 import { decode } from "../../kernel/decode.ts"
 import type { ToolError } from "../../kernel/errors.ts"
 import { Git } from "../../kernel/Git.ts"
-import { isRecord, isUnder } from "../../kernel/hash.ts"
+import { isRecord, isUnder, sha256 } from "../../kernel/hash.ts"
 import { Process } from "../../kernel/Process.ts"
 import { ProjectFiles } from "../../kernel/ProjectFiles.ts"
+import { ClipSpec, runSpecs, SPEC_ROLE } from "../animation/clip.ts"
 import type { Problem } from "../common.ts"
 import { Config } from "../config/Config.ts"
 import { Engine } from "../engine/Engine.ts"
@@ -117,6 +118,129 @@ const deformationEvidence = (files: ProjectFiles["Service"]): Check => ({
         }
         if (Array.isArray(glb["problems"]) && glb["problems"].length > 0) {
           problems.push({ message: `${file.path}: the exported model has problems: ${glb["problems"].map(String).join("; ")}` })
+        }
+      }
+      return problems
+    })
+})
+
+const SPEC = SPEC_ROLE
+const CLIP = "clip"
+
+/** A clip spec decodes against its schema and names a rig and a skeleton map that exist. Its key-pose file is made later, by the keyposes step. */
+const clipSpec = (files: ProjectFiles["Service"]): Check => ({
+  id: "clip-spec",
+  description: "The clip spec is valid and names a project rig and skeleton map that exist",
+  when: "status",
+  run: (input) =>
+    Effect.gen(function*() {
+      const specs = input.record.files.filter((file) => file.role === SPEC)
+      if (specs.length !== 1) return [{ message: `the step needs exactly one clip spec; the record has ${specs.length}`, fix: `record it as --file ${SPEC}=<clip.json> (schemas/animation-clip.schema.json in the toolkit)` }]
+      const path = specs[0]!.path
+      const raw = yield* files.readJson(path).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      if (raw === undefined) return [{ message: `${path} is not readable JSON` }]
+      const decoded = yield* Effect.result(decode(ClipSpec, { what: path })(raw))
+      if (decoded._tag === "Failure") return [{ message: decoded.failure.message, fix: "see schemas/animation-clip.schema.json in the toolkit" }]
+      const spec = decoded.success
+      const problems: Array<Problem> = []
+      for (const [field, named] of [["rig.model", spec.rig.model], ["rig.map", spec.rig.map]] as const) {
+        if (!(yield* files.exists(named).pipe(Effect.catch(() => Effect.succeed(false))))) problems.push({ message: `${path}: ${field} ${named} does not exist` })
+      }
+      return problems
+    })
+})
+
+/** The run's clip spec. */
+const runSpec = (input: CheckInput): { readonly path: string; readonly sha256: string } | Problem => {
+  const specs = runSpecs(input.context.ref.run)
+  if (specs.length === 1) return { path: specs[0]!.path, sha256: specs[0]!.sha256 }
+  return {
+    message: specs.length === 0 ? "the run records no clip spec, so the clip report cannot be tied to one" : `the run records ${specs.length} clip specs; a clip is checked against one`,
+    fix: `record the clip spec as --file ${SPEC}=<clip.json> on the step that defines it`
+  }
+}
+
+const stampOf = (value: unknown): string | undefined => (isRecord(value) && typeof value["sha256"] === "string" ? value["sha256"] : undefined)
+
+/** The clip report's `detect.from` when contacts were detected with the clip spec's own numbers. */
+const DETECT_FROM_SPEC = "clip spec contacts.detect"
+
+/**
+ * A clip is judged by its clip report (jam-3d-animate's clip check writes it). The report must pass,
+ * be about the clip this record holds, the run's clip spec and the rig and map that spec names now,
+ * judge (not only measure) with the spec's own contact detection, find exactly one animation in the
+ * clip (checks.animations), and list every name it could not measure (unmeasured) or left to a person
+ * (unjudged) in `acknowledged`, which the check fills only when it is rerun after the person judged.
+ */
+const clipReport = (files: ProjectFiles["Service"]): Check => ({
+  id: "clip-report",
+  description: "A clip report among the step's evidence passed, measured on the clip this record holds, against the run's clip spec and its rig",
+  when: "status",
+  run: (input) =>
+    Effect.gen(function*() {
+      const clips = input.record.files.filter((file) => file.role === CLIP).map((file) => file.sha256)
+      const candidates = [...input.record.files.filter((file) => file.role !== CLIP), ...input.record.evidence].filter((file) => file.path.toLowerCase().endsWith(".json"))
+      const reports: Array<{ readonly path: string; readonly report: Record<string, unknown> }> = []
+      for (const file of candidates) {
+        const report = yield* files.readJson(file.path).pipe(Effect.catch(() => Effect.succeed(null)))
+        if (isRecord(report) && "passed" in report && stampOf(report["clip"]) !== undefined) reports.push({ path: file.path, report })
+      }
+      if (reports.length === 0) {
+        return [{ message: "the step needs a clip report: a JSON file with passed and the clip it measured ({path, sha256}) as clip", fix: `add it as --file evidence=<clip-report.json>, beside --file ${CLIP}=<clip.glb>` }]
+      }
+      const spec = runSpec(input)
+      if ("message" in spec) return [spec]
+      // What the spec names now: a report measured against an older rig or map is about another rig.
+      const named = yield* files.readJson(spec.path).pipe(Effect.catch(() => Effect.succeed(null)))
+      const rig = isRecord(named) && isRecord(named["rig"]) ? named["rig"] : {}
+      const hashes: Record<string, string | null> = {}
+      for (const part of ["model", "map"] as const) {
+        const path = rig[part]
+        hashes[part] = typeof path !== "string" ? null : yield* files.readBytes(path).pipe(Effect.map(sha256), Effect.catch(() => Effect.succeed(null)))
+      }
+      const problems: Array<Problem> = []
+      for (const { path, report } of reports) {
+        const listed = (key: string): Array<string> => (Array.isArray(report[key]) ? (report[key] as Array<unknown>).map(String) : [])
+        const acknowledged = listed("acknowledged")
+        const awaiting = [...listed("unmeasured"), ...listed("unjudged")].filter((name) => !acknowledged.includes(name))
+        const failures = listed("failures")
+        if (report["measureOnly"] === true) {
+          problems.push({ message: `${path} only measured the clip (--measure-only) and judged nothing`, fix: "run the clip check against the clip spec's thresholds and record that report" })
+        } else if (report["passed"] !== true && (failures.length > 0 || awaiting.length === 0)) {
+          problems.push({ message: `${path}: the clip failed its check${failures.length === 0 ? "" : `: ${failures.join("; ")}`}`, fix: "fix the motion, retarget or contacts and check again; the report names what failed" })
+        }
+        if (report["measureOnly"] !== true && awaiting.length > 0) {
+          problems.push({
+            message: `${path}: ${awaiting.join(", ")} ${awaiting.length === 1 ? "awaits" : "await"} a person's judgement (unmeasured or unjudged, and not acknowledged)`,
+            fix: `show the person what the report and its sheet say to look at; once they have judged it acceptable, check again with ${awaiting.map((name) => `--acknowledge ${name}`).join(" ")}`
+          })
+        }
+        const detect = isRecord(report["detect"]) ? report["detect"] : null
+        if (report["measureOnly"] !== true && detect?.["from"] !== DETECT_FROM_SPEC) {
+          problems.push({
+            message: `${path} detected contacts with ${detect === null ? "no detection numbers" : `numbers from ${String(detect["from"])}`}, not the clip spec's contacts.detect`,
+            fix: "set contacts.detect in the clip spec with the person, record the spec again, and check the clip against it"
+          })
+        }
+        if (clips.length > 0 && !clips.includes(stampOf(report["clip"])!)) {
+          problems.push({ message: `${path} measured another clip than the one recorded`, fix: "record the clip the report was written for, or check the recorded clip again" })
+        }
+        if (stampOf(report["spec"]) !== spec.sha256) {
+          problems.push({ message: `${path} was measured against another clip spec than the run's ${spec.path}`, fix: `check the clip again with ${spec.path}` })
+        }
+        const reportRig = isRecord(report["rig"]) ? report["rig"] : {}
+        for (const part of ["model", "map"] as const) {
+          if (hashes[part] === null) problems.push({ message: `${spec.path}: rig.${part} cannot be read, so the report cannot be tied to it` })
+          else if (stampOf(reportRig[part]) !== hashes[part]) problems.push({ message: `${path} was measured on another rig ${part} than the one ${spec.path} names now`, fix: "check the clip again on the current rig" })
+        }
+        const checks = isRecord(report["checks"]) ? report["checks"] : {}
+        const animations = isRecord(checks["animations"]) ? checks["animations"] : null
+        if (animations?.["passed"] !== true) {
+          const names = Array.isArray(animations?.["names"]) ? (animations["names"] as Array<unknown>).map(String) : null
+          problems.push({
+            message: `${path}: a delivered clip holds exactly one animation; ${names === null ? "the report does not say the clip holds one (checks.animations)" : `the clip holds ${names.length} (${names.join(", ")})`}`,
+            fix: "write the clip with only the checked animation, then check it again"
+          })
         }
       }
       return problems
@@ -286,6 +410,8 @@ export const shippedChecks: Effect.Effect<ReadonlyArray<Check>, never, Git | Eng
     budgetGeometry,
     budgetTexture,
     deformationEvidence(files),
+    clipSpec(files),
+    clipReport(files),
     deliveryClosure,
     engineInspect,
     { id: "loudness", description: "Processed audio meets the loudness target (supplied by the audio tools)", when: "record" },

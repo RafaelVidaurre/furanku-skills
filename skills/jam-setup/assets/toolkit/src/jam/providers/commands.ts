@@ -23,7 +23,8 @@ const list = Command.make("list", {}, () =>
         label: descriptor.label,
         source: entry.source,
         unit: descriptor.unit,
-        capabilities: Object.keys(descriptor.capabilities),
+        capabilities: Object.keys(descriptor.capabilities).sort(),
+        modes: Object.fromEntries(Object.entries(descriptor.capabilities).flatMap(([route, capability]) => (capability.modes === undefined ? [] : [[route, capability.modes]]))),
         routes: Object.entries(config?.routes ?? {}).filter(([, provider]) => provider === descriptor.id).map(([route]) => route),
         transports: descriptor.transports.map((transport) => transport.kind),
         spend: spendState(descriptor, config?.spend[descriptor.id])
@@ -31,9 +32,9 @@ const list = Command.make("list", {}, () =>
     })
     yield* (yield* Output).emit({ providers: rows }, table(
       ["provider", "serves", "routed", "reached by", "spending"],
-      rows.map((row) => [row.id, row.capabilities.join(", "), row.routes.join(", ") || "-", row.transports.join(", "), row.spend.summary])
+      rows.map((row) => [row.id, row.capabilities.map((route) => (row.modes[route] === undefined ? route : `${route} (${row.modes[route]!.join(", ")})`)).join(", "), row.routes.join(", ") || "-", row.transports.join(", "), row.spend.summary])
     ))
-  })).pipe(described("List the known providers: what each can serve, which routes use it, how it is reached, and whether paid work is enabled.", "jam provider list"))
+  })).pipe(described("List the known providers: what each can serve and in which modes, which routes use it, how it is reached, and whether paid work is enabled.", "jam provider list"))
 
 const probe = Command.make("probe", { id: Argument.String("id").pipe(Argument.withDescription("Provider id")) }, ({ id }) =>
   Effect.gen(function*() {

@@ -1,0 +1,49 @@
+{
+  "$schema": "../schemas/provider.schema.json",
+  "id": "motionbricks",
+  "label": "NVIDIA MotionBricks",
+  "unit": { "id": "gpu-time", "label": "compute the person runs, own or rented; no charge per job", "paid": false },
+  "capabilities": {
+    "motion": {
+      "modes": ["inbetween"],
+      "inputs": { "min": 1, "max": 4 },
+      "note": "Motion from a context of poses toward 1 to 4 target poses, on the SOMA skeleton only: retargeting carries poses and clips between the project rig and SOMA both ways. How long one generation is, what the generating host needs and the licence rules are in the jam-3d-motionbricks skill."
+    }
+  },
+  "transports": [
+    { "kind": "skill", "name": "jam-3d-motionbricks", "note": "Checks the generating host, packs requests, generates and unpacks; generation may run on another machine than packing and unpacking." }
+  ],
+  "pacing": { "concurrent": 1, "typicalWait": "Seconds per request once the host has built its runtime plan; the first run of a precision on a host builds it, which takes minutes." },
+  "quote": { "kind": "none", "how": "No price per job. On a rented GPU its hourly rate applies, billed by its host outside this ledger." },
+  "rig": {
+    "landmarks": {
+      "Hips": "hips",
+      "Spine1": "spine",
+      "Chest": "chest",
+      "Neck1": "neck",
+      "Head": "head",
+      "LeftShoulder": "shoulder.l",
+      "LeftArm": "upper-arm.l",
+      "LeftForeArm": "lower-arm.l",
+      "LeftHand": "hand.l",
+      "LeftLeg": "upper-leg.l",
+      "LeftShin": "lower-leg.l",
+      "LeftFoot": "foot.l",
+      "LeftToeBase": "toes.l",
+      "RightShoulder": "shoulder.r",
+      "RightArm": "upper-arm.r",
+      "RightForeArm": "lower-arm.r",
+      "RightHand": "hand.r",
+      "RightLeg": "upper-leg.r",
+      "RightShin": "lower-leg.r",
+      "RightFoot": "foot.r",
+      "RightToeBase": "toes.r"
+    }
+  },
+  "recovery": "Nothing is charged, so a lost result is generated again from the same request. Identical inputs on the same backend and precision give the same motion.",
+  "skills": ["jam-3d-motionbricks"],
+  "docs": "docs/providers/motionbricks.md",
+  "notes": [
+    "Tell the person the licence rules in the jam-3d-motionbricks skill before the first generation that may ship."
+  ]
+}

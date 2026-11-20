@@ -1,6 +1,6 @@
 # Meshy
 
-Serves the mesh route. Unit: Meshy credits. The neutral procedure is [providers.md](../providers.md); this page holds what is true of Meshy only. Model ids, limits and prices are dated observations: read the live help before building on one.
+Serves the mesh and motion routes. Unit: Meshy credits. The neutral procedure is [providers.md](../providers.md); this page holds what is true of Meshy only. Model ids, limits and prices are dated observations: read the live help before building on one.
 
 ## Reach
 
@@ -43,9 +43,21 @@ Verified when `meshy auth status` and `meshy balance --format json --no-update-c
 
 ## Rigging
 
-- Input: a textured GLB of a humanoid (`animation_type` `biped`, the default) or a four-legged animal (`quadruped`), at most 380,000 triangles, face toward +Z. A quadruped comes back with walk and run clips; jam-rig itself binds humanoids only.
+- Input: a textured GLB of a humanoid (`animation_type` `biped`, the default) or a four-legged animal (`quadruped`), at most 380,000 triangles, face toward +Z. A quadruped comes back with walk and run clips; jam-3d-rig itself binds humanoids only.
 - A biped's default skeleton is Meshy's own 24 bones in centimetres (`meshyrig`). `skeleton_template` picks another (`mixamo`, `ue5_mannequin` and more), returned in metres with that skeleton's bone names; `include_fingers: true` adds finger bones. A quadruped refuses both with a 400. CLI 0.8.7's `rigging create` has no flags for these: pass them with `--data`.
-- The changelog says a v2 rigging endpoint defaults to `mixamo`; CLI 0.8.7 calls v1, whose default is `meshyrig`. Read the bone names in the returned file before choosing a landmark table: `meshyrig` reads through jam-rig's `left-right-camelcase.json`, `mixamo` through `mixamo.json` (with `--strip-prefix` when every name carries a namespace), `ue5_mannequin` through the Unreal adapter's `mannequin` skeleton profile.
+- The changelog says a v2 rigging endpoint defaults to `mixamo`; CLI 0.8.7 calls v1, whose default is `meshyrig`. Read the bone names in the returned file before choosing a landmark table: `meshyrig` reads through jam-3d-rig's `left-right-camelcase.json`, `mixamo` through `left-right-camelcase-spine-from-hips.json` (with `--strip-prefix` when every name carries a namespace), `ue5_mannequin` through the Unreal adapter's `mannequin` skeleton profile.
+
+## Motion (checked 2026-11-20)
+
+From the API docs ([rigging](https://docs.meshy.ai/api/rigging.md), [animation](https://docs.meshy.ai/api/animation.md), [animation library](https://docs.meshy.ai/api/animation-library.md), [text to motion](https://docs.meshy.ai/api/text-to-motion.md), [pricing](https://docs.meshy.ai/api/pricing.md), changelog up to 2026-11-18). The CLI has `rigging`, `animate`, `text-to-motion` and `animation-catalog`.
+
+- **Clips play only on a rig Meshy builds.** The animation call takes a Meshy rigging task, never a skeleton the person already has. Rigging takes a textured GLB facing +Z, at most 380,000 triangles, of a humanoid or a four-legged animal (`animation_type` `biped` or `quadruped`).
+- **Output skeleton.** By default the 24-bone `meshyrig`, in centimetres; its joint names are not published (its fingers, with `include_fingers`, use Mixamo names). For bipeds `skeleton_template` builds instead one of `mixamo`, `ue5_mannequin`, `unity_humanoid`, `max_biped`, `maya_human_ik`, `blender_rigify_basic_human`, `cc5_hd_neutral_base`, `daz_genesis9`, in metres; a model Meshy cannot rig on that skeleton fails the task. When the project rig is one of these, the clip may need no retargeting; otherwise retargeting brings it onto the project rig. The CLI's rigging flags do not cover `animation_type`, `skeleton_template` or `include_fingers`: send them in its JSON body. The MCP server (0.6.12) cannot set them at all.
+- **Library.** One to ten clips per request (`action_ids`), returned as one file with one clip per action, GLB and FBX, at 24, 25, 30 or 60 fps (default 30). The catalog lists the clip ids and costs no credits; it held about 650 biped and 130 quadruped clips on 2026-11-20, and retired ids disappear. Native frame rate and any in-place switch are not documented.
+- **Text.** A prompt of up to 400 characters and a `duration` of 2 to 10 s in 0.5 s steps. `prime` returns FBX, `swift` BVH. The clip "doesn't need a character model"; its skeleton is not documented. Only a biped rig takes it, as a clip named `retarget_clip`.
+- **Landmark map.** The descriptor has no `rig.landmarks`, because no joint list is published: before retargeting, write a map of the skeleton in the downloaded clip, as [providers.md](../providers.md#motion) says.
+- **Prices (API, in credits):** rigging 5, animation 3 per action, text 10 (`prime`) or 3 (`swift`). Charged when the task is created.
+- **Output rights** ([terms](https://www.meshy.ai/terms-of-use), updated 2026-09-19): on a paid plan the customer owns the output; on Free, Meshy owns it and licenses it under CC BY 4.0. Outputs may not be used to train models competitive with Meshy, and non-Enterprise inputs and outputs may be used to improve Meshy's services.
 
 ## Job custody
 

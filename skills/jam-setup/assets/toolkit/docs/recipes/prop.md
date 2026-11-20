@@ -25,9 +25,9 @@ Orthographic views at the prop's mid height, on equal cells at one scale. A deta
 
 ## mesh
 
-- **Modelled props** (decided at the concept): build the model as `jam-retopo`'s procedural route describes and record it here with `--tool`; the topology step then keeps it.
+- **Modelled props** (decided at the concept): build the model as `jam-3d-retopo`'s procedural route describes and record it here with `--tool`; the topology step then keeps it.
 - **Generated props:** ask for the budget's `triangles.target` (nearer `triangles.max` for thin parts), textures at or above `textureSize`, the origin at the bottom, and the unreduced mesh as well.
-- **Inspect before accepting**, from stills: textured, untextured (`jam-retopo`'s `render_wire.py --style clay` shows grooves, rings and dents a texture hides) and from behind and below (`jam-texture`'s `render_textured.py --views back-three-quarter,under` shows open backs and patches no view covered).
+- **Inspect before accepting**, from stills: textured, untextured (`jam-3d-retopo`'s `render_wire.py --style clay` shows grooves, rings and dents a texture hides) and from behind and below (`jam-3d-texture`'s `render_textured.py --views back-three-quarter,under` shows open backs and patches no view covered).
 - **Repair with the cheapest fix that removes the flaw:** correct the images and generate again when the flaw is drawn in them; replace a bad part with a clean primitive of the same size; retexture for a texture-only flaw; bake the original texture onto a repaired mesh (free, and sharper than a retexture).
 
 ## topology
@@ -40,7 +40,7 @@ jam blender --factory-startup toolkit:normalize-model.py -- <model> <work>/<id>.
 
 Find `--front-from` on a front still. Done when the report's `sizeAfterMeters` matches the brief and `lowestPoint` is at height 0.
 
-**When the generated mesh is already within budget, unwrapped and textured,** that one command finishes topology, UVs and textures together. Make each step's evidence on its output (`jam-retopo`, `jam-uv` and `jam-texture` say which), then record the three in one call:
+**When the generated mesh is already within budget, unwrapped and textured,** that one command finishes topology, UVs and textures together. Make each step's evidence on its output (`jam-3d-retopo`, `jam-3d-uv` and `jam-3d-texture` say which), then record the three in one call:
 
 ```
 jam run record <id> topology uv texture --file model=<work>/<id>.glb --evidence <topology report> --evidence <wire sheet> --evidence <uv report> --evidence <texture report> --evidence <textured sheet> --note "<what the generation gave and what was normalised>" --job <job> --accept "<what you checked>"
@@ -50,7 +50,7 @@ A generated layout usually fails the default padding and density thresholds of t
 
 ## uv
 
-Only when the layout is redone: boxy props take `jam-uv`'s projection route, organic ones the seams route. A prop made of parts in several materials is unwrapped into one shared layout, which is what brings it to one material.
+Only when the layout is redone: boxy props take `jam-3d-uv`'s projection route, organic ones the seams route. A prop made of parts in several materials is unwrapped into one shared layout, which is what brings it to one material.
 
 ## texture
 

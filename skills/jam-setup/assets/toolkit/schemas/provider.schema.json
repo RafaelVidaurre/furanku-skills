@@ -101,8 +101,101 @@
         },
         "capabilities": {
           "type": "object",
-          "additionalProperties": true,
-          "description": "What it can serve, by route name (image, mesh, sound, voice, ...)"
+          "properties": {
+            "motion": {
+              "type": "object",
+              "properties": {
+                "modes": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "inbetween",
+                        "text",
+                        "video",
+                        "library"
+                      ]
+                    }
+                  ],
+                  "minItems": 1,
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "inbetween",
+                      "text",
+                      "video",
+                      "library"
+                    ]
+                  },
+                  "description": "inbetween: motion between given poses. text: motion from a written prompt. video: motion captured from footage. library: preset clips applied to a rig."
+                },
+                "inputs": {
+                  "type": "object",
+                  "properties": {
+                    "min": {
+                      "type": "integer",
+                      "maximum": 9007199254740991,
+                      "exclusiveMinimum": 0
+                    },
+                    "max": {
+                      "type": "integer",
+                      "maximum": 9007199254740991,
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "note": {
+                  "type": "string",
+                  "description": "What the provider's own docs state: limits, output skeleton and formats, and whether it animates only its own auto-rigged copy of a mesh"
+                }
+              },
+              "required": [
+                "modes"
+              ],
+              "additionalProperties": false,
+              "description": "Animation clips for a rigged character. Its output skeleton is the one rig.landmarks maps, or the one the note names."
+            }
+          },
+          "allOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "modes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                      "maxLength": 64
+                    }
+                  },
+                  "inputs": {
+                    "type": "object",
+                    "properties": {
+                      "min": {
+                        "type": "integer",
+                        "maximum": 9007199254740991,
+                        "exclusiveMinimum": 0
+                      },
+                      "max": {
+                        "type": "integer",
+                        "maximum": 9007199254740991,
+                        "exclusiveMinimum": 0
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          ]
         },
         "transports": {
           "type": "array",

@@ -92,7 +92,7 @@ class Config:
         if not dest:
             raise AdapterError(
                 "missing-destination", "no content folder for %s imports" % kind,
-                fix="pass --dest /Game/<folder>, or set engine.facts.extra.destinations.%s in jam.config.json" % kind,
+                fix="pass --destination /Game/<folder>, or set engine.facts.extra.destinations.%s in jam.config.json" % kind,
             )
         return dest.rstrip("/")
 

@@ -76,12 +76,25 @@ What the toolkit passes after the verb:
 
 | Verb | Arguments | Receipt |
 | --- | --- | --- |
-| `import` | `--kind <kind> <file>...` (the kind must be in `kinds` when that is listed) | `{"assets": [{"id", "kind", "source"?, "sha256"?}]}`: the engine's id of each asset made or updated, with the source file and its hash where it has one. **Idempotent: importing the same source to the same place again returns the same id.** With `--run`, the toolkit records the step with these ids |
+| `import` | `--kind <kind> <file>... [--destination <where>] [--skeleton <profile id>] [--target <engine id>] [--name <asset name>] [--run <run id>]` (the kind must be one the command takes: see Import kinds) | `{"assets": [{"id", "kind", "source"?, "sha256"?, "skeleton"?}]}`: the engine's id of each asset made or updated, with the source file and its hash where it has one. **Idempotent: importing the same source to the same place again returns the same id.** With `--run`, the toolkit records the step with these ids |
 | `inspect` | whatever follows the verb; by convention the asset id | `{"id", "kind"?, "bounds"?: {"min", "max"}, "pivot"?, "triangles"?, "vertices"?, "materials"?, "skeleton"?: {"root", "bones"}, "collision"?: {"shapes", "kinds"?}}`. Lengths in **meters** whatever the engine's unit; `materials` are slot names in slot order. Leave out what the engine did not give |
 | `conform-skeleton` | `--skeleton <id> [--out <folder>] <model>...` | `{"model": "<project file>", "skeleton"?, "evidence"?: [files]}`: the reworked model, recorded as the step's model |
 | `inventory` | `--out <file> [--previous <file>] [--engine]` | `{"inventory", "files", "assets", "read", "reused", "removed", "unread"}` after writing the inventory file (`schemas/engine-inventory.schema.json`); reuse the `--previous` entries whose size and mtime are unchanged; start the engine only with `--engine` |
 | `previews` | `--inventory <file> --out <folder> [--full] [--no-engine] [--only <pattern>]... [--limit <n>]` | `{"index", "previews", "made", "reused", "failed", "waiting", "none"}` after writing previews and `<folder>/index.json` (`schemas/engine-previews.schema.json`): per inventory path, the version made for (its `hash`, else `<size>:<mtimeMs>`), the file (an image, a self-contained GLB or a WAV) or why there is none. Make again only what changed; start no engine with `--no-engine` |
 | `references`, `capture`, `check` | whatever follows the verb | One JSON object. The toolkit fixes no shape for these yet; use `{"references": [{"id", "referencers": [...]}]}`, `{"captures": [files]}` and, as project checks do, `{"problems": [{"message", "fix"?}]}` |
+
+### Import kinds
+
+`kinds` lists what `import` accepts; list every kind the command handles, and `jam engine show` prints them. A command that lists no kinds takes any kind except `animation`, which it takes only when listed. `jam engine import` refuses a kind the command does not take, and a recipe step conditioned on a kind (`"when": {"engine": "import", "kind": "animation"}`) is skipped by the same rule.
+
+| Kind | Takes | Receipt |
+| --- | --- | --- |
+| `static` | One model file | The mesh first, then the materials and textures it made |
+| `skinned` | One skinned model file; `--skeleton` names the skeleton profile it binds to | **The skinned asset first**, then the rest: a receipt of this import is what an animation import's `--target` may name |
+| `animation` | One clip file in the clip format of `jam-3d-animate`, whose skeleton matches a skinned asset already in the engine; `--target <engine id>` names that asset or its skeleton. The toolkit resolves a receipt file given as `--target` to the receipt's first asset, and for a run passes `--name <the run's clip spec id>` and `--run <the run's id>` | One asset per animation in the file, each with `skeleton`: the engine id of the skeleton it plays on. Refuse a clip whose bones the target's skeleton lacks, rather than importing a clip that plays on nothing, and refuse to replace an asset that was imported from another file, unless an import with the same `--run` made it (a later attempt of that run replaces its own clip) |
+| `textures`, `audio`, ... | The adapter's own | The adapter's own |
+
+An adapter that cannot import a kind leaves it out of `kinds`; the step that needs it is then skipped with that reason on record.
 
 Every command is optional. For a verb whose command is `null` or absent, `jam engine <verb>` prints what to do and the path of `docs.<verb>` when the adapter has that guide; the step is done by hand and recorded with evidence.
 

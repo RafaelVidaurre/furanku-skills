@@ -268,6 +268,8 @@ describe("the command contract", () => {
       resume: "jam engine import --kind static --run crate"
     })
     assert.equal(handed.recorded, undefined)
+    const named = await jam(root, importFor({ kind: "static", files: [], run: "crate", destination: "/Game/Props", slots: ["body=M_Crate"], name: "Crate" }))
+    assert.equal(named.outcome.status === "handoff" && named.outcome.resume, "jam engine import --kind static --destination /Game/Props --slot body=M_Crate --name Crate --run crate", "the resume line keeps every option given")
     assert.equal((await stepStatus(root, "crate", "import")).state, "ready", "the step is still to do")
     const printed = cli(root, "engine", "import", "--kind", "static", "--run", "crate")
     assert.equal(printed.status, 0)

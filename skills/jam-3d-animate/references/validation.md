@@ -1,0 +1,124 @@
+# What was validated
+
+Facts about the scripts in this skill as shipped, from runs on 2026-11-20 with Blender 5.1.2, Python 3 with numpy 2.4 and ffmpeg on one authoring machine. A run on that machine is evidence of that run, not a requirement.
+
+## The test clips
+
+`scripts/make_test_clip.py` builds a 1.7 m figure of boxes, each weighted wholly to one bone (21 bones, optionally under a ground-level `root` bone, with landmark or camel-case bone names), soles exactly on the ground at rest. Its walk is computed: the hips travel 1 m/s along the figure's front with a 3 cm bob and a 4 cm sway; each foot is planted for 60% of a 1 s cycle and swings 8 cm high for 40%, with curves that start and end at rest; the legs are solved to reach the feet, the arms swing. At 30 fps that is 30 frames, ending one frame before the first pose returns (31 with the first pose repeated). Faults are built in at known sizes, among them a step: from a given frame on, the whole body sits further forward. Each run below used `contacts.detect` height 0.01 m and speed 0.5 m/s, and thresholds of 0.01 m (slide, boundary jump, seam) and 0.005 m (penetration): the test project's own numbers, not advice.
+
+## The check against faults of known size
+
+| Clip | Built | Measured | Verdict |
+| --- | --- | --- | --- |
+| clean | none | windows' slide 0.0000, no travel at ground height (lift-off and touch-down are planted or above the contact height), penetration 0.0000, start and end jump 0.0000, interior jump 0.0020 m, seam 0.0020 m (both a knee, below) | passed |
+| left foot slides 2 cm over its planted window (frames 0–18) | 0.0200 m | slide 0.0200 m, window 0–18 | footSlide failed |
+| the same, 5 cm | 0.0500 m | slide 0.0500 m | footSlide failed |
+| right foot 3 cm lower all through | 0.0300 m | penetration 0.0300 m on the mesh, every right-foot window 0.0300; the sunk foot stays within the contact height through most of its swing: travel at ground height 0.0984 m, `groundTravel` unjudged | penetration failed |
+| the same, skeleton only (no mesh) | 0.0300 m | penetration 0.0300 m from the foot joints at their rest height; travel at ground height 0.0984 m | penetration failed |
+| whole body 8 cm sideways on the first frame | 0.0800 m | start jump 0.0793 m, end 0.0000; the planted feet move with it (travel at ground height 0.0800 m, `groundTravel` unjudged) | boundaryJump failed |
+| the same on the last frame | 0.0800 m | end jump 0.0790 m, start 0.0000; travel at ground height 0.0800 m | boundaryJump failed |
+| body rises over the second half, loop does not close | 0.0100 m | seam 0.0100 m | passed (at the 0.01 threshold, to a tenth of a millimetre) |
+| the same | 0.0300 m | seam 0.0299 m | loopSeam failed |
+| the same | 0.1000 m | seam 0.0998 m | loopSeam failed |
+| clean, last frame repeats the first pose | none | seam 0.0020 m under `duplicate-end`, chosen from the spec's length | passed |
+| left foot slides 40 cm over its planted window, faster than `detect.speed` | 0.4000 m | detected windows: 3.1 mm (only the two frames where it stops); travel at ground height 0.3778 m (all but those frames), `groundTravel` unjudged; with the window declared in `contacts.planted`: 0.4000 m; interior jump 7.9 mm in both (the foot stops dead) | declared: footSlide failed; undeclared: nothing failed, `groundTravel` awaiting the person (exit 3) |
+| 8 cm pop on the first frame and an 8 cm step forward at frame 15 | 0.0800 m each | start jump 0.0793 m, interior jump 0.0800 m between frames 14 and 15 | boundaryJump and interiorJump failed |
+| body rises 20 cm over the second half, with steps of +5 cm at frame 8 and −5 cm at frame 12 | 0.2000 m | seam 0.1996 m, interior jump 0.0426 m (each step lowers the other's reading by a sixth of it) | loopSeam and interiorJump failed |
+| clean, at 23.976, 29.97 and 60 fps (one cycle of 24, 30 and 60 frames) | none | interior jump 0.0026, 0.0020 and 0.0000 m; seam the same; windows' slide 0.0022, 0.0000 and 0.0051 m | passed |
+| the same with an 8 cm step forward halfway | 0.0800 m | interior jump 0.0800 m at the step, at each rate | interiorJump failed |
+| clean, at 29.97 fps (30 frames, cycle 30/29.97 s), in place | none | last key at 29/29.97 s before and after `root_convention.py`; every frame on the grid | passed |
+
+Every fault was read within 4 mm of its built size by the measure built for it, except two steps four frames apart (above). Pops read slightly under their size (the smooth residual around them is subtracted), steps at their size on the calm joints. On the clean clip, every frame the walk was built planted was found planted, give or take one frame at each window's edge, every window's slide was 0.0000, and the largest interior jump was 2.0 mm (a knee where the leg solver straightens it, a kink in its motion), at the wrap as inside the clip.
+
+How the measures came to be what they are:
+
+- A pop first read as a raw extrapolation residual. On the clean walk that residual is up to 3.2 cm on a swinging knee at 30 fps, because fast smooth motion leaves one too; so the jump is what a frame adds beyond the roughest residual the same point shows inside the clip.
+- Frames next to the first or last were at first part of that comparison, and an 8 cm pop then read 0. The comparison now uses frames that touch neither end.
+- Choosing the loop's last-frame convention by the better fit flipped once a seam fault grew to about one frame of motion (a 6 cm fault read 5 cm on the wrong convention). It now comes from the spec's length, and from the poses only for a length range.
+- A seam fault built by turning an arm read 25% high, because glTF stores no bone ends and Blender's importer gives a hand longer than the figure's. The measure was right for the points it reads; the fault is now built by moving the hips, so its size is the same at every point.
+- The pop and seam were at first compared with the largest residual anywhere inside the clip, so one jump inside the clip hid them: the seam of a loop 20 cm open read 9.9 cm next to two 5 cm steps. Stencils a jump inside the clip accounts for are now left out of the comparison, and jumps inside the clip are measured themselves.
+- Slide was at first measured on detected windows only, so a foot sliding faster than `detect.speed` passed. Declared windows are now measured whatever the speed. For a while every run of frames within the contact height was judged as slide too, at any speed; on a captured walk (a public motion-capture dataset, read at 30 fps with the same 0.03 m contact height as the provider clips below) that rule read 0.41 to 0.53 m on every step, because the swinging foot passes within 2 to 3 cm of the ground in mid-swing at 3 to 4 m/s and comes down heel first through the same band, and it read 0.585 m on a walk the provider below generated between poses of its own sample walk. Height and speed cannot tell such a swing from a drag, so that travel is now reported for the person (`groundTravel`), never judged.
+- The interior jump was at first the fifth difference alone (a step's departure from the steps around it). On the clean walk it read 10.2 mm at 23.976 fps and 6.2 mm at 30, on a knee that swings at up to about 4 m/s, a large share of a frame; it is now read against the pattern a jump makes in the steps around it, and the same walk reads 2.6 and 2.0 mm.
+- The seam was at first only the extrapolation across the wrap, which reads the first frame alone: a stall on the frame after the wrap read 0.0 under `open-end` (unit test). The seam now also reads the interior measure on the steps around the wrap, as the loop plays.
+- The skeleton check and the ground at first came from the joints' nodes and Blender's rest pose, which an exporter may leave at the first frame of the animation. They now come from the skin's inverse bind matrices; a copy of the clean clip with its first frame written into the nodes passes the skeleton check and the whole check (Blender test), and the rig with one shin 2% longer, bound as it then stands, still fails.
+- `--contact-height` and `--contact-speed` at first replaced the spec's `contacts.detect` in a judged check: given as 1e-4 m and 1e-4 m/s, they found no contact on the 40 cm slide, whose foot slide then read 0.0. A judged check now refuses them when the spec sets detection, and the toolkit accepts only a report whose detection came from the spec.
+- A clip whose only open item was `groundTravel` (the undeclared 40 cm slide) at first exited 0 with `passed` true. It now exits 3 with `passed` null until the person's judgement is recorded with `--acknowledge`.
+- At 29.97 fps the scripts set Blender's frame rate the way its own playback reads it (fps / fps_base), but its glTF add-on converts times with fps × fps_base: keys came out 1/30.03 s apart and the check refused the clip. The scripts now set the rate the add-on reads, and Blender's playback rate only for the video.
+
+## The clip format
+
+- A copy of the test rig with one shin 2% longer (8.4 mm at the knee), the same names and parents: the skeleton check failed on `rest` (0.0084 m at `lower-leg.l`). The same rig exported again differs by under 1e-6 m.
+- A file with two animations, measured with `--animation`: everything else passed and `animations` failed; `root_convention.py --animation` wrote a file with that one animation.
+- `--measure-only` on a spec with no `accept` and no detection numbers: exit 0, `passed` null, the 8 cm end pop read 0.0790 m, foot slide unmeasured.
+- The glTF reader reads 15-fps keys as whole frames of 30 fps; the frame check now fails them (`framesWithoutKey`), and passes a channel that holds one value on two keys (unit tests).
+
+## The root convention
+
+On the clean walk (travel on the hips, no root bone):
+
+| | Hips net travel | Along travel | Across (sway) | Height range (bob) |
+| --- | --- | --- | --- | --- |
+| before | 0.9667 m | 0.9667 m | 0.0399 m | 0.0297 m |
+| after in-place, `--travel line` | 0.0043 m (the sway at the last frame) | 0.0000 m | 0.0399 m | 0.0297 m |
+
+Per frame, the hips' height was unchanged to 6e-8 m and their sideways position to 0.17 mm. `travel.json` read the loop as open-ended and spanned the whole cycle (0.9667 m at the last frame). Checked with `--travel travel.json`, the in-place clip passed with slide 0.0000 and seam 0.0000 measured in the world. Without `--travel`, the check refused the clip and named the two options; before that refusal existed, the planted feet moved at 1 m/s, no real contact was detected, and only stray single-frame windows were left.
+
+The first version took travel from the first frame to the last; on an open-ended loop that put the sway's last-frame offset into travel, and the in-place seam read 3.7 mm. Travel now spans the full cycle.
+
+On the walk with a ground-level root bone and camel-case names, with travel on the hips and the root still, root motion onto `root`:
+
+- every joint other than the root stayed where it was, to 3.2e-6 m over all 30 frames, read back from the written file by the skill's own glTF reader;
+- the root travelled 0.9667 m;
+- with `--travel line` the hips kept their sway relative to the root (0.0399 m across, 0.0000 m along); with `--travel hips` they kept nothing horizontal (0.0000 m);
+- the check passed with the seam measured relative to the root.
+
+## Key poses
+
+Two one-key poses ("contact" from frame 0, "passing" from frame 7) went from a `.glb` of pose animations onto the rig at 0.0 s and 0.4 s. `keyposes.glb` held one animation with keys at exactly those times, and every joint matched its source pose to 3.4e-6 m. A pose name missing from the source was refused, naming the actions the source has. The manifest was first written as `<name>.json`, so a key-pose file named like the spec replaced the spec; it is now `<name>.keyposes.json`, and a file there that the script did not write is refused before anything is written (Blender test). Two poses on one frame were at first accepted by the spec readers and refused by the scripts; the readers now refuse them (shared fixture). The same poses saved as actions in a `.blend` and passed as `--poses` gave the same result (3.4e-6 m). A `.blend` of poses that also held other objects (a bone shape the glTF importer had added) first put them into the key-pose file; the file now holds the rig's own objects only, and a test covers it.
+
+The same poses on an armature kept in centimetres (bones a hundred times longer, the object scaled 0.01, so the same rest in the world) first came out up to 137 m off, because each bone was copied in the armature's own space; carried over as motion from rest in the world, they matched to 3.3e-6 m. The pose sheet (`keyposes-sheet.png`) showed both poses, each stamped with its name and time, and was looked at.
+
+## The blockout
+
+From the two key poses at 0 and 0.4 s, for a 0.5 s clip that does not loop: 16 frames on the 30 fps grid, one animation, the poses at frames 0 and 12, the last pose held to frame 15; the check (`--measure-only`) passed animations, skeleton, frames and length. As a blockout should, it is not yet motion: foot slide 3.6 mm, penetration 13.5 mm, an interior jump of 12.8 mm at the right hand where the straight-line motion turns at a pose. Halfway between two poses a joint turned 90° stands at 45°, and the hips halfway along their travel (unit tests).
+
+## Evidence
+
+- The sheet rendered with Workbench (default) and with `--engine cycles`; green markers sat under planted points and red under the sunken foot's windows. Looked at for the clean, sunken and slide clips.
+- Video: Blender's own encoder wrote `clip.mp4` for every clip above; `--ffmpeg <path>` wrote it through ffmpeg from rendered frames instead. The path where neither exists, which reports why there is no video, was not run.
+- A full check of a 30-frame clip, with sheet and video at 240×300, took about one second.
+
+## The animation recipe, end to end
+
+On 2026-11-20, after the review fixes, in a fresh scratch project with the toolkit installed by `jam-setup`'s install script, Blender 5.1.2 and ffmpeg on one authoring machine; generation on a separate GPU host through an `inbetween` provider reached through its skill; an engine adapter whose `import` takes `--kind animation`, on a scratch engine project. The rig was `jam-3d-rig`'s test humanoid (1.7 m, A-pose, fingers) bound by its `bind.py`, with that skill's landmark-names map as `rig.map`. Every threshold and detection number below is the test project's own, set by the tester, not advice. Each step was recorded and accepted by the toolkit's checks of that day, and both runs were delivered (`jam run deliver` verified every file). These runs came before the interior jump was read against the motion around it, the seam on the steps around the wrap, and the person's judgement recorded with `--acknowledge` (the record's note carried it then); their jump readings are the earlier measure's and were not read again.
+
+**By hand: `bow`.** 30 fps, 1.2 s fixed, not looping, in place, flat ground; key poses `stand` (0 s), `bow` (0.6 s: hips 3 cm back and 5 cm down, spine and chest bent 22° each, knees bent with the feet on their rest spots) and `upright` (1.2 s); both feet declared planted throughout; detection 0.02 m and 0.2 m/s; slide 0.01 m, penetration 0.01 m, jump 0.02 m.
+
+- `blockout.py`: 37 frames, the poses at frames 0, 18 and 36. `clip_check.py --measure-only`: format checks passed; slide 0.7 mm, penetration 11.7 mm (the feet sink between poses, where the bent legs are interpolated joint by joint), interior jump 15.3 mm.
+- A keying pass in Blender, scripted in place of an animator: eased timing into and out of each pose, an IK target per foot at its rest spot holding the foot's rest orientation, baked on every frame and exported with routes.md's call. Slide 0.0, penetration 0.0, start and end jump 2.6 mm, interior jump 0.1 mm.
+- `root_convention.py --travel line`: no net travel; the hips kept their 3 cm along and 5 cm height range. The check passed, both declared windows at 0.0 slide. Sheet and video looked at: it bows and straightens with both feet planted.
+- Found: `jam run start` refused the skill's command without a brief (it now gives `--brief-text`); the route's own done criterion, `--measure-only`, refused an in-place spec without travel (routes.md now gives `--travel-velocity 0,0`); a first keying pass in a scene left at Blender's default 24 fps wrote the 37 frames 1/24 s apart, and the check failed `wholeFrames` and `length` (1.5 s; routes.md now says to set the rate before importing).
+
+**A motion provider: `step-greet`.** 30 fps, 0.9 to 1.6 s, not looping, root motion on the hips, flat ground; detection 0.03 m and 0.25 m/s; slide 0.03 m, penetration 0.02 m, jump 0.03 m. The provider's tooling asked for a floor tolerance (the spec's `accept.penetration`, 0.02 m) and, for chained generations, a seam tolerance (`accept.boundaryJump`, 0.03 m).
+
+- **Stepping versions failed the check**, as they should. A step of 0.8 m to a greet at 1.1 s, generated from a held standing pose with one target pose and retargeted with contacts detected at the spec's speed, first failed on slide 0.642 m, measured by the rule that judged every run within the contact height. Read frame by frame on the generated skeleton before any retargeting, the defect is the generator's: the stepping foot slid flat along the floor for 8 frames, heel and ball both 0.4 to 1.1 cm below their standing height, at up to 2.7 m/s, covering 44 cm before it lifted (at most 4.9 cm), while the provider's own contact confidence for it had dropped to 0; the closing foot came down toes first and skidded 40 cm at floor height at up to 3.7 m/s; the standing foot sank 3 cm. Retargeting did not cause it (slide by that rule 0.66 m and joint penetration 4.0 cm before, 0.64 m and 3.2 cm after; its foot contacts held the slow creep still). A longer generation of the same step (12 tokens) dragged the closing foot's toe below the floor for the whole clip; 1.4 m in 1.5 s gave real steps (feet lifted 16 and 47 cm) whose landing toe ploughed 6 cm under the floor at 3 m/s. With travel at ground height left to the person, the check still fails all three on penetration (32.4, 34.4 and 52.5 mm), the first and last also on interior jumps and the second on a detected slide of 30.9 mm, and puts `groundTravel` to the person; the sheet shows the dragging feet with amber markers. Holding named contact windows in the retarget turned the skid into jumps of up to 14.9 cm where the hold blends in.
+- **The spec was revised** by the tester, as the person, to an in-place greet (right hand above the head at 1.1 s) and recorded again: 34 frames; on the project rig slide 11.6 mm, penetration 4.4 mm, start and end jump 6.4 mm, interior jump 5.8 mm; passed (checked again after travel at ground height was left to the person: passed, nothing unjudged). Sheet and video looked at: it raises the right hand with both feet planted. The engine import recorded one sequence of 1.1 s on the rig's skeleton.
+- **A second attempt of the same run** (the greet over 1.4 s, 42 frames) passed the check (slide 13.6 mm, penetration 4.6 mm, jumps 5.7 and 6.8 mm), and its import replaced the first attempt's sequence under the same engine id.
+
+## Tests
+
+- `python3 -m pytest scripts/test_jamanim.py`: 64 tests of the spec (each field's one shape, the refusals the toolkit makes too: nulls, unknown fields, numbers that are not finite, pose order, poses on one frame and length, project-relative paths), the three map shapes, the glTF reader (percent-encoded buffer names, the frame grid, rests and vertices at rest from inverse bind matrices and, without them, from the nodes), the measures on synthetic trajectories (pops next to interior jumps, a seam next to steps, a stall just after a loop's wrap, fast smooth motion at 23.976, 29.97 and 60 fps with and without a step, a joint stopping dead, a slide too fast to detect, a swing passing within the contact height), travel and the blockout.
+- `python3 -m pytest scripts/test_animate_blender.py`: 30 tests that build the clips above in Blender and assert the numbers within the stated tolerances, including every row of the tables above, detection numbers refused beside the spec's, acknowledgement, key poses from a `.glb`, from a `.blend` holding other objects and from a centimetre armature, the manifest refusing to replace another file, a clip whose nodes hold its first frame, the pose sheet, the blockout, and video through ffmpeg. About a minute.
+
+## Not validated
+
+- **Real characters and captured motion.** The rigs were generated test figures; a real rig's twist bones and dense meshes were not run, and captured motion only had its foot heights and speeds read (above), not the whole check.
+- **Keying by a person, the retarget-a-library route, and paid providers.** The by-hand route ran end to end with a scripted keying pass; the provider route with one generator on its own host.
+- **Engines other than the one import above**, and clips that travel through an engine import after these fixes.
+- **Turning clips.** The root convention moves translation only; travel along a curve and heading on the root bone were not run.
+- **Ground that is not flat** beyond confirming that penetration is reported unmeasured and contacts are found by speed alone.
+- **Hand contacts** (`contacts.planted` naming a hand): code path only.
+- **A pose library made in Blender's own pose-library tools**: the `.blend` sources above held plain actions.
+- **The headless renderers elsewhere.** Workbench and Cycles ran on the authoring machine only, which has a display; whether Workbench renders headless on a machine without one was not run.
+- **Other Blender versions and operating systems.**
+- **The video's frame rate at 29.97 fps.** The scripts set it; no video was played back and timed.

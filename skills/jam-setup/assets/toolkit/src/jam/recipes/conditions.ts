@@ -2,11 +2,19 @@
 // skipped automatically, so one recipe works with any engine adapter and with none.
 import { digest } from "../../kernel/hash.ts"
 import type { Budget } from "../config/schema.ts"
+import { takesKind } from "../engine/schema.ts"
 import type { Condition } from "./schema.ts"
 
 export interface ConditionFacts {
   /** The engine adapter in force and the commands it provides; `problem` when it cannot be resolved. */
-  readonly engine: { readonly id: string; readonly chosen: boolean; readonly commands: ReadonlySet<string>; readonly problem?: string }
+  readonly engine: {
+    readonly id: string
+    readonly chosen: boolean
+    readonly commands: ReadonlySet<string>
+    /** The kinds each command lists; a command that lists none is absent. */
+    readonly kinds: ReadonlyMap<string, ReadonlyArray<string>>
+    readonly problem?: string
+  }
   readonly budgetName: string | null
   readonly budget: Budget | null
 }
@@ -23,7 +31,11 @@ export const evaluateCondition = (condition: Condition, facts: ConditionFacts): 
   const parts: Array<string> = []
   const unmet: Array<string> = []
   if (condition.engine !== undefined) {
-    parts.push(`engine provides ${condition.engine}`)
+    parts.push(`engine provides ${condition.engine}${condition.kind === undefined ? "" : ` --kind ${condition.kind}`}`)
+    const listed = facts.engine.kinds.get(condition.engine)
+    if (facts.engine.commands.has(condition.engine) && condition.kind !== undefined && !takesKind(listed, condition.kind)) {
+      unmet.push(`engine adapter ${facts.engine.id}'s ${condition.engine} command ${listed === undefined ? `lists no kinds, and takes ${condition.kind} only when it lists it` : `takes ${listed.join(", ")}, not ${condition.kind}`}`)
+    }
     if (!facts.engine.commands.has(condition.engine)) {
       unmet.push(
         facts.engine.problem !== undefined

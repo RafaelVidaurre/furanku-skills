@@ -22,8 +22,12 @@ export type Produces = typeof Produces.Type
 /** When a step applies. Every part given must hold. */
 export const Condition = Schema.Struct({
   engine: opt(Id.pipe(Schema.annotate({ description: "The project's engine adapter provides this command: import, inspect, conform-skeleton, or one of the adapter's own" }))),
+  kind: opt(Id.pipe(Schema.annotate({ description: "With engine: that command takes this kind, e.g. {\"engine\": \"import\", \"kind\": \"animation\"} (an adapter command's kinds field says which it takes)" }))),
   budget: opt(Schema.Record(Schema.String, Schema.Unknown).pipe(Schema.annotate({ description: "The run's budget has these field values, e.g. {\"kind\": \"deforming\"}" })))
-})
+}).pipe(
+  // Annotations go before the check: one given after it is not published in the JSON schema.
+  Schema.annotate({ description: "The step applies only when this holds; otherwise it is skipped automatically and later steps treat it as satisfied" }),
+  Schema.check(Schema.makeFilter((condition) => (condition.kind !== undefined && condition.engine === undefined ? "kind needs engine: the command whose kinds it is" : undefined))))
 export type Condition = typeof Condition.Type
 
 export const Step = Schema.Struct({
@@ -46,7 +50,7 @@ export const Step = Schema.Struct({
   paid: opt(Schema.Boolean.pipe(Schema.annotate({ description: "The step may open provider jobs" }))),
   maxJobs: opt(PositiveInt.pipe(Schema.annotate({ description: "Most provider jobs the step may open in one run" }))),
   optional: opt(Schema.Boolean.pipe(Schema.annotate({ description: "The step may be skipped with a recorded reason" }))),
-  when: opt(Condition.pipe(Schema.annotate({ description: "The step applies only when this holds; otherwise it is skipped automatically and later steps treat it as satisfied" }))),
+  when: opt(Condition),
   remove: opt(Schema.Boolean.pipe(Schema.annotate({ description: "In an extending recipe: drop the inherited step with this id" }))),
   after: opt(Id.pipe(Schema.annotate({ description: "In an extending recipe: place the step after this one (default: at the end)" })))
 })

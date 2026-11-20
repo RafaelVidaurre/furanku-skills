@@ -2,7 +2,7 @@
 
 `jam engine import --kind <kind> ...` runs `commands/engine_import.py`; its header lists every argument. Sources are project-relative files; the receipt names each asset by its `/Game/...` id. How the command reaches the editor is in [transport.md](transport.md); which parts were run in an editor is in [validation.md](validation.md).
 
-Where things go: pass `--destination /Game/<folder>`, or set the project's folders once in `jam.config.json` under `engine.facts.extra.destinations` (`static`, `skinned`, `textures`, `audio`); the toolkit's own call (`jam engine import --kind <kind> --run <id>`) passes only the files, so set them. An asset is named after its file unless `--name` says otherwise. A file `<source stem>.import.json` beside a source can carry `name`, `dest`, `skeleton`, `slots`, `twoSided`, `physicsAsset` and `normalGreen` for it; flags win over it. Names take the prefixes in the `naming` facts, which are Epic's published ones (`SM_`, `SK_`, `T_`, `M_`, `MI_`); Epic's own template content names skeletal meshes `SKM_`, and a project that follows it sets `engine.facts.naming.skeletalMesh`.
+Where things go: pass `--destination /Game/<folder>`, or set the project's folders once in `jam.config.json` under `engine.facts.extra.destinations` (`static`, `skinned`, `animation`, `textures`, `audio`); the toolkit's own call (`jam engine import --kind <kind> --run <id>`) passes only the files, so set them. An asset is named after its file unless `--name` says otherwise. A file `<source stem>.import.json` beside a source can carry `name`, `dest`, `skeleton`, `slots`, `twoSided`, `physicsAsset` and `normalGreen` for it; flags win over it. Names take the prefixes in the `naming` facts, which are Epic's published ones (`SM_`, `SK_`, `AS_`, `T_`, `M_`, `MI_`; [naming conventions](https://dev.epicgames.com/documentation/en-us/unreal-engine/recommended-asset-naming-conventions-in-unreal-engine-projects)); Epic's own template content names skeletal meshes `SKM_`, and a project that follows it sets `engine.facts.naming.skeletalMesh`.
 
 ## Static mesh
 
@@ -57,6 +57,22 @@ It runs three editor calls: textures into `<dest>/Textures`; a parent material `
 - The import uses the legacy FBX and texture factories, which store a source path relative to the project.
 
 Done when the receipt lists the mesh, `jam engine inspect` shows its skeleton and slots, and `jam engine check --kind sources` on the new assets has no problems.
+
+## Animation clip
+
+One glTF clip (`.glb`: the skinned rig with its named animations; a delivered clip holds one) onto a skeleton already in the project:
+
+```
+jam engine import --kind animation <clip.glb> --target <skeleton or skeletal mesh id> [--name <Name>] [--destination /Game/Characters/<Name>/Animations]
+```
+
+- `--target` is the skeleton, or a skeletal mesh whose skeleton is used. With `--run`, the toolkit also takes the receipt of the skinned import and passes its first asset, the skeletal mesh.
+- The command reads the clip's skinned joints from the file and refuses it, before importing anything, when the target's skeleton lacks any of them (`retarget the clip onto this skeleton first`). Extra bones in the skeleton are fine.
+- It imports through Interchange's generic pipeline with "import only animations" on the target skeleton, straight into the destination: one animation becomes `<dest>/AS_<Name>`, several become `<dest>/AS_<Name><animation name>`, the importer's own rule. With `--run` the toolkit passes the run's clip spec id as `--name`, and the run's id as the adapter's `--run`, which each sequence keeps in its `jam.run` metadata tag. Importing the same file again replaces its sequences under the same ids, and so does a later attempt of the same run (its clip lies in that attempt's folder); a sequence imported from another file by anything else, another run or an import outside a run, is never replaced: the import is refused before anything is imported, naming the sequence, its file and its run (import under another `--name`, or delete the old sequence first). An import outside a run clears the tag. Nothing is renamed afterwards, because a moved sequence looks for its stored source from its new folder and loses it.
+- A sequence the editor did not save fails the import with `save-failed`.
+- Each receipt entry carries `skeleton`, the skeleton the sequence plays on; `--details` adds its frame count, frame rate and length as the engine reads them.
+
+Done when the receipt lists one sequence per animation in the file, each on the target's skeleton, and the details' frame count and rate are the clip's.
 
 ## Audio
 

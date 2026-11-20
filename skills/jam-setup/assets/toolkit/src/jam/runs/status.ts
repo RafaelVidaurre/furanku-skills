@@ -124,9 +124,10 @@ export const conditionFacts = (config: JamConfig, name: string | null): Effect.E
       Effect.map((adapter) => ({
         id: adapter.id,
         chosen: adapter.source !== "default",
-        commands: new Set<string>(adapter.provides)
+        commands: new Set<string>(adapter.provides),
+        kinds: new Map(Object.entries(adapter.adapter.commands ?? {}).flatMap(([name, command]) => (command?.kinds === undefined ? [] : [[name, command.kinds] as const])))
       })),
-      Effect.catch((error) => Effect.succeed({ id: config.engine.adapter ?? "", chosen: true, commands: new Set<string>(), problem: error.message }))
+      Effect.catch((error) => Effect.succeed({ id: config.engine.adapter ?? "", chosen: true, commands: new Set<string>(), kinds: new Map<string, ReadonlyArray<string>>(), problem: error.message }))
     )
     return { engine, budgetName: name, budget }
   })

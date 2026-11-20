@@ -73,9 +73,11 @@ Done when `jam config show spend` (or `review`) shows the person's choice and yo
 
 Step 2 does the upgrade. A version 1 configuration is migrated with it, and what could not be carried over exactly is listed under `configuration.notes`: pass those notes on to the person. To see the configuration change before it is written, run the installer with `--no-deps` (it replaces the toolkit and leaves `jam.config.json` alone), then `jam config migrate --dry-run`, then `jam config migrate`. What moves where, and how version 1 commands map to version 2: `tools/jam/docs/setup.md#upgrading-from-version-1`.
 
+When `jam doctor` warns on `skill names`, the project still has skills under names that changed: follow `tools/jam/docs/setup.md#renamed-skills`.
+
 When the summary says `needs migration: run jam catalog migrate`, the catalog's files are in an older format: follow `tools/jam/docs/catalog-migration.md`.
 
-Done when `jam doctor` and `jam recipe check` pass, `jam run status` lists the project's open runs, and `jam catalog run problems` lists nothing that names an older toolkit.
+Done when `jam doctor` and `jam recipe check` pass with `skill names` ok, `jam run status` lists the project's open runs, and `jam catalog run problems` lists nothing that names an older toolkit.
 
 ## 7. Return to the task
 

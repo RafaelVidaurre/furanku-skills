@@ -43,7 +43,7 @@ A recipe step may carry a condition (`when`), such as "the engine adapter provid
 | `jam engine` | The engine adapter: conventions, and commands that reach the engine |
 | `jam audio` | Sound effects and voiced dialogue: generate, process to loudness targets, check, keep originals |
 | `jam schemas` | The published contract: JSON Schemas of every authored file, and the command reference |
-| `jam doctor` | Report everything the toolkit depends on: Node, npm packages, Python imaging packages, Blender, ffmpeg, Git and LFS, configuration, recipes, providers, the engine adapter, unsettled jobs and stale locks |
+| `jam doctor` | Report everything the toolkit depends on: Node, npm packages, Python imaging packages, Blender, ffmpeg, Git and LFS, configuration, recipes, skills installed under a retired name, providers, the engine adapter, unsettled jobs and stale locks |
 
 ## where
 
@@ -816,7 +816,7 @@ Providers: generation services the project can use
 
 ### provider list
 
-List the known providers: what each can serve, which routes use it, how it is reached, and whether paid work is enabled.
+List the known providers: what each can serve and in which modes, which routes use it, how it is reached, and whether paid work is enabled.
 
 ```
 jam provider list
@@ -902,7 +902,7 @@ jam engine install path/to/adapter
 
 ### engine import
 
-Import files into the engine through the adapter and print its receipt (the engine's asset ids). With --run the import step is recorded with those ids. Without an import command it prints the adapter's guide for doing it by hand.
+Import files into the engine through the adapter and print its receipt (the engine's asset ids). With --run the import step is recorded with those ids; for --kind animation the run's recorded clip is imported onto --target. Without an import command it prints the adapter's guide for doing it by hand.
 
 ```
 jam engine import [<file...>] [flags]
@@ -914,10 +914,12 @@ jam engine import [<file...>] [flags]
 
 | Flag | Meaning |
 |---|---|
-| `--kind <string>` | **Required.** What is imported: static, skinned, textures, audio, ... (the adapter says which it accepts) |
+| `--kind <string>` | **Required.** What is imported: static, skinned, animation, textures, audio, ... (the adapter says which it accepts; "jam engine show" lists them) |
 | `--destination <string>` | Where in the engine's content the assets go (default: the adapter's own rule) |
 | `--slot <string>` (repeatable) | Which engine material a slot of the model uses, as name=material. Repeat per slot. |
 | `--skeleton <string>` | Skeleton profile a skinned import binds to (default: the one the run's budget names) |
+| `--target <string>` | For --kind animation: what the clip plays on, a skinned asset or skeleton already in the engine, as its engine id or as the import receipt file that made it |
+| `--name <string>` | The engine asset's name (default: the adapter's own rule; for --kind animation with --run, the id of the run's clip spec) |
 | `--run <string>` | Work on this run's result and record the step the recipe marks for this command |
 | `--step <string>` | The step to record, when the recipe has several for this command |
 
@@ -1497,7 +1499,7 @@ jam schemas check
 
 ## doctor
 
-Report everything the toolkit depends on: Node, npm packages, Python imaging packages, Blender, ffmpeg, Git and LFS, configuration, recipes, providers, the engine adapter, unsettled jobs and stale locks. Each line has a status and a fix. Nothing is changed.
+Report everything the toolkit depends on: Node, npm packages, Python imaging packages, Blender, ffmpeg, Git and LFS, configuration, recipes, skills installed under a retired name, providers, the engine adapter, unsettled jobs and stale locks. Each line has a status and a fix. Nothing is changed.
 
 ```
 jam doctor

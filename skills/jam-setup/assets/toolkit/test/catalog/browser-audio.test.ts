@@ -17,6 +17,10 @@ import { browserOrSkip, newPage, screenshots, soundType, startServer, type TestP
 
 type Any = any // eslint-disable-line @typescript-eslint/no-explicit-any
 const { save, shot } = screenshots(import.meta.url)
+// Take a plays on the real clock while the test clicks, and on a loaded machine one click can take
+// seconds: a 1.2-second take ended before its Pause click landed, and the click started it again.
+// It lasts far longer than any action, so a click meant for a playing take lands while it plays.
+const A_SECONDS = 10
 const sha256 = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex")
 const state = (p: TestPage): Promise<Any> => p.evaluate(() => window.catalogViewer.state())
 const control = (p: TestPage, c: unknown): Promise<Any> => p.evaluate((command) => window.catalogViewer.control(command), c)
@@ -29,7 +33,7 @@ test("Chromium audio: waveform thumbs, exact take selection, transport, capture 
   const found = await browserOrSkip()
   if ("skip" in found) return t.skip(found.skip)
   const { browser } = found
-  const a = tone({ duration: 1.2 })
+  const a = tone({ duration: A_SECONDS })
   const b = tone({ duration: 2, channels: 2, frequency: 660 })
   let server: TestServer | undefined
   let dir: string | undefined
@@ -56,7 +60,7 @@ test("Chromium audio: waveform thumbs, exact take selection, transport, capture 
     let v = (await state(p)).viewer
     assert.equal(v.kind, "audio")
     assert.equal(v.shows.sha256, sha256(a))
-    assert.equal(v.duration, 1.2)
+    assert.equal(v.duration, A_SECONDS)
     assert.equal(v.channels, 1)
     assert.equal(v.sampleRate, 48000)
     assert.equal(v.playing, false)
@@ -70,11 +74,13 @@ test("Chromium audio: waveform thumbs, exact take selection, transport, capture 
     await p.getByRole("slider", { name: "Audio position" }).fill("0.4")
     assert.ok(Math.abs((await state(p)).viewer.currentTime - 0.4) < 0.01)
     await shot(p, "audio-unit-take")
-    await control(p, { audio: { time: 1.1, loop: true, playing: true } })
-    await p.waitForFunction(() => {
+    // Looping from just before the end comes round to an earlier time while still playing.
+    const loopFrom = A_SECONDS - 0.1
+    await control(p, { audio: { time: loopFrom, loop: true, playing: true } })
+    await p.waitForFunction((loopFrom) => {
       const viewer = window.catalogViewer.state().viewer
-      return viewer.playing && viewer.currentTime < 0.4
-    })
+      return viewer.playing && viewer.currentTime < loopFrom
+    }, loopFrom)
     await control(p, { audio: { playing: false } })
     await control(p, { select: { part: "audio:art/b.wav" } })
     await ready(p)

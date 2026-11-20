@@ -20,7 +20,7 @@ describe("shipped recipes", () => {
       const recipes = yield* Recipes
       const checks = new Set((yield* (yield* Checks).list).map((check) => check.id))
       const ids = yield* recipes.shipped
-      assert.deepEqual([...ids].sort(), ["asset", "character", "image", "prop", "provider-test", "sfx", "voice-line"])
+      assert.deepEqual([...ids].sort(), ["animation", "asset", "character", "image", "prop", "provider-test", "sfx", "voice-line"])
       for (const id of ids) {
         const resolved = yield* recipes.get(id)
         assert.ok(resolved.when, `${id} says which requests it is for`)
@@ -40,13 +40,13 @@ describe("shipped recipes", () => {
     assert.deepEqual((await get(root, "asset")).steps.map((step) => step.id), ["concept", "turnaround", "mesh", "topology", "uv", "texture", "delivery"])
     const prop = await get(root, "prop")
     assert.deepEqual(prop.steps.map((step) => step.id), ["concept", "turnaround", "mesh", "topology", "uv", "texture", "collision", "import", "delivery"])
-    assert.deepEqual(prop.steps.map((step) => step.skill), ["jam-concept", "jam-turnaround", "jam-model", "jam-retopo", "jam-uv", "jam-texture", "jam-engine", "jam-engine", undefined])
+    assert.deepEqual(prop.steps.map((step) => step.skill), ["jam-concept", "jam-turnaround", "jam-3d-model", "jam-3d-retopo", "jam-3d-uv", "jam-3d-texture", "jam-engine", "jam-engine", undefined])
     assert.equal(prop.budget, "prop")
     assert.deepEqual(prop.chain, ["builtin:prop", "builtin:asset"])
     const character = await get(root, "character")
     assert.deepEqual(character.steps.map((step) => step.id), ["concept", "turnaround", "mesh", "topology", "uv", "texture", "rig", "conform", "import", "delivery"])
     const rig = character.steps.find((step) => step.id === "rig")!
-    assert.equal(rig.skill, "jam-rig")
+    assert.equal(rig.skill, "jam-3d-rig")
     assert.deepEqual(rig.checks, ["deformation-evidence"])
     assert.deepEqual(character.steps.find((step) => step.id === "conform")!.when, { engine: "conform-skeleton" })
     assert.deepEqual(character.steps.find((step) => step.id === "import")!.when, { engine: "import" })

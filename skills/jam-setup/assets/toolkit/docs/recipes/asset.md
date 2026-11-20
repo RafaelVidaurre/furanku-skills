@@ -14,19 +14,19 @@ Five views of the accepted concept: `jam-turnaround`. A subject whose sides are 
 
 ## mesh
 
-`jam-model`. Ask the mesh route for the budget's `triangles.target` and, when it can return one, the unreduced mesh as well: later steps bake detail from it and measure against it.
+`jam-3d-model`. Ask the mesh route for the budget's `triangles.target` and, when it can return one, the unreduced mesh as well: later steps bake detail from it and measure against it.
 
 ## topology
 
-`jam-retopo`. This is also where an existing model enters (`--from topology`): a scan to reduce, a bought or hand-made model to check against the budget. A model already within budget is recorded as it is, with the report and the reason.
+`jam-3d-retopo`. This is also where an existing model enters (`--from topology`): a scan to reduce, a bought or hand-made model to check against the budget. A model already within budget is recorded as it is, with the report and the reason.
 
 ## uv
 
-`jam-uv`. An existing model enters here (`--from uv`) when its topology is settled and its UVs are missing or wrong.
+`jam-3d-uv`. An existing model enters here (`--from uv`) when its topology is settled and its UVs are missing or wrong.
 
 ## texture
 
-`jam-texture`. An existing model enters here (`--from texture`) to be retextured or to have its texture memory brought within budget.
+`jam-3d-texture`. An existing model enters here (`--from texture`) to be retextured or to have its texture memory brought within budget.
 
 When one operation produced topology, UVs and textures together (a generated mesh that arrives within budget, unwrapped and textured), record the three in one call: `jam run record <id> topology uv texture --file model=<file> ...`. Each step still needs its own evidence in that call: the topology report and wire sheet, the UV report and layout, the texture report and stills.
 

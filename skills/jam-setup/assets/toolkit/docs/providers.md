@@ -1,10 +1,10 @@
 # Providers: the neutral contract
 
-A provider is a generation service the project can use, described by a descriptor (`providers/<id>.json` in the toolkit, `jam/providers/<id>.json` in the project; `schemas/provider.schema.json`). The toolkit never calls a provider for images or meshes: the agent drives the provider's own command, MCP server or skill, and the run's ledger records what was intended and what happened. Everything that is true of one vendor only is in `docs/providers/<id>.md`; read that page before the first job with that provider.
+A provider is a generation service the project can use, described by a descriptor (`providers/<id>.json` in the toolkit, `jam/providers/<id>.json` in the project; `schemas/provider.schema.json`). The toolkit never calls a provider for images, meshes or motion: the agent drives the provider's own command, MCP server or skill, and the run's ledger records what was intended and what happened. Everything that is true of one vendor only is in `docs/providers/<id>.md`; read that page before the first job with that provider.
 
 ## Routes
 
-A **route** is one way to get a capability served: `image`, `mesh`, `sound`, `voice`. `jam provider list` shows which providers serve each, how each is reached, its unit, and whether paid work is enabled. `routes.<capability>` in `jam.config.json` is the project's usual choice.
+A **route** is one way to get a capability served: `image`, `mesh`, `motion`, `sound`, `voice`. `jam provider list` shows which providers serve each (with the modes each offers), how each is reached, its unit, and whether paid work is enabled. `routes.<capability>` in `jam.config.json` is the project's usual choice.
 
 Before the first offer of a session, find out which routes can actually be called:
 
@@ -43,6 +43,21 @@ If the response to a submission is lost: `jam job lost <id> <job>`, then look in
 ## Mesh input
 
 Multiview is the default whenever a turnaround exists: send the individual views the operation accepts (the descriptor's `capabilities.mesh` gives the count and which comes first), keep all five for review, and record which were sent. The contact sheet is never sent as one view. Single-view is used only when the person chose it or the route has no multiview, and that is said before submitting. A lower triangle target, a cheaper quote or a tool's default does not choose single-view.
+
+## Motion
+
+A `motion` route makes an animation clip for a rigged humanoid. Its descriptor's `capabilities.motion.modes` says how:
+
+| Mode | The clip comes from |
+| --- | --- |
+| `inbetween` | poses the project gives, with the motion between them generated |
+| `text` | a written prompt |
+| `video` | footage of a performer |
+| `library` | the provider's preset clips, applied to a rig |
+
+A clip comes out on the provider's skeleton: the one its descriptor's `rig.landmarks` maps, or the one `capabilities.motion.note` names. The note also says when the provider animates only its own auto-rigged copy of a mesh. A clip on any skeleton other than the project rig reaches it through retargeting (`jam-3d-retarget`), which takes a landmark map of each skeleton; `rig.landmarks` is the provider's, when its joint names are published. When the descriptor has no `rig.landmarks`, write a landmark map of the skeleton in the downloaded clip, as `jam-3d-retarget`'s maps reference says. The clip is judged after that, on the project rig. A paid motion job goes through the run's ledger like any other.
+
+A project may describe another motion provider in `jam/providers/<id>.json` (see Adding a provider).
 
 ## Local tools are routes too
 

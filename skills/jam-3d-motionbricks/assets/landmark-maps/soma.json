@@ -1,0 +1,27 @@
+{
+  "label": "SOMA skeleton, as MotionBricks uses it",
+  "notes": "The 77-joint SOMA skeleton MotionBricks loads (root Hips; metres, +Y up, facing +Z, +X the character's left). SOMA names the hip joint LeftLeg/RightLeg and the knee LeftShin/RightShin. Unmapped, at no landmark: Spine2 (between spine and chest), Neck2, HeadEnd, Jaw, LeftEye, RightEye, LeftToeEnd, RightToeEnd. Unmapped because MotionBricks gives them no motion of their own: every finger joint (Left/Right HandThumb1-3, HandIndex1-4, HandMiddle1-4, HandRing1-4, HandPinky1-4 and their End joints). The model predicts no finger; MotionBricks decodes the fingers at the reference pose (a flat T-pose hand) and its endpoint correction only blends them from the last context pose to the first target pose, so the receiving rig keeps its own finger animation.",
+  "landmarks": {
+    "Hips": "hips",
+    "Spine1": "spine",
+    "Chest": "chest",
+    "Neck1": "neck",
+    "Head": "head",
+    "LeftShoulder": "shoulder.l",
+    "LeftArm": "upper-arm.l",
+    "LeftForeArm": "lower-arm.l",
+    "LeftHand": "hand.l",
+    "LeftLeg": "upper-leg.l",
+    "LeftShin": "lower-leg.l",
+    "LeftFoot": "foot.l",
+    "LeftToeBase": "toes.l",
+    "RightShoulder": "shoulder.r",
+    "RightArm": "upper-arm.r",
+    "RightForeArm": "lower-arm.r",
+    "RightHand": "hand.r",
+    "RightLeg": "upper-leg.r",
+    "RightShin": "lower-leg.r",
+    "RightFoot": "foot.r",
+    "RightToeBase": "toes.r"
+  }
+}

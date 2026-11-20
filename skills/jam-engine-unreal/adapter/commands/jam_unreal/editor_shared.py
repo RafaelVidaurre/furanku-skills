@@ -43,6 +43,39 @@ def jam_stored_source(asset, project_dir=None):
     return names[0] if relative.startswith("..") else relative
 
 
+JAM_RUN_TAG = "jam.run"
+
+
+def jam_asset_run(asset):
+    """The jam run whose import made `asset` (its `jam.run` metadata tag); None for an asset no run imported."""
+    import unreal
+    return unreal.EditorAssetLibrary.get_metadata_tag(asset, JAM_RUN_TAG) or None
+
+
+def jam_mark_run(asset, run):
+    """Record on `asset` the jam run that imported it, or clear the record for an import outside a run."""
+    import unreal
+    if run:
+        unreal.EditorAssetLibrary.set_metadata_tag(asset, JAM_RUN_TAG, run)
+    else:
+        unreal.EditorAssetLibrary.remove_metadata_tag(asset, JAM_RUN_TAG)
+
+
+def jam_refuse_other_source(asset_id, asset, source, run=None, project_dir=None):
+    """Refuse to import `source` over `asset`, already at `asset_id`, when the asset was imported from another file (or
+    remembers none) by anything but the same jam run: a re-import replaces its own source's asset, and a later attempt
+    of a run replaces what an earlier attempt of that run imported, never another clip's."""
+    stored = jam_stored_source(asset, project_dir)
+    if stored == source:
+        return
+    made_by = jam_asset_run(asset)
+    if run and made_by == run:
+        return
+    raise RuntimeError("%s exists, imported from %s%s, not from %s%s: import this clip under another name, or delete that asset first"
+                       % (asset_id, stored or "a file it does not remember", " by run %s" % made_by if made_by else "",
+                          source, " by run %s" % run if run else ""))
+
+
 def jam_dirty_packages():
     import unreal
     return sorted(p.get_name() for p in unreal.EditorLoadingAndSavingUtils.get_dirty_content_packages())

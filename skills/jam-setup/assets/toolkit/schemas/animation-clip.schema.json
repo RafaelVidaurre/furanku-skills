@@ -1,0 +1,308 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "animation-clip.schema.json",
+  "$ref": "#/$defs/AnimationClip",
+  "$defs": {
+    "AnimationClip": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 64
+        },
+        "purpose": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "One sentence: what the clip is for"
+        },
+        "rig": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+              "description": "The project rig: a .glb holding the skinned character"
+            },
+            "map": {
+              "type": "string",
+              "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+              "description": "The rig's skeleton map: a landmark map (bone name -> landmark)"
+            }
+          },
+          "required": [
+            "model",
+            "map"
+          ],
+          "additionalProperties": false
+        },
+        "fps": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Frames per second; the clip is sampled on whole frames"
+        },
+        "length": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds"
+            },
+            "max": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ],
+          "additionalProperties": false,
+          "description": "Seconds: any length from min to max. A fixed length has min equal to max."
+        },
+        "loop": {
+          "type": "boolean"
+        },
+        "root": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "in-place",
+                "root-motion"
+              ],
+              "description": "in-place: travel removed, pelvis motion kept. root-motion: travel carried on the root bone."
+            },
+            "bone": {
+              "type": "string",
+              "pattern": "\\S",
+              "description": "root-motion: the ground-level root bone that carries travel. Absent: the hips, for a rig with no ground root."
+            }
+          },
+          "required": [
+            "mode"
+          ],
+          "additionalProperties": false,
+          "description": "Where the clip's travel goes. bone is given with root-motion only."
+        },
+        "ground": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "flat"
+                  ]
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "change"
+                  ]
+                },
+                "description": {
+                  "type": "string",
+                  "pattern": "\\S",
+                  "description": "The height change the clip must cross: a stair, a ledge"
+                }
+              },
+              "required": [
+                "kind",
+                "description"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "description": "{kind: flat}, or {kind: change, description} for a clip that crosses a height change"
+        },
+        "keyPoses": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string",
+              "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+              "description": "keyposes.glb: the project rig with one animation holding one key per pose"
+            },
+            "poses": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                      "maxLength": 64
+                    },
+                    "time": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Seconds from the clip's first frame"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "time"
+                  ],
+                  "additionalProperties": false
+                }
+              ],
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                    "maxLength": 64
+                  },
+                  "time": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Seconds from the clip's first frame"
+                  }
+                },
+                "required": [
+                  "name",
+                  "time"
+                ],
+                "additionalProperties": false
+              },
+              "description": "Named poses with their intended times, in the order of their keys: each name once, in time order, each on its own whole frame of fps, none after length.max"
+            }
+          },
+          "required": [
+            "file",
+            "poses"
+          ],
+          "additionalProperties": false
+        },
+        "contacts": {
+          "type": "object",
+          "properties": {
+            "detect": {
+              "type": "object",
+              "properties": {
+                "height": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "How close to its resting height a foot must be to count as planted, in meters"
+                },
+                "speed": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "How slow a foot must move to count as planted, in meters per second"
+                }
+              },
+              "required": [
+                "height",
+                "speed"
+              ],
+              "additionalProperties": false,
+              "description": "How the check finds contacts on the project rig"
+            },
+            "planted": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "limb": {
+                    "type": "string",
+                    "enum": [
+                      "foot.l",
+                      "foot.r",
+                      "hand.l",
+                      "hand.r"
+                    ]
+                  },
+                  "from": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Seconds from the clip's first frame"
+                  },
+                  "to": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Seconds from the clip's first frame"
+                  }
+                },
+                "required": [
+                  "limb",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false,
+                "description": "One limb planted from one time to another; from is not after to"
+              },
+              "description": "Which feet or hands should be planted when; the clip check measures each of these windows"
+            }
+          },
+          "additionalProperties": false
+        },
+        "accept": {
+          "type": "object",
+          "properties": {
+            "footSlide": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Most a planted foot or hand may slide within one contact window"
+            },
+            "penetration": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Most a foot may go below flat ground"
+            },
+            "boundaryJump": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Most a joint may jump from one frame to the next beyond the motion around it: at the first or the last frame, or anywhere inside the clip"
+            },
+            "loopSeam": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Looping clips only, and required for them: most a joint may differ between the end of one play and the start of the next"
+            }
+          },
+          "required": [
+            "footSlide",
+            "penetration",
+            "boundaryJump"
+          ],
+          "additionalProperties": false,
+          "description": "Thresholds the clip check enforces, in meters. Each comes from the project (its budget, the person); none has a default."
+        }
+      },
+      "required": [
+        "id",
+        "purpose",
+        "rig",
+        "fps",
+        "length",
+        "loop",
+        "root",
+        "ground",
+        "accept"
+      ],
+      "additionalProperties": false,
+      "title": "Clip spec (clip.json): one animation clip on the project rig. Paths are project-relative.",
+      "description": "Beyond each field's own shape: accept.loopSeam is given exactly when loop is true; key poses have distinct names, are in time order, fall on distinct whole frames of fps (the nearest, halves rounding up) and none is after length.max. Numbers are finite; an optional field is left out, never null."
+    }
+  }
+}
