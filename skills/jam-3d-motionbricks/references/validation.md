@@ -1,6 +1,6 @@
 # What was validated
 
-Facts about the scripts in this skill, from runs on 2026-11-20; the last section re-ran them after the review fixes. Two machines took part:
+Facts about the scripts in this skill, from runs on 2026-11-20; "Poses from a project rig, end to end" and "After the review fixes" ran the scripts as they now are. Two machines took part:
 
 - **Authoring side:** a macOS arm64 machine with Blender 5.1.2. It cannot generate, and the host check says so.
 - **Generating host:** a Windows 11 x86-64 laptop with an 8 GB NVIDIA laptop GPU of compute capability 8.9, driver 621 (CUDA 13.5 user-mode driver), holding a MotionBricks v0.2.0 clone (commit `54fc563`) with its environment (Python 3.12.16, TensorRT 10.8.0.43, Warp 1.17.0) from an earlier evaluation, and a cached FP32 plan from that evaluation.
@@ -45,14 +45,16 @@ Poses: `make_test_poses.py` on the real rig (standing, arms lowered; built from 
 
 ## Poses from a project rig, end to end
 
-Later on 2026-11-20 the same two machines ran a whole `animation` recipe in a scratch project. The project rig was `jam-3d-rig`'s bound test humanoid; its key poses (`stand`, and `greet` 0.8 m ahead with the right hand raised) and a 4-frame context holding `stand` were authored on it in Blender and retargeted onto the SOMA rig with `jam-3d-retarget` and `assets/landmark-maps/soma.json`.
+Later on 2026-11-20, after the review fixes, the same two machines ran the `animation` recipe in a fresh scratch project, following the skill's steps with the final scripts. The host was reached through a run queue that other work shared; files moved with a file-transfer tool. The project rig was `jam-3d-rig`'s bound test humanoid; its key poses were authored on it in Blender and retargeted onto the SOMA rig with `jam-3d-retarget` and `assets/landmark-maps/soma.json`. No NVIDIA sample motion was used.
 
-- **Host check** with `--motionbricks <clone> --import-check`, FP32: all nine requirements passed, `ready: true`. `generate.py skeleton` read 77 joints, 30 model joints, as before.
-- **Pack:** context ending at its last frame, one target starting at 1.1 s (the `greet` key), one pose, Transition Early By 0, tokens 10 to 10, FP32. The first pack's floor offset was −0.030 m, which the then-default floor tolerance of 5 cm still called near the ground: the retarget had turned SOMA's feet to the project rig's foot pitch, and the generated step then dipped a toe 3.5 cm under the ground. That default is gone; the tolerance is now the person's. After `jam-3d-retarget` kept each foot's own rest, the floor offset was 0.0003 m. Ground distance 0.917 m (0.83 m/s at the fixed 34 frames; the summary then printed 0.48 to 1.62 m/s, ignoring the fixed token count).
-- **Generate:** 34 frames (10 tokens), plan cached, encode 286 ms and inference 8.4 ms on the first call of the session, 23 ms and 8.0 ms later. With `tokens=12-12` the same request gave 42 frames; with the default 8 to 14 the model chose 14 tokens, 50 frames.
-- **Unpack:** 34 frames, 1.1 s; the hips from (0, 1.012, 0) to (0, 1.012, 0.917), path 0.964 m, height 0.904 to 1.025 m; the largest one-frame move 0.212 m, a fingertip end. Looked at with `clip_strip.py`: it steps with the right leg, closes with the left while the right arm rises, and stops standing at the target. The strip first cut off the raised arm; it is now framed on every still's full height.
-- **What the motion carried:** the planted feet drift: the left ankle moved 8.9 cm over its first 0.5 s on the ground, about 0.2 m/s, and the right 7.6 cm over its last 14 frames. The ball of the stepping foot sank 2.9 cm below its standing height while the foot pivoted. Both came through to the project rig and were measured there by `jam-3d-animate`'s check, as rule 12 expects.
-- **Hand-over:** the clip went back to the project rig through `jam-3d-retarget`, which named `Spine2`, `Neck2`, `Jaw` and the eyes as not carried (rule 10), and on to the check, an engine import and delivery.
+- **Host check** with `--motionbricks <clone> --precision fp32 --device cuda:0 --import-check`: all nine requirements passed, `ready: true`. `generate.py skeleton` read 77 joints, 30 model joints; `soma_skeleton.py` built the rig with 77.
+- **Pack:** the context held from the `stand` key pose (`--context-hold --context-end 0`), one target pose per request, Transition Early By 0, FP32, `--floor-tolerance 0.02` (the clip spec's penetration threshold). Floor offsets 0.0003 m for the held context and the target.
+- **Generate:** plan cached; encode 168 ms and inference 8.3 ms for a 10-token generation.
+- **Stepping:** a step 0.917 m ahead with `--target-tokens 10-10` gave 34 frames, from the context's hips to the target's within the report's rounding, and the strip looked plausible. Read joint by joint, the stepping foot slid forward along the floor for its first 0.5 s (up to 2.7 m/s, staying within 1.1 cm of its standing height) before lifting 4.9 cm, and the ball of the closing foot sank 3.1 cm. The token count chosen by the model (14, 50 frames) and 12 tokens both kept the dragging swing; a target 1.6 m ahead with 14 tokens gave full steps (feet lifted 16 and 47 cm) with planted feet drifting up to 0.5 m/s as the body set off. On the project rig, `jam-3d-animate`'s check failed all of these on foot slide (rule 13: the model's quality on other targets and proportions is not established).
+- **In place:** a target with the right hand raised and no travel, 10 tokens: 34 frames, hips path 1.9 cm, feet below 0.2 m/s and within 6 mm of their standing height throughout, lowest foot 5 mm under it. It passed the check on the project rig, was imported into an engine and delivered; a second attempt with 12 tokens (42 frames) passed as well.
+- **Chained:** the in-place greet and back to standing, 10 tokens each: 67 frames. `unpack.py` refused the result without `--seam-tolerance`; with 0.03 m (the clip spec's boundary jump) the seam read 2.0 mm of excess at the right heel and did not pop.
+- **Records:** the `motion` step took the clip with the request, result and contacts as evidence and the tool facts from `result.json`.
+- **Found:** this page and the skill named the pack summary's and unpack report's floor numbers as top-level fields; they sit under `floor`, as the skill now says.
 
 ## After the review fixes
 
@@ -74,7 +76,7 @@ The same generating host, a clone of v0.2.0 with its environment, and the author
 - **Any Linux host, any cloud instance, any other GPU or driver.** Failing requirements (old GPU, old driver, old glibc, macOS) are judged only in unit tests and on the macOS machine.
 - **A fresh install** following [setup.md](setup.md): the host already had its clone; a plan was built from scratch only for FP16.
 - **`uv run --project`** as the interpreter: runs used the environment's interpreter directly.
-- **Real project content beyond one generated test figure,** and a moving four-pose target on the real model (four-pose sampling ran only in the Blender tests).
+- **Real project content beyond one generated test figure,** stepping clips that pass a clip check, and a moving four-pose target on the real model (four-pose sampling ran only in the Blender tests).
 - **Settings not run on the model:** `--tf32 on|off`, `--no-endpoint-correction`, `--onnx-sha256`, and `--context-end` other than with `--context-hold`.
 - **A host with several GPUs**, and `--device` other than `cuda:0` generating.
 - **`clip_strip.py` on rigs other than SOMA's; glTF files holding several animations**, or rigs whose rest pose differs from SOMA's by less than the tolerance but more than zero.

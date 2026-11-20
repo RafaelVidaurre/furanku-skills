@@ -185,8 +185,9 @@ describe("the animation recipe", () => {
         // The target may be named by the receipt of the skinned import: its first asset is the skinned asset.
         write(root, "work/hero-import.json", JSON.stringify({ assets: [{ id: "/Game/Hero/SK_Hero", kind: "skeletal-mesh" }, { id: "/Game/Hero/T_Hero", kind: "texture" }] }))
         const imported = await jam(root, importFor({ kind: "animation", files: [], run: "walk", target: "work/hero-import.json" }))
-        // The sequence is named after the run's clip spec, so clips of different runs never share an engine asset by file name.
-        assert.deepEqual(imported.outcome.status === "ran" && imported.outcome.receipt["args"], ["--kind", "animation", made.clip, "--target", "/Game/Hero/SK_Hero", "--name", "walk-loop"])
+        // The sequence is named after the run's clip spec, so clips of different runs never share an engine asset by file name;
+        // the run's id lets a later attempt of this run replace what an earlier one imported.
+        assert.deepEqual(imported.outcome.status === "ran" && imported.outcome.receipt["args"], ["--kind", "animation", made.clip, "--target", "/Game/Hero/SK_Hero", "--name", "walk-loop", "--run", "walk"])
         const stored = runFile(root, "walk").steps["import"]!.records[0]!
         assert.deepEqual(stored.engineAssets, [{ id: "/Anim/walk_loop", kind: "animation-sequence", source: made.clip, skeleton: "/Game/Hero/SK_Hero_Skeleton" }])
         assert.equal(stored.note, `Imported ${made.clip} as animation onto /Game/Hero/SK_Hero through engine adapter anim.`)

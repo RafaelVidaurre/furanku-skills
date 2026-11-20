@@ -22,9 +22,9 @@ Key the clip on the project rig, in any program that exports the clip format.
 
 1. Start from the key poses. `jam python <S>/blockout.py <clip.json> <clip-blockout.glb> [--length <s>] [--loop-end open|duplicate]` writes a clip already in the clip format: the project rig with one animation on every frame, each bone carried from one key pose to the next (rotations slerped, translations linear, travel straight between poses). It is a blockout, not the motion: timing, arcs, overlap, held feet and everything that makes the action read are keyed afterwards, by the person or with their animation tool. The frame count follows clip-spec.md ("A loop's last frame").
 2. Open the blockout (or the rig with the key-pose file) in the animation program, at the spec's `fps` over the clip's frames, and key the motion between the poses. Hold planted feet still in the world (an IK target per foot keeps them still while the body moves); put travel on the hips, or on the spec's root bone, as the body would travel. Step 5 of the skill moves or removes it to match the spec.
-3. Export a `.glb` in the clip format: +Y up, the rig and its mesh, this one animation, sampled on every frame. In Blender's Python: `bpy.ops.export_scene.gltf(filepath=..., export_format="GLB", export_yup=True, export_animations=True, export_animation_mode="ACTIONS", export_force_sampling=True)` with only this action in the file.
+3. Export a `.glb` in the clip format: +Y up, the rig and its mesh, this one animation, sampled on every frame. In Blender's Python: `bpy.ops.export_scene.gltf(filepath=..., export_format="GLB", export_yup=True, export_animations=True, export_animation_mode="ACTIONS", export_force_sampling=True)` with only this action in the file. Blender's glTF importer and exporter both convert times by the scene's frame rate, so set it to the spec's `fps` (`scene.render.fps`, with `fps_base` 1 for a whole rate) before importing the blockout.
 
-Done when the clip's `.glb` exists and `clip_check.py --measure-only` reports `animations`, `skeleton`, `wholeFrames` and `length` passed in `checks`.
+Done when the clip's `.glb` exists and `clip_check.py --measure-only` (with `--travel-velocity 0,0` for an in-place spec: nothing has been taken off the clip yet) reports `animations`, `skeleton`, `wholeFrames` and `length` passed in `checks`.
 
 ## Retarget an existing clip
 
@@ -40,6 +40,8 @@ Done when the clip on the project rig exists and the retarget's report says it p
    - `text`: a prompt from `purpose` and the action, and the length.
    - `video`: the footage.
    - `library`: the action's id from the provider's catalog.
+
+   When the provider's own tooling asks for a tolerance, take it from the spec's `accept`: a floor or ground tolerance (how far a foot may sit from the ground) is `accept.penetration`, a seam or jump tolerance (how far a joint may jump where generated pieces meet) is `accept.boundaryJump`. A tolerance the spec has no field for is the person's, asked as clip-spec.md says.
 3. A paid provider runs as one job through the run ledger, exactly as the toolkit's `docs/providers.md` "One paid job, start to finish" says (`jam job open`, `jam job submitted`, `jam job done`). An unbilled one (local, or included in a plan) is recorded with `--tool`.
 4. Download every output into the run folder at once and leave the originals untouched; later steps work on copies.
 5. Output on another skeleton goes through `jam-3d-retarget` onto the project rig, with the descriptor's landmark map for the source. Keep any contact flags the provider returns as evidence; check.md says how the check treats them.

@@ -4,12 +4,30 @@
 // The original imported its `dialogue` type from a game repository; what the test needs of it (an
 // audio role and `audioTranscript` naming the attributes that hold the take, its text and its word
 // timings) is written out here.
+//
+// The take plays on the real clock while the test acts, and on a loaded machine one action (a
+// screenshot above all) takes seconds: the original's 2-second take ran out during its first
+// screenshot, and a starved page draws few frames. So each word is caught by a watcher in the page,
+// set before playback starts, which pauses on a frame inside it and the highlight is read while
+// paused; and the take lasts far longer than any action, so a click meant for a playing take lands
+// while it still plays.
 import assert from "node:assert/strict"
 import test from "node:test"
 import { cleanup, makeProject, tone } from "./helpers.ts"
 import { browserOrSkip, newPage, screenshots, startServer, type TestServer } from "./server.ts"
 
 const { shot } = screenshots(import.meta.url)
+
+const TAKE_SECONDS = 20
+const words = [{ word: "Hello", start: 0.05, end: 0.8 }, { word: "there.", start: 1, end: 1.8 }]
+
+declare global {
+  interface Window {
+    /** Set by the test: settles with the viewer's state once playback has paused inside the word it watches for. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    held?: Promise<any>
+  }
+}
 
 const dialogueType = {
   label: "Dialogue",
@@ -34,10 +52,10 @@ test("dialogue highlighting follows playback, pause, silence, seeking and line c
   let root: string | undefined
   try {
     root = await makeProject({
-      assets: { "art/voice.wav": tone({ duration: 2 }) },
+      assets: { "art/voice.wav": tone({ duration: TAKE_SECONDS }) },
       extra: { types: { dialogue: dialogueType } },
       units: [
-        { id: "line/voiced", type: "dialogue", name: "Hello there.", attrs: { text: "Hello there.", voiceFile: "art/voice.wav", words: [{ word: "Hello", start: 0.05, end: 0.8 }, { word: "there.", start: 1, end: 1.8 }] }, links: [{ role: "audio", asset: "art/voice.wav" }] },
+        { id: "line/voiced", type: "dialogue", name: "Hello there.", attrs: { text: "Hello there.", voiceFile: "art/voice.wav", words }, links: [{ role: "audio", asset: "art/voice.wav" }] },
         { id: "line/missing", type: "dialogue", name: "Silent line.", attrs: { text: "Silent line.", voiceState: "missing" } }
       ]
     })
@@ -48,18 +66,48 @@ test("dialogue highlighting follows playback, pause, silence, seeking and line c
     const state = () => p.evaluate(() => window.catalogViewer.state().viewer)
     const control = (command: unknown) => p.evaluate((c) => window.catalogViewer.control(c), command)
     assert.equal((await state()).currentWord, null, "silence before the first word")
-    await p.getByRole("button", { name: "Play", exact: true }).click()
-    await p.waitForFunction(() => window.catalogViewer.state().viewer.currentWord?.index === 0)
-    assert.equal(await p.locator(".spoken-word.current").textContent(), "Hello")
-    await shot(p, "dialogue-first-word")
-    await p.waitForFunction(() => window.catalogViewer.state().viewer.currentWord?.index === 1)
-    assert.equal(await p.locator(".spoken-word.current").textContent(), "there.")
+    // A watcher in the page, set before playback starts, pauses on the first frame whose clock falls
+    // inside the word. A page starved by a busy machine may draw no frame inside a word; the watcher
+    // then plays it again from just before its start. `held` settles with the paused state, or fails
+    // after 30 s, since a page evaluation that never settles would hold the test forever.
+    const holdAt = (index: number) =>
+      p.evaluate(({ index, start, end }) => {
+        window.held = new Promise((done, fail) => {
+          let replays = 0
+          const deadline = performance.now() + 30_000 // as long as Playwright waits for anything else
+          const look = () => {
+            const viewer = window.catalogViewer.state().viewer
+            if (viewer.currentWord?.index === index) {
+              void window.catalogViewer.control({ audio: { playing: false } })
+              return done(window.catalogViewer.state().viewer)
+            }
+            if (performance.now() > deadline) return fail(new Error(`playback did not reach word ${index} in 30 s (at ${viewer.currentTime} s, playing: ${viewer.playing})`))
+            if (viewer.playing && viewer.currentTime >= end) {
+              if (++replays > 20) return fail(new Error(`no frame fell inside word ${index} in 20 plays`))
+              void window.catalogViewer.control({ audio: { time: Math.max(0, start - 0.05) } })
+            }
+            requestAnimationFrame(look)
+          }
+          requestAnimationFrame(look)
+        })
+      }, { index, ...words[index]! })
+    const held = () => p.evaluate(() => window.held!)
+    const play = () => p.getByRole("button", { name: "Play", exact: true }).click()
+    for (const [index, { word }] of words.entries()) {
+      await holdAt(index)
+      await play()
+      const stopped = await held()
+      assert.equal(stopped.playing, false)
+      assert.equal(stopped.currentWord.word, word)
+      await p.waitForFunction((word) => document.querySelector(".spoken-word.current")?.textContent === word, word)
+      await shot(p, ["dialogue-first-word", "dialogue-paused-second-word"][index]!)
+    }
+    await play()
     await p.getByRole("button", { name: "Pause", exact: true }).click()
     const paused = await state()
     assert.equal(paused.playing, false)
     await p.evaluate(() => new Promise<number>(requestAnimationFrame))
     assert.equal((await state()).currentTime, paused.currentTime, "pause freezes the word clock")
-    await shot(p, "dialogue-paused-second-word")
     await control({ audio: { time: 0.2 } })
     await p.waitForFunction(() => document.querySelector(".spoken-word.current")?.textContent === "Hello")
     assert.equal((await state()).currentWord.word, "Hello")
@@ -68,7 +116,7 @@ test("dialogue highlighting follows playback, pause, silence, seeking and line c
     await p.waitForFunction(() => !document.querySelector(".spoken-word.current"))
     await control({ audio: { time: 1.2 } })
     assert.equal((await state()).currentWord.word, "there.")
-    await control({ audio: { time: 1.95, playing: true } })
+    await control({ audio: { time: TAKE_SECONDS - 0.05, playing: true } })
     await p.waitForFunction(() => {
       const v = window.catalogViewer.state().viewer
       return !v.playing && v.currentTime === v.duration

@@ -2,10 +2,11 @@
 
 ARGS: {"source": "<project-relative glb>", "sha256": "...", "target": "<skeleton, or skeletal mesh whose skeleton to use>",
        "joints": ["<every joint the clip's skin holds, as Unreal names its bone>"], "dest": "/Game/Characters/Hero/Animations", "name": "AS_HeroWalk",
-       "planned": ["<the sequence ids the import will make>"]}
+       "planned": ["<the sequence ids the import will make>"], "run": "<the jam run importing it, or null>"}
 
 A clip whose joints the skeleton lacks is refused before anything is imported: its animation would play on nothing.
-So is a clip whose sequences would replace an asset imported from another file. The clip goes through Interchange's
+So is a clip whose sequences would replace an asset imported from another file, unless an earlier import for the same
+jam run made it (each sequence records its run in the `jam.run` metadata tag). The clip goes through Interchange's
 generic pipeline with "import only animations" on the target skeleton, straight into `dest` under `name`: one
 animation becomes `<dest>/<name>`, several become `<dest>/<name><animation name>` (the importer's own rule). Importing
 the same file again replaces its sequences in place. Nothing is renamed afterwards: a moved asset resolves its stored
@@ -32,7 +33,7 @@ def main(ARGS):
         existing = eal.load_asset(planned)
         if not isinstance(existing, unreal.AnimSequence):
             raise RuntimeError("%s exists and is not an animation sequence: import the clip under another name" % planned)
-        jam_refuse_other_source(planned, existing, ARGS["source"])
+        jam_refuse_other_source(planned, existing, ARGS["source"], ARGS.get("run"))
 
     pipeline = unreal.InterchangeGenericAssetsPipeline()
     common = pipeline.get_editor_property("common_skeletal_meshes_and_animations_properties")
@@ -56,6 +57,7 @@ def main(ARGS):
         sk = obj.get_editor_property("skeleton")
         if sk is None or sk.get_path_name() != skeleton.get_path_name():
             raise RuntimeError("%s landed on %s, not on %s" % (path, sk.get_path_name() if sk else None, skeleton_id))
+        jam_mark_run(obj, ARGS.get("run"))
         entry = {"id": path, "skeleton": skeleton_id, "seconds": round(obj.get_play_length(), 4), "source": jam_stored_source(obj)}
         try:
             entry["frames"] = int(unreal.AnimationLibrary.get_num_frames(obj))

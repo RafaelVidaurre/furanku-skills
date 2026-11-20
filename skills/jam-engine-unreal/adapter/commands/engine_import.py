@@ -6,7 +6,7 @@
     engine_import.py --kind skinned <mesh.fbx> [--skeleton <profile id>] [--name <Name>] [--dest /Game/<folder>]
                      [--slot "<material slot>=<color.png>,<normal.png>,<masks.png>" | --slot "<material slot>=/Game/<existing material>"] ...
                      [--two-sided <material slot>] ... [--parent-material /Game/<existing parent>] [--physics-asset /Game/<asset> | none]
-    engine_import.py --kind animation <clip.glb> --target <skeleton or skeletal mesh id> [--name <Name>] [--dest /Game/<folder>]
+    engine_import.py --kind animation <clip.glb> --target <skeleton or skeletal mesh id> [--name <Name>] [--dest /Game/<folder>] [--run <jam run id>]
     engine_import.py --kind audio <sound.wav> ... [--dest /Game/<folder>] [--name <Name>]
     engine_import.py --kind audio-variants <take.wav> ... | --variant /Game/<sound wave> ... [--asset /Game/<folder>/<Name>] [--name <Name>]
 Common: [--normal-green up|down] (convention of the normal maps given; default up) [--details <file.json>] [--project <dir>]
@@ -19,7 +19,8 @@ physicsAsset and normalGreen for it; flags win over it. A texture given without 
 Prints {"assets": [{"id", "kind", "source", "sha256", "skeleton"?}]}. Importing the same source to the same destination
 again reimports into the same asset id; a static mesh that already exists is refused (docs/import.md, "Replacing a mesh").
 An animation clip is a .glb holding the skinned rig and its named animations; it is refused when the target's skeleton
-lacks any of its joints, or when a sequence it would make exists and was imported from another file. Each animation
+lacks any of its joints, or when a sequence it would make exists and was imported from another file, unless an import
+with the same --run made it (a later attempt of a run replaces its own sequence). Each animation
 sequence is listed with the skeleton it plays on; a sequence the editor did not save fails the import.
 """
 import argparse
@@ -217,7 +218,7 @@ def import_animation(cfg, a):
     lock(cfg, planned)
     result, = cli.editor(cfg, "import-animation", [("animation", "import_animation", {
         "source": source, "sha256": digest, "target": paths.package_of(a.target), "joints": [gltf.unreal_name(j) for j in facts["joints"]], "dest": dest, "name": name,
-        "planned": planned})])
+        "planned": planned, "run": a.run})])
     cli.write_details(cfg, a.details, result)
     if result.get("saved") is not True:
         raise AdapterError("save-failed", "the editor imported %s but did not save every sequence (%s)" % (source, ", ".join(item["id"] for item in result.get("assets") or [])),
@@ -289,7 +290,7 @@ def build(cfg, argv):
     p.add_argument("--two-sided", action="append", default=[])
     p.add_argument("--variant", action="append", default=[])
     p.add_argument("--destination", "--dest", dest="dest")  # --destination is what jam passes
-    for flag in ("--name", "--skeleton", "--target", "--parent-material", "--physics-asset", "--asset", "--details"):
+    for flag in ("--name", "--skeleton", "--target", "--parent-material", "--physics-asset", "--asset", "--details", "--run"):
         p.add_argument(flag)
     p.add_argument("--normal-green", choices=("up", "down"))
     p.add_argument("--collision-complexity", choices=("simple-and-complex",))

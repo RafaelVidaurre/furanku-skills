@@ -86,11 +86,15 @@ Every retargeted file above, a target whose nodes all store a `matrix`, and a ru
 
 ## Generated motion, end to end
 
-On 2026-11-20 the `animation` recipe ran in a scratch project on the same machine, with generation by an `inbetween` motion provider on a separate GPU host. The provider works on its own skeleton, whose map its skill ships. The project rig was `jam-3d-rig`'s test humanoid bound by its `bind.py` (51 bones named by landmark, A-pose, fingers), with that skill's landmark-names map. These runs predate the agreement and side-flip checks and the required contacts options; the numbers below are what they reported.
+On 2026-11-20, after the review fixes, the `animation` recipe ran twice through generated motion in a scratch project on the same machine, with generation by an `inbetween` motion provider on a separate GPU host. The provider works on its own skeleton, whose map its skill ships. The project rig was `jam-3d-rig`'s test humanoid bound by its `bind.py` (landmark-named bones, A-pose, fingers), with that skill's landmark-names map.
 
-- **Onto the provider's skeleton** (a 4-frame context and 2 key poses on the project rig): round trips 1.1e-7 and 2.0e-7 heights, playback within 4.6e-7 m. The first version turned the provider skeleton's feet onto the project rig's foot pitch, which stood its toes 3.0 cm below its own standing height; the generated step then dipped a toe 3.5 cm under the ground. Feet now keep their own rest, and the packed poses stood within 0.3 mm of the skeleton's standing pose.
-- **Back onto the project rig** (34 generated frames, `k` 0.873, travel 0.917 m to 0.800 m): round trip 0.0019 heights (2.9 mm at the head), within the default tolerance. The warning named two extra spine and neck joints, the jaw and the eyes of the provider's skeleton as not carried; the trunk's agreement was 17.1° at the neck, from those two joints' bend. An earlier generation's round trip was 0.00204 heights, over the default; the tolerance was raised to 0.003 as troubleshooting.md says, and recorded.
-- **Contacts:** the source's planted feet drift (8.9 cm over 0.5 s, about 0.18 m/s). Detection at 0.1 source heights per second for 3 frames found two toe windows only; at `--contact-speed 0.2` (source heights per second, the flag's unit) it found six windows and held the ankles to 0.8 to 10.6 mm of slide (toes up to 33.5 mm, where the goal lay 21.5 mm beyond the leg's reach); the clip check's slide fell from 50.8 to 29.7 mm. No side flips; Blender played the file within 8.5e-7 m; the sheet was looked at row by row.
+- **Key poses onto the provider's skeleton** (`--contacts none --fps 30`, a key-pose file with two keys 1.1 s apart, resampled to 34 frames): passed; arms and legs agreement 0.000°, round trip 4.3e-7 heights, Blender's playback check passed. The trunk read 17.1° at the neck and the feet 14.1°: the rests' own difference, reported and not judged.
+- **Back onto the project rig.** The run without `--contact-speed` refused and printed both divisors: source 1.538 m tall, `k` 0.8728, so the clip spec's 0.25 m/s on the target is 0.25 / 1.342 = 0.1863 source heights per second.
+  - A generated step (34 frames, 0.917 m of travel arriving as 0.800 m): arms agreement 0.000°, legs 6.1° after contact correction (0.0 before it), no side flips; eight windows held, ankles to 0.4 to 13.4 mm of slide (a toe 32.4 mm, its goal 20.6 mm out of reach). The round trip read 0.0029 heights (4.5 mm at the head), over the default 0.002: the warning named `Spine2`, `Neck2`, the jaw and the eyes as not carried, and the run passed with `--round-trip-tolerance 0.003`, recorded as troubleshooting.md says. Playback within 8.0e-7 m. The clip check then failed on foot slide that the generated motion itself carries (a stepping foot dragged along the floor), which the contact correction does not reach outside its windows.
+  - A contacts file naming the planted windows of a longer generated walk (50 frames) held those feet, but where a window began on a foot still moving at 3 m/s the hold's three-frame blend made a jump of up to 14.9 cm in the clip check: a window starts where the source foot has stopped.
+  - An in-place generated greet (34 frames, then a 42-frame second attempt): passed with every default tolerance (round trip 0.00141 heights), four windows held, playback within 8e-7 m; the clip check passed.
+
+Earlier on the same day, before the agreement and side-flip checks existed, the same pairing exposed one fix: turning the provider skeleton's feet onto the project rig's foot pitch stood its toes 3.0 cm below its own standing height, and a generated step then dipped a toe 3.5 cm under the ground. Feet now keep their own rest.
 
 ## Tests
 
@@ -99,7 +103,7 @@ On 2026-11-20 the `animation` recipe ran in a scratch project on the same machin
 
 ## Not validated
 
-- **A real character or real mocap.** Apart from the generated clip below, every clip was authored on the generated rigs. Noisy capture contacts and long clips (the longest here has 151 frames) are untried.
+- **A real character or real mocap.** Apart from the generated clips above, every clip was authored on the generated rigs. Noisy capture contacts and long clips (the longest here has 151 frames) are untried.
 - **Engine imports** other than the one in the recipe run above.
 - **Planted hands on real data.** The hand path ran only in unit tests, on the test rigs.
 - **Rest poses other than A and T,** such as arms forward or bent elbows at rest, and rests whose palms differ without knuckle landmarks (the hand then keeps its rest angle to the forearm, by design).

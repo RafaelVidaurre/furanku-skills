@@ -121,8 +121,8 @@ const targetOf = (given: string): Effect.Effect<string, ToolError, ProjectFiles>
 
 /**
  * `jam engine import`. The adapter's command receives
- * `--kind <kind> <file>... [--destination <where>] [--slot <name>=<material>]... [--skeleton <id>] [--target <id>] [--name <name>] [<extra>...]`.
- * For a run, the import step is recorded with the engine's asset ids.
+ * `--kind <kind> <file>... [--destination <where>] [--slot <name>=<material>]... [--skeleton <id>] [--target <id>] [--name <name>] [--run <run id>] [<extra>...]`.
+ * For a run, the import step is recorded with the engine's asset ids; an animation import for a run also passes the run's id.
  */
 export const importFor = (input: ImportInput): Effect.Effect<HostedResult, ToolError, Needs> =>
   Effect.gen(function*() {
@@ -148,7 +148,9 @@ export const importFor = (input: ImportInput): Effect.Effect<HostedResult, ToolE
     if (sources.length === 0) return yield* fail("invalid", "name the files to import, or the run whose result to import with --run <id>")
     const budget = context?.ref.run.budget
     const skeleton = input.skeleton ?? (budget == null ? undefined : context?.config.budgets[budget]?.skeleton)
-    const flags = [...pair("--destination", input.destination), ...(input.slots ?? []).flatMap((slot) => ["--slot", slot]), ...pair("--skeleton", skeleton), ...pair("--target", target), ...pair("--name", name), ...(input.extra ?? [])]
+    // An animation imported for a run names the run, so a later attempt of the same run may replace the sequence an earlier one made.
+    const runId = animation && context !== null ? context.ref.run.id : undefined
+    const flags = [...pair("--destination", input.destination), ...(input.slots ?? []).flatMap((slot) => ["--slot", slot]), ...pair("--skeleton", skeleton), ...pair("--target", target), ...pair("--name", name), ...pair("--run", runId), ...(input.extra ?? [])]
     const outcome = yield* engine.run("import", ["--kind", input.kind, ...sources, ...flags], resumeLine("import", input, ["--kind", input.kind, ...pair("--target", input.target), ...(input.run === undefined ? sources : [])]))
     if (outcome.status !== "ran" || context === null || step === null) return { outcome }
     const receipt = yield* decode(ImportReceipt, { what: `import receipt of adapter ${outcome.adapter}`, code: "malformed", strict: false })(outcome.receipt)

@@ -81,14 +81,15 @@ def project(tmp_path, names, saved=True):
 
 def test_animation_import_sends_the_clip_joints_target_and_name_and_lists_each_sequence(tmp_path):
     local = project(tmp_path, [""])
-    code, receipt, _ = run_command(tmp_path, "--kind", "animation", "Art/clip.glb", "--target", "/Game/Hero/SK_Hero.SK_Hero", "--destination", "/Game/Hero/Animations", "--name", "HeroWave", local=local)
+    code, receipt, _ = run_command(tmp_path, "--kind", "animation", "Art/clip.glb", "--target", "/Game/Hero/SK_Hero.SK_Hero", "--destination", "/Game/Hero/Animations", "--name", "HeroWave",
+                                   "--run", "hero-wave", local=local)
     assert code == 0
     assert receipt == {"assets": [{"id": "/Game/Hero/Animations/AS_HeroWave", "kind": "animation-sequence", "source": "Art/clip.glb",
                                    "sha256": paths.sha256(str(tmp_path / "Art" / "clip.glb")), "skeleton": "/Game/Hero/SKEL_Hero"}]}
     sent = json.loads((tmp_path / "sent.json").read_text())
-    assert {k: sent[k] for k in ("source", "target", "joints", "dest", "name", "planned")} == {
+    assert {k: sent[k] for k in ("source", "target", "joints", "dest", "name", "planned", "run")} == {
         "source": "Art/clip.glb", "target": "/Game/Hero/SK_Hero", "joints": ["root", "hips", "spine"], "dest": "/Game/Hero/Animations", "name": "AS_HeroWave",
-        "planned": ["/Game/Hero/Animations/AS_HeroWave"]}
+        "planned": ["/Game/Hero/Animations/AS_HeroWave"], "run": "hero-wave"}
 
 
 def test_a_sequence_the_editor_did_not_save_fails_the_import(tmp_path):
@@ -106,23 +107,65 @@ class _ImportData:
 
 
 class _Asset:
-    def __init__(self, names):
+    def __init__(self, names, run=None):
         self.data = _ImportData(names)
+        self.tags = {} if run is None else {"jam.run": run}
 
     def get_editor_property(self, name):
         assert name == "asset_import_data"
         return self.data
 
 
-def test_a_sequence_is_replaced_only_by_a_clip_from_its_own_source_file(tmp_path):
-    """The editor script refuses, before importing, to replace a sequence another file made (CO7)."""
+class _EditorAssetLibrary:
+    """What the editor's library does with metadata tags: an absent tag reads as an empty string."""
+    @staticmethod
+    def get_metadata_tag(asset, tag):
+        return asset.tags.get(tag, "")
+
+    @staticmethod
+    def set_metadata_tag(asset, tag, value):
+        asset.tags[tag] = value
+
+    @staticmethod
+    def remove_metadata_tag(asset, tag):
+        asset.tags.pop(tag, None)
+
+
+@pytest.fixture
+def editor_shared(monkeypatch):
+    import types
     from jam_unreal import editor_shared
+    monkeypatch.setitem(sys.modules, "unreal", types.SimpleNamespace(EditorAssetLibrary=_EditorAssetLibrary))
+    return editor_shared
+
+
+def test_a_sequence_is_replaced_only_by_a_clip_from_its_own_source_file_or_its_own_run(tmp_path, editor_shared):
+    """The editor script refuses, before importing, to replace a sequence another file made (CO7), unless an earlier
+    attempt of the same run made it: a run's second attempt imports from <run>/2/ what its first imported from <run>/1/."""
     project_dir = str(tmp_path)
-    mine = os.path.join(project_dir, "work", "walk", "1", "walk.glb")
-    editor_shared.jam_refuse_other_source("/Game/A/AS_walk", _Asset([mine]), "work/walk/1/walk.glb", project_dir)
-    for names, named in (([os.path.join(project_dir, "work", "run", "1", "walk.glb")], "work/run/1/walk.glb"), ([], "a file it does not remember")):
-        with pytest.raises(RuntimeError, match="AS_walk exists, imported from %s, not from work/walk/1/walk.glb" % named):
-            editor_shared.jam_refuse_other_source("/Game/A/AS_walk", _Asset(names), "work/walk/1/walk.glb", project_dir)
+    at = lambda *parts: os.path.join(project_dir, *parts)
+    refuse = editor_shared.jam_refuse_other_source
+    refuse("/Game/A/AS_walk", _Asset([at("work", "walk", "1", "walk.glb")]), "work/walk/1/walk.glb", None, project_dir)
+    refuse("/Game/A/AS_walk", _Asset([at("work", "walk", "1", "walk.glb")], run="walk"), "work/walk/2/walk.glb", "walk", project_dir)
+    first, second = "work/walk/1/walk.glb", "work/walk/2/walk.glb"
+    for asset, source, run, message in (
+        (_Asset([at("work", "run", "1", "walk.glb")]), first, None, "imported from work/run/1/walk.glb, not from work/walk/1/walk.glb:"),
+        (_Asset([]), first, None, "imported from a file it does not remember, not from work/walk/1/walk.glb:"),
+        # another run, or no run, never replaces what a run imported; nor does a run replace an import made outside one
+        (_Asset([at(*first.split("/"))], run="walk"), second, "walk-fast", "imported from work/walk/1/walk.glb by run walk, not from work/walk/2/walk.glb by run walk-fast:"),
+        (_Asset([at(*first.split("/"))], run="walk"), second, None, "imported from work/walk/1/walk.glb by run walk, not from work/walk/2/walk.glb:"),
+        (_Asset([at("Art", "walk.glb")]), second, "walk", "imported from Art/walk.glb, not from work/walk/2/walk.glb by run walk:"),
+    ):
+        with pytest.raises(RuntimeError, match="AS_walk exists, " + message.replace(".", "[.]")):
+            refuse("/Game/A/AS_walk", asset, source, run, project_dir)
+
+
+def test_an_import_records_its_run_on_the_sequence_and_one_outside_a_run_clears_it(editor_shared):
+    asset = _Asset([], run="walk")
+    editor_shared.jam_mark_run(asset, "walk-fast")
+    assert editor_shared.jam_asset_run(asset) == "walk-fast"
+    editor_shared.jam_mark_run(asset, None)
+    assert editor_shared.jam_asset_run(asset) is None
 
 
 def test_joints_are_compared_under_the_names_unreal_gives_bones(tmp_path):
@@ -165,6 +208,7 @@ unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([t])
 
 @pytest.mark.skipif(not EDITOR, reason="set JAM_UNREAL_EDITOR to an UnrealEditor-Cmd to import through a real editor")
 def test_a_real_editor_imports_a_clip_onto_an_existing_skeleton_and_refuses_one_on_another(tmp_path):
+    """Also: a run's later attempt replaces its own sequence, read back from the saved asset by a new editor process."""
     (tmp_path / "Game.uproject").write_text(json.dumps(UPROJECT))
     (tmp_path / "Art").mkdir()
     for name in ("mesh.glb", "clip.glb", "two.glb", "wrong.glb"):
@@ -187,6 +231,17 @@ def test_a_real_editor_imports_a_clip_onto_an_existing_skeleton_and_refuses_one_
     shutil.copy(str(tmp_path / "Art" / "clip.glb"), str(tmp_path / "Art" / "clip-again.glb"))
     code, receipt, _ = run_command(tmp_path, "--kind", "animation", "Art/clip-again.glb", "--name", "Wave", *args, local=local)
     assert code == 1 and "AS_Wave exists, imported from Art/clip.glb, not from Art/clip-again.glb" in receipt["error"]["message"]
+    # a later attempt of the same run replaces what an earlier attempt imported; another run, or no run, does not
+    for attempt in ("1", "2"):
+        (tmp_path / "work" / "walk" / attempt).mkdir(parents=True)
+        shutil.copy(str(tmp_path / "Art" / "clip.glb"), str(tmp_path / "work" / "walk" / attempt / "clip.glb"))
+    for source, run in (("work/walk/1/clip.glb", "walk"), ("work/walk/2/clip.glb", "walk")):
+        code, receipt, err = run_command(tmp_path, "--kind", "animation", source, "--name", "Walk", "--run", run, *args, local=local)
+        assert code == 0, err
+        assert [(a["id"], a["source"]) for a in receipt["assets"]] == [("/Game/Hero/Animations/AS_Walk", source)]
+    for run in (("--run", "walk-fast"), ()):
+        code, receipt, _ = run_command(tmp_path, "--kind", "animation", "work/walk/1/clip.glb", "--name", "Walk", *run, *args, local=local)
+        assert code == 1 and "AS_Walk exists, imported from work/walk/2/clip.glb by run walk, not from work/walk/1/clip.glb" in receipt["error"]["message"]
     code, receipt, err = run_command(tmp_path, "--kind", "animation", "Art/two.glb", "--name", "Hero", *args, local=local)
     assert code == 0, err
     assert [a["id"] for a in receipt["assets"]] == ["/Game/Hero/Animations/AS_HeroBow", "/Game/Hero/Animations/AS_HeroWave"]

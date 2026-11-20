@@ -11,7 +11,7 @@ Four words carry this skill. The **clip spec** (`clip.json`) says what one clip 
 
 In a project with the jam toolkit, `jam` is `node tools/jam/jam.mjs`, paths are project-relative and every script runs from the project root (`jam blender <script> -- <arguments>`, `jam python <script> <arguments>`). Without the toolkit the same scripts run from the project root as `blender --background --python-exit-code 1 --python <script> -- <arguments>` and `python3 <script> <arguments>`; each script's header lists its arguments. When the toolkit is missing and wanted, use the `jam-setup` skill.
 
-A clip that is to be delivered into a project with the toolkit is made in an `animation` recipe run: `jam run start animation <clip id>`, then follow `jam run next <clip id>`, which names the step that is due and the command that records it. Exploring motion, or checking a clip nobody will deliver, happens outside a run, with the same steps and no records.
+A clip that is to be delivered into a project with the toolkit is made in an `animation` recipe run: `jam run start animation <clip id> --brief-text "<what the clip is for, on which character>"`, then follow `jam run next <clip id>`, which names the step that is due and the command that records it. Exploring motion, or checking a clip nobody will deliver, happens outside a run, with the same steps and no records.
 
 ## Make a clip
 
@@ -56,7 +56,9 @@ A clip that is to be delivered into a project with the toolkit is made in an `an
 
    Putting the clip into an engine is the `jam-engine` skill's `import --kind animation`, when the adapter has it (`jam engine show`); otherwise the step's condition is unmet and `jam run next` passes over it. Then:
 
-   `jam run record <id> delivery --file clip=<clip.glb> --file evidence=<out-dir>/clip-report.json --tool "<the tool recorded at check>" --note "..."`
+   `jam run record <id> delivery --file clip=<clip.glb> --file evidence=<out-dir>/clip-report.json --tool "<the tool recorded at check>" --note "<the same judgement of anything unmeasured>"`
+
+   Both notes name every key of the report's `unmeasured` word for word (such as `footSlide`), each with how the person judged it: the toolkit's `clip-report` check refuses a record whose note leaves one out.
 
    Done when `jam run next <id>` says every step is settled and `jam run deliver <id>` passes. Outside a run, done when the person has the clip, `clip.json`, the report, the sheet and the video, with your finding.
 
@@ -66,4 +68,4 @@ Any humanoid clip can be checked: write a spec for it with the person (step 1; `
 
 ## What is validated
 
-[references/validation.md](references/validation.md) lists every run with its numbers. In short: on generated walk cycles with faults of known size, the check read a planted foot's slide (also one too fast for detection), a sunken foot's penetration, a pop at either end next to a jump inside the clip, a jump inside the clip and an unclosed loop to within a few millimetres, and passed the clean clip, at 30 and at 29.97 fps; the root convention removed travel while keeping the pelvis bob and sway, and moved travel onto a root bone with every joint left in place. One generated clip went through the whole `animation` recipe on a bound test humanoid and was delivered. Not validated: real characters, captured or library motion, keying by hand beyond the blockout, turning or terrain-crossing clips. `python3 -m pytest <S>` runs the unit tests and, when Blender is found (`JAM_BLENDER`, else PATH), the Blender tests.
+[references/validation.md](references/validation.md) lists every run with its numbers. In short: on generated walk cycles with faults of known size, the check read a planted foot's slide (also one too fast for detection), a sunken foot's penetration, a pop at either end next to a jump inside the clip, a jump inside the clip and an unclosed loop to within a few millimetres, and passed the clean clip, at 30 and at 29.97 fps; the root convention removed travel while keeping the pelvis bob and sway, and moved travel onto a root bone with every joint left in place. On a bound test humanoid, a clip keyed from a blockout and a generated clip each went through the whole `animation` recipe and were delivered; generated stepping clips failed the check on dragging and drifting feet, as they should. Not validated: real characters, captured or library motion, keying by a person, turning or terrain-crossing clips. `python3 -m pytest <S>` runs the unit tests and, when Blender is found (`JAM_BLENDER`, else PATH), the Blender tests.
