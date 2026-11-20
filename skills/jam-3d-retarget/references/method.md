@@ -10,7 +10,7 @@ Before any frame is transferred, the run refuses a skeleton whose head is not ab
 
 ## Rest alignment
 
-For every landmark both maps place, a turn `Q` is computed once from the two rest poses:
+A landmark's **segment** runs from it to the next landmark on its chain: `hips` → `spine` → `chest` → `neck` → `head`; `shoulder` → `upper-arm` → `lower-arm` → `hand` → `middle-1`; `upper-leg` → `lower-leg` → `foot` → `toes`; each finger joint to the next. For every landmark both maps place, a turn `Q` is computed once from the two rest poses:
 
 | Landmark | `Q` |
 | --- | --- |
@@ -40,7 +40,9 @@ Frames are whole frames from the source's first key, at the source's frame rate 
 
 ## Contacts
 
-`--contacts auto` finds, for each ankle (`foot.*`) and toe joint (`toes.*`) both maps place, the windows where the source joint moves slower than `--contact-speed` source heights per second (0.1 unless set) for at least `--contact-min-frames` frames (3 unless set). These defaults pick out planted feet in walking and standing clips; set them from the source when it jitters or shuffles. Height above any ground is not used, so a foot planted on a step counts.
+`--contacts` has no default: the person chooses `auto`, a contacts file or `none`.
+
+`--contacts auto` finds, for each ankle (`foot.*`) and toe joint (`toes.*`) both maps place, the windows where the source joint moves slower than `--contact-speed` for at least `--contact-min-frames` frames (1 unless set: the speed alone decides; set more to ignore brief stops). The speed is in source heights per second and has no default, since how still a planted foot stands depends on the source. A speed `v` given in metres per second on the source is `v / H`, with `H` the source's `heightMeters`; one given on the target, such as a clip spec's `contacts.detect.speed` when the target is the spec's rig, is `v / (k · H)`, because travel reaches the target scaled by `k` (below). The run refuses `auto` without a speed and prints both divisors for the pair. Height above any ground is not used, so a foot planted on a step counts.
 
 A contacts file names the windows instead, in seconds of the source clip:
 
@@ -55,10 +57,18 @@ Each window's goal is the mean, over the window, of the source joint's position 
 
 Per window the report gives the source joint's slide, the target's slide without and with the correction (largest distance from where it stood at the window's first frame), how far the correction moved it, and `missMeters`, how far it stayed from its goal: above zero when the goal is out of the limb's reach, and for toes when the ankle of the same foot is held (the foot's length differs from `k` times the source's).
 
-## The round trip
+## The checks
 
-For each animation the plain transfer (without contact correction) is retargeted back onto the source with the same rules, and every shared landmark is compared with the original: `roundTrip.maxHeights` (largest distance, in source heights) and `maxDegrees` (largest rotation difference). Rest alignment, rotation transfer and travel scaling are exactly invertible, so the round trip returns to rounding error whenever the maps carry all of the source's motion. It fails (default tolerances 0.002 heights and 1 degree, set with `--round-trip-tolerance` and `--round-trip-degrees`) when the source moves bones the maps leave out, which then appear in `notCarried`.
+Each animation passes when all three hold; the report's `passed` also needs the file check below.
+
+**Agreement.** `agreement.transfer` is, per body part, the largest angle over all frames between a source segment and the same target segment, before contact correction; `agreement.final` the same after it. A correct transfer matches every arm and leg segment exactly: each target bone's rest segment is turned onto the source's by `Q` and then moved by the source's own rotation change, so it points where the source's segment points, whatever the two rests, proportions and bone axes. Arms and legs therefore measure zero to rounding, and anything more means a mapped bone does not stand at its landmark, or a bone between two landmarks moves on the source or stands differently on the target. The check fails when arms or legs exceed `--agreement-degrees` (1 unless set: far above rounding and a file's own numerical noise, far below a misplaced joint). The trunk and the feet are reported but not judged: they keep the rests' own difference by design.
+
+**Side flips.** `sideFlips` counts, per hand and foot, the frames on which it is on the other side of the body's midplane than the source's, both clear of the midplane by 3% of the height: the limb crossed through the body. The check fails when any joint has more than `--side-flip-frames` such frames (0 unless set). A correct transfer can still flip a hand that the source holds just past the midplane when the two bodies' widths differ; allow those frames only after seeing them in the sheet.
+
+**The round trip.** The plain transfer (without contact correction) is retargeted back onto the source with the same rules, and every shared landmark is compared with the original: `roundTrip.maxHeights` (largest distance, in source heights) and `maxDegrees` (largest rotation difference). Rest alignment, rotation transfer and travel scaling are exactly invertible, so the round trip proves only that: it returns to rounding error even for a wrong map, and measures more only when the source moves bones the maps leave out, which then appear in `notCarried`. It fails above `--round-trip-tolerance` source heights (0.002 unless set) or `--round-trip-degrees` (1 unless set).
 
 ## Checks on the written file
 
-The written `.glb` is read back and played: `fileCheckMeters` is the largest distance between a joint as played from the file and as computed (a few tenths of a micrometre from storing values as 32-bit floats). `retarget_evidence.py` repeats that check through Blender's own glTF import (`playbackCheckMeters`).
+The written `.glb` is read back and played: `fileCheckMeters` is the largest distance between a joint as played from the file and as computed (a few tenths of a micrometre from storing values as 32-bit floats); it fails above 0.01% of the target's height. `retarget_evidence.py` repeats that check through Blender's own glTF import (`playbackCheckMeters`).
+
+The written file is valid glTF 2.0: a node the animations drive that stores a `matrix` is written as the same translation, rotation and scale, since glTF forbids a matrix on an animated node; the target's dropped animations take their accessors, buffer views and bytes with them (`droppedDataRemovedBytes`). When the target uses an extension the writer cannot renumber references in, that data stays in the file unreferenced and the report warns.

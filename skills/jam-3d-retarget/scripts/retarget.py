@@ -2,8 +2,9 @@
 """Retarget the animations of one humanoid skeleton onto another, each described by a landmark map.
 
     python retarget.py <source.glb> <source-map.json> <target.glb> <target-map.json> <out-dir>
-                       [--animation <name>]... [--fps <n>] [--contacts auto|none|<contacts.json>]
-                       [--contact-speed 0.1] [--contact-min-frames 3] [--contact-blend 3]
+                       --contacts auto|none|<contacts.json> [--contact-speed <source heights per second>]
+                       [--contact-min-frames 1] [--contact-blend 3] [--animation <name>]... [--fps <n>]
+                       [--agreement-degrees 1.0] [--side-flip-frames 0]
                        [--round-trip-tolerance 0.002] [--round-trip-degrees 1.0] [--keep-target-animations]
                        [--name retargeted]
 
@@ -14,15 +15,18 @@ descriptor with `rig.landmarks`, or a skeleton profile.
 
 Every animation of the source is retargeted (or those named with --animation), sampled on whole frames at the source's
 frame rate, or at --fps. Contacts: `auto` finds windows where a source ankle or toes joint moves slower than
---contact-speed source heights per second for --contact-min-frames frames and holds the target's joint still there with
-two-bone IK, blended in and out over --contact-blend frames; a contacts file names the windows instead (feet, toes or
-hands; references/method.md, Contacts); `none` turns the correction off.
+--contact-speed (required with auto) for at least --contact-min-frames frames and holds the target's joint still there
+with two-bone IK, blended in and out over --contact-blend frames; a contacts file names the windows instead (feet, toes
+or hands; references/method.md, Contacts); `none` turns the correction off.
 
-The round trip retargets the result back onto the source (without contact correction) and compares it with the source:
-it passes when every joint both maps place returns within --round-trip-tolerance source heights and
---round-trip-degrees. Writes <name>.glb (the target file with the retargeted animations; its nodes, meshes and skin
-copied unchanged) and retarget-report.json to <out-dir>. Exits 1, with the report written, when the round trip fails;
-exits 2, writing nothing, when the inputs cannot be read as two humanoids. Plain Python with numpy.
+Three checks decide `passed`, per animation: the transfer's arm and leg segments point where the source's do, within
+--agreement-degrees (a correct map gives 0 to rounding); no hand or foot is on the other side of the body than the
+source's on more than --side-flip-frames frames; and the round trip, the plain transfer retargeted back onto the source,
+returns within --round-trip-tolerance source heights and --round-trip-degrees (the transfer is invertible, so it fails
+only when the source moves bones the maps do not carry). Writes <name>.glb (the target file with the retargeted
+animations; its scenes, meshes and skin copied unchanged) and retarget-report.json to <out-dir>. Exits 1, with both
+written, when a check fails; exits 2, writing nothing, when the inputs cannot be read as two humanoids or an option is
+missing. Plain Python with numpy.
 """
 import argparse
 import json
@@ -37,6 +41,8 @@ from jamretarget import gltf, measure, report, transfer  # noqa: E402
 from jamretarget.skeleton import Skeleton, SkeletonError, load_map  # noqa: E402
 
 CONTACT_JOINTS = ("foot.l", "foot.r", "toes.l", "toes.r", "hand.l", "hand.r")
+# Body parts whose segments a correct transfer matches exactly; the trunk and the feet keep their rests' own difference.
+JUDGED = ("arms", "legs")
 
 
 def parse(argv):
@@ -45,10 +51,12 @@ def parse(argv):
         p.add_argument(name)
     p.add_argument("--animation", action="append", default=[])
     p.add_argument("--fps", type=float)
-    p.add_argument("--contacts", default="auto")
-    p.add_argument("--contact-speed", type=float, default=0.1)
-    p.add_argument("--contact-min-frames", type=int, default=3)
+    p.add_argument("--contacts", required=True, help="auto, none, or a contacts file")
+    p.add_argument("--contact-speed", type=float, help="source heights per second; required with --contacts auto")
+    p.add_argument("--contact-min-frames", type=int, default=1)
     p.add_argument("--contact-blend", type=int, default=3)
+    p.add_argument("--agreement-degrees", type=float, default=1.0)
+    p.add_argument("--side-flip-frames", type=int, default=0)
     p.add_argument("--round-trip-tolerance", type=float, default=0.002)
     p.add_argument("--round-trip-degrees", type=float, default=1.0)
     p.add_argument("--keep-target-animations", action="store_true")
@@ -56,7 +64,21 @@ def parse(argv):
     a = p.parse_args(argv)
     if a.fps is not None and a.fps <= 0:
         p.error("--fps must be positive")
+    if a.contact_speed is not None and a.contact_speed <= 0:
+        p.error("--contact-speed must be positive")
+    if a.contact_min_frames < 1:
+        p.error("--contact-min-frames must be at least 1")
     return a
+
+
+def speed_needed(src, tgt):
+    """The refusal for `--contacts auto` without a speed, with this pair's conversion from metres per second."""
+    k = tgt.leg_length / src.leg_length
+    return ("--contacts auto needs --contact-speed: how slow a source ankle or toes joint must move to count as planted, "
+            "in source heights per second; nothing here chooses it for you. The source is %.4g m tall and travel scales "
+            "by k = %.4g onto the target, so a speed of v m/s on the source is v / %.4g, and v m/s on the target (such "
+            "as a clip spec's contacts.detect.speed, when the target is the spec's rig) is v / %.4g. Or name the "
+            "windows in a contacts file, or pass --contacts none" % (src.height, k, src.height, k * src.height))
 
 
 def sig(x):
@@ -148,27 +170,40 @@ def retarget_one(args, src, tgt, plan, back, anim, listed, warnings):
     for kind, names in missing.items():
         warnings.append("%s: the source animates the %s of %s; that motion is not carried (only rotations of landmarks both "
                         "maps place, and the hips' and root's translation, are)" % (anim["name"], kind, ", ".join(names)))
+    agreement = {"transfer": measure.segment_agreement(plan, src_world, plain_world),
+                 "final": measure.segment_agreement(plan, src_world, world), "judged": list(JUDGED),
+                 "toleranceDegrees": args.agreement_degrees}
+    off = {g: v["maxDegrees"] for g, v in agreement["transfer"].items() if g in JUDGED and v["maxDegrees"] > args.agreement_degrees}
+    agreement["passed"] = not off
+    flips = measure.side_flips(plan, src_world, world)
+    flips_passed = max(flips.values()) <= args.side_flip_frames
     entry = {"name": anim["name"], "sourceFps": source_fps, "fps": fps, "resampled": args.fps is not None and args.fps != source_fps,
              "frames": F, "sourceDurationSeconds": round(source_duration, 6), "durationSeconds": round(float(times[-1] - times[0]), 6),
              "startSeconds": round(float(times[0]), 6),
              "hipsTravel": {"source": measure.travel(src_world[:, src.at["hips"], :3, 3]),
                             "target": measure.travel(world[:, tgt.at["hips"], :3, 3])},
-             "agreement": {"transfer": measure.segment_agreement(plan, src_world, plain_world),
-                           "final": measure.segment_agreement(plan, src_world, world)},
-             "sideFlips": measure.side_flips(plan, src_world, world),
+             "agreement": agreement,
+             "sideFlips": flips, "sideFlipsAllowedFrames": args.side_flip_frames, "sideFlipsPassed": flips_passed,
              "contactSource": contact_source,
              "contacts": [dict(d, seconds=[round(float(times[d["frames"][0]]), 4), round(float(times[d["frames"][1]]), 4)]) for d in details],
              "roundTrip": {"maxMeters": sig(rt["maxMeters"]), "meanMeters": sig(rt["meanMeters"]),
                            "maxHeights": sig(rt["maxHeights"]), "maxDegrees": sig(rt["maxDegrees"]), "worst": rt["worst"],
                            "toleranceHeights": args.round_trip_tolerance, "toleranceDegrees": args.round_trip_degrees, "passed": rt_passed},
-             "notCarried": missing}
+             "notCarried": missing, "passed": bool(agreement["passed"] and flips_passed and rt_passed)}
     if abs(entry["durationSeconds"] - source_duration) > 0.5 / fps:
         warnings.append("%s: %.4f s at %g fps is not a whole number of frames; the clip ends at %.4f s"
                         % (anim["name"], source_duration, fps, entry["durationSeconds"]))
-    flips = {k: n for k, n in entry["sideFlips"].items() if n}
-    if flips:
+    for g, deg in off.items():
+        warnings.append("%s: the target's %s point up to %.1f degrees away from the source's (worst %s; tolerance %g): a map "
+                        "places a landmark on a bone that does not stand at it, or bones between two landmarks move"
+                        % (anim["name"], g, deg, agreement["transfer"][g]["worst"], args.agreement_degrees))
+    crossed = {k: n for k, n in flips.items() if n}
+    if crossed:
         warnings.append("%s: on some frames a limb is on the other side of the body than on the source: %s"
-                        % (anim["name"], ", ".join("%s %d frames" % kv for kv in flips.items())))
+                        % (anim["name"], ", ".join("%s %d frames" % kv for kv in crossed.items())))
+    if not rt_passed:
+        warnings.append("%s: the round trip lands %.3g source heights and %.3g degrees from the source (tolerance %g and %g)"
+                        % (anim["name"], rt["maxHeights"], rt["maxDegrees"], args.round_trip_tolerance, args.round_trip_degrees))
     return entry, {"name": anim["name"], "times": times, "channels": transfer.channels(tgt, local, rot, pos)}, world
 
 
@@ -188,6 +223,8 @@ def main(argv=None):
         if not anims:
             raise SkeletonError("%s holds no animation" % args.source)
         listed = None if args.contacts in ("auto", "none") else read_contacts(args.contacts)
+        if args.contacts == "auto" and args.contact_speed is None:
+            raise SkeletonError(speed_needed(src, tgt))
     except (SkeletonError, gltf.GltfError, OSError) as e:
         print("error: %s" % e, file=sys.stderr)
         return 2
@@ -203,7 +240,10 @@ def main(argv=None):
         entries.append(entry); written.append(out); worlds.append(world)
     os.makedirs(args.out, exist_ok=True)
     model_path = os.path.join(args.out, args.name + ".glb")
-    dropped = gltf.add_animations(args.target, model_path, written, keep_existing=args.keep_target_animations)
+    written_file = gltf.add_animations(args.target, model_path, written, keep_existing=args.keep_target_animations)
+    if written_file["removedBytes"] is None:
+        warnings.append("the target's dropped animations stay in the written file as unreferenced data: it uses an extension "
+                        "this writer does not renumber")
     # the written file, read back, must play what was computed
     check = Skeleton(model_path, {v: k for k, v in tgt.bone_of.items()}, "written")
     by_name = {a["name"]: a for a in check.model.animations()}
@@ -215,7 +255,7 @@ def main(argv=None):
     file_ok = all(e["fileCheckMeters"] <= 1e-4 * tgt.height for e in entries)
     if not file_ok:
         warnings.append("the written file does not play back what was computed (see fileCheckMeters)")
-    passed = file_ok and all(e["roundTrip"]["passed"] for e in entries)
+    passed = file_ok and all(e["passed"] for e in entries)
     inputs = [report.stamp("source", args.source), report.stamp("source-map", args.source_map),
               report.stamp("target", args.target), report.stamp("target-map", args.target_map)]
     if listed is not None:
@@ -230,12 +270,15 @@ def main(argv=None):
                     "travelOn": "root and hips" if plan.with_root else "hips"},
            "options": {"fps": args.fps, "contacts": args.contacts, "contactSpeedHeightsPerSecond": args.contact_speed,
                        "contactMinFrames": args.contact_min_frames, "contactBlendFrames": args.contact_blend,
+                       "agreementDegrees": args.agreement_degrees, "sideFlipFrames": args.side_flip_frames,
+                       "roundTripTolerance": args.round_trip_tolerance, "roundTripDegrees": args.round_trip_degrees,
                        "keepTargetAnimations": args.keep_target_animations},
-           "animations": entries, "droppedTargetAnimations": dropped, "warnings": warnings}
+           "animations": entries, "droppedTargetAnimations": written_file["dropped"],
+           "droppedDataRemovedBytes": written_file["removedBytes"], "warnings": warnings}
     report_path = os.path.join(args.out, "retarget-report.json")
     report.write(report_path, doc)
     print(json.dumps({"model": model_path.replace(os.sep, "/"), "report": report_path.replace(os.sep, "/"), "passed": passed,
-                      "animations": [{"name": e["name"], "frames": e["frames"], "fps": e["fps"], "roundTripMaxHeights": e["roundTrip"]["maxHeights"],
+                      "animations": [{"name": e["name"], "passed": e["passed"], "frames": e["frames"], "fps": e["fps"],
                                       "contacts": len(e["contacts"])} for e in entries], "warnings": len(warnings)}))
     return 0 if passed else 1
 

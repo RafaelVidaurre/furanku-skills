@@ -4,6 +4,7 @@ test rigs (an A-pose rig and a T-pose rig of other proportions, bone axes and hi
 import copy
 import json
 import os
+import re
 import sys
 
 import numpy as np
@@ -39,9 +40,15 @@ def skel(rigs, name, role="rig", table=None):
     return Skeleton(str(rigs / ("rig-%s.glb" % name)), table or load_map(str(rigs / ("rig-%s.map.json" % name))), role)
 
 
-def run(rigs, out, src="a", tgt="b", *extra, src_map=None, tgt_map=None, src_file=None):
+# The test clips' planted feet stand exactly still, so any small speed finds them; these are the validated runs' values.
+CONTACTS = ["--contacts", "auto", "--contact-speed", "0.1", "--contact-min-frames", "3"]
+
+
+def run(rigs, out, src="a", tgt="b", *extra, src_map=None, tgt_map=None, src_file=None, tgt_file=None):
+    contacts = [] if "--contacts" in extra else CONTACTS
     code = retarget.main([src_file or str(rigs / ("rig-%s.glb" % src)), src_map or str(rigs / ("rig-%s.map.json" % src)),
-                          str(rigs / ("rig-%s.glb" % tgt)), tgt_map or str(rigs / ("rig-%s.map.json" % tgt)), str(out)] + list(extra))
+                          tgt_file or str(rigs / ("rig-%s.glb" % tgt)), tgt_map or str(rigs / ("rig-%s.map.json" % tgt)), str(out)]
+                         + contacts + list(extra))
     path = out / "retarget-report.json"
     return code, (load(path) if path.exists() else None)
 
@@ -89,18 +96,80 @@ def test_frame_rate_is_read_from_the_key_grid():
     assert gltf.frame_rate(np.arange(5, dtype=np.float32) / np.float32(24)) == 24.0
 
 
-def test_writing_animations_keeps_everything_else(rigs, tmp_path):
+STILL = [{"name": "still", "times": [0.0, 1.0], "channels": [(1, "translation", [[0, 1, 0], [0, 2, 0]])]}]
+
+
+def referenced(doc):
+    """Every accessor and buffer view the file's JSON refers to."""
+    acc = {v for _, _, v in gltf._accessor_refs(doc)}
+    return acc, {v for _, _, v in gltf._view_refs(doc)}
+
+
+def same_data(before, after):
+    """The meshes' and skins' data read back equal, whatever their accessors are numbered."""
+    for b, a in zip(gltf._accessor_refs(before.json), gltf._accessor_refs(after.json)):
+        if b[1] not in ("input", "output"):
+            assert np.array_equal(before.accessor(b[2]), after.accessor(a[2]))
+
+
+def test_writing_animations_keeps_everything_else_and_drops_the_old_animations_data(rigs, tmp_path):
     out = str(tmp_path / "copy.glb")
-    dropped = gltf.add_animations(str(rigs / "rig-b.glb"), out, [{"name": "still", "times": [0.0, 1.0],
-                                                                  "channels": [(1, "translation", [[0, 1, 0], [0, 2, 0]])]}])
+    result = gltf.add_animations(str(rigs / "rig-b.glb"), out, STILL)
     before, after = gltf.Gltf(str(rigs / "rig-b.glb")), gltf.Gltf(out)
-    assert dropped == ["walk", "arms"]
-    for key in ("nodes", "skins", "meshes", "materials", "scenes"):
+    assert result["dropped"] == ["walk", "arms"] and result["removedBytes"] > 0
+    for key in ("nodes", "skins", "materials", "scenes"):
         assert after.json[key] == before.json[key]
-    assert after.bin[:len(before.bin)] == before.bin
     assert [a["name"] for a in after.animations()] == ["still"]
-    assert np.allclose(after.accessor(after.json["meshes"][0]["primitives"][0]["attributes"]["POSITION"]),
-                       before.accessor(before.json["meshes"][0]["primitives"][0]["attributes"]["POSITION"]))
+    same_data(before, after)
+    acc, views = referenced(after.json)                                  # nothing is left unreferenced
+    assert acc == set(range(len(after.json["accessors"]))) and views == set(range(len(after.json["bufferViews"])))
+    assert len(after.bin) < len(before.bin) - result["removedBytes"] + 64
+    kept = gltf.add_animations(str(rigs / "rig-b.glb"), str(tmp_path / "kept.glb"), STILL, keep_existing=True)
+    model = gltf.Gltf(str(tmp_path / "kept.glb"))
+    assert kept == {"dropped": [], "removedBytes": 0} and model.bin[:len(before.bin)] == before.bin
+    assert [a["name"] for a in model.animations()] == ["walk", "arms", "still"]
+
+
+def test_a_file_using_an_unknown_extension_keeps_the_dropped_data(rigs, tmp_path):
+    doc = gltf.Gltf(str(rigs / "rig-b.glb"))
+    data = copy.deepcopy(doc.json)
+    data["extensionsUsed"] = ["EXT_mesh_gpu_instancing"]
+    gltf.write_glb(str(tmp_path / "ext.glb"), data, doc.bin)
+    result = gltf.add_animations(str(tmp_path / "ext.glb"), str(tmp_path / "out.glb"), STILL)
+    after = gltf.Gltf(str(tmp_path / "out.glb"))
+    assert result == {"dropped": ["walk", "arms"], "removedBytes": None} and after.bin[:len(doc.bin)] == doc.bin
+
+
+def test_animated_nodes_are_written_without_a_matrix(rigs, tmp_path):
+    """glTF forbids a matrix on an animated node: a target storing matrices gets the same transform as TRS on every node
+    it animates, and the written file plays what was computed."""
+    doc = gltf.Gltf(str(rigs / "rig-b.glb"))
+    T, R, S = doc.rest_trs()
+    data = copy.deepcopy(doc.json)
+    data.pop("animations")
+    for i, node in enumerate(data["nodes"]):
+        for key in ("translation", "rotation", "scale"):
+            node.pop(key, None)
+        node["matrix"] = [float(v) for v in mathx.trs(T[i:i + 1], R[i:i + 1], S[i:i + 1])[0].T.reshape(-1)]
+    gltf.write_glb(str(tmp_path / "matrix.glb"), data, doc.bin)
+    code, rep = run(rigs, tmp_path / "out", tgt_file=str(tmp_path / "matrix.glb"))
+    assert code == 0 and rep["passed"] and all(e["fileCheckMeters"] < 1e-5 for e in rep["animations"])
+    model = gltf.Gltf(str(tmp_path / "out" / "retargeted.glb"))
+    animated = {c[0] for a in model.animations() for c in a["channels"]}
+    assert animated and not any("matrix" in model.nodes[i] for i in animated)
+    assert all("matrix" in n for i, n in enumerate(model.nodes) if i not in animated)
+    T2, R2, S2 = model.rest_trs()
+    assert np.allclose(T2, T) and np.allclose(np.abs(np.sum(R2 * R, axis=1)), 1) and np.allclose(S2, S)
+
+
+def test_a_gltf_with_a_percent_encoded_buffer_uri_is_read(rigs, tmp_path):
+    doc = gltf.Gltf(str(rigs / "rig-a.glb"))
+    data = copy.deepcopy(doc.json)
+    data["buffers"][0]["uri"] = "rig%20a%23data.bin"
+    (tmp_path / "rig a#data.bin").write_bytes(doc.bin)
+    dump(tmp_path / "rig-a.gltf", data)
+    model = gltf.Gltf(str(tmp_path / "rig-a.gltf"))
+    assert [a["name"] for a in model.animations()] == ["walk", "arms"]
 
 
 # ---- maps and skeletons ------------------------------------------------------------------------------------------------
@@ -254,7 +323,7 @@ def test_root_motion_moves_root_to_root_when_both_rigs_have_one(rigs, tmp_path):
     bones = [(n, p, np.asarray(pos, dtype=float) * 1.2, k) for n, p, pos, k in make_test_rigs.rig_b()]
     make_test_rigs.write_rig(str(tmp_path / "tall.glb"), make_test_rigs.Rig(bones, "world"), make_test_rigs.MOTIONS[:1], 24)
     code = retarget.main([str(rigs / "rig-b.glb"), str(rigs / "rig-b.map.json"), str(tmp_path / "tall.glb"), str(rigs / "rig-b.map.json"),
-                          str(tmp_path / "out"), "--animation", "walk"])
+                          str(tmp_path / "out"), "--animation", "walk"] + CONTACTS)
     rep = load(str(tmp_path / "out" / "retarget-report.json"))
     assert code == 0 and rep["root"] == {"source": "Root", "target": "Root", "travelOn": "root and hips"}
     assert rep["hipsScale"]["factor"] == pytest.approx(1.2)
@@ -377,6 +446,35 @@ def test_motion_on_a_bone_no_map_places_fails_the_round_trip_and_is_named(rigs, 
     assert not rt["passed"] and rt["maxHeights"] > 0.002
     assert any("SpineMid" in w and "not carried" in w for w in rep["warnings"])
     assert os.path.isfile(str(tmp_path / "out" / "retargeted.glb"))
+
+
+def test_a_map_placing_a_landmark_on_the_wrong_bone_fails(rigs, tmp_path):
+    """The target's lower-arm.l mapped to its upper-arm twist bone: the transfer is still exactly invertible, so the round
+    trip passes, but the forearm cannot follow the source's and the hand crosses the body. Both fail the run, unless the
+    person raises the two tolerances."""
+    table = {k: v for k, v in load_map(str(rigs / "rig-b.map.json")).items() if v != "lower-arm.l"}
+    wrong = dump(tmp_path / "wrong.json", {"landmarks": dict(table, **{"ArmTwist.l": "lower-arm.l"})})
+    code, rep = run(rigs, tmp_path / "out", "a", "b", "--animation", "arms", tgt_map=wrong)
+    arms = rep["animations"][0]
+    assert code == 1 and not rep["passed"] and not arms["passed"] and arms["roundTrip"]["passed"]
+    assert not arms["agreement"]["passed"] and arms["agreement"]["transfer"]["arms"]["maxDegrees"] > 45
+    assert arms["sideFlips"]["hand.l"] > 0 and not arms["sideFlipsPassed"]
+    assert any("arms point up to" in w for w in rep["warnings"]) and os.path.isfile(str(tmp_path / "out" / "retargeted.glb"))
+    code, rep = run(rigs, tmp_path / "loose", "a", "b", "--animation", "arms", "--agreement-degrees", "90",
+                    "--side-flip-frames", str(arms["sideFlips"]["hand.l"]), tgt_map=wrong)
+    assert code == 0 and rep["passed"] and rep["options"]["agreementDegrees"] == 90
+
+
+def test_detected_contacts_need_a_speed_and_say_how_to_convert_one(rigs, tmp_path, capsys):
+    code = retarget.main([str(rigs / "rig-a.glb"), str(rigs / "rig-a.map.json"), str(rigs / "rig-b.glb"), str(rigs / "rig-b.map.json"),
+                          str(tmp_path / "x"), "--contacts", "auto"])
+    message = capsys.readouterr().err
+    assert code == 2 and "--contact-speed" in message and not (tmp_path / "x").exists()
+    code, rep = run(rigs, tmp_path / "out", "a", "b", "--contacts", "none")
+    divisor = float(re.search(r"on the target .* is v / ([0-9.]+)\. Or", message).group(1))
+    assert divisor == pytest.approx(rep["hipsScale"]["factor"] * rep["source"]["heightMeters"], rel=1e-3)
+    with pytest.raises(SystemExit):                                     # the contacts choice is never left to a default
+        retarget.parse([str(rigs / "rig-a.glb"), "m", "t", "tm", "out"])
 
 
 def test_inputs_that_cannot_be_read_write_nothing(rigs, tmp_path):

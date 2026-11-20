@@ -18,30 +18,18 @@ Keys are bone names exactly as the glTF file names its nodes; values are landmar
 
 | The skeleton is | Use |
 | --- | --- |
-| A rig made by a rigging skill or tool that ships maps for its namings | That map file, by path. A rig bound with one bone per landmark, named by the landmark, needs a map whose keys and values are the same names |
+| A rig made by a rigging skill or tool that ships maps for its namings | That map file, by path. A rig bound with one bone per landmark, named by the landmark, needs a map whose keys and values are the same names (the `jam-3d-rig` skill ships one for its rigs) |
 | A provider's output skeleton | The provider descriptor itself, or a map file saved from its `rig.landmarks` |
 | A rig built on a skeleton profile | The profile file |
 | Anything else | A map you write (below) |
 
 ### Writing one
 
-Run `retarget.py` once with `"landmarks": {}` for that side: the error lists every bone of the file that the map does not name. Map each bone that stands at a landmark; leave out twist, roll, helper, attachment and end bones and extra spine joints (they keep their rest transform on a target, and their motion is not carried from a source). Name sides by the character's own left and right, whatever the bone names say: the run refuses a map whose left joints are not on `+X`.
+Run the retarget command once with `"landmarks": {}` for that side: the error lists every bone of the file that the map does not name. Map each bone that stands at a landmark; leave out twist, roll, helper, attachment and end bones and extra spine joints (they keep their rest transform on a target, and their motion is not carried from a source). Name sides by the character's own left and right, whatever the bone names say: the run refuses a map whose left joints are not on `+X`. A bone mapped to a landmark it does not stand at fails the run's agreement check, even when the round trip returns exactly.
 
-## The vocabulary
+## Landmarks
 
-Sided landmarks end in `.l` or `.r`.
-
-| Landmark | Where it sits | Next on its chain |
-| --- | --- | --- |
-| `hips` | Centre of the pelvis; the bone that carries travel | `spine` |
-| `spine` | Lowest spine joint, at the top of the pelvis | `chest` |
-| `chest` | Top of the spine, where the neck and collarbones attach | `neck` |
-| `neck` | Base of the neck | `head` |
-| `head` | Base of the skull | (end) |
-| `shoulder` | Inner end of the collarbone | `upper-arm` |
-| `upper-arm`, `lower-arm`, `hand` | Shoulder joint, elbow, wrist | `lower-arm`, `hand`, `middle-1` |
-| `upper-leg`, `lower-leg`, `foot`, `toes` | Hip joint, knee, ankle, ball of the foot | `lower-leg`, `foot`, `toes`, (end) |
-| `thumb-1..3`, `index-1..3`, `middle-1..3`, `ring-1..3`, `pinky-1..3` | The three joints of each finger, from the knuckle (the thumb from its base in the palm) | the next joint, (end) after `-3` |
+The landmark names, where each joint sits and which are optional are defined by the `jam-3d-rig` skill's landmarks reference; maps here use exactly that vocabulary, and a map naming anything else is refused.
 
 Required on both maps: `hips`, `head`, and on both sides `upper-arm`, `lower-arm`, `hand`, `upper-leg`, `lower-leg`, `foot`. Everything else is optional; a landmark only one map places is listed in the report (`targetOnlyKeptAtRest` or `sourceOnlyNotCarried`).
 
