@@ -18,19 +18,20 @@ Verified with `tripo doctor --json` and `tripo balance --json`. Report installed
 
 ## Pricing a job
 
-`tripo make ... --dry-run --json` prints the normalized request, warnings, removed fields, the view mapping and `generation_credits_estimate`. That is an offline list-price estimate (`--list-price`): it leaves out chain steps it cannot estimate and does not check plan access. Name the model explicitly; CLI defaults and presets can pick a more expensive one.
+`tripo make ... --dry-run --json` prints the normalized request, warnings, removed fields, the view mapping and `generation_credits_estimate`. That is an offline list-price estimate (`--list-price`): it leaves out chain steps it cannot estimate and does not check plan access. Name the model explicitly with `--model`: in CLI 0.11.2 the default, presets included, is `tripo-p2` (`P2-20260801`), listed at 100 to 130 credits for a textured model against 10 to 50 for `tripo-v3.1` (its bundled docs, read 2026-11-20). Put that difference to the person before choosing.
 
 ## Mesh generation
 
 - `make` takes 2 to 4 images for multiview. Send individual views and read the normalized mapping in the dry run.
 - Text-to-model suits a connectivity test, not production work.
+- PBR maps are off unless asked for (`-p pbr=true`).
 - `face_limit` and generated UVs and textures are still measured and reviewed like any other result.
 
 ## Motion (checked 2026-11-20)
 
 From the API v3 docs ([rig check](https://developers.tripo3d.ai/en/docs/animations-rig-check), [rig](https://developers.tripo3d.ai/en/docs/animations-rig), [retarget](https://developers.tripo3d.ai/en/docs/animations-retarget), [pricing](https://developers.tripo3d.ai/en/pricing), [changelog](https://developers.tripo3d.ai/en/docs/changelog) to "Rigging v3.0 and retargeting upgrade (2026-10)").
 
-- **Clips play only on a model Tripo rigged.** Retarget means "Apply a preset animation to a rigged 3D model": its input is a Tripo rig task (or a later task on that model). No call takes the person's own skeleton or clip. Auto-rigging says nothing about fitting the project's own skeleton.
+- **Clips play only on a model Tripo rigged.** Retarget means "Apply a preset animation to a rigged 3D model": its input is a Tripo rig task (or a later task on that model). No call takes the person's own skeleton or clip. Auto-rigging says nothing about fitting the project's own skeleton. A quadruped is rigged with `rig-v2.5` unless a rig model is named; jam-3d-rig binds humanoids only.
 - **Rig check** (free) takes GLB, FBX, OBJ or STL up to 150 MB and returns whether the model can be rigged and a recommended rig type (biped, quadruped, hexapod, octopod, avian, serpentine, aquatic).
 - **Rig models.** `v1.0-20240301` (default): bipeds only, the 90+ `preset:biped:*` clips. `v3.0-20260909`: "recommended for humanoid characters", requested explicitly. `v2.5-20260210`: creatures. Output `glb` (default) or `fbx`.
 - **Output skeleton.** For bipeds `spec` picks the bone naming: `tripo` (default) or `mixamo`, and on v3.0 also `actorcore`, `unity`, `unreal` or `vrm`. No joint list is published. Retargeting brings the clip onto the project rig unless its skeleton is the project's.
@@ -45,7 +46,7 @@ From the API v3 docs ([rig check](https://developers.tripo3d.ai/en/docs/animatio
 - Record the task id at once; the real charge is the task's `credits_consumed`.
 - After a timeout: `tripo task watch <id> --download`. After a failed download: `tripo task get <id> --download`. Never `redo` to recover.
 - A lost create response stays `lost` until provider history and balance are reconciled.
-- Exit code 4 means insufficient credits: stop paid commands and tell the person.
+- Exit code 4 means insufficient credits: stop paid commands and give the person the top-up link from the error's `suggestion`. The CLI's skill lists the other exit codes; branch on them, not on message text.
 - The CLI's `task.json` can hold temporary links and machine paths. Keep it in ignored scratch; record ids, settings, the charge and file hashes instead.
 
 Studio's export menu offered USD, FBX, OBJ, STL, GLB and 3MF on 2026-11-14; check the current menu. A format on the menu is not proof it imports or keeps topology.
