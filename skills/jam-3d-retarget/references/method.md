@@ -6,7 +6,18 @@ The order follows the practice engine retargeters document: align the rest poses
 
 The rest pose of each file is its nodes as stored. When a skinned file's nodes stand away from its bind pose, the report warns (`posed`); the nodes' pose is still what is used, since that is what plays when no animation drives a bone.
 
-Before any frame is transferred, the run refuses a skeleton whose head is not above its feet (not `+Y` up), whose hips-to-head line leans more than 30 degrees from `+Y`, whose left joints are not on `+X` (facing `-Z`, or a map that swaps sides), or whose toes are behind its ankles.
+Before any frame is transferred, the run refuses a skeleton whose head is not above its feet (not `+Y` up), whose hips-to-head line leans more than 30 degrees from `+Y`, or that does not face `+Z`.
+
+**Facing.** The facing is read on the ground plane two ways, and the report gives both per skeleton (`facing`, in degrees about `+Y`, positive turning `+Z` toward `+X`):
+
+- `sideLineDegrees`: how far the mean right-to-left direction of the hip joints (`upper-leg`) and shoulder joints (`upper-arm`) is from `+X`. Every rest posture places these in mirror pairs, A-pose and T-pose alike.
+- `feetDegrees`: how far the mean ankle-to-toes direction of the two feet is from `+Z`; feet turned out alike cancel. Without toes on both sides it is not read, and the report warns (`no-toes`).
+
+Either line more than 90 degrees off means the character faces `-Z` or a map swaps sides; the side line catches a swapped map, the feet catch a map that swaps sides on a rig that also faces `-Z`. Either line more than `--facing-degrees` off refuses the skeleton as turned.
+
+The facing matters because nothing later sees it. The trunk takes no rest turn and travel is copied in world axes (below), so with one skeleton turned θ about `+Y` the target's limbs and travel come out turned θ against its trunk, while arms and legs still agree with the source exactly. The tolerance is therefore the heading error a run may carry unseen. It is 10 degrees unless set. A rest whose sides mirror each other reads 0 to rounding, so the tolerance only absorbs an unevenly built rest (one hip joint placed ahead of the other, feet turned out unequally), while a file turned by its export, its placement or a wrong axis reads its whole turn. At 10 degrees a straight walk on the target drifts sideways by tan 10° ≈ 0.18 m per metre walked. Raise it only for a rest you have seen is built unevenly, and record why.
+
+**Mirrored bones.** A bone the transfer drives (a landmark both maps place, and the root) must not be mirrored: a negative scale of its own or of a parent cannot be written as a rotation. The run refuses it by name. A mirrored bone the transfer does not drive keeps its rest, like any other.
 
 ## Rest alignment
 
@@ -36,13 +47,13 @@ The root is the hips' parent when it is a joint of the file's skin (a bone, not 
 
 ## Frames
 
-Frames are whole frames from the source's first key, at the source's frame rate (`1 / key spacing`, which needs evenly spaced keys) or at `--fps`. When the source's length is not a whole number of frames at that rate, the clip ends at the last whole frame and the report warns. Every channel is written LINEAR, one key per frame.
+Frames are whole frames from the source's first key, at the source's frame rate (`1 / key spacing`, which needs evenly spaced keys) or at `--fps`. A rate read from the keys within 0.02% of a whole number is that number: storing key times (32-bit floats, a BVH file's six-decimal frame time below 400 fps) moves a rate by less, and the NTSC rates (1000/1001 of a whole rate, such as 29.97) lie 0.1% away, so they stay what they are. When the source's length is not a whole number of frames at that rate, the clip ends at the last whole frame and the report warns. Every channel is written LINEAR, one key per frame.
 
 ## Contacts
 
 `--contacts` has no default: the person chooses `auto`, a contacts file or `none`.
 
-`--contacts auto` finds, for each ankle (`foot.*`) and toe joint (`toes.*`) both maps place, the windows where the source joint moves slower than `--contact-speed` for at least `--contact-min-frames` frames (1 unless set: the speed alone decides; set more to ignore brief stops). The speed is in source heights per second and has no default, since how still a planted foot stands depends on the source. A speed `v` given in metres per second on the source is `v / H`, with `H` the source's `heightMeters`; one given on the target, such as a clip spec's `contacts.detect.speed` when the target is the spec's rig, is `v / (k · H)`, because travel reaches the target scaled by `k` (below). The run refuses `auto` without a speed and prints both divisors for the pair. Height above any ground is not used, so a foot planted on a step counts.
+`--contacts auto` finds, for each ankle (`foot.*`) and toe joint (`toes.*`) both maps place, the windows where the source joint moves over the ground (its speed in `x` and `z`, as the clip spec's `contacts.detect.speed` reads it) slower than `--contact-speed` for at least `--contact-min-frames` frames (1 unless set: the speed alone decides; set more to ignore brief stops). `--contact-speed` is in source heights per second and has no default, since how still a planted foot stands depends on the source. A speed `v` given in metres per second on the source is `v / H`, with `H` the source's `heightMeters`; one given on the target, such as a clip spec's `contacts.detect.speed` when the target is the spec's rig, is `v / (k · H)`, because travel reaches the target scaled by `k` (below). The run refuses `auto` without a speed and prints both divisors for the pair. Neither height above any ground nor vertical speed is used, so a foot planted on a step counts, and a heel rising in place stays planted.
 
 A contacts file names the windows instead, in seconds of the source clip:
 
@@ -53,9 +64,9 @@ A contacts file names the windows instead, in seconds of the source clip:
 
 `joint` is `foot.l`, `foot.r`, `toes.l`, `toes.r`, `hand.l` or `hand.r`; `animation` limits a window to one animation. Hands are held only through a file: a hand that is merely still is not a contact.
 
-Each window's goal is the mean, over the window, of the source joint's position mapped onto the target (the target joint's rest position plus `k` times the source joint's displacement from its rest), so the target joint holds one place for the whole window. Two-bone IK on the upper and lower limb puts the ankle (or wrist) on its goal; when only the toes are planted, the ankle moves so the toes land on theirs. The foot or hand keeps the rotation the transfer gave it. The limb bends in the plane it already bends in (or, when straight, toward its rest bend: knees forward, elbows back). The correction blends in and out over `--contact-blend` frames (3 unless set) around each window.
+Goals come from the source joint's position mapped onto the target (the target joint's rest position plus `k` times the source joint's displacement from its rest). An ankle or toe joint stands on the ground: its goal is the window's mean mapped position over the ground, held for the whole window, at the mapped height of each frame, so the hold removes slide and leaves the source's lift and settle. A hand may rest on any surface: its goal is the window's mean mapped position on all three axes. Two-bone IK on the upper and lower limb puts the ankle (or wrist) on its goal; when only the toes are planted, the ankle moves so the toes land on theirs. The foot or hand keeps the rotation the transfer gave it. The limb bends in the plane it already bends in (or, when straight, toward its rest bend: knees forward, elbows back). The correction blends in and out over `--contact-blend` frames (3 unless set) around each window.
 
-Per window the report gives the source joint's slide, the target's slide without and with the correction (largest distance from where it stood at the window's first frame), how far the correction moved it, and `missMeters`, how far it stayed from its goal: above zero when the goal is out of the limb's reach, and for toes when the ankle of the same foot is held (the foot's length differs from `k` times the source's).
+Per window the report gives the source joint's slide, the target's slide without and with the correction (largest distance from where it stood at the window's first frame, over the ground for ankles and toes and in space for hands), how far the correction moved it, and `missMeters`, how far it stayed from its goal: above zero when the goal is out of the limb's reach, and for toes when the ankle of the same foot is held (the foot's length differs from `k` times the source's).
 
 ## The checks
 
@@ -71,4 +82,4 @@ Each animation passes when all three hold; the report's `passed` also needs the 
 
 The written `.glb` is read back and played: `fileCheckMeters` is the largest distance between a joint as played from the file and as computed (a few tenths of a micrometre from storing values as 32-bit floats); it fails above 0.01% of the target's height. `retarget_evidence.py` repeats that check through Blender's own glTF import (`playbackCheckMeters`).
 
-The written file is valid glTF 2.0: a node the animations drive that stores a `matrix` is written as the same translation, rotation and scale, since glTF forbids a matrix on an animated node; the target's dropped animations take their accessors, buffer views and bytes with them (`droppedDataRemovedBytes`). When the target uses an extension the writer cannot renumber references in, that data stays in the file unreferenced and the report warns.
+The written file is valid glTF 2.0 and self-contained: every buffer and image the target keeps in another file or a data URI is embedded in the `.glb` (`embedded` in the report lists them), and a target whose referenced file cannot be read, or that keeps data in several buffers and uses an extension the writer cannot renumber references in, is refused before anything is written. A node the animations drive that stores a `matrix` is written as the same translation, rotation and scale, since glTF forbids a matrix on an animated node; the target's dropped animations take their accessors, buffer views and bytes with them (`droppedDataRemovedBytes`). When the target uses an extension the writer cannot renumber references in, that data stays in the file unreferenced and the report warns.

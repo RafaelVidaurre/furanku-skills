@@ -16,7 +16,7 @@
 import numpy as np
 
 from . import gltf, mathx
-from .skeleton import ALL, SIDES, TRUNK, main_child, parent_of, split
+from .skeleton import ALL, SIDES, TRUNK, SkeletonError, main_child, parent_of, split
 
 
 class Plan:
@@ -29,6 +29,13 @@ class Plan:
         self.source_only = [k for k in ALL if src.has(k) and not tgt.has(k)]
         self.k = tgt.leg_length / src.leg_length
         self.with_root = src.root is not None and tgt.root is not None
+        for skel in (src, tgt):
+            driven = [(k, skel.at[k]) for k in self.shared] + ([("the root", skel.root)] if self.with_root else [])
+            mirrored = [k for k, node in driven if skel.mirrors(node)]
+            if mirrored:
+                raise SkeletonError("%s: the bones at %s are mirrored (a negative scale, of their own or a parent's): their turn "
+                                    "cannot be read or written as a rotation, so the transfer cannot carry them. Export the rig "
+                                    "with positive scales (apply the mirror in the tool that made it)" % (skel.role, ", ".join(mirrored)))
         self.align, self.how = {}, {}
         for k in self.shared:
             self.align[k], self.how[k] = self._align(k)
@@ -137,11 +144,23 @@ def world_of(skel, model_locals_trs):
 LIMBS = {"foot": ("upper-leg", "lower-leg", "foot", (0.0, 0.0, 1.0)), "hand": ("upper-arm", "lower-arm", "hand", (0.0, 0.0, -1.0))}
 
 
+GROUND = [0, 2]                                             # the horizontal axes of the glTF frame (+Y is up)
+
+
+def horizontal_speed(positions, fps):
+    """Speed over the ground (m/s) of a joint's positions [F,3] at each frame, from central differences."""
+    if len(positions) < 2:
+        return np.zeros(len(positions))
+    return np.linalg.norm(np.gradient(positions[:, GROUND], axis=0), axis=1) * fps
+
+
 def detect(positions, fps, max_speed, min_frames):
-    """[(first, last)] frame windows where a joint moves slower than max_speed (m/s) for at least min_frames frames."""
+    """[(first, last)] frame windows where a joint moves over the ground slower than max_speed (m/s) for at least
+    min_frames frames. Height and vertical speed are not used: a foot planted on a step counts, and a heel lifting
+    in place stays planted while its toes roll."""
     if len(positions) < 2:
         return []
-    speed = np.linalg.norm(np.gradient(positions, axis=0), axis=1) * fps
+    speed = horizontal_speed(positions, fps)
     still = speed < max_speed
     out, start = [], None
     for f, s in enumerate(list(still) + [False]):
@@ -152,6 +171,11 @@ def detect(positions, fps, max_speed, min_frames):
                 out.append((start, f - 1))
             start = None
     return out
+
+
+def on_ground(landmark):
+    """Ankles and toes stand on the ground; hands rest on any surface."""
+    return split(landmark)[0] in ("foot", "toes")
 
 
 def window_weights(windows, frames, blend):
@@ -198,10 +222,13 @@ def two_bone(rot, world, nodes, rest_bend, rest_upper, goals, active):
 def plant(plan, src_world, rot, pos, windows, frames, blend):
     """Hold the target's planted joints still: two-bone IK on each limb with a contact window.
 
-    windows: {landmark: [(first, last)]} for foot.*, toes.*, hand.*. A window's goal is the mean, over the window, of the
-    source joint's position mapped onto the target (map_position). A foot with its ankle planted puts the ankle on the
-    goal; with only its toes planted (heel lifting), it moves the ankle so the toes land on theirs, keeping the foot's
-    turn. Returns (local, world, rot, details) after the correction; details per window for the report."""
+    windows: {landmark: [(first, last)]} for foot.*, toes.*, hand.*. Goals come from the source joint's position mapped
+    onto the target (map_position). An ankle or toes joint stands on the ground, so its goal holds the window's mean
+    position over the ground and follows the mapped height frame by frame; a hand may rest on any surface, so its goal is
+    the window's mean position on all three axes. A foot with its ankle planted puts the ankle on the goal; with only its
+    toes planted (heel lifting), it moves the ankle so the toes land on theirs, keeping the foot's turn. Returns (local,
+    world, rot, details) after the correction; details per window for the report, slides measured over the ground for
+    feet and in space for hands."""
     src, tgt = plan.src, plan.tgt
     _, before = solve(tgt, rot, pos, frames)
     rot = {k: v.copy() for k, v in rot.items()}
@@ -211,9 +238,12 @@ def plant(plan, src_world, rot, pos, windows, frames, blend):
         if not wins or not plan.tgt.has(landmark) or not plan.src.has(landmark):
             continue
         mapped = map_position(plan, landmark, src_world[:, src.at[landmark], :3, 3])
-        goals = np.array([mapped[a:b + 1].mean(axis=0) for a, b in wins])
+        held = np.array([mapped[a:b + 1].mean(axis=0) for a, b in wins])
         w, which = window_weights(wins, frames, blend)
-        goals_of[landmark] = (w, np.where(which[:, None] >= 0, goals[np.maximum(which, 0)], 0.0), goals)
+        goal = np.where(which[:, None] >= 0, held[np.maximum(which, 0)], 0.0)
+        if on_ground(landmark):
+            goal[:, 1] = np.where(which >= 0, mapped[:, 1], 0.0)
+        goals_of[landmark] = (w, goal)
     for limb, (u_name, m_name, e_name, bend) in LIMBS.items():
         for side in SIDES:
             end, toes = "%s.%s" % (e_name, side), "toes." + side
@@ -221,10 +251,10 @@ def plant(plan, src_world, rot, pos, windows, frames, blend):
                 continue
             nodes = tuple(tgt.at["%s.%s" % (n, side)] for n in (u_name, m_name, e_name))
             C = before[:, nodes[2], :3, 3]
-            wa, ga, _ = goals_of.get(end, (np.zeros(frames), np.zeros((frames, 3)), None))
+            wa, ga = goals_of.get(end, (np.zeros(frames), np.zeros((frames, 3))))
             goal = C + wa[:, None] * (ga - C)
             if limb == "foot" and toes in goals_of and tgt.has(toes):
-                wt, gt, _ = goals_of[toes]
+                wt, gt = goals_of[toes]
                 ankle_for_toes = gt - (before[:, tgt.at[toes], :3, 3] - C)
                 goal = goal + ((1 - wa) * wt)[:, None] * (ankle_for_toes - C)
                 active = (wa > 0) | (wt > 0)
@@ -236,16 +266,17 @@ def plant(plan, src_world, rot, pos, windows, frames, blend):
     for landmark, wins in windows.items():
         if landmark not in goals_of:
             continue
-        _, _, goals = goals_of[landmark]
+        _, goal = goals_of[landmark]
         s_pos = src_world[:, src.at[landmark], :3, 3]
         b_pos, a_pos = before[:, tgt.at[landmark], :3, 3], world[:, tgt.at[landmark], :3, 3]
-        for (a, b), goal in zip(wins, goals):
+        axes = GROUND if on_ground(landmark) else [0, 1, 2]
+        for a, b in wins:
             span = slice(a, b + 1)
-            slide = lambda p: float(np.max(np.linalg.norm(p[span] - p[a], axis=1)))
+            slide = lambda p: float(np.max(np.linalg.norm(p[span][:, axes] - p[a][axes], axis=1)))
             details.append({"joint": landmark, "frames": [int(a), int(b)],
                             "sourceSlideMeters": round(slide(s_pos), 5),
                             "targetSlideWithoutCorrectionMeters": round(slide(b_pos), 5),
                             "targetSlideMeters": round(slide(a_pos), 5),
                             "correctionMeters": round(float(np.max(np.linalg.norm(a_pos[span] - b_pos[span], axis=1))), 5),
-                            "missMeters": round(float(np.max(np.linalg.norm(a_pos[span] - goal, axis=1))), 5)})
+                            "missMeters": round(float(np.max(np.linalg.norm(a_pos[span] - goal[span], axis=1))), 5)})
     return local, world, rot, details

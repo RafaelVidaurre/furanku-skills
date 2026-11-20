@@ -1,6 +1,7 @@
 """A minimal glTF 2.0 reader and writer: the JSON, node rest transforms, accessors, animation sampling, and adding
-animations to a .glb without changing its scene, meshes or skins. Reads .glb and .gltf (external buffers beside the file,
-no data URIs); writes .glb."""
+animations to a file without changing its scene, meshes or skins. Reads .glb and .gltf (buffers and images in the file,
+in files it references, or in base64 data URIs); writes a self-contained .glb."""
+import base64
 import json
 import os
 import struct
@@ -87,6 +88,25 @@ class Gltf:
                 T[i] = node.get("translation", [0, 0, 0]); R[i] = node.get("rotation", [0, 0, 0, 1]); S[i] = node.get("scale", [1, 1, 1])
         return T, R, S
 
+    def read_uri(self, uri):
+        """The bytes a buffer's or image's URI holds: a base64 data URI, or a file named relative to this one."""
+        if uri.startswith("data:"):
+            head, _, data = uri.partition(",")
+            if not head.endswith(";base64"):
+                raise GltfError("%s: only base64 data URIs are read" % self.path)
+            return base64.b64decode(data)
+        path = os.path.join(os.path.dirname(os.path.abspath(self.path)), urllib.parse.unquote(uri))
+        try:
+            with open(path, "rb") as f:
+                return f.read()
+        except OSError as e:
+            raise GltfError("%s refers to %s, which cannot be read: %s" % (self.path, uri, e.strerror or e))
+
+    def resources(self):
+        """[(kind, index, uri)] of every buffer and image stored outside the file's own binary chunk."""
+        return ([("buffer", i, b["uri"]) for i, b in enumerate(self.json.get("buffers", [])) if "uri" in b]
+                + [("image", i, im["uri"]) for i, im in enumerate(self.json.get("images", [])) if "uri" in im])
+
     def _buffer(self, index):
         if index not in self._buffers:
             uri = self.json["buffers"][index].get("uri")
@@ -94,11 +114,8 @@ class Gltf:
                 if self.bin is None:
                     raise GltfError("buffer %d has no data" % index)
                 self._buffers[index] = self.bin
-            elif uri.startswith("data:"):
-                raise GltfError("buffers stored as data URIs are not read; pack the file as .glb")
-            else:                                             # a URI reference: percent-encoded, relative to the file
-                with open(os.path.join(os.path.dirname(self.path), urllib.parse.unquote(uri)), "rb") as f:
-                    self._buffers[index] = f.read()
+            else:
+                self._buffers[index] = self.read_uri(uri)
         return self._buffers[index]
 
     def accessor(self, index):
@@ -177,6 +194,12 @@ def key_times(animation):
     return np.unique(np.concatenate([c[2] for c in animation["channels"]])) if animation["channels"] else np.zeros(1)
 
 
+# How close (relative) a rate read from key times must be to a whole number to be that number: storing the times
+# (32-bit floats, or a BVH file's six-decimal frame time below 400 fps) moves a rate by less, and the NTSC rates
+# (1000/1001 of a whole rate, such as 29.97) lie 0.1% away, five times further.
+WHOLE_RATE = 2e-4
+
+
 def frame_rate(times):
     """1 / the key spacing when every key follows the last by the same time (a clip sampled on its frames); None when
     the spacing varies, since a frame rate cannot then be told from the keys."""
@@ -187,7 +210,7 @@ def frame_rate(times):
     if step <= 0 or np.max(np.abs(steps - step)) > 0.01 * step:
         return None
     fps = 1.0 / step
-    return float(round(fps)) if abs(fps - round(fps)) < 0.001 * fps else fps
+    return float(round(fps)) if abs(fps - round(fps)) < WHOLE_RATE * fps else fps
 
 
 def sample_locals(model, animation, times, rest=None):
@@ -238,8 +261,6 @@ class Packer:
         self.doc.setdefault("buffers", [{}])
         if not self.doc["buffers"]:
             self.doc["buffers"].append({})
-        if "uri" in self.doc["buffers"][0]:
-            raise GltfError("the first buffer is external; only a .glb with its own binary chunk can be written")
 
     def add(self, array, kind, component=5126, target=None, minmax=False, normalized=False):
         array = np.ascontiguousarray(array, dtype=_COMPONENT[component])
@@ -347,8 +368,71 @@ def _compact(doc, binary, dropped_samplers):
     return bytes(out), len(binary) - len(out)
 
 
+_MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".ktx2": "image/ktx2",
+         ".avif": "image/avif"}
+
+
+def _image_mime(image, uri):
+    return image.get("mimeType") or (uri[5:].split(";")[0] if uri.startswith("data:") else
+                                     _MIME.get(os.path.splitext(urllib.parse.unquote(uri))[1].lower()))
+
+
+def check_embeddable(model):
+    """Raise GltfError unless add_animations can embed everything the file keeps outside its binary chunk: each file
+    it refers to is readable, each image's type is known, and data in several buffers is not referenced by an
+    extension this writer cannot renumber."""
+    buffers = model.json.get("buffers", [])
+    if len(buffers) > 1:
+        used = [e for e in model.json.get("extensionsUsed", []) if not e.startswith("KHR_materials_") and e not in _COMPACT_SAFE]
+        if used:
+            raise GltfError("%s keeps data in %d buffers and uses %s, whose references to them this writer cannot "
+                            "renumber; pack it into one buffer first" % (model.path, len(buffers), ", ".join(used)))
+    for i in range(len(buffers)):
+        model._buffer(i)
+    for kind, i, uri in model.resources():
+        if kind == "image":
+            if not _image_mime(model.json["images"][i], uri):
+                raise GltfError("%s: image %d (%s) has no mimeType and no known file extension" % (model.path, i, uri))
+            model.read_uri(uri)
+
+
+def _embed(model, doc):
+    """Gather every buffer into one binary chunk and every image into a buffer view of it, so the written .glb needs no
+    file beside it. Returns (binary, [URIs embedded])."""
+    check_embeddable(model)
+    buffers, embedded = doc.get("buffers", []), []
+    out, offsets = bytearray(), []
+    for i, buf in enumerate(buffers):
+        data = model._buffer(i)[:buf.get("byteLength", None)]
+        out += b"\x00" * (-len(out) % 8)
+        offsets.append(len(out))
+        out += data
+        if "uri" in buf:
+            embedded.append(buf["uri"] if not buf["uri"].startswith("data:") else "buffer %d (data URI)" % i)
+    for view in doc.get("bufferViews", []):
+        view["byteOffset"] = view.get("byteOffset", 0) + offsets[view["buffer"]]
+        view["buffer"] = 0
+    if buffers:
+        doc["buffers"] = [{"byteLength": len(out)}]
+    for i, image in enumerate(doc.get("images", [])):
+        if "uri" not in image:
+            continue
+        uri = image.pop("uri")
+        mime = _image_mime(image, uri)
+        data = model.read_uri(uri)
+        out += b"\x00" * (-len(out) % 8)
+        doc.setdefault("bufferViews", []).append({"buffer": 0, "byteOffset": len(out), "byteLength": len(data)})
+        out += data
+        image.update(bufferView=len(doc["bufferViews"]) - 1, mimeType=mime)
+        embedded.append(uri if not uri.startswith("data:") else "image %d (data URI)" % i)
+    if embedded:
+        doc.setdefault("buffers", [{}])[0]["byteLength"] = len(out)
+    return bytes(out), embedded
+
+
 def add_animations(source_path, out_path, animations, keep_existing=False):
-    """Copy a .glb with the given animations added; scenes, meshes, skins and materials are copied unchanged.
+    """Copy a glTF file as a .glb with the given animations added; scenes, meshes, skins and materials are copied
+    unchanged, and every buffer and image the file keeps outside itself is embedded.
 
     animations: [{"name", "times": [F], "channels": [(node, "translation" | "rotation", values [F, w])]}]. Every channel
     is written LINEAR on the shared times. A node that any animation of the written file drives, and that stores a
@@ -356,12 +440,12 @@ def add_animations(source_path, out_path, animations, keep_existing=False):
     Existing animations are dropped unless keep_existing, and the data only they used is removed from the file.
 
     Returns {"dropped": names of the animations dropped, "removedBytes": bytes of their data removed, or None when the
-    file uses an extension that might reference that data, which then stays in the file unreferenced}."""
+    file uses an extension that might reference that data, which then stays in the file unreferenced, "embedded": the
+    URIs of the buffers and images embedded}."""
     model = Gltf(source_path)
-    if not model.is_glb:
-        raise GltfError("%s is not a .glb; write the rig as a binary glTF first" % source_path)
     doc = json.loads(json.dumps(model.json))
-    binary, removed = model.bin or b"", 0
+    binary, embedded = _embed(model, doc)
+    removed = 0
     old = doc.get("animations", [])
     dropped = [] if keep_existing else [a.get("name", "animation%d" % k) for k, a in enumerate(old)]
     if not keep_existing and old:
@@ -382,4 +466,4 @@ def add_animations(source_path, out_path, animations, keep_existing=False):
             t, r, s = decompose(node.pop("matrix"))
             node.update(translation=[float(v) for v in t], rotation=[float(v) for v in r], scale=[float(v) for v in s])
     write_glb(out_path, doc, pack.finish())
-    return {"dropped": dropped, "removedBytes": removed}
+    return {"dropped": dropped, "removedBytes": removed, "embedded": embedded}

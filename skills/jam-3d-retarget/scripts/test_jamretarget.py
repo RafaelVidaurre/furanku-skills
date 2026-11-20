@@ -1,6 +1,7 @@
 """Blender-free behaviour of jam-3d-retarget: rotations, the glTF reader and writer, landmark maps and skeleton checks,
 rest alignment, the transfer and its round trip, contact correction, and retarget.py end to end on the two generated
 test rigs (an A-pose rig and a T-pose rig of other proportions, bone axes and hierarchy). Run with `python3 -m pytest`."""
+import base64
 import copy
 import json
 import os
@@ -92,6 +93,9 @@ def test_channels_sample_in_every_interpolation():
 
 def test_frame_rate_is_read_from_the_key_grid():
     assert gltf.frame_rate(np.arange(31) / 30.0) == 30.0
+    assert gltf.frame_rate(np.arange(76) * 0.033333) == 30.0               # a BVH file's six-decimal frame time is 30
+    for ntsc in (30 / 1.001, 24 / 1.001, 60 / 1.001):                   # 1000/1001 rates stay what they are
+        assert gltf.frame_rate((np.arange(76) / ntsc).astype(np.float32)) == pytest.approx(ntsc, rel=1e-6)
     assert gltf.frame_rate(np.array([0, 2, 5]) / 24.0) is None           # sparse keys: the rate is not in the file
     assert gltf.frame_rate(np.arange(5, dtype=np.float32) / np.float32(24)) == 24.0
 
@@ -126,7 +130,7 @@ def test_writing_animations_keeps_everything_else_and_drops_the_old_animations_d
     assert len(after.bin) < len(before.bin) - result["removedBytes"] + 64
     kept = gltf.add_animations(str(rigs / "rig-b.glb"), str(tmp_path / "kept.glb"), STILL, keep_existing=True)
     model = gltf.Gltf(str(tmp_path / "kept.glb"))
-    assert kept == {"dropped": [], "removedBytes": 0} and model.bin[:len(before.bin)] == before.bin
+    assert kept == {"dropped": [], "removedBytes": 0, "embedded": []} and model.bin[:len(before.bin)] == before.bin
     assert [a["name"] for a in model.animations()] == ["walk", "arms", "still"]
 
 
@@ -137,7 +141,7 @@ def test_a_file_using_an_unknown_extension_keeps_the_dropped_data(rigs, tmp_path
     gltf.write_glb(str(tmp_path / "ext.glb"), data, doc.bin)
     result = gltf.add_animations(str(tmp_path / "ext.glb"), str(tmp_path / "out.glb"), STILL)
     after = gltf.Gltf(str(tmp_path / "out.glb"))
-    assert result == {"dropped": ["walk", "arms"], "removedBytes": None} and after.bin[:len(doc.bin)] == doc.bin
+    assert result == {"dropped": ["walk", "arms"], "removedBytes": None, "embedded": []} and after.bin[:len(doc.bin)] == doc.bin
 
 
 def test_animated_nodes_are_written_without_a_matrix(rigs, tmp_path):
@@ -170,6 +174,48 @@ def test_a_gltf_with_a_percent_encoded_buffer_uri_is_read(rigs, tmp_path):
     dump(tmp_path / "rig-a.gltf", data)
     model = gltf.Gltf(str(tmp_path / "rig-a.gltf"))
     assert [a["name"] for a in model.animations()] == ["walk", "arms"]
+    data["buffers"][0]["uri"] = "data:application/octet-stream;base64," + base64.b64encode(doc.bin).decode("ascii")
+    dump(tmp_path / "inline.gltf", data)
+    inline = gltf.Gltf(str(tmp_path / "inline.gltf"))
+    assert np.array_equal(inline.accessor(0), doc.accessor(0)) and inline.resources()[0][:2] == ("buffer", 0)
+
+
+def test_a_target_keeping_data_in_other_files_is_written_self_contained(rigs, tmp_path):
+    """Rig B with an image and a second buffer in files beside it, as a .glb and as a .gltf whose own buffer is a file:
+    the written .glb embeds them and needs nothing beside it; a missing file is refused before anything is written."""
+    doc = gltf.Gltf(str(rigs / "rig-b.glb"))
+    png = bytes.fromhex("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c636000000200"
+                        "0154a24f5d0000000049454e44ae426082")
+    data = copy.deepcopy(doc.json)
+    position = data["meshes"][0]["primitives"][0]["attributes"]["POSITION"]
+    view = data["bufferViews"][data["accessors"][position]["bufferView"]]      # the mesh's positions move to a second file
+    extra = doc.bin[view.get("byteOffset", 0):view.get("byteOffset", 0) + view["byteLength"]]
+    data["buffers"].append({"uri": "extra%20data.bin", "byteLength": len(extra)})
+    view.update(buffer=1, byteOffset=0)
+    data["images"] = [{"uri": "skin%20colour.png"}]
+    data["textures"] = [{"source": 0}]
+    data["materials"][0]["pbrMetallicRoughness"] = {"baseColorTexture": {"index": 0}}
+    (tmp_path / "extra data.bin").write_bytes(extra)
+    (tmp_path / "skin colour.png").write_bytes(png)
+    gltf.write_glb(str(tmp_path / "linked.glb"), data, doc.bin)
+    as_gltf = copy.deepcopy(data)
+    as_gltf["buffers"][0]["uri"] = "rig.bin"
+    (tmp_path / "rig.bin").write_bytes(doc.bin)
+    dump(tmp_path / "linked.gltf", as_gltf)
+    for name in ("linked.glb", "linked.gltf"):
+        out = tmp_path / ("out-" + name)
+        code, rep = run(rigs, out, tgt_file=str(tmp_path / name))
+        assert code == 0 and rep["passed"] and sorted(rep["embedded"]) == sorted(["extra%20data.bin", "skin%20colour.png"] + (["rig.bin"] if name.endswith("gltf") else []))
+        model = gltf.Gltf(str(out / "retargeted.glb"))
+        assert model.resources() == [] and len(model.json["buffers"]) == 1
+        assert np.array_equal(model.accessor(model.json["meshes"][0]["primitives"][0]["attributes"]["POSITION"]), doc.accessor(position))
+        view = model.json["bufferViews"][model.json["images"][0]["bufferView"]]
+        assert model.json["images"][0]["mimeType"] == "image/png" and model.bin[view["byteOffset"]:view["byteOffset"] + view["byteLength"]] == png
+        acc, views = referenced(model.json)
+        assert views | {model.json["images"][0]["bufferView"]} == set(range(len(model.json["bufferViews"])))
+    (tmp_path / "skin colour.png").unlink()
+    code, rep = run(rigs, tmp_path / "missing", tgt_file=str(tmp_path / "linked.glb"))
+    assert code == 2 and rep is None and not (tmp_path / "missing").exists()
 
 
 # ---- maps and skeletons ------------------------------------------------------------------------------------------------
@@ -211,6 +257,74 @@ def test_a_rig_facing_backward_or_lying_down_is_refused(rigs, tmp_path):
         gltf.write_glb(str(tmp_path / name), data, doc.bin)
         with pytest.raises(SkeletonError, match=message):
             Skeleton(str(tmp_path / name), load_map(str(rigs / "rig-a.map.json")), "rig")
+
+
+def turned_rig(rigs, tmp_path, degrees):
+    """Rig A turned about +Y (toward +X) by the given angle: its armature node carries the turn."""
+    doc = gltf.Gltf(str(rigs / "rig-a.glb"))
+    data = copy.deepcopy(doc.json)
+    half = np.radians(degrees) / 2
+    next(n for n in data["nodes"] if n["name"] == "RigA")["rotation"] = [0, float(np.sin(half)), 0, float(np.cos(half))]
+    path = str(tmp_path / ("turned-%g.glb" % degrees))
+    gltf.write_glb(path, data, doc.bin)
+    return path
+
+
+@pytest.mark.parametrize("degrees", [90, -90, 45, -20])
+def test_a_rig_turned_about_up_is_refused_on_either_side(rigs, tmp_path, degrees):
+    """A turned rest is refused, source or target: the transfer gives the trunk no rest turn and copies travel in world
+    axes, so the whole clip would turn by that angle against the target's body while arms and legs still agree."""
+    turned = turned_rig(rigs, tmp_path, degrees)
+    for side in ("source", "target"):
+        files = {"src_file": turned} if side == "source" else {"tgt_file": turned}
+        code, rep = run(rigs, tmp_path / side, "a", "a", **files)
+        assert code == 2 and rep is None
+    with pytest.raises(SkeletonError, match=r"turned about \+Y .*turned %.1f degrees from \+X.*point %.1f degrees from \+Z"
+                       % (degrees, degrees)):
+        Skeleton(turned, load_map(str(rigs / "rig-a.map.json")), "rig")
+
+
+def test_the_facing_tolerance_is_a_flag_and_reported(rigs, tmp_path):
+    turned = turned_rig(rigs, tmp_path, 5)
+    code, rep = run(rigs, tmp_path / "five", src_file=turned)
+    assert code == 0 and rep["source"]["facing"] == {"sideLineDegrees": pytest.approx(5.0), "feetDegrees": pytest.approx(5.0)}
+    assert rep["target"]["facing"] == {"sideLineDegrees": 0.0, "feetDegrees": 0.0} and rep["options"]["facingDegrees"] == 10
+    code, rep = run(rigs, tmp_path / "strict", "a", "b", "--facing-degrees", "4", src_file=turned)
+    assert code == 2 and rep is None
+    code, rep = run(rigs, tmp_path / "wide", "a", "b", "--facing-degrees", "50", src_file=turned_rig(rigs, tmp_path, 45))
+    assert code == 0 and rep["passed"]
+    with pytest.raises(SystemExit):
+        retarget.parse(["s", "sm", "t", "tm", "out", "--contacts", "none", "--facing-degrees", "120"])
+
+
+def test_a_rig_facing_backward_with_its_sides_swapped_is_refused_by_its_feet(rigs, tmp_path):
+    """Facing -Z with a map that swaps sides puts the map's left joints on +X again; the feet still point backward."""
+    doc = gltf.Gltf(str(rigs / "rig-a.glb"))
+    data = copy.deepcopy(doc.json)
+    next(n for n in data["nodes"] if n["name"] == "RigA")["rotation"] = [0, 1, 0, 0]
+    gltf.write_glb(str(tmp_path / "backward.glb"), data, doc.bin)
+    swapped = {k: v.replace(".l", ".x").replace(".r", ".l").replace(".x", ".r") for k, v in load_map(str(rigs / "rig-a.map.json")).items()}
+    with pytest.raises(SkeletonError, match="toes are behind the ankles"):
+        Skeleton(str(tmp_path / "backward.glb"), swapped, "rig")
+
+
+def test_a_mirrored_bone_the_transfer_drives_is_refused(rigs, tmp_path):
+    """A bone with a negative scale cannot be written as a rotation: refused by name when the transfer drives it, kept at
+    rest when only the target maps it (a finger the source lacks)."""
+    doc = gltf.Gltf(str(rigs / "rig-b.glb"))
+    for bone, refused in (("Elbow.l", True), ("Index2.l", False)):
+        data = copy.deepcopy(doc.json)
+        node = next(n for n in data["nodes"] if n["name"] == bone)
+        node["scale"] = [-1.0, 1.0, 1.0]
+        path = str(tmp_path / ("mirror-%s.glb" % bone))
+        gltf.write_glb(path, data, doc.bin)
+        code, rep = run(rigs, tmp_path / bone, tgt_file=path)
+        if refused:
+            assert code == 2 and rep is None
+            with pytest.raises(SkeletonError, match="bones at lower-arm.l, hand.l are mirrored"):
+                transfer.Plan(skel(rigs, "a"), Skeleton(path, load_map(str(rigs / "rig-b.map.json")), "target"))
+        else:
+            assert code == 0 and rep["passed"]
 
 
 # ---- rest alignment and transfer -----------------------------------------------------------------------------------------
@@ -351,6 +465,9 @@ def test_hips_travel_scales_by_leg_length_and_a_root_folds_into_the_hips(rigs):
 def test_contact_windows_and_weights():
     still = np.zeros((10, 3)); still[5:] += np.arange(5)[:, None] * [0.1, 0, 0]
     assert transfer.detect(still, 30, 0.5, 3) == [(0, 4)]
+    lifting = np.zeros((10, 3)); lifting[:, 1] = np.arange(10) * 0.1      # straight up at 3 m/s: no speed over the ground
+    assert transfer.detect(lifting, 30, 0.5, 3) == [(0, 9)]
+    assert transfer.horizontal_speed(still, 30)[-1] == pytest.approx(3.0)
     w, which = transfer.window_weights([(2, 3)], 8, 2)
     assert list(np.round(w, 3)) == [0.333, 0.667, 1, 1, 0.667, 0.333, 0, 0] and list(which[:6]) == [0] * 6
 
@@ -368,6 +485,26 @@ def test_planted_feet_stay_still_on_a_rig_of_other_leg_proportions(rigs):
     _, plain = transfer.solve(b, rot, pos, len(world))                    # arms and trunk are untouched by the leg correction
     others = [b.at[k] for k in b.at if not k.split(".")[0] in ("upper-leg", "lower-leg", "foot", "toes")]
     assert np.allclose(fw[:, others], plain[:, others], atol=1e-9)
+
+
+def test_a_held_foot_keeps_its_ground_point_and_follows_the_source_height(rigs):
+    """Inside a window the ankle is held at one place over the ground; its height is the source's, mapped (a heel that
+    rises in place is not pressed back down)."""
+    a, b = skel(rigs, "a"), skel(rigs, "b")
+    plan = transfer.Plan(a, b)
+    _, _, world = sampled(a, "walk")
+    windows = {"foot.l": transfer.detect(world[:, a.at["foot.l"], :3, 3], 30, 0.1 * a.height, 3)[:1]}
+    first, last = windows["foot.l"][0]
+    world = world.copy()
+    lift = np.zeros(len(world)); lift[first:last + 1] = 0.02 * np.sin(np.linspace(0, np.pi, last - first + 1))
+    world[:, a.at["foot.l"], 1, 3] += lift                                # the source ankle rises 2 cm and comes down
+    rot, pos = transfer.desired(plan, world)
+    _, fw, _, details = transfer.plant(plan, world, rot, pos, windows, len(world), 3)
+    ankle = fw[first:last + 1, b.at["foot.l"], :3, 3]
+    assert np.abs(ankle[:, [0, 2]] - ankle[0, [0, 2]]).max() < 1e-6 and details[0]["targetSlideMeters"] < 1e-6
+    mapped = transfer.map_position(plan, "foot.l", world[first:last + 1, a.at["foot.l"], :3, 3])
+    assert np.abs(ankle[:, 1] - mapped[:, 1]).max() < 1e-6 and np.ptp(ankle[:, 1]) > 0.9 * 0.02 * plan.k
+    assert details[0]["missMeters"] < 1e-6
 
 
 def test_an_unreachable_goal_is_reported_as_a_miss(rigs):

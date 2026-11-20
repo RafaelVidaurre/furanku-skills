@@ -7,12 +7,14 @@ import shutil
 import subprocess
 import sys
 
+import numpy as np
 import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import make_test_rigs  # noqa: E402
 import retarget  # noqa: E402
+from jamretarget import gltf  # noqa: E402
 
 
 def find_blender():
@@ -29,9 +31,9 @@ pytestmark = pytest.mark.skipif(BLENDER is None, reason="Blender not found: set 
 # (one take, and every action as a take), and an FBX file holding two skeletons.
 EXPORT = '''
 import bpy, sys
-src, glb_out, bvh_out, fbx_out, fbx_all, fbx_two, anim = sys.argv[sys.argv.index("--") + 1:]
+src, glb_out, bvh_out, fbx_out, fbx_all, fbx_two, anim, fps, fps_base = sys.argv[sys.argv.index("--") + 1:]
 bpy.ops.wm.read_factory_settings(use_empty=True)
-bpy.context.scene.render.fps = 30
+bpy.context.scene.render.fps, bpy.context.scene.render.fps_base = int(fps), float(fps_base)
 bpy.ops.import_scene.gltf(filepath=src)
 arm = next(o for o in bpy.data.objects if o.type == "ARMATURE")
 for t in arm.animation_data.nla_tracks:
@@ -76,7 +78,19 @@ def exported(rigs, tmp_path_factory):
     script = folder / "export.py"
     script.write_text(EXPORT)
     code, log = blender(str(script), rigs / "rig-a.glb", folder / "blender-a.glb", folder / "arms.bvh", folder / "arms.fbx",
-                        folder / "all.fbx", folder / "two.fbx", "arms")
+                        folder / "all.fbx", folder / "two.fbx", "arms", 30, 1)
+    assert code == 0, log[-2000:]
+    return folder
+
+
+@pytest.fixture(scope="module")
+def ntsc(rigs, tmp_path_factory):
+    """The arms clip's 76 keys written by Blender at 29.97 fps (30 / 1.001), as BVH and as FBX."""
+    folder = tmp_path_factory.mktemp("ntsc")
+    script = folder / "export.py"
+    script.write_text(EXPORT)
+    code, log = blender(str(script), rigs / "rig-a.glb", folder / "unused.glb", folder / "arms.bvh", folder / "arms.fbx",
+                        folder / "all.fbx", folder / "two.fbx", "arms", 30, 1.001)
     assert code == 0, log[-2000:]
     return folder
 
@@ -173,6 +187,24 @@ def test_an_fbx_source_is_refused_when_its_declaration_or_content_is_ambiguous(r
     assert code == 2 and "one skeleton" in log
     names = log.split("skeletons in the file: ")[1].split(")")[0].split(", ")
     code, printed, log = convert(exported / "two.fbx", tmp_path / "one.glb", "--up", "Y", "--facing", "Z", "--scale", "0.01", "--armature", names[0])
-    assert code == 0, log[-2000:]
+    assert code == 0, log[-2000:]                                       # only that skeleton's take is written
+    written = [a["name"] for a in gltf.Gltf(str(tmp_path / "one.glb")).animations()]
+    assert written == [a["name"] for a in printed["animations"]] and len(written) == 1 and "|" not in written[0]
     code, _, log = convert(rigs / "rig-a.glb", tmp_path / "glb.glb", "--up", "Y", "--facing", "Z", "--scale", "1")
     assert code == 2 and "only .bvh and .fbx" in log
+
+
+@pytest.mark.parametrize("kind, flags", [("bvh", ["--up", "Z", "--facing=-Y"]), ("fbx", ["--up", "Y", "--facing", "Z"])])
+def test_a_clip_at_a_rate_that_is_not_whole_keeps_its_frames(rigs, ntsc, tmp_path, kind, flags):
+    """29.97 fps stays 29.97 with every frame: Blender's glTF exporter converts frames by fps x fps_base, and its FBX
+    importer places keys by the whole-number rate, so neither is left to its default."""
+    code, printed, log = convert(ntsc / ("arms." + kind), tmp_path / "arms.glb", *flags, "--scale", "0.01", "--name", "arms")
+    assert code == 0, log[-2000:]
+    assert printed["fps"] == pytest.approx(30 / 1.001, rel=2e-5) and printed["animations"] == [{"name": "arms", "frames": 76}]
+    times = gltf.key_times(gltf.Gltf(str(tmp_path / "arms.glb")).animations()[0])
+    assert len(times) == 76 and np.allclose(np.diff(times), 1 / printed["fps"], rtol=1e-4)
+    code, rep = retarget_to_b(rigs, tmp_path / "arms.glb", tmp_path / "out")
+    assert code == 0 and rep["passed"]
+    arms = rep["animations"][0]
+    assert arms["frames"] == 76 and arms["fps"] == pytest.approx(printed["fps"], rel=1e-5) and rep["warnings"] == []
+    assert arms["agreement"]["transfer"]["arms"]["maxDegrees"] < 0.01
