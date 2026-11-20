@@ -1,25 +1,34 @@
 """Pack a MotionBricks request from poses on the SOMA rig. Runs in Blender, on the authoring side.
 
     blender --background --python-exit-code 1 --python pack.py -- <context.glb> <request.json>
-            --skeleton <soma-skeleton.json> --target <target.glb>[,poses=N][,start=S][,early=K][,tokens=A-B] [--target ...]
-            [--context-end S] [--tokens 8-14] [--precision fp32|fp16] [--tf32 auto|on|off] [--no-endpoint-correction]
-            [--motionbricks-version 0.2.0] [--onnx-sha256 <hex>] [--model-name MotionBricks-SOMA-RP-v1]
-            [--rest-tolerance 0.01] [--floor-tolerance 0.05]
+            --skeleton <soma-skeleton.json> --floor-tolerance <metres>
+            --target <target.glb> [--poses N] [--start S] [--early K] [--target-tokens A-B]  [--target ... ]
+            [--context-end S] [--context-hold] [--tokens 8-14] [--precision fp32|fp16] [--tf32 auto|on|off]
+            [--no-endpoint-correction] [--motionbricks-version 0.2.0] [--onnx-sha256 <hex>]
+            [--model-name MotionBricks-SOMA-RP-v1] [--rest-tolerance 0.01]
 
 Every .glb holds an armature with SOMA's joint names whose rest pose is SOMA's reference pose (the rig soma_skeleton.py
 builds, or a file retargeted onto it), and one animation; all files share one world, glTF frame, metres.
 
 context  the motion leading into the generation: the last four poses at 30 Hz ending at --context-end (seconds from
-         the animation's start; default its end). It needs at least four frames of animation.
-target   one generation each, in order; each later generation starts from the poses the previous one played.
-         poses=N   how many poses from `start` inform the model, 1 to 4 (default: as many 30 Hz frames as the animation
-                   has from start, at most 4). One pose stops the character there; more carry velocity through.
-         start=S   seconds from the animation's start where the target begins (default 0).
-         early=K   Transition Early By, 0 to 20 frames (default 0, an exact target).
-         tokens=A-B  allowed generation length for this target, 6 to 16 tokens (default: --tokens). A-A fixes it.
+         the animation's start; default its end), so it needs four frames of animation up to that time. With
+         --context-hold the context is instead the single pose at --context-end held still for four frames: a
+         character at rest in that pose, read from any file (a key-pose file, a clip's first frame).
+target   one generation each, in order; each later generation starts from the poses the previous one played. The
+         options after a --target apply to that target only, each at most once:
+         --poses N   how many poses from `start` inform the model, 1 to 4 (default: as many 30 Hz frames as the
+                     animation has from start, at most 4). One pose stops the character there; more carry velocity.
+         --start S   seconds from the animation's start where the target begins (default 0).
+         --early K   Transition Early By, 0 to 20 frames (default 0, an exact target).
+         --target-tokens A-B  allowed generation length for this target, 6 to 16 tokens (default: --tokens). A-A
+                     fixes it.
+--floor-tolerance  how far (metres) the lowest foot joint of a pose set may sit from SOMA's standing height before the
+         summary calls it off the ground. It has no default: it is the person's, for instance the penetration their
+         clip spec accepts.
 
 Writes request.json and prints a JSON summary: the rest-pose fit, each pose set's lowest foot height against SOMA's
-reference, and per target the ground distance from the last context pose and the speeds the length bounds imply.
+reference, and per target the ground distance from the previous pose and the average speeds the shortest and longest
+generation that target's token range allows would imply.
 Exits 1 when a file does not fit (wrong rest pose, too few frames, missing model joints) or the request is invalid.
 """
 import argparse
@@ -35,34 +44,50 @@ from mbx import soma  # noqa: E402
 
 DEFAULT_VERSION = "0.2.0"
 DEFAULT_MODEL = "MotionBricks-SOMA-RP-v1"
-MIN_FRAMES, MAX_FRAMES = 18, 58  # valid frames of one generation: 6 to 16 tokens of four poses, less 3 boundary frames each end
+BOUNDARY_FRAMES = 3  # trimmed at each end of a generation (SKILL.md rule 7)
+TARGET_OPTIONS = ("poses", "start", "early", "target_tokens")
 
 
 class PackError(ValueError):
     pass
 
 
-def parse_target(spec):
-    path, *opts = spec.split(",")
-    target = {"file": path, "poses": None, "start": 0.0, "early": 0, "tokens": None}
-    for opt in opts:
-        key, _, value = opt.partition("=")
-        try:
-            if key == "poses":
-                target["poses"] = int(value)
-            elif key == "start":
-                target["start"] = float(value)
-            elif key == "early":
-                target["early"] = int(value)
-            elif key == "tokens":
-                target["tokens"] = parse_tokens(value)
-            else:
-                raise PackError(f"unknown target option {key!r} in {spec!r}")
-        except ValueError as exc:
-            raise PackError(f"bad target option {opt!r}: {exc}")
-    if target["poses"] is not None and not 1 <= target["poses"] <= generate.POSES_PER_TOKEN:
-        raise PackError(f"poses must be 1 to 4 in {spec!r}")
-    return target
+def new_target(path):
+    return {"file": path, "poses": None, "start": 0.0, "early": 0, "tokens": None}
+
+
+def target_option(target, key, value):
+    """Set one option of a target from its command-line text. Raises PackError on a bad or repeated value."""
+    field = "tokens" if key == "target_tokens" else key
+    flag = "--" + key.replace("_", "-")
+    if target.get("_set", set()) & {field}:
+        raise PackError(f"{flag} given twice for target {target['file']}")
+    try:
+        if field == "poses":
+            target["poses"] = int(value)
+            if not 1 <= target["poses"] <= generate.POSES_PER_TOKEN:
+                raise PackError(f"{flag} must be 1 to 4 for target {target['file']}")
+        elif field == "start":
+            target["start"] = float(value)
+        elif field == "early":
+            target["early"] = int(value)
+        else:
+            target["tokens"] = parse_tokens(value)
+    except ValueError as exc:
+        raise PackError(f"bad {flag} {value!r} for target {target['file']}: {exc}")
+    target.setdefault("_set", set()).add(field)
+
+
+class _Target(argparse.Action):
+    def __call__(self, parser, namespace, value, option_string=None):
+        namespace.target = (namespace.target or []) + [new_target(value)]
+
+
+class _TargetOption(argparse.Action):
+    def __call__(self, parser, namespace, value, option_string=None):
+        if not namespace.target:
+            raise PackError(f"{option_string} must follow the --target it applies to")
+        target_option(namespace.target[-1], self.dest, value)
 
 
 def parse_tokens(text):
@@ -71,17 +96,23 @@ def parse_tokens(text):
     return {"min": lo, "max": hi}
 
 
+def frames_for_tokens(tokens):
+    """Valid frames of one generation of that many tokens: four poses per token, less the boundary frames."""
+    return tokens * generate.POSES_PER_TOKEN - 2 * BOUNDARY_FRAMES
+
+
 def ground_distance(a, b):
     return math.hypot(b[0] - a[0], b[2] - a[2])
 
 
-def target_summary(context_last, target_first, early):
-    """Distance on the ground from the last context pose to the target, and the average speeds that the shortest and
-    longest generation would imply (NVIDIA: fit the token count to the distance)."""
-    d = ground_distance(context_last[0][:3], target_first[0][:3])
-    return {"groundDistance": round(d, 3),
-            "impliedSpeed": {"atMaxFrames": round(d * generate.FPS / (MAX_FRAMES - 1), 3),
-                             "atMinFrames": round(d * generate.FPS / (MIN_FRAMES - 1), 3)},
+def target_summary(previous_pose, target_first, early, tokens):
+    """Distance on the ground from the previous pose to the target, and the average speeds that the shortest and longest
+    generation this target's token range allows would imply (NVIDIA: fit the token count to the distance)."""
+    d = ground_distance(previous_pose[0][:3], target_first[0][:3])
+    longest, shortest = frames_for_tokens(tokens["max"]), frames_for_tokens(tokens["min"])
+    return {"groundDistance": round(d, 3), "tokens": tokens,
+            "impliedSpeed": {"atMaxFrames": round(d * generate.FPS / (longest - 1), 3),
+                             "atMinFrames": round(d * generate.FPS / (shortest - 1), 3)},
             "transitionEarlyBy": early}
 
 
@@ -145,6 +176,7 @@ def read_poses(path, skel, times, rest_tolerance, blend, label):
 
 
 def floor_report(skel, poses, tolerance):
+    """The lowest foot joint against SOMA's standing pose; nearGround judges it against the person's tolerance."""
     low, ref = soma.lowest(skel, poses, skel.get("footContactJoints") or [])
     if low is None:
         return None
@@ -153,13 +185,19 @@ def floor_report(skel, poses, tolerance):
             "nearGround": abs(offset) <= tolerance}
 
 
-def main(argv):
-    parser = argparse.ArgumentParser(prog="pack.py", description=__doc__.splitlines()[0])
+def parse_args(argv):
+    """The command line, with each target's options attached to it. Raises PackError on misplaced target options and
+    SystemExit (argparse) on missing or malformed flags."""
+    parser = argparse.ArgumentParser(prog="pack.py", description=__doc__.splitlines()[0], allow_abbrev=False)
     parser.add_argument("context")
     parser.add_argument("request")
     parser.add_argument("--skeleton", required=True)
-    parser.add_argument("--target", action="append", required=True)
+    parser.add_argument("--floor-tolerance", type=float, required=True)
+    parser.add_argument("--target", action=_Target, required=True)
+    for name in TARGET_OPTIONS:
+        parser.add_argument("--" + name.replace("_", "-"), dest=name, action=_TargetOption)
     parser.add_argument("--context-end", type=float)
+    parser.add_argument("--context-hold", action="store_true")
     parser.add_argument("--tokens", default="8-14")
     parser.add_argument("--precision", choices=generate.PRECISIONS, default="fp32")
     parser.add_argument("--tf32", choices=("auto", "on", "off"), default="auto")
@@ -168,19 +206,29 @@ def main(argv):
     parser.add_argument("--onnx-sha256")
     parser.add_argument("--model-name", default=DEFAULT_MODEL)
     parser.add_argument("--rest-tolerance", type=float, default=0.01)
-    parser.add_argument("--floor-tolerance", type=float, default=0.05)
     args = parser.parse_args(argv)
+    if args.floor_tolerance < 0:
+        raise PackError("--floor-tolerance is a distance in metres, 0 or more")
+    return args
+
+
+def main(argv):
+    try:
+        args = parse_args(argv)
+    except PackError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(2)
     from mbx import blend
 
     try:
         args.tokens = parse_tokens(args.tokens)
         skel = soma.load_skeleton(args.skeleton)
-        targets = [parse_target(s) for s in args.target]
+        targets = args.target
         step = 1.0 / generate.FPS
 
         def context_times(duration):
             last = duration if args.context_end is None else args.context_end
-            return [last - (3 - k) * step for k in range(4)]
+            return [last] * 4 if args.context_hold else [last - (3 - k) * step for k in range(4)]
         context, ctx_src = read_poses(args.context, skel, context_times, args.rest_tolerance, blend, "context")
         sources = [dict(ctx_src, role="context")]
         for n, t in enumerate(targets):
@@ -202,14 +250,14 @@ def main(argv):
     previous = context[-1]
     summary_targets = []
     for n, t in enumerate(targets):
-        s = target_summary(previous, t["poses_data"][0], t["early"])
+        s = target_summary(previous, t["poses_data"][0], t["early"], t["tokens"] or args.tokens)
         s.update(target=n, poses=len(t["poses_data"]), meaning="stop at the target" if len(t["poses_data"]) == 1 else "carry the target's velocity through",
                  floor=floor_report(skel, t["poses_data"], args.floor_tolerance))
         summary_targets.append(s)
         previous = t["poses_data"][0]
     print(json.dumps({"request": args.request, "joints": len(skel["joints"]), "precision": args.precision,
-                      "restFit": max(s["restFit"] for s in sources),
-                      "context": {"floor": floor_report(skel, context, args.floor_tolerance)},
+                      "restFit": max(s["restFit"] for s in sources), "floorTolerance": args.floor_tolerance,
+                      "context": {"held": args.context_hold, "floor": floor_report(skel, context, args.floor_tolerance)},
                       "targets": summary_targets}, indent=2))
 
 

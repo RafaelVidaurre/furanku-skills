@@ -8,6 +8,7 @@ front. Prints the frames drawn.
 """
 import argparse
 import json
+import os
 import sys
 
 import bpy
@@ -68,7 +69,7 @@ def main(argv):
     scene.render.engine = "BLENDER_WORKBENCH"
     scene.render.resolution_x = 1800
     scene.render.resolution_y = max(200, int(1800 * (high - low) / width))
-    scene.render.filepath = args.out
+    scene.render.filepath = os.path.abspath(args.out)  # Blender reads a relative path against the (absent) .blend file
     bpy.ops.render.render(write_still=True)
     print(json.dumps({"strip": args.out, "frames": frames}))
 

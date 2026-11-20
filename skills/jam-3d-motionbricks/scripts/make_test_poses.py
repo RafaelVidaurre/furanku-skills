@@ -58,6 +58,7 @@ def main(argv):
     for name, poses in files.items():
         blend.reset()
         arm = blend.import_armature(args.rig, skel["joints"])
+        blend.clear_animations()
         keyed = []
         for pose in poses:
             world = soma.unpack_pose(skel, pose)

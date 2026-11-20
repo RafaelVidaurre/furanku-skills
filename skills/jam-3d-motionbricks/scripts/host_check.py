@@ -1,8 +1,9 @@
-"""Check whether this machine can generate with NVIDIA MotionBricks, against its documented requirements. Pure Python
-standard library (3.8 or newer), no Blender, no MotionBricks needed: run it on the machine that would generate.
+"""Check whether this machine can generate with NVIDIA MotionBricks, against the requirements in this skill's
+references/setup.md ("What the host needs"), which is where each one is stated and sourced. Pure Python standard library
+(3.8 or newer), no Blender, no MotionBricks needed: run it on the machine that would generate, with any Python 3 there.
 
-    python3 host_check.py [--motionbricks <clone dir>] [--precision fp32|fp16] [--disk-path <dir>] [--import-check]
-                          [--out <host-check.json>]
+    <python> host_check.py [--motionbricks <clone dir>] [--precision fp32|fp16] [--tf32 auto|on|off] [--device cuda:0]
+                           [--disk-path <dir>] [--import-check] [--out <host-check.json>]
 
 Prints one JSON object: `host` (what was found), `requirements` (one entry per requirement with `status` pass, fail,
 warn or unknown, what was `found`, and the `source` of the requirement), `qualifies` (the OS, GPU and driver
@@ -10,13 +11,15 @@ requirements pass, so MotionBricks can be installed here), `ready` (no requireme
 generate now), and `missing` (what to fix, in words). Exit status 0 when ready, 1 when not, 2 on bad arguments.
 
 --motionbricks   an existing clone, to check the install, the model files and the TensorRT plans.
---precision      which plan to look for (default fp32).
---import-check   also start MotionBricks' own interpreter and ask TensorRT and Warp whether a CUDA device works. Takes
-                 tens of seconds; the definitive check that the install runs on this GPU.
+--precision      which plan to look for (default fp32); --tf32 as generate.py will be given it (default auto).
+--device         the CUDA device generate.py will use (default cuda:0). Its GPU is the one judged; every GPU is reported.
+--import-check   also start MotionBricks' own interpreter and ask TensorRT and Warp whether that device works, and which
+                 GPU it is. Takes tens of seconds; the definitive check that the install runs on this GPU.
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import platform
@@ -30,7 +33,14 @@ MIN_DRIVER = 525
 MIN_CUDA = (12, 0)
 MIN_PYTHON = (3, 12)
 MIN_GLIBC = (2, 28)
-CLONE_BYTES = 4.7e9
+# The release's Git LFS files total 2.48 GB at v0.2.0 (the sizes their LFS pointers state); a clone keeps each twice,
+# once in the working tree and once under .git/lfs. The environment `uv sync` installs and the plans come on top.
+LFS_BYTES = 2.48e9
+CLONE_BYTES = 2 * LFS_BYTES
+# What generate.py builds with: TensorRTBuildOptions(enable_fp16=precision == "fp16", enable_tf32=tf32), every other
+# option at its default (motionbricks/inference/builder.py at v0.2.0). cache_payload() omits enable_fp16 when false and
+# enable_tf32 unless false; MotionBricks keys its plan cache on that payload.
+BUILD_DEFAULTS = {"workspace_size_bytes": None, "builder_optimization_level": 3, "batch_size": 1}
 LFS_POINTER = b"version https://git-lfs"
 HARDWARE = ("os", "glibc", "nvidia-gpu", "compute-capability", "driver", "driver-cuda")
 ONNX = {"fp32": "mmm_v6_soma_fp32.onnx", "fp16": "mmm_v6_soma_fp16.onnx"}
@@ -45,10 +55,12 @@ SRC = {
     "glibc": "TensorRT 10.8.0 release notes: glibc 2.28 or newer on Linux x86-64",
     "tools": "MotionBricks README (Setup): install Git LFS and uv, clone, `git lfs pull`, `uv sync`",
     "python": "MotionBricks pyproject.toml: requires-python >= 3.12 (uv installs it when missing)",
-    "disk": "Measured: a full clone with its Git LFS objects takes about 4.7 GB",
+    "disk": "MotionBricks v0.2.0's Git LFS pointers: 2.48 GB of LFS files, which a clone stores twice (working tree "
+            "and .git/lfs); the environment and plans come on top",
     "install": "MotionBricks README (Setup): the ONNX models arrive through Git LFS",
     "plan": "MotionBricks README (Setup): the first launch of each model and precision builds a TensorRT plan (a few "
-            "minutes) and caches it in .trt-cache/; a plan only fits the GPU, TensorRT version and OS that built it",
+            "minutes) and caches it in .trt-cache/; motionbricks/inference/cache.py keys each plan on the ONNX file's "
+            "SHA-256, the TensorRT version, the build options, the GPU and the OS and CPU architecture",
     "import": "MotionBricks runtime API (Engines): engines need a CUDA device",
 }
 
@@ -66,17 +78,60 @@ def parse_version(text, parts=2):
     return tuple(int(g) for g in m.groups()) if m else None
 
 
+GPU_QUERY = "index,name,compute_cap,driver_version,memory.total,memory.free,pci.bus_id"
+
+
 def parse_gpus(csv_text):
-    """Rows of `nvidia-smi --query-gpu=name,compute_cap,driver_version,memory.total,memory.free --format=csv,noheader,nounits`."""
+    """Rows of `nvidia-smi --query-gpu=<GPU_QUERY> --format=csv,noheader,nounits`."""
     gpus = []
     for line in (csv_text or "").splitlines():
         cells = [c.strip() for c in line.split(",")]
-        if len(cells) < 5 or not cells[0]:
+        if len(cells) < 7 or not cells[1]:
             continue
-        mem = [int(c) if c.isdigit() else None for c in cells[3:5]]
-        gpus.append({"name": cells[0], "computeCapability": parse_version(cells[1]) and ".".join(map(str, parse_version(cells[1]))),
-                     "driver": cells[2], "memoryTotalMiB": mem[0], "memoryFreeMiB": mem[1]})
+        mem = [int(c) if c.isdigit() else None for c in cells[4:6]]
+        cc = parse_version(cells[2])
+        gpus.append({"index": int(cells[0]) if cells[0].isdigit() else None, "name": cells[1],
+                     "computeCapability": cc and ".".join(map(str, cc)), "driver": cells[3],
+                     "memoryTotalMiB": mem[0], "memoryFreeMiB": mem[1], "pciBusId": cells[6] or None})
     return gpus
+
+
+def device_ordinal(device):
+    """The ordinal of a Warp CUDA alias ("cuda" and "cuda:0" are 0), or None when it names no CUDA device."""
+    m = re.fullmatch(r"cuda(?::(\d+))?", device or "")
+    return int(m.group(1) or 0) if m else None
+
+
+def _bus(text):
+    """A PCI bus id reduced to (bus, device), so nvidia-smi's 00000000:01:00.0 meets Warp's 00000000:01:00."""
+    m = re.search(r"([0-9a-fA-F]+):([0-9a-fA-F]+)(?:\.[0-9a-fA-F]+)?$", text or "")
+    return (int(m.group(1), 16), int(m.group(2), 16)) if m else None
+
+
+def select_gpu(facts):
+    """The GPU that --device names and how that was told: (gpu, how), with gpu None when it is not known, or False when
+    --device names no GPU of this machine. CUDA numbers devices fastest first unless
+    CUDA_DEVICE_ORDER=PCI_BUS_ID, while nvidia-smi numbers them in bus order, so an ordinal alone identifies a GPU only
+    when there is one GPU or that order is set; the import check asks Warp itself."""
+    gpus = facts.get("gpus") or []
+    ordinal = device_ordinal(facts.get("device"))
+    if ordinal is None:
+        return False, "not a CUDA device (cuda or cuda:<n>)"
+    if ordinal >= len(gpus):
+        return False, f"this machine has {len(gpus)} GPU(s), numbered from cuda:0"
+    seen = ((facts.get("motionbricks") or {}).get("imports") or {})
+    if seen.get("device"):
+        bus = _bus(seen.get("pciBusId"))
+        match = [g for g in gpus if bus and _bus(g.get("pciBusId")) == bus] or [g for g in gpus if g["name"] == seen["device"]]
+        if len(match) == 1:
+            return match[0], "as Warp reported it"
+    if len(gpus) == 1:
+        return gpus[0], "the only GPU"
+    if facts.get("cudaDeviceOrder") == "PCI_BUS_ID":
+        match = [g for g in gpus if g.get("index") == ordinal]
+        if match:
+            return match[0], "CUDA_DEVICE_ORDER=PCI_BUS_ID"
+    return None, "several GPUs, and CUDA orders them fastest first: run with --import-check to tell which one it is"
 
 
 def parse_cuda_version(smi_text):
@@ -107,19 +162,43 @@ def plan_entries(cache_dir):
     return entries
 
 
-def plan_matches(meta, precision, gpus, system):
-    """Whether a cached plan was built for this precision on this OS and one of these GPUs."""
-    if meta.get("onnx_filename") != ONNX[precision]:
-        return False
-    if (meta.get("platform") or {}).get("system") != system:
-        return False
+def expected_build_options(precision, tf32):
+    options = dict(BUILD_DEFAULTS)
+    if precision == "fp16":
+        options["enable_fp16"] = True
+    if tf32 is False:
+        options["enable_tf32"] = False
+    return options
+
+
+def plan_mismatches(meta, expect):
+    """What keeps a cached plan's metadata from fitting a generation here: the fields MotionBricks keys its plan cache
+    on, compared with what this host would use. Returns (mismatches, unchecked); a plan fits when the first is empty.
+    expect: onnxFile, onnxSha256, tensorrt (None when unknown), buildOptions, system, machine, gpus (GPUs it may run
+    on: the selected one, or every GPU when that is not known)."""
+    wrong, unchecked = [], []
+    if meta.get("onnx_filename") != expect["onnxFile"]:
+        wrong.append(f"model file {meta.get('onnx_filename')}")
+    for field, key, label in (("onnxSha256", "onnx_sha256", "model file hash"), ("tensorrt", "tensorrt_version", "TensorRT version")):
+        if expect.get(field) is None:
+            unchecked.append(label)
+        elif meta.get(key) != expect[field]:
+            wrong.append(f"{label} {meta.get(key)}")
+    if meta.get("build_options") != expect["buildOptions"]:
+        wrong.append(f"build options {json.dumps(meta.get('build_options'), sort_keys=True)}")
+    plat = meta.get("platform") or {}
+    if plat.get("system") != expect["system"] or plat.get("machine") != expect["machine"]:
+        wrong.append(f"platform {plat.get('system')} {plat.get('machine')}")
     device = meta.get("device") or {}
-    for gpu in gpus:
-        cc = gpu.get("computeCapability")
-        arch = int(cc.replace(".", "")) if cc else None
+    on_gpu = False
+    for gpu in expect["gpus"]:
+        cc = parse_version(gpu.get("computeCapability"))
+        arch = cc[0] * 10 + cc[1] if cc else None
         if device.get("name") == gpu["name"] and (arch is None or device.get("architecture") == arch):
-            return True
-    return False
+            on_gpu = True
+    if not on_gpu:
+        wrong.append(f"GPU {device.get('name')} sm_{device.get('architecture')}")
+    return wrong, unchecked
 
 
 def is_lfs_pointer(path):
@@ -128,6 +207,34 @@ def is_lfs_pointer(path):
             return f.read(len(LFS_POINTER)) == LFS_POINTER
     except OSError:
         return True
+
+
+def venv_package_version(clone, package):
+    """Version of an installed distribution in the clone's environment, from its dist-info folder."""
+    prefix = package.replace("-", "_").lower() + "-"
+    roots = [os.path.join(clone, ".venv", "Lib", "site-packages")]
+    lib = os.path.join(clone, ".venv", "lib")
+    try:
+        roots += [os.path.join(lib, d, "site-packages") for d in sorted(os.listdir(lib))]
+    except OSError:
+        pass
+    for root in roots:
+        try:
+            names = sorted(os.listdir(root))
+        except OSError:
+            continue
+        for name in names:
+            if name.lower().startswith(prefix) and name.endswith(".dist-info"):
+                return name[len(prefix):-len(".dist-info")]
+    return None
+
+
+def sha256_file(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 23), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def venv_python(clone):
@@ -148,10 +255,11 @@ def gather(args):
         facts["glibc"] = ver if lib == "glibc" else None
     smi = shutil.which("nvidia-smi")
     facts["nvidiaSmi"] = bool(smi)
-    facts["gpus"] = parse_gpus(run([smi, "--query-gpu=name,compute_cap,driver_version,memory.total,memory.free",
-                                     "--format=csv,noheader,nounits"])) if smi else []
+    facts["gpus"] = parse_gpus(run([smi, "--query-gpu=" + GPU_QUERY, "--format=csv,noheader,nounits"])) if smi else []
     cuda = parse_cuda_version(run([smi])) if smi else None
     facts["driverCuda"] = ".".join(map(str, cuda)) if cuda else None
+    facts["device"] = args.device
+    facts["cudaDeviceOrder"] = os.environ.get("CUDA_DEVICE_ORDER")
     facts["uv"] = (run(["uv", "--version"]) or "").strip() or None
     facts["gitLfs"] = (run(["git", "lfs", "version"]) or "").strip() or None
     disk_path = args.disk_path or args.motionbricks or os.getcwd()
@@ -161,6 +269,7 @@ def gather(args):
         facts["diskFreeBytes"] = None
     facts["diskPath"] = os.path.abspath(disk_path)
     facts["precision"] = args.precision
+    facts["tf32"] = {"auto": None, "on": True, "off": False}[args.tf32]
     mb = None
     if args.motionbricks:
         clone = os.path.abspath(args.motionbricks)
@@ -173,28 +282,31 @@ def gather(args):
         except OSError:
             mb["version"] = None
         onnx = os.path.join(clone, "motionbricks", "assets", "onnx", "soma", ONNX[args.precision])
+        real = os.path.isfile(onnx) and not is_lfs_pointer(onnx)
         mb["onnx"] = {"file": ONNX[args.precision], "present": os.path.isfile(onnx),
                       "lfsPointer": os.path.isfile(onnx) and is_lfs_pointer(onnx),
-                      "bytes": os.path.getsize(onnx) if os.path.isfile(onnx) else None}
+                      "bytes": os.path.getsize(onnx) if os.path.isfile(onnx) else None,
+                      "sha256": sha256_file(onnx) if real else None}
         py = venv_python(clone)
         mb["venvPython"] = py
         mb["venvPythonVersion"] = (run([py, "-c", "import platform; print(platform.python_version())"]) or "").strip() or None if py else None
-        cache = os.path.join(clone, ".trt-cache")
-        mb["planCache"] = cache
-        mb["plans"] = [{"onnx": e.get("onnx_filename"), "gpu": (e.get("device") or {}).get("name"),
-                        "architecture": (e.get("device") or {}).get("architecture"), "tensorrt": e.get("tensorrt_version"),
-                        "os": (e.get("platform") or {}).get("system"), "buildOptions": e.get("build_options"),
-                        "fitsThisHost": plan_matches(e, args.precision, facts["gpus"], system)} for e in plan_entries(cache)]
+        mb["tensorrt"] = venv_package_version(clone, "tensorrt_cu12_bindings") or venv_package_version(clone, "tensorrt")
         if args.import_check and py:
-            code = ("import json, tensorrt, warp as wp; wp.init(); d = wp.get_device('cuda:0') if wp.get_cuda_device_count() else None; "
+            code = ("import json, sys, tensorrt, warp as wp; wp.init(); a = sys.argv[1]; "
+                    "d = wp.get_device(a) if wp.get_cuda_device_count() else None; d = d if d is not None and d.is_cuda else None; "
                     "import motionbricks._version as v; "
                     "print(json.dumps({'tensorrt': tensorrt.__version__, 'warp': wp.config.version, 'cuda': bool(d), "
-                    "'device': d.name if d else None, 'motionbricks': v.__version__}))")
-            out = run([py, "-c", code], timeout=600)
+                    "'device': d.name if d else None, 'arch': d.arch if d else None, "
+                    "'pciBusId': getattr(d, 'pci_bus_id', None) if d else None, 'motionbricks': v.__version__}))")
+            out = run([py, "-c", code, args.device], timeout=600)
             try:
-                mb["imports"] = json.loads(out.strip().splitlines()[-1]) if out else {"error": "the interpreter failed to import tensorrt, warp or motionbricks"}
+                mb["imports"] = json.loads(out.strip().splitlines()[-1]) if out else {"error": f"the interpreter failed to import tensorrt, warp or motionbricks, or has no device {args.device}"}
             except ValueError:
                 mb["imports"] = {"error": "unreadable output"}
+        if (mb.get("imports") or {}).get("tensorrt"):
+            mb["tensorrt"] = mb["imports"]["tensorrt"]
+        mb["planCache"] = os.path.join(clone, ".trt-cache")
+        mb["planEntries"] = plan_entries(mb["planCache"])
     facts["motionbricks"] = mb
     return facts
 
@@ -218,20 +330,30 @@ def evaluate(facts):
         reqs.append(_req("glibc", "glibc 2.28 or newer", "unknown" if g is None else ("pass" if g >= MIN_GLIBC else "fail"),
                          facts.get("glibc"), "glibc"))
     gpus = facts.get("gpus") or []
+    gpu, how = None, None
     if not facts.get("nvidiaSmi"):
         reqs.append(_req("nvidia-gpu", "an NVIDIA GPU with its driver", "fail", "nvidia-smi not found", "gpu"))
     elif not gpus:
         reqs.append(_req("nvidia-gpu", "an NVIDIA GPU with its driver", "fail", "nvidia-smi lists no GPU", "gpu"))
     else:
         reqs.append(_req("nvidia-gpu", "an NVIDIA GPU with its driver", "pass", ", ".join(g["name"] for g in gpus), "gpu"))
-        best = max(gpus, key=lambda g: parse_version(g.get("computeCapability")) or (0, 0))
-        cc = parse_version(best.get("computeCapability"))
-        reqs.append(_req("compute-capability", "compute capability 7.5 or higher",
-                         "unknown" if cc is None else ("pass" if cc >= MIN_COMPUTE else "fail"),
-                         f"{best['name']}: {best.get('computeCapability') or 'not reported'}", "compute"))
-        drv = parse_version(best.get("driver"), 1)
+        gpu, how = select_gpu(facts)
+        device = facts.get("device")
+        judged = [gpu] if gpu else [] if gpu is False else gpus
+
+        def judge(value):
+            cc = parse_version(value.get("computeCapability"))
+            return "unknown" if cc is None else ("pass" if cc >= MIN_COMPUTE else "fail")
+        verdicts = {judge(g) for g in judged}
+        status = "fail" if gpu is False else verdicts.pop() if len(verdicts) == 1 else "unknown"
+        listed = "; ".join(f"{g['name']}: {g.get('computeCapability') or 'not reported'}" for g in judged)
+        found = f"{device}: {how}" if gpu is False else f"{device} is {listed} ({how})" if gpu else (
+            f"{device}: {how}; every GPU judged alike: {listed}" if status != "unknown" else f"{device}: {how}; GPUs: {listed}")
+        reqs.append(_req("compute-capability", f"compute capability 7.5 or higher on the GPU {device} names", status, found, "compute"))
+        driver = gpus[0].get("driver")  # one driver serves every GPU
+        drv = parse_version(driver, 1)
         reqs.append(_req("driver", f"NVIDIA driver {MIN_DRIVER} or newer",
-                         "unknown" if drv is None else ("pass" if drv[0] >= MIN_DRIVER else "fail"), best.get("driver"), "driver"))
+                         "unknown" if drv is None else ("pass" if drv[0] >= MIN_DRIVER else "fail"), driver, "driver"))
         cuda = parse_version(facts.get("driverCuda"))
         reqs.append(_req("driver-cuda", "a driver that supports CUDA 12",
                          "unknown" if cuda is None else ("pass" if cuda >= MIN_CUDA else "fail"), facts.get("driverCuda"), "cuda"))
@@ -242,8 +364,9 @@ def evaluate(facts):
         reqs.append(_req("install-tools", "Git LFS and uv installed", "fail" if tools else "pass",
                          "missing: " + ", ".join(tools) if tools else f"{facts.get('uv')}; {facts.get('gitLfs')}", "tools"))
         free = facts.get("diskFreeBytes")
-        reqs.append(_req("disk", "about 4.7 GB free for the clone", "unknown" if free is None else ("pass" if free >= CLONE_BYTES else "fail"),
-                         None if free is None else f"{free / 1e9:.1f} GB free at {facts.get('diskPath')}", "disk"))
+        reqs.append(_req("disk", f"about {CLONE_BYTES / 1e9:.0f} GB free for the clone, plus its environment and plans",
+                         "warn" if free is None or free < CLONE_BYTES else "pass",
+                         "free space unknown" if free is None else f"{free / 1e9:.1f} GB free at {facts.get('diskPath')}", "disk"))
     if mb is None:
         reqs.append(_req("motionbricks", "MotionBricks cloned with its LFS files and synced", "unknown",
                          "not checked: pass --motionbricks <clone dir>", "install"))
@@ -261,11 +384,14 @@ def evaluate(facts):
     if mb.get("venvPython"):
         reqs.append(_req("python", "Python 3.12 or newer in MotionBricks' environment",
                          "unknown" if pyv is None else ("pass" if pyv >= MIN_PYTHON else "fail"), mb.get("venvPythonVersion"), "python"))
-    fitting = [p for p in mb.get("plans", []) if p["fitsThisHost"]]
-    reqs.append(_req("plan", f"a TensorRT plan for {facts['precision']} built on this host",
-                     "pass" if fitting else "warn",
-                     f"{len(fitting)} fitting plan(s) of {len(mb.get('plans', []))} cached" if fitting else
-                     "none yet: `generate.py plan` (or the first generation) builds it, which takes minutes", "plan"))
+    plans = judge_plans(facts, gpu)
+    mb["plans"] = plans
+    fitting = [p for p in plans if not p["mismatches"]]
+    unchecked = sorted({u for p in fitting for u in p["unchecked"]})
+    reqs.append(_req("plan", f"a TensorRT plan for {facts['precision']} built on this host for {facts.get('device')}",
+                     "pass" if fitting and not unchecked else "warn",
+                     (f"{len(fitting)} fitting plan(s) of {len(plans)} cached" + (f"; not compared: {', '.join(unchecked)}" if unchecked else ""))
+                     if fitting else "none yet: `generate.py plan` (or the first generation) builds it, which takes minutes", "plan"))
     if "imports" in mb:
         imp = mb["imports"]
         ok = imp.get("cuda") is True
@@ -274,13 +400,30 @@ def evaluate(facts):
     return reqs
 
 
+def judge_plans(facts, gpu):
+    """Every cached plan with what keeps it from fitting a generation here (an empty list: it fits)."""
+    mb = facts["motionbricks"]
+    expect = {"onnxFile": ONNX[facts["precision"]], "onnxSha256": mb["onnx"].get("sha256"), "tensorrt": mb.get("tensorrt"),
+              "buildOptions": expected_build_options(facts["precision"], facts.get("tf32")),
+              "system": facts["os"], "machine": facts.get("machine"),
+              "gpus": [gpu] if gpu else [] if gpu is False else facts.get("gpus") or []}
+    out = []
+    for e in mb.get("planEntries", []):
+        wrong, unchecked = plan_mismatches(e, expect)
+        out.append({"file": e.get("plan_file"), "onnx": e.get("onnx_filename"), "gpu": (e.get("device") or {}).get("name"),
+                    "tensorrt": e.get("tensorrt_version"), "buildOptions": e.get("build_options"),
+                    "mismatches": wrong, "unchecked": unchecked})
+    return out
+
+
 def summarize(facts, reqs):
     blocking = [r for r in reqs if r["status"] in ("fail", "unknown")]
     return {"host": facts, "requirements": reqs,
             "qualifies": not [r for r in blocking if r["id"] in HARDWARE],
             "ready": not blocking,
             "missing": [f"{r['requirement']}: {r['found']}" for r in blocking],
-            "notes": ["VRAM, CPU-only speed and a minimum GPU model are not documented by MotionBricks; they are reported, not judged.",
+            "notes": ["The requirements and their sources: references/setup.md of the jam-3d-motionbricks skill.",
+                      "VRAM, CPU-only speed and a minimum GPU model are not documented by MotionBricks; they are reported, not judged.",
                       "A warn is not blocking: say it to the person."]}
 
 
@@ -288,6 +431,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--motionbricks")
     parser.add_argument("--precision", choices=sorted(ONNX), default="fp32")
+    parser.add_argument("--tf32", choices=("auto", "on", "off"), default="auto")
+    parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--disk-path")
     parser.add_argument("--import-check", action="store_true")
     parser.add_argument("--out")

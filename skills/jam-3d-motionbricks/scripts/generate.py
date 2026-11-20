@@ -49,8 +49,17 @@ class InputError(ValueError):
 
 # ---------------------------------------------------------------- validation (stdlib only)
 
+def _number(v):
+    """A finite JSON number; true and false are not numbers here."""
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def _whole(v):
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
 def _transform_ok(t):
-    if not isinstance(t, list) or len(t) != 7 or not all(isinstance(v, (int, float)) and math.isfinite(v) for v in t):
+    if not isinstance(t, list) or len(t) != 7 or not all(_number(v) for v in t):
         return False
     return abs(math.sqrt(sum(v * v for v in t[3:])) - 1.0) < 1e-3
 
@@ -70,7 +79,7 @@ def _check_tokens(where, tokens, errors, allow_null):
     if tokens is None and allow_null:
         return
     lo, hi = TOKEN_RANGE
-    if not isinstance(tokens, dict) or not all(isinstance(tokens.get(k), int) for k in ("min", "max")) \
+    if not isinstance(tokens, dict) or not all(_whole(tokens.get(k)) for k in ("min", "max")) \
             or not lo <= tokens["min"] <= tokens["max"] <= hi:
         errors.append(f"{where} must be {{\"min\": a, \"max\": b}} with {lo} <= a <= b <= {hi}" + (", or null" if allow_null else ""))
 
@@ -128,47 +137,63 @@ def validate_request(req):
             continue
         _check_poses(where, t.get("poses"), len(joints), 1, POSES_PER_TOKEN, errors)
         teb = t.get("transitionEarlyBy")
-        if not isinstance(teb, int) or isinstance(teb, bool) or not 0 <= teb <= MAX_TRANSITION_EARLY_BY:
+        if not _whole(teb) or not 0 <= teb <= MAX_TRANSITION_EARLY_BY:
             errors.append(f"{where}.transitionEarlyBy must be a whole number of frames from 0 to {MAX_TRANSITION_EARLY_BY}")
         _check_tokens(f"{where}.tokens", t.get("tokens"), errors, allow_null=True)
     return errors
 
 
+SEGMENT_FIELDS = ("generatedFrames", "playedFrames", "tokens", "transitionEarlyBy")
+
+
 def validate_result(res):
-    """Return the list of problems with a result (empty when valid)."""
+    """Return the list of problems with a result (empty when valid). Every entry is type-checked, so a malformed file
+    gives named problems, never an exception."""
     errors = []
     if not isinstance(res, dict):
         return ["result must be a JSON object"]
     if res.get("format") != RESULT_FORMAT:
         errors.append(f"format must be {RESULT_FORMAT!r}")
-    if res.get("fps") != FPS:
+    if res.get("fps") != FPS or isinstance(res.get("fps"), bool):
         errors.append(f"fps must be {FPS}")
     joints = res.get("joints")
-    if not isinstance(joints, list) or not joints or joints[0] != "Hips":
-        errors.append("joints must list the skeleton's joints, Hips first")
+    if not isinstance(joints, list) or not joints or not all(isinstance(j, str) for j in joints) \
+            or len(set(joints)) != len(joints) or joints[0] != "Hips":
+        errors.append("joints must list the skeleton's unique joint names, Hips first")
         return errors
     frames = res.get("frames")
     if not isinstance(frames, list) or not frames:
         errors.append("frames must hold at least one pose")
         return errors
-    _check_poses("result", frames, len(joints), 1, len(frames), errors)
+    _check_poses("frames", frames, len(joints), 1, len(frames), errors)
+    root = res.get("root")
+    if not isinstance(root, list) or len(root) != len(frames):
+        errors.append("root must hold one transform per frame")
+    else:
+        bad = [k for k, t in enumerate(root) if not _transform_ok(t)]
+        if bad:
+            errors.append(f"root[{bad[0]}] is not 7 finite numbers with a unit quaternion (x, y, z, w)")
     contacts = res.get("contacts")
-    if not isinstance(contacts, dict) or not isinstance(contacts.get("joints"), list) or len(contacts["joints"]) != 4:
+    if not isinstance(contacts, dict) or not isinstance(contacts.get("joints"), list) or len(contacts["joints"]) != 4 \
+            or not all(isinstance(j, str) for j in contacts["joints"]):
         errors.append("contacts.joints must name the four foot-contact joints")
     else:
         values = contacts.get("values")
         if not isinstance(values, list) or len(values) != len(frames):
             errors.append("contacts.values must hold one row per frame")
-        elif not all(isinstance(r, list) and len(r) == 4 and all(isinstance(v, (int, float)) and 0.0 <= v <= 1.0 for v in r) for r in values):
+        elif not all(isinstance(r, list) and len(r) == 4 and all(_number(v) and 0.0 <= v <= 1.0 for v in r) for r in values):
             errors.append("each contacts.values row must be four confidences from 0 to 1")
-    root = res.get("root")
-    if not isinstance(root, list) or len(root) != len(frames):
-        errors.append("root must hold one transform per frame")
     segments = res.get("segments")
     if not isinstance(segments, list) or not segments:
         errors.append("segments must describe each generation")
-    else:
-        covered = sum(s.get("playedFrames", 0) for s in segments) - (len(segments) - 1)
+        return errors
+    for n, seg in enumerate(segments):
+        if not isinstance(seg, dict) or not all(_whole(seg.get(k)) and seg[k] >= 0 for k in SEGMENT_FIELDS):
+            errors.append(f"segments[{n}] must be an object with whole numbers {', '.join(SEGMENT_FIELDS)}")
+        elif seg["playedFrames"] < 1:
+            errors.append(f"segments[{n}].playedFrames must be at least 1")
+    if not any(e.startswith("segments[") for e in errors):
+        covered = sum(s["playedFrames"] for s in segments) - (len(segments) - 1)
         if covered != len(frames):
             errors.append(f"segments play {covered} frames, frames holds {len(frames)}")
     return errors
@@ -262,12 +287,23 @@ def _onnx_path(precision):
 
 
 def _init_device(device):
+    """Select the CUDA device before anything allocates: MotionBricks' skeleton, tokens and engine all put their arrays
+    on Warp's current device, and arrays on two devices cannot meet in one kernel."""
     import warp as wp
     wp.init()
-    if not wp.get_device(device).is_cuda:
+    try:
+        found = wp.get_device(device)
+    except (ValueError, RuntimeError) as exc:
+        raise InputError(f"no device {device} here ({exc}); `host_check.py` lists this machine's GPUs")
+    if not found.is_cuda:
         raise InputError(f"{device} is not a CUDA device: MotionBricks' TensorRT engine needs an NVIDIA GPU")
-    wp.set_device(device)
-    return wp.get_device(device)
+    wp.set_device(found)
+    return found
+
+
+def _on_device(device):
+    import warp as wp
+    return wp.ScopedDevice(device)
 
 
 def _engine(precision, tf32, cache_dir):
@@ -291,7 +327,7 @@ def _environment(device, precision, tf32):
     return {
         "backend": "tensorrt", "precision": precision, "tf32": tf32,
         "tensorrtVersion": str(tensorrt.__version__), "warpVersion": str(wp.config.version),
-        "gpu": device.name, "architecture": f"sm_{device.arch}",
+        "device": device.alias, "gpu": device.name, "architecture": f"sm_{device.arch}",
         "os": platform.system(), "machine": platform.machine(), "python": platform.python_version(),
     }
 
@@ -326,7 +362,7 @@ def cmd_plan(args):
     device = _init_device(args.device)
     before = _plans(cache_dir)
     start = time.perf_counter()
-    with _engine(args.precision, args.tf32, cache_dir):
+    with _on_device(device), _engine(args.precision, args.tf32, cache_dir):
         pass
     seconds = time.perf_counter() - start
     built = sorted(_plans(cache_dir) - before)
@@ -352,6 +388,13 @@ def cmd_run(args):
     if req["model"]["motionbricksVersion"] != version:
         raise InputError(f"the request was packed for MotionBricks {req['model']['motionbricksVersion']}, this host has "
                          f"{version}; install that release or pack again for this one")
+    device = _init_device(args.device)
+    with _on_device(device):
+        return _generate(args, req, mb, version, device)
+
+
+def _generate(args, req, mb, version, device):
+    """Everything that allocates runs here, on the device _init_device selected."""
     import numpy as np
     import warp as wp
     from motionbricks.inference.cache import sha256_file
@@ -381,7 +424,6 @@ def cmd_run(args):
         return wp.array(out, dtype=wp.transform, device=device)
 
     cache_dir = args.cache_dir or os.path.join(_clone_root(mb), ".trt-cache")
-    device = _init_device(args.device)
     before = _plans(cache_dir)
     clip, contacts, segments = [], [], []
     started = time.perf_counter()
