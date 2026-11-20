@@ -41,7 +41,7 @@ Every pose is in **SOMA model space**: metres, +Y up, the ground on XZ at Y = 0,
 | `format`, `fps`, `space` | `jam-3d-motionbricks/result@1`, `30` |
 | `request` | The request's file name and SHA-256 |
 | `model` | Name, MotionBricks version, clone commit, ONNX file and its SHA-256 |
-| `inference` | Backend, precision, TF32 setting, TensorRT and Warp versions, GPU and its architecture, OS, whether this run built the plan, endpoint correction |
+| `inference` | Backend, precision, TF32 setting, TensorRT and Warp versions, the device and its GPU and architecture, OS, whether this run built the plan, endpoint correction |
 | `joints` | The skeleton's joints in MotionBricks' order |
 | `frames` | Every played pose, one local transform per joint; frame 0 is the last context pose |
 | `root` | The root (`Hips`) transform per frame, world space |
@@ -52,4 +52,6 @@ Every pose is in **SOMA model space**: metres, +Y up, the ground on XZ at Y = 0,
 
 ## `contacts.json` and `unpack-report.json` (from `unpack.py`)
 
-`contacts.json` (`jam-3d-motionbricks/contacts@1`) copies the result's contact columns and values per frame of `generated.glb`, with the result's hash. `unpack-report.json` gives frames and seconds, the segments, the root's start, end, ground travel, path length and height range, `frameSteps` (the largest one-frame move of any joint, overall and at each seam between generations, with frame and joint), the lowest foot joint against SOMA's standing reference (`floorOffset`), and the model and inference records from the result.
+`contacts.json` (`jam-3d-motionbricks/contacts@1`) copies the result's contact columns and values per frame of `generated.glb`, with the result's hash. `unpack-report.json` gives frames and seconds, the segments, the root's start, end, ground travel, path length and height range, `frameSteps`, the lowest foot joint against SOMA's standing reference (`floorOffset`), the animations dropped from the `--rig` file (`rigAnimationsDropped`), and the model and inference records from the result.
+
+`frameSteps.largest` is the largest one-frame move of any joint in the clip, with frame and joint. `frameSteps.seams` has one entry per seam between generations: `frame` (the first frame of the later generation), and for the joint whose move into that frame most exceeds its own largest one-frame move over `window` frames on each side (the seam excluded): `metres`, `around`, `excess` (`metres − around`), `ratio` (`metres / around`; `null` when the joint was still around the seam) and `pops` (`excess` above `frameSteps.seamTolerance`, the person's `--seam-tolerance`), plus `largestAnyJoint` at that frame.

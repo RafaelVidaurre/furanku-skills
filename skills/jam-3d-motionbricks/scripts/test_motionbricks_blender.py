@@ -5,6 +5,7 @@ poses, so no GPU or MotionBricks is needed. Skipped when Blender is absent: set 
 import json
 import math
 import os
+import struct
 import shutil
 import subprocess
 import sys
@@ -20,7 +21,11 @@ from test_motionbricks import FEET, skeleton  # noqa: E402
 
 
 def find_blender():
-    for candidate in (os.environ.get("JAM_BLENDER"), shutil.which("blender"), "/Applications/Blender.app/Contents/MacOS/Blender"):
+    """JAM_BLENDER, else `blender` on PATH, else (on macOS only) the application bundle's usual place."""
+    candidates = [os.environ.get("JAM_BLENDER"), shutil.which("blender")]
+    if sys.platform == "darwin":
+        candidates.append("/Applications/Blender.app/Contents/MacOS/Blender")
+    for candidate in candidates:
         if candidate and os.path.isfile(candidate):
             return candidate
     return None
@@ -30,9 +35,9 @@ BLENDER = find_blender()
 pytestmark = pytest.mark.skipif(BLENDER is None, reason="Blender not found: set JAM_BLENDER to its executable to run these tests")
 
 
-def blender(script, *args):
+def blender(script, *args, cwd=None):
     done = subprocess.run([BLENDER, "--background", "--factory-startup", "--python-exit-code", "1", "--python",
-                           os.path.join(HERE, script), "--"] + [str(a) for a in args], capture_output=True, text=True)
+                           os.path.join(HERE, script), "--"] + [str(a) for a in args], capture_output=True, text=True, cwd=cwd)
     return done.returncode, done.stdout + done.stderr
 
 
@@ -60,8 +65,16 @@ def rig(tmp_path_factory):
 
 def pack(folder, out, *extra):
     return blender("pack.py", folder / "poses" / "context.glb", out, "--skeleton", folder / "soma-skeleton.json",
-                   "--target", folder / "poses" / "target-ahead.glb", "--target", str(folder / "poses" / "target-turn.glb") + ",early=4,tokens=10-12",
-                   *extra)
+                   "--floor-tolerance", "0.01", "--target", folder / "poses" / "target-ahead.glb",
+                   "--target", folder / "poses" / "target-turn.glb", "--early", "4", "--target-tokens", "10-12", *extra)
+
+
+def animations(glb):
+    """Names of the animations in a .glb file, read from its JSON chunk."""
+    data = glb.read_bytes()
+    length, kind = struct.unpack_from("<I4s", data, 12)
+    assert kind == b"JSON"
+    return [a.get("name") for a in json.loads(data[20:20 + length]).get("animations", [])]
 
 
 def test_pack_reads_back_the_constructed_poses(rig, tmp_path):
@@ -81,6 +94,8 @@ def test_pack_reads_back_the_constructed_poses(rig, tmp_path):
         assert dp < 1e-5 and da < 1e-4
     printed = summary(log)
     assert printed["targets"][0]["groundDistance"] == 1.5 and printed["context"]["floor"]["nearGround"] is True
+    assert printed["targets"][1]["tokens"] == {"min": 10, "max": 12}
+    assert printed["targets"][1]["impliedSpeed"]["atMaxFrames"] == round(1.0 * 30 / 41, 3)  # 12 tokens: 42 frames
     assert [s["role"] for s in req["sources"]] == ["context", "target 0", "target 1"]
 
 
@@ -95,7 +110,7 @@ def test_pack_refuses_a_rig_whose_rest_is_not_soma(rig, tmp_path):
     code, log = blender("make_test_poses.py", tmp_path / "other.json", tmp_path / "other.glb", tmp_path / "poses")
     assert code == 0, log[-3000:]
     code, log = blender("pack.py", tmp_path / "poses" / "context.glb", tmp_path / "request.json", "--skeleton",
-                        folder / "soma-skeleton.json", "--target", tmp_path / "poses" / "target-ahead.glb")
+                        folder / "soma-skeleton.json", "--floor-tolerance", "0.01", "--target", tmp_path / "poses" / "target-ahead.glb")
     assert code == 1 and "rest pose is not SOMA's" in log
 
 
@@ -120,6 +135,21 @@ def stand_in_result(skel, req, frames_per_segment=20):
             "segments": segments, "inference": {"precision": "fp32"}, "model": {"motionbricksVersion": "test"}}
 
 
+def test_pack_holds_a_single_pose_as_the_context(rig, tmp_path):
+    folder, skel = rig
+    # target-turn.glb holds one frame: as a held context it is the character standing in that pose
+    code, log = blender("pack.py", folder / "poses" / "target-turn.glb", tmp_path / "request.json", "--skeleton",
+                        folder / "soma-skeleton.json", "--floor-tolerance", "0.01", "--context-hold", "--context-end", "0",
+                        "--target", folder / "poses" / "target-ahead.glb")
+    assert code == 0, log[-3000:]
+    req = json.loads((tmp_path / "request.json").read_text())
+    expected = make_test_poses.standing(skel, 1.0, 1.5, math.pi / 2)
+    for pose in req["context"]["poses"]:
+        dp, da = max_error(skel, expected, pose)
+        assert dp < 1e-5 and da < 1e-4
+    assert summary(log)["context"]["held"] is True
+
+
 def test_unpack_writes_a_clip_that_reads_back_as_the_result(rig, tmp_path):
     folder, skel = rig
     code, log = pack(folder, tmp_path / "request.json")
@@ -129,10 +159,20 @@ def test_unpack_writes_a_clip_that_reads_back_as_the_result(rig, tmp_path):
     assert generate.validate_result(res) == []
     (tmp_path / "result.json").write_text(json.dumps(res))
     out = tmp_path / "out"
+    # a rig file that already holds an animation: the clip must hold the generated one only
+    rig_file = folder / "poses" / "context.glb"
+    assert animations(rig_file)
     code, log = blender("unpack.py", tmp_path / "result.json", out, "--skeleton", folder / "soma-skeleton.json",
-                        "--rig", folder / "soma-skeleton.glb")
+                        "--rig", rig_file)
+    assert code == 1 and "--seam-tolerance" in log  # two generations: the seam needs the person's tolerance
+    code, log = blender("unpack.py", tmp_path / "result.json", out, "--skeleton", folder / "soma-skeleton.json",
+                        "--rig", rig_file, "--seam-tolerance", "0.01")
     assert code == 0, log[-3000:]
+    assert animations(out / "generated.glb") == ["generated"]
     report = json.loads((out / "unpack-report.json").read_text())
+    assert report["rigAnimationsDropped"] == ["context"]
+    assert [s["frame"] for s in report["frameSteps"]["seams"]] == [20]
+    assert report["frameSteps"]["seamTolerance"] == 0.01 and isinstance(report["frameSteps"]["seams"][0]["pops"], bool)
     assert report["frames"] == len(res["frames"]) == 39
     assert report["root"]["end"] == [round(v, 4) for v in res["frames"][-1][0][:3]]
     contacts = json.loads((out / "contacts.json").read_text())
@@ -141,7 +181,8 @@ def test_unpack_writes_a_clip_that_reads_back_as_the_result(rig, tmp_path):
     # The written clip, packed again frame by frame as a context, gives back the result's poses.
     last = len(res["frames"]) - 1
     code, log = blender("pack.py", out / "generated.glb", tmp_path / "again.json", "--skeleton", folder / "soma-skeleton.json",
-                        "--target", str(out / "generated.glb") + ",poses=4", "--context-end", str(last / 30))
+                        "--floor-tolerance", "0.01", "--target", out / "generated.glb", "--poses", "4",
+                        "--context-end", str(last / 30))
     assert code == 0, log[-3000:]
     again = json.loads((tmp_path / "again.json").read_text())
     for packed, expected in zip(again["context"]["poses"], res["frames"][last - 3:]):
@@ -154,7 +195,7 @@ def test_unpack_writes_a_clip_that_reads_back_as_the_result(rig, tmp_path):
 
 def test_clip_strip_renders_the_clip(rig, tmp_path):
     folder, _ = rig
-    code, log = blender("clip_strip.py", folder / "poses" / "context.glb", tmp_path / "strip.png", "--every", "3")
+    code, log = blender("clip_strip.py", folder / "poses" / "context.glb", "strip.png", "--every", "3", cwd=tmp_path)
     assert code == 0, log[-3000:]
     assert (tmp_path / "strip.png").stat().st_size > 1000
     assert '"frames": [0, 3, 6, 7]' in log

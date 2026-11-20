@@ -35,6 +35,21 @@ def import_armature(path, joints):
     return best
 
 
+def clear_animations():
+    """Drop every animation the imported file brought (actions and their assignments), so that an export holds only what
+    is keyed afterwards. Returns the names dropped."""
+    names = sorted(a.name for a in bpy.data.actions)
+    for o in bpy.data.objects:
+        if o.animation_data:
+            o.animation_data_clear()
+        data = getattr(o.data, "shape_keys", None)
+        if data is not None and data.animation_data:
+            data.animation_data_clear()
+    for a in list(bpy.data.actions):
+        bpy.data.actions.remove(a)
+    return names
+
+
 def rest_world(arm):
     """name -> (position, rotation) of every bone's rest, glTF frame."""
     out = {}

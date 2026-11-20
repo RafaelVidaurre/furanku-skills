@@ -21,7 +21,6 @@ from mbx import math3d as m, soma  # noqa: E402
 
 SKILL = os.path.dirname(HERE)
 MAP = os.path.join(SKILL, "assets", "landmark-maps", "soma.json")
-LANDMARKS_SCHEMA = os.path.join(SKILL, "..", "jam-setup", "assets", "toolkit", "schemas", "landmarks.schema.json")
 
 # name, parent, position (glTF frame, metres)
 BODY = [
@@ -226,7 +225,7 @@ def result(skel, segments=(50, 30)):
     frames = sum(segments) - (len(segments) - 1)
     poses = [random_pose(skel, rng) for _ in range(frames)]
     return {"format": generate.RESULT_FORMAT, "fps": 30, "joints": list(skel["joints"]), "frames": poses,
-            "root": [p[0] for p in poses], "contacts": {"joints": FEET, "values": [[0.5, 0.5, 1.0, 0.0]] * frames},
+            "root": [p[0] for p in poses], "contacts": {"joints": list(FEET), "values": [[0.5, 0.5, 1.0, 0.0] for _ in range(frames)]},
             "segments": [{"generatedFrames": n, "playedFrames": n, "tokens": (n + 6) // 4, "transitionEarlyBy": 0} for n in segments]}
 
 
@@ -241,6 +240,33 @@ def test_a_well_formed_result_is_valid_and_problems_are_named():
     assert any("segments play" in e or "one row per frame" in e for e in generate.validate_result(bad))
 
 
+@pytest.mark.parametrize("change, message", [
+    (lambda r: r["segments"].__setitem__(0, "fifty"), "segments[0]"),
+    (lambda r: r["segments"][1].pop("playedFrames"), "segments[1]"),
+    (lambda r: r["segments"][0].update(playedFrames=True), "segments[0]"),
+    (lambda r: r["contacts"]["values"].__setitem__(2, [True, False, 0.5, 0.5]), "confidences"),
+    (lambda r: r["root"].__setitem__(4, "hips"), "root[4]"),
+    (lambda r: r["root"].__setitem__(0, [0, 1, 0, 0, 0, 0, True]), "root[0]"),
+    (lambda r: r["joints"].__setitem__(3, 7), "joints"),
+    (lambda r: r["frames"][5].__setitem__(0, None), "frames.poses[5]"),
+    (lambda r: r["contacts"]["joints"].__setitem__(0, None), "contacts.joints"),
+    (lambda r: r.update(fps=True), "fps"),
+])
+def test_malformed_result_entries_are_named_not_raised(change, message):
+    res = result(skeleton())
+    change(res)
+    errors = generate.validate_result(res)
+    assert any(message in e for e in errors), errors
+
+
+def test_booleans_are_not_numbers_in_a_request():
+    req = request(skeleton())
+    req["settings"]["tokens"] = {"min": True, "max": 9}
+    req["context"]["poses"][0][0] = [0, 1, 0, 0, 0, 0, True]
+    errors = generate.validate_request(req)
+    assert any("settings.tokens" in e for e in errors) and any("context.poses[0]" in e for e in errors), errors
+
+
 def test_check_command_reports_validity(tmp_path, capsys):
     path = tmp_path / "request.json"
     path.write_text(json.dumps(request(skeleton())))
@@ -250,6 +276,53 @@ def test_check_command_reports_validity(tmp_path, capsys):
     bad["fps"] = 24
     path.write_text(json.dumps(bad))
     assert generate.main(["check", str(path)]) == 1
+
+
+def test_run_selects_the_device_before_anything_is_allocated(tmp_path, monkeypatch):
+    """MotionBricks' skeleton, tokens and engine allocate on Warp's current device, so the device named by --device
+    is selected before the skeleton loads (a skeleton on cuda:0 cannot meet an engine on cuda:1)."""
+    calls = []
+
+    class Stop(Exception):
+        pass
+    monkeypatch.setattr(generate, "_load_motionbricks", lambda: (None, "0.2.0"))
+    monkeypatch.setattr(generate, "_soma_skeleton", lambda: calls.append("skeleton") or (_ for _ in ()).throw(Stop()))
+    monkeypatch.setattr(generate, "_engine", lambda *a: calls.append("engine") or (_ for _ in ()).throw(Stop()))
+
+    def init_device(device):
+        calls.append(("device", device))
+        return "the device"
+
+    class Scope:
+        def __init__(self, device):
+            calls.append(("scope", device))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            calls.append("scope closed")
+    monkeypatch.setattr(generate, "_init_device", init_device)
+    monkeypatch.setattr(generate, "_on_device", Scope)
+    path = tmp_path / "request.json"
+    path.write_text(json.dumps(request(skeleton())))
+    monkeypatch.setitem(sys.modules, "numpy", sys.modules.get("numpy") or type(sys)("numpy"))
+    monkeypatch.setitem(sys.modules, "warp", type(sys)("warp"))
+    fake = {n: type(sys)(n) for n in ("motionbricks", "motionbricks.inference", "motionbricks.inference.cache",
+                                      "motionbricks.model", "motionbricks.model.config", "motionbricks.model.soma",
+                                      "motionbricks.model.soma.contract")}
+    fake["motionbricks.inference.cache"].sha256_file = lambda p: "x"
+    fake["motionbricks.model.config"].MotionBricksInferenceConfig = object
+    fake["motionbricks.model.soma.contract"].SOMA_N1_CONTRACT = type("C", (), {"joint_names": MODEL})
+    fake["motionbricks.model.soma.contract"].SOMA_N1_FOOT_CONTACT_JOINTS = FEET
+    for name, module in fake.items():
+        monkeypatch.setitem(sys.modules, name, module)
+    monkeypatch.setattr(generate, "_onnx_path", lambda precision: "model.onnx")
+    with pytest.raises(Stop):
+        generate.cmd_run(type("A", (), {"request": str(path), "result": str(tmp_path / "r.json"), "device": "cuda:1",
+                                        "cache_dir": None})())
+    assert calls[:3] == [("device", "cuda:1"), ("scope", "the device"), "skeleton"], calls
+    assert calls[-1] == "scope closed"
 
 
 # ---------------------------------------------------------------- chaining
@@ -267,22 +340,46 @@ def test_chained_segments_join_without_repeating_the_seam_frame():
     assert generate.next_context(first) == [46, 47, 48, 49]
 
 
-def test_pack_target_summary_reports_distance_and_implied_speeds():
+def test_pack_target_summary_reports_distance_and_the_speeds_its_own_token_range_implies():
     pose_a = [[0, 1, 0, 0, 0, 0, 1]]
     pose_b = [[0, 1, 1.5, 0, 0, 0, 1]]
-    s = pack.target_summary(pose_a, pose_b, 4)
+    s = pack.target_summary(pose_a, pose_b, 4, {"min": 6, "max": 16})
     assert s["groundDistance"] == 1.5
-    assert s["impliedSpeed"]["atMaxFrames"] == round(1.5 * 30 / 57, 3)
-    assert s["impliedSpeed"]["atMinFrames"] == round(1.5 * 30 / 17, 3)
+    assert s["impliedSpeed"]["atMaxFrames"] == round(1.5 * 30 / 57, 3)   # 16 tokens: 58 frames
+    assert s["impliedSpeed"]["atMinFrames"] == round(1.5 * 30 / 17, 3)   # 6 tokens: 18 frames
+    fixed = pack.target_summary(pose_a, pose_b, 0, {"min": 9, "max": 9})  # 9 tokens: 30 frames
+    assert fixed["impliedSpeed"]["atMaxFrames"] == fixed["impliedSpeed"]["atMinFrames"] == round(1.5 * 30 / 29, 3)
+    assert pack.frames_for_tokens(8) == 26 and pack.frames_for_tokens(14) == 50
 
 
-def test_pack_target_options_parse():
-    t = pack.parse_target("t.glb,poses=4,start=0.5,early=10,tokens=9-9")
-    assert t == {"file": "t.glb", "poses": 4, "start": 0.5, "early": 10, "tokens": {"min": 9, "max": 9}}
+BASE = ["context.glb", "request.json", "--skeleton", "s.json", "--floor-tolerance", "0.02"]
+
+
+def test_pack_target_options_follow_their_target_and_paths_may_hold_commas():
+    args = pack.parse_args(BASE + ["--target", "a,b.glb", "--poses", "4", "--start", "0.5", "--early", "10",
+                                   "--target-tokens", "9-9", "--target", "c.glb", "--early", "2"])
+    first, second = ({k: v for k, v in t.items() if k != "_set"} for t in args.target)
+    assert first == {"file": "a,b.glb", "poses": 4, "start": 0.5, "early": 10, "tokens": {"min": 9, "max": 9}}
+    assert second == {"file": "c.glb", "poses": None, "start": 0.0, "early": 2, "tokens": None}
+    assert args.floor_tolerance == 0.02 and args.tokens == "8-14"
+
+
+@pytest.mark.parametrize("argv", [
+    ["--poses", "2", "--target", "t.glb"],                 # an option before any target
+    ["--target", "t.glb", "--poses", "5"],                  # out of range
+    ["--target", "t.glb", "--early", "1", "--early", "2"],  # twice for one target
+    ["--target", "t.glb", "--target-tokens", "x"],
+])
+def test_pack_refuses_misplaced_or_bad_target_options(argv):
     with pytest.raises(pack.PackError):
-        pack.parse_target("t.glb,poses=5")
+        pack.parse_args(BASE + argv)
+
+
+def test_pack_floor_tolerance_has_no_default():
+    with pytest.raises(SystemExit):
+        pack.parse_args(["context.glb", "request.json", "--skeleton", "s.json", "--target", "t.glb"])
     with pytest.raises(pack.PackError):
-        pack.parse_target("t.glb,speed=2")
+        pack.parse_args(["c.glb", "r.json", "--skeleton", "s.json", "--floor-tolerance", "-0.1", "--target", "t.glb"])
 
 
 def test_unpack_reorders_result_joints_and_fills_missing_ones():
@@ -305,13 +402,14 @@ def test_unpack_reorders_result_joints_and_fills_missing_ones():
 
 SMI_OLD = "| NVIDIA-SMI 550.54.14    Driver Version: 550.54.14    CUDA Version: 12.4     |"
 SMI_NEW = "| NVIDIA-SMI 621.14                 KMD Version: 621.14        CUDA UMD Version: 13.5     |"
-QUERY = "NVIDIA GeForce RTX 3060, 8.6, 550.54.14, 12288, 11800\nTesla P100-PCIE-16GB, 6.0, 550.54.14, 16384, 16000\n"
+QUERY = ("0, NVIDIA GeForce RTX 3060, 8.6, 550.54.14, 12288, 11800, 00000000:01:00.0\n"
+         "1, Tesla P100-PCIE-16GB, 6.0, 550.54.14, 16384, 16000, 00000000:02:00.0\n")
 
 
 def test_nvidia_smi_parsing():
     gpus = host_check.parse_gpus(QUERY)
-    assert gpus[0] == {"name": "NVIDIA GeForce RTX 3060", "computeCapability": "8.6", "driver": "550.54.14",
-                       "memoryTotalMiB": 12288, "memoryFreeMiB": 11800}
+    assert gpus[0] == {"index": 0, "name": "NVIDIA GeForce RTX 3060", "computeCapability": "8.6", "driver": "550.54.14",
+                       "memoryTotalMiB": 12288, "memoryFreeMiB": 11800, "pciBusId": "00000000:01:00.0"}
     assert host_check.parse_cuda_version(SMI_OLD) == (12, 4)
     assert host_check.parse_cuda_version(SMI_NEW) == (13, 5)
     assert host_check.parse_cuda_version("no header") is None
@@ -321,7 +419,8 @@ def test_nvidia_smi_parsing():
 def facts(**over):
     base = {"os": "Linux", "machine": "x86_64", "glibc": "2.35", "nvidiaSmi": True,
             "gpus": host_check.parse_gpus(QUERY)[:1], "driverCuda": "12.4", "uv": "uv 0.9", "gitLfs": "git-lfs/3.5",
-            "diskFreeBytes": 50e9, "diskPath": "/data", "precision": "fp32", "motionbricks": None}
+            "diskFreeBytes": 50e9, "diskPath": "/data", "precision": "fp32", "tf32": None, "device": "cuda:0",
+            "cudaDeviceOrder": None, "motionbricks": None}
     base.update(over)
     return base
 
@@ -339,8 +438,10 @@ def test_a_qualifying_host_without_install_qualifies_but_is_not_ready():
 
 @pytest.mark.parametrize("over, failing", [
     ({"os": "Darwin", "machine": "arm64", "nvidiaSmi": False, "gpus": []}, {"os", "nvidia-gpu"}),
-    ({"gpus": [{"name": "Tesla P100", "computeCapability": "6.0", "driver": "550.1", "memoryTotalMiB": 1, "memoryFreeMiB": 1}]}, {"compute-capability"}),
-    ({"gpus": [{"name": "RTX", "computeCapability": "8.6", "driver": "470.82", "memoryTotalMiB": 1, "memoryFreeMiB": 1}], "driverCuda": "11.4"}, {"driver", "driver-cuda"}),
+    ({"gpus": [{"index": 0, "name": "Tesla P100", "computeCapability": "6.0", "driver": "550.1"}]}, {"compute-capability"}),
+    ({"gpus": [{"index": 0, "name": "RTX", "computeCapability": "8.6", "driver": "470.82"}], "driverCuda": "11.4"}, {"driver", "driver-cuda"}),
+    ({"device": "cuda:1"}, {"compute-capability"}),  # one GPU: cuda:1 names none
+    ({"device": "cpu"}, {"compute-capability"}),
     ({"glibc": "2.17"}, {"glibc"}),
     ({"nvidiaSmi": True, "gpus": []}, {"nvidia-gpu"}),
 ])
@@ -350,40 +451,115 @@ def test_unmet_requirements_fail_and_disqualify(over, failing):
     assert failing <= failed and report["qualifies"] is False and report["missing"]
 
 
-def test_the_best_gpu_is_judged_when_there_are_several():
-    s = status(host_check.evaluate(facts(gpus=host_check.parse_gpus(QUERY))))
-    assert s["compute-capability"] == "pass"
+def test_the_gpu_the_device_names_is_judged_and_every_gpu_reported():
+    two = host_check.parse_gpus(QUERY)  # cuda:? = RTX 3060 (passes) or P100 (fails)
+    # CUDA orders devices fastest first and nvidia-smi by bus, so without more an ordinal is not a GPU.
+    reqs = host_check.evaluate(facts(gpus=two))
+    s = status(reqs)
+    assert s["compute-capability"] == "unknown"
+    found = next(r["found"] for r in reqs if r["id"] == "compute-capability")
+    assert "--import-check" in found and "RTX 3060" in found and "P100" in found
+    # With bus order set, the ordinal is nvidia-smi's index.
+    assert status(host_check.evaluate(facts(gpus=two, cudaDeviceOrder="PCI_BUS_ID", device="cuda:1")))["compute-capability"] == "fail"
+    assert status(host_check.evaluate(facts(gpus=two, cudaDeviceOrder="PCI_BUS_ID")))["compute-capability"] == "pass"
+    # The import check says which GPU Warp's device is, by bus id.
+    seen = {"path": "/mb", "exists": False, "imports": {"cuda": True, "device": "same name", "pciBusId": "00000000:02:00"}}
+    gpu, how = host_check.select_gpu(facts(gpus=two, motionbricks=seen, device="cuda:0"))  # Warp's form of the bus id
+    assert gpu["name"] == "Tesla P100-PCIE-16GB" and how == "as Warp reported it"
+    # When every GPU is judged alike, which one it is does not matter.
+    good = [dict(g, computeCapability="8.6") for g in two]
+    assert status(host_check.evaluate(facts(gpus=good)))["compute-capability"] == "pass"
+
+
+def test_disk_space_is_a_warning_never_a_failure():
+    report = host_check.summarize(facts(diskFreeBytes=1e9), host_check.evaluate(facts(diskFreeBytes=1e9)))
+    assert status(report["requirements"])["disk"] == "warn" and report["qualifies"] is True
+    assert status(host_check.evaluate(facts(diskFreeBytes=None)))["disk"] == "warn"
 
 
 def test_installed_host_with_a_plan_is_ready():
     mb = {"path": "/mb", "exists": True, "version": "0.2.0",
-          "onnx": {"file": "mmm_v6_soma_fp32.onnx", "present": True, "lfsPointer": False, "bytes": 757864273},
-          "venvPython": "/mb/.venv/bin/python", "venvPythonVersion": "3.12.7",
-          "plans": [{"fitsThisHost": True}], "imports": {"cuda": True, "tensorrt": "10.8.0.43", "warp": "1.17.0", "device": "RTX"}}
+          "onnx": {"file": "mmm_v6_soma_fp32.onnx", "present": True, "lfsPointer": False, "bytes": 757864273, "sha256": "aa"},
+          "venvPython": "/mb/.venv/bin/python", "venvPythonVersion": "3.12.7", "tensorrt": "10.8.0.43",
+          "planEntries": [plan_meta()], "imports": {"cuda": True, "tensorrt": "10.8.0.43", "warp": "1.17.0", "device": "RTX"}}
     report = host_check.summarize(facts(motionbricks=mb), host_check.evaluate(facts(motionbricks=mb)))
     assert report["ready"] is True and "install-tools" not in status(report["requirements"])
     lfs = copy.deepcopy(mb)
     lfs["onnx"]["lfsPointer"] = True
     s = status(host_check.evaluate(facts(motionbricks=lfs)))
     assert s["motionbricks"] == "fail"
-    noplan = dict(mb, plans=[])
+    noplan = dict(mb, planEntries=[])
     report = host_check.summarize(facts(motionbricks=noplan), host_check.evaluate(facts(motionbricks=noplan)))
     assert status(report["requirements"])["plan"] == "warn" and report["ready"] is True
 
 
-def test_plan_metadata_matching(tmp_path):
-    meta = {"onnx_filename": "mmm_v6_soma_fp32.onnx", "device": {"name": "NVIDIA GeForce RTX 3060", "architecture": 86},
-            "platform": {"system": "Linux"}, "tensorrt_version": "10.8.0.43", "build_options": {"batch_size": 1}}
-    (tmp_path / "mmm_v6_soma_fp32-abc.json").write_text(json.dumps(meta))
+def plan_meta(**over):
+    """Metadata as MotionBricks writes it beside a plan (motionbricks/inference/cache.py, builder.py at v0.2.0)."""
+    meta = {"onnx_filename": "mmm_v6_soma_fp32.onnx", "onnx_sha256": "aa", "tensorrt_version": "10.8.0.43",
+            "build_options": {"workspace_size_bytes": None, "builder_optimization_level": 3, "batch_size": 1},
+            "device": {"name": "NVIDIA GeForce RTX 3060", "architecture": 86},
+            "platform": {"system": "Linux", "machine": "x86_64"}, "plan_file": "mmm_v6_soma_fp32-abc.plan"}
+    meta.update(over)
+    return meta
+
+
+def test_plan_metadata_is_read_beside_each_plan(tmp_path):
+    (tmp_path / "mmm_v6_soma_fp32-abc.json").write_text(json.dumps(plan_meta()))
     (tmp_path / "mmm_v6_soma_fp32-abc.plan").write_bytes(b"plan")
-    (tmp_path / "orphan.json").write_text(json.dumps(meta))  # no plan beside it
-    entries = host_check.plan_entries(str(tmp_path))
-    assert len(entries) == 1
-    gpus = host_check.parse_gpus(QUERY)
-    assert host_check.plan_matches(entries[0], "fp32", gpus, "Linux")
-    assert not host_check.plan_matches(entries[0], "fp16", gpus, "Linux")
-    assert not host_check.plan_matches(entries[0], "fp32", gpus, "Windows")
-    assert not host_check.plan_matches(entries[0], "fp32", gpus[1:], "Linux")
+    (tmp_path / "orphan.json").write_text(json.dumps(plan_meta()))  # no plan beside it
+    assert host_check.plan_entries(str(tmp_path)) == [plan_meta()]
+
+
+EXPECT = {"onnxFile": "mmm_v6_soma_fp32.onnx", "onnxSha256": "aa", "tensorrt": "10.8.0.43",
+          "buildOptions": host_check.expected_build_options("fp32", None), "system": "Linux", "machine": "x86_64",
+          "gpus": host_check.parse_gpus(QUERY)[:1]}
+
+
+@pytest.mark.parametrize("meta, expect, wrong", [
+    (plan_meta(), {}, None),
+    (plan_meta(onnx_filename="mmm_v6_soma_fp16.onnx"), {}, "model file mmm_v6_soma_fp16"),
+    (plan_meta(onnx_sha256="bb"), {}, "model file hash"),
+    (plan_meta(tensorrt_version="10.9.0.1"), {}, "TensorRT version"),
+    (plan_meta(platform={"system": "Windows", "machine": "AMD64"}), {}, "platform"),
+    (plan_meta(device={"name": "Tesla P100-PCIE-16GB", "architecture": 60}), {}, "GPU"),
+    # the build options MotionBricks keys on: FP16, TF32 off, batch size
+    (plan_meta(), {"buildOptions": host_check.expected_build_options("fp16", None)}, "build options"),
+    (plan_meta(), {"buildOptions": host_check.expected_build_options("fp32", False)}, "build options"),
+    (plan_meta(build_options={"workspace_size_bytes": None, "builder_optimization_level": 3, "batch_size": 8}), {}, "build options"),
+])
+def test_a_plan_fits_only_when_every_cache_key_field_matches(meta, expect, wrong):
+    mismatches, unchecked = host_check.plan_mismatches(meta, dict(EXPECT, **expect))
+    assert unchecked == []
+    if wrong is None:
+        assert mismatches == []
+    else:
+        assert any(m.startswith(wrong) for m in mismatches), mismatches
+
+
+def test_expected_build_options_follow_motionbricks_cache_payload():
+    assert host_check.expected_build_options("fp32", None) == {"workspace_size_bytes": None, "builder_optimization_level": 3, "batch_size": 1}
+    assert host_check.expected_build_options("fp16", True)["enable_fp16"] is True
+    assert "enable_tf32" not in host_check.expected_build_options("fp16", True)
+    assert host_check.expected_build_options("fp32", False)["enable_tf32"] is False
+
+
+def test_unknown_tensorrt_version_leaves_the_plan_a_warning():
+    mb = {"path": "/mb", "exists": True, "version": "0.2.0", "venvPython": "/py", "venvPythonVersion": "3.12.7",
+          "onnx": {"file": "mmm_v6_soma_fp32.onnx", "present": True, "lfsPointer": False, "bytes": 1, "sha256": "aa"},
+          "tensorrt": None, "planEntries": [plan_meta()]}
+    reqs = host_check.evaluate(facts(motionbricks=mb))
+    plan = next(r for r in reqs if r["id"] == "plan")
+    assert plan["status"] == "warn" and "TensorRT version" in plan["found"]
+
+
+def test_tensorrt_version_is_read_from_the_environment(tmp_path):
+    site = tmp_path / ".venv" / "lib" / "python3.12" / "site-packages"
+    (site / "tensorrt_cu12_bindings-10.8.0.43.dist-info").mkdir(parents=True)
+    assert host_check.venv_package_version(str(tmp_path), "tensorrt_cu12_bindings") == "10.8.0.43"
+    win = tmp_path / "w" / ".venv" / "Lib" / "site-packages" / "tensorrt_cu12_bindings-10.8.0.43.dist-info"
+    win.mkdir(parents=True)
+    assert host_check.venv_package_version(str(tmp_path / "w"), "tensorrt_cu12_bindings") == "10.8.0.43"
+    assert host_check.venv_package_version(str(tmp_path / "none"), "tensorrt_cu12_bindings") is None
 
 
 def test_lfs_pointer_detection(tmp_path):
@@ -406,10 +582,6 @@ def test_landmark_map_covers_the_body_and_names_real_soma_joints():
     assert len(set(table["landmarks"].values())) == len(table["landmarks"])
     model = set(MODEL)
     assert set(table["landmarks"]) <= model, "every mapped joint is one the model animates"
-    if os.path.isfile(LANDMARKS_SCHEMA):
-        with open(LANDMARKS_SCHEMA, encoding="utf-8") as f:
-            vocabulary = json.dumps(json.load(f))
-        assert all(f'"{lm}"' in vocabulary for lm in body)
 
 
 def test_landmark_map_sides_match_soma_positions():
@@ -428,13 +600,38 @@ def test_landmark_map_sides_match_soma_positions():
     assert world[idx["LeftShin"]][0][1] < world[idx["LeftLeg"]][0][1] < world[idx["Hips"]][0][1]
 
 
-def test_unpack_steps_find_the_seam_between_generations():
+def _moving(frames_count, speed_at):
+    """Frames of the reference pose whose root travels along +X at speed_at(k) metres per frame."""
     skel = skeleton()
-    res = result(skel, segments=(20, 18))
-    still = [list(t) for t in skel["reference"]]
-    frames = [[list(t) for t in still] for _ in range(37)]
-    for k in range(20, 37):
-        frames[k][0][0] = 0.05  # the root shifts 5 cm right after the first generation's last frame (index 19)
-    report = unpack.steps(skel, frames, res)
-    assert [(s["metres"], s["frame"]) for s in report["seams"]] == [(0.05, 20)]  # every joint moves with the root
-    assert report["largest"]["metres"] == 0.05
+    frames, x = [], 0.0
+    for k in range(frames_count):
+        if k:
+            x += speed_at(k)
+        pose = [list(t) for t in skel["reference"]]
+        pose[0][0] = x
+        frames.append(pose)
+    return skel, frames
+
+
+def test_a_seam_is_judged_against_the_motion_around_it():
+    """The seam of a smooth motion moves no joint farther than the frames around it; a pop at the seam does, however
+    large the motion elsewhere in the clip, and the person's tolerance decides whether that excess is a pop."""
+    res = result(skeleton(), segments=(20, 18))  # 37 frames; frame 19 ends the first generation, the seam is the step into frame 20
+    skel, smooth = _moving(37, lambda k: 0.01 + 0.0005 * k)   # accelerating, no pop
+    seam = unpack.steps(skel, smooth, res, tolerance=0.0)["seams"][0]
+    assert seam["frame"] == 20 and seam["excess"] <= 1e-6 and seam["pops"] is False
+    # a 5 cm pop at the seam, with a 20 cm step elsewhere in the clip that used to hide it
+    skel, popped = _moving(37, lambda k: 0.05 if k == 20 else 0.20 if k == 30 else 0.01)
+    report = unpack.steps(skel, popped, res, tolerance=0.02)
+    seam = report["seams"][0]
+    assert report["largest"]["metres"] == 0.2 and seam["metres"] == 0.05 and seam["around"] == 0.01
+    assert seam["excess"] == 0.04 and seam["ratio"] == 5.0 and seam["pops"] is True
+    assert unpack.steps(skel, popped, res, tolerance=0.05)["seams"][0]["pops"] is False
+    assert unpack.steps(skel, popped, res)["seams"][0]["pops"] is None  # no tolerance, no judgement
+
+
+def test_a_seam_after_stillness_has_no_ratio():
+    res = result(skeleton(), segments=(20, 18))
+    skel, frames = _moving(37, lambda k: 0.05 if k == 20 else 0.0)
+    seam = unpack.steps(skel, frames, res, tolerance=0.01)["seams"][0]
+    assert seam["ratio"] is None and seam["metres"] == seam["excess"] == 0.05 and seam["pops"] is True

@@ -1,16 +1,21 @@
 """Unpack a MotionBricks result onto the SOMA rig. Runs in Blender, on the authoring side.
 
     blender --background --python-exit-code 1 --python unpack.py -- <result.json> <out-dir>
-            --skeleton <soma-skeleton.json> --rig <soma-skeleton.glb> [--name generated]
+            --skeleton <soma-skeleton.json> --rig <soma-skeleton.glb> [--seam-tolerance <metres>] [--name generated]
 
 --rig is any glTF file whose armature carries SOMA's joint names in SOMA's reference rest pose: the rig
-soma_skeleton.py builds, or the SOMA file the poses were retargeted onto.
+soma_skeleton.py builds, or the SOMA file the poses were retargeted onto. Any animation it holds is dropped; the
+written clip holds the generated animation only.
+
+--seam-tolerance  how far (metres) a joint may move at a seam between chained generations beyond the farthest it moves
+         in a frame around the seam before the seam counts as a pop. It is the person's (for instance the jump their
+         clip spec accepts) and has no default; a result that chains generations needs it.
 
 Writes to out-dir:
   <name>.glb     the rig with one animation, <name>, at 30 fps; frame 0 is the last context pose
   contacts.json  the model's foot-contact confidences per frame (LeftFoot and RightFoot are heels, the ToeBase joints toes)
-  unpack-report.json  frames, duration, the root's path and height, the largest one-frame joint move overall and at
-                      each seam between generations, the lowest foot against SOMA's reference
+  unpack-report.json  frames, duration, the root's path and height, the largest one-frame joint move, each seam
+                      between generations against the motion around it, the lowest foot against SOMA's reference
 Prints the report. Exits 1 when the result is invalid or does not match the skeleton.
 """
 import argparse
@@ -36,22 +41,53 @@ def reorder(skel, result):
             for frame in result["frames"]]
 
 
-def steps(skel, frames, result):
-    """The largest one-frame move of any joint, overall and at each seam between generations."""
-    world = [m.forward_kinematics(skel["parents"], f) for f in frames]
+SEAM_WINDOW = generate.POSES_PER_TOKEN  # frames on each side of a seam that it is compared with: one token of motion
 
-    def step(k):
-        d, i = max((m.vlen(m.vsub(world[k][i][0], world[k - 1][i][0])), i) for i in range(len(skel["joints"])))
-        return {"metres": round(d, 4), "frame": k, "joint": skel["joints"][i]}
-    every = [step(k) for k in range(1, len(world))]
+
+def seam_frames(result, frame_count):
+    """Index of the first frame of each later generation in the clip (its step from the frame before is the seam)."""
     seams, end = [], 0
     for s in result["segments"][:-1]:
         end += s["playedFrames"] - (1 if seams else 0)
-        seams.append(step(min(end, len(world) - 1)))
-    return {"largest": max(every, key=lambda e: e["metres"]) if every else None, "seams": seams}
+        seams.append(min(end, frame_count - 1))
+    return seams
 
 
-def report(skel, frames, result):
+def steps(skel, frames, result, tolerance=None, window=SEAM_WINDOW):
+    """The largest one-frame move of any joint, and each seam between generations judged against the motion around it.
+
+    For every joint, its move into the seam's frame is compared with its own largest one-frame move over `window`
+    frames on each side (the seam's own step excluded); `excess` is how much farther it moves at the seam. A smooth
+    hand-over has no excess; a pop has some. The joint with the largest excess is reported, with `ratio`
+    (metres / around, null when the joint was still around the seam) and, given the person's tolerance, `pops`."""
+    world = [m.forward_kinematics(skel["parents"], f) for f in frames]
+    names = skel["joints"]
+
+    def joint_step(k, i):
+        return m.vlen(m.vsub(world[k][i][0], world[k - 1][i][0]))
+
+    def step(k):
+        d, i = max((joint_step(k, i), i) for i in range(len(names)))
+        return {"metres": round(d, 4), "frame": k, "joint": names[i]}
+    every = [step(k) for k in range(1, len(world))]
+    seams = []
+    for k in seam_frames(result, len(world)):
+        around_frames = [j for j in range(k - window, k + window + 1) if j != k and 1 <= j < len(world)]
+        worst = None
+        for i in range(len(names)):
+            here = joint_step(k, i)
+            around = max((joint_step(j, i) for j in around_frames), default=0.0)
+            if worst is None or here - around > worst[0]:
+                worst = (here - around, i, here, around)
+        excess, i, here, around = worst
+        seams.append({"frame": k, "joint": names[i], "metres": round(here, 4), "around": round(around, 4),
+                      "excess": round(excess, 4), "ratio": round(here / around, 3) if around > 1e-9 else None,
+                      "window": window, "pops": None if tolerance is None else excess > tolerance,
+                      "largestAnyJoint": step(k)})
+    return {"largest": max(every, key=lambda e: e["metres"]) if every else None, "seamTolerance": tolerance, "seams": seams}
+
+
+def report(skel, frames, result, tolerance=None):
     roots = [f[0][:3] for f in frames]
     path = sum(m.vlen(m.vsub(b, a)) for a, b in zip(roots, roots[1:]))
     low, ref = soma.lowest(skel, frames, skel.get("footContactJoints") or result["contacts"]["joints"])
@@ -62,7 +98,7 @@ def report(skel, frames, result):
                  "groundTravel": round(((roots[-1][0] - roots[0][0]) ** 2 + (roots[-1][2] - roots[0][2]) ** 2) ** 0.5, 4),
                  "pathLength": round(path, 4),
                  "height": {"min": round(min(r[1] for r in roots), 4), "max": round(max(r[1] for r in roots), 4)}},
-        "frameSteps": steps(skel, frames, result),
+        "frameSteps": steps(skel, frames, result, tolerance),
         "floor": {"lowestFoot": round(low, 4), "referenceLowestFoot": round(ref, 4), "floorOffset": round(low - ref, 4)},
         "inference": result.get("inference"), "model": result.get("model"),
     }
@@ -84,6 +120,7 @@ def main(argv):
     parser.add_argument("--skeleton", required=True)
     parser.add_argument("--rig", required=True)
     parser.add_argument("--name", default="generated")
+    parser.add_argument("--seam-tolerance", type=float)
     args = parser.parse_args(argv)
     from mbx import blend
     try:
@@ -94,8 +131,14 @@ def main(argv):
         if problems:
             raise ValueError("result is invalid:\n  " + "\n  ".join(problems))
         frames = reorder(skel, result)
+        if len(result["segments"]) > 1 and args.seam_tolerance is None:
+            raise ValueError(f"this result chains {len(result['segments'])} generations: give --seam-tolerance <metres>, "
+                             "the person's limit for a jump at a seam, to judge them")
+        if args.seam_tolerance is not None and args.seam_tolerance < 0:
+            raise ValueError("--seam-tolerance is a distance in metres, 0 or more")
         blend.reset()
         arm = blend.import_armature(args.rig, skel["joints"])
+        dropped = blend.clear_animations()
         rest = blend.rest_world(arm)
         worst, joint = soma.rest_mismatch(skel, {n: p for n, (p, _) in rest.items()})
         if worst > 0.01:
@@ -116,8 +159,8 @@ def main(argv):
         sha = hashlib.sha256(f.read()).hexdigest()
     with open(os.path.join(args.out_dir, "contacts.json"), "w", encoding="utf-8") as f:
         json.dump(contacts_file(result, sha), f, indent=1)
-    rep = dict(report(skel, frames, result), clip=out, result={"file": os.path.basename(args.result), "sha256": sha},
-               restFit=round(worst, 4))
+    rep = dict(report(skel, frames, result, args.seam_tolerance), clip=out, result={"file": os.path.basename(args.result), "sha256": sha},
+               restFit=round(worst, 4), rigAnimationsDropped=dropped)
     with open(os.path.join(args.out_dir, "unpack-report.json"), "w", encoding="utf-8") as f:
         json.dump(rep, f, indent=2)
     print(json.dumps(rep, indent=2))
