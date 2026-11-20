@@ -10,23 +10,23 @@ Facts about the scripts in this skill as shipped, from runs on 2026-11-20 with B
 
 | Clip | Built | Measured | Verdict |
 | --- | --- | --- | --- |
-| clean | none | slide 0.0000, penetration 0.0000, start and end jump 0.0000, seam 0.0000 | passed |
-| left foot slides 2 cm over its planted window (frames 0–18) | 0.0200 m | slide 0.0200 m, window 0–18 | footSlide failed |
-| the same, 5 cm | 0.0500 m | slide 0.0500 m | footSlide failed |
-| right foot 3 cm lower all through | 0.0300 m | penetration 0.0300 m on the mesh, every right-foot window 0.0300 | penetration failed |
-| the same, skeleton only (no mesh) | 0.0300 m | penetration 0.0300 m from the foot joints at their rest height | penetration failed |
-| whole body 8 cm sideways on the first frame | 0.0800 m | start jump 0.0793 m, end 0.0000 | boundaryJump failed |
-| the same on the last frame | 0.0800 m | end jump 0.0790 m, start 0.0000 | boundaryJump failed |
+| clean | none | windows' slide 0.0000, runs at ground height 0.0051 m (lift-off and touch-down), penetration 0.0000, start and end jump 0.0000, seam 0.0000 | passed |
+| left foot slides 2 cm over its planted window (frames 0–18) | 0.0200 m | slide 0.0200 m, window 0–18; run at ground height 0.0250 m (with lift-off and touch-down) | footSlide failed |
+| the same, 5 cm | 0.0500 m | slide 0.0500 m; run at ground height 0.0548 m | footSlide failed |
+| right foot 3 cm lower all through | 0.0300 m | penetration 0.0300 m on the mesh, every right-foot window 0.0300; the sunk foot stays within the contact height through most of its swing, run at ground height 0.1035 m | penetration and footSlide failed |
+| the same, skeleton only (no mesh) | 0.0300 m | penetration 0.0300 m from the foot joints at their rest height; run 0.1035 m | penetration and footSlide failed |
+| whole body 8 cm sideways on the first frame | 0.0800 m | start jump 0.0793 m, end 0.0000; the planted feet move with it (run at ground height 0.0802 m) | boundaryJump and footSlide failed |
+| the same on the last frame | 0.0800 m | end jump 0.0790 m, start 0.0000; run 0.0802 m | boundaryJump and footSlide failed |
 | body rises over the second half, loop does not close | 0.0100 m | seam 0.0095 m | passed (under the 0.01 threshold) |
 | the same | 0.0300 m | seam 0.0292 m | loopSeam failed |
 | the same | 0.1000 m | seam 0.0983 m | loopSeam failed |
 | clean, last frame repeats the first pose | none | seam 0.0000 under `duplicate-end`, chosen from the spec's length | passed |
-| left foot slides 40 cm over its planted window, faster than `detect.speed` | 0.4000 m | detected windows: 3.1 mm (only the two frames where it stops); with the window declared in `contacts.planted`: 0.4000 m; the run at ground height: 0.4031 m | footSlide failed with the window declared; without it interiorJump failed (the foot stops dead, 13.6 mm) |
+| left foot slides 40 cm over its planted window, faster than `detect.speed` | 0.4000 m | detected windows: 3.1 mm (only the two frames where it stops); the run at ground height: 0.4031 m; with the window declared in `contacts.planted`: 0.4000 m | footSlide failed, declared or not; interiorJump too (the foot stops dead, 13.6 mm) |
 | 8 cm pop on the first frame and an 8 cm step forward at frame 15 | 0.0800 m each | start jump 0.0793 m, interior jump 0.0831 m between frames 14 and 15 | boundaryJump and interiorJump failed |
 | body rises 20 cm over the second half, with steps of +5 cm at frame 8 and −5 cm at frame 12 | 0.2000 m | seam 0.1964 m, interior jump 0.0520 m | loopSeam and interiorJump failed |
 | clean, at 29.97 fps (30 frames, cycle 30/29.97 s), in place | none | last key at 29/29.97 s before and after `root_convention.py`; every frame on the grid | passed |
 
-Every fault was read within 4 mm of its built size. Pops and seams read slightly under their size (the smooth residual around them is subtracted), steps slightly over (the motion around them adds). On the clean clip, every frame the walk was built planted was found planted, give or take one frame at each window's edge, every window's slide was 0.0000, the largest interior jump was 6.2 mm (a knee where the leg solver straightens it), and the runs at ground height reached 5.1 mm (the frames where a foot lifts off or comes down).
+Every fault was read within 4 mm of its built size by the measure built for it. Pops and seams read slightly under their size (the smooth residual around them is subtracted), steps slightly over (the motion around them adds). Runs at ground height read the slide plus the travel of lift-off and touch-down inside the contact height: 5.1 mm on this walk with a 0.01 m contact height. On the clean clip, every frame the walk was built planted was found planted, give or take one frame at each window's edge, every window's slide was 0.0000, and the largest interior jump was 6.2 mm (a knee where the leg solver straightens it).
 
 How the measures came to be what they are:
 
@@ -35,7 +35,7 @@ How the measures came to be what they are:
 - Choosing the loop's last-frame convention by the better fit flipped once a seam fault grew to about one frame of motion (a 6 cm fault read 5 cm on the wrong convention). It now comes from the spec's length, and from the poses only for a length range.
 - A seam fault built by turning an arm read 25% high, because glTF stores no bone ends and Blender's importer gives a hand longer than the figure's. The measure was right for the points it reads; the fault is now built by moving the hips, so its size is the same at every point.
 - The pop and seam were at first compared with the largest residual anywhere inside the clip, so one jump inside the clip hid them: the seam of a loop 20 cm open read 9.9 cm next to two 5 cm steps. Stencils a jump inside the clip accounts for are now left out of the comparison, and jumps inside the clip are measured themselves.
-- Slide was at first measured on detected windows only, so a foot sliding faster than `detect.speed` passed. Declared windows are now measured whatever the speed, and every run at ground height is reported.
+- Slide was at first measured on detected windows only, so a foot sliding faster than `detect.speed` passed. Declared windows and every run of frames within the contact height are now measured whatever the speed. Judging only runs that held no slow frame missed the 40 cm slide, which ends in two slow frames.
 - At 29.97 fps the scripts set Blender's frame rate the way its own playback reads it (fps / fps_base), but its glTF add-on converts times with fps × fps_base: keys came out 1/30.03 s apart and the check refused the clip. The scripts now set the rate the add-on reads, and Blender's playback rate only for the video.
 
 ## The clip format

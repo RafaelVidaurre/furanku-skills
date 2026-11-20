@@ -10,7 +10,7 @@ from the project root (the spec's paths are project-relative).
 Measures the clip as stored, on whole frames of the spec's fps, in the glTF frame (metres, +Y up, front +Z):
 whether the file holds one animation and the project rig's skeleton (bones, parents and rest), whether it is sampled
 on every frame, its length, contacts detected from each foot's height and speed, slide over every detected and
-declared contact and every run of frames a foot spends at ground height, penetration, jumps at the first and last
+declared contact and every run of frames a foot spends within the contact height of the ground, penetration, jumps at the first and last
 frames and between frames inside the clip, and the loop seam when the spec loops. Each measure is held against the
 spec's `accept` thresholds; jumps inside the clip against `accept.boundaryJump`. Contact detection takes
 `contacts.detect` from the spec, or --contact-height and --contact-speed. Contacts a provider returned are never used;
@@ -25,7 +25,7 @@ ground velocity, m/s, glTF x and z; 0,0 for a motion that never travelled). The 
 one of them.
 
 Writes clip-report.json, clip-sheet.png (stills over time; green markers under planted points, red where a window or a
-skating run failed) with its tiles in clip-sheet/, and clip.mp4 when an encoder is found (Blender's own, else ffmpeg);
+run at ground height failed) with its tiles in clip-sheet/, and clip.mp4 when an encoder is found (Blender's own, else ffmpeg);
 otherwise the report says why there is no video. Exits 0 when every check passed (with --measure-only: when the clip
 was measured), 1 when one failed or the clip could not be read.
 """
@@ -245,7 +245,6 @@ def main():
     coverage = measure.coverage(s["contacts"]["planted"], windows, fps, frames) if detect else [None] * len(declared)
     expected = [dict(d, detectedShare=c["detectedShare"] if c else None) for d, c in zip(declared, coverage)]
     grounded = measure.grounded_runs(contact_pts, detect["height"], ground, rest_heights, windows) if detect and flat else []
-    skating = [r for r in grounded if r["skating"]]
 
     # boundaries, jumps inside the clip, seam
     b = measure.boundary_jumps(pos)
@@ -277,7 +276,7 @@ def main():
 
     # measures, then verdicts against the spec's thresholds
     slides = ([("detected", w["slide"]) for w in windows] + [("declared", e["slide"]) for e in expected if e["slide"] is not None]
-              + [("skating", r["slide"]) for r in skating])
+              + [("grounded", r["slide"]) for r in grounded])
     measures = {"footSlide": max((v for _, v in slides), default=None),
                 "penetration": max((float(d.max()) for d in depth.values()), default=0.0) if flat else None,
                 "boundaryJump": max(boundary["start"]["worst"]["jump"], boundary["end"]["worst"]["jump"]),
@@ -297,7 +296,7 @@ def main():
             w["passed"] = w["slide"] <= acc["footSlide"] + 1e-12 and ("penetration" not in w or w["penetration"] <= acc["penetration"] + 1e-12)
         for e in expected:
             e["passed"] = None if e["slide"] is None else e["slide"] <= acc["footSlide"] + 1e-12
-        for r in skating:
+        for r in grounded:
             r["passed"] = r["slide"] <= acc["footSlide"] + 1e-12
     duration = (frames - 1) / fps
     lengths = [duration] + ([frames / fps] if s["loop"] else [])
@@ -327,16 +326,21 @@ def main():
         rk = labels.index((s["root"]["bone"], "head"))
         root_facts["rootNetTravel"] = report.mm(np.linalg.norm(pos[-1, rk, [0, 2]] - pos[0, rk, [0, 2]]))
 
-    # evidence: planted points green, red where their window or skating run failed
+    # evidence: planted points green, red where their window failed or their foot's run at ground height did
     hips_track = [(to_blender(p).x, to_blender(p).y) for p in hips_g]
     allx = [to_blender(p).x for p in pos.reshape(-1, 3)]; ally = [to_blender(p).y for p in pos.reshape(-1, 3)]
     markers = blend.add_markers(scene, keys, fig_height)
     state = {k: [None] * frames for k in keys}
-    for run in windows + skating:
+    for run in windows:
         k = next(k for k in keys if k[1] == run["point"])
         for f in range(run["from"], run["to"] + 1):
             ok = run.get("passed", True) is not False
             state[k][f] = ok if state[k][f] is None else (state[k][f] and ok)
+    for run in grounded:
+        if run.get("passed") is False:
+            for k in (k for k in keys if k[0] == run["limb"]):
+                for f in range(run["from"], run["to"] + 1):
+                    state[k][f] = False
     size = blend.stage(scene, hips_track, ground, fig_height, float(pos[..., 1].max()), ((min(allx), min(ally)), (max(allx), max(ally))), a, frames, frame0, markers)
     blend.key_markers(markers, pts, state, frame0, frames, blend.VIEWS[a.view].normalized() * fig_height * 0.3)
     picks = blend.even_frames(frames, a.sheet_frames)

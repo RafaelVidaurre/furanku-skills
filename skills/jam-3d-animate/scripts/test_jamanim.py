@@ -297,9 +297,10 @@ def test_a_declared_window_measures_a_slide_too_fast_to_detect():
     held = dict(pts); held[("foot.l", "toes.l", "LeftToe")] = np.tile(toe[:1], (25, 1))   # the ball stays put: a pivot
     assert measure.declared_slides(held, [{"limb": "foot.l", "from": 0.0, "to": 9 / FPS}], FPS, 25)[0]["slide"] == 0.0
     runs = measure.grounded_runs(pts, 0.01, 0.0, {"foot.l": 0.08, "toes.l": 0.02}, windows)
-    skating = [r for r in runs if r["skating"]]
-    assert skating and skating[0]["from"] == 0 and skating[0]["slide"] == pytest.approx(0.4, abs=1e-4)
-    assert not any(r["skating"] for r in runs if r["from"] >= 10)
+    assert [(r["from"], r["to"], r["planted"]) for r in runs] == [(0, 9, False), (15, 24, True)]
+    assert runs[0]["slide"] == pytest.approx(0.4, abs=1e-4) and runs[1]["slide"] == 0.0     # in contact at any speed
+    pivot = measure.grounded_runs(held, 0.01, 0.0, {"foot.l": 0.08, "toes.l": 0.02}, windows)
+    assert pivot[0]["slide"] == 0.0                                          # the least-moving point
 
 
 def test_coverage_of_declared_contacts():

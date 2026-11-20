@@ -23,7 +23,7 @@ Every value in the spec comes from the person, from the project's own files (the
 | `ground` | `kind`: `flat`, or `change` with a `description` of the height change the clip crosses (a stair, a ledge) | Penetration and runs at ground height are measured only on flat ground |
 | `keyPoses` | The poses that must appear, each with a name (lowercase, hyphens) and a time, in time order, and the project path of the file step 2 writes them to. Ask for them when the motion has moments that matter (a contact, the peak of a jump, an impact) or the route needs them (`inbetween`) | Step 2 builds that file from them |
 | `contacts.planted` | Which feet (or hands) must stay planted when | Slide is measured over each of these windows whatever the foot's speed, so a foot that must hold cannot slide unseen |
-| `contacts.detect` | How close to its resting height (metres) and how slow (m/s) a foot must be to count as planted | Which frames the detected windows cover |
+| `contacts.detect` | How close to its resting height (metres) a foot is in contact, and how slow (m/s) it must be to count as planted | Which frames count toward slide |
 | `accept` | The largest foot slide while planted, penetration below the ground, jump at the first or last frame or between two frames, and (when looping) loop seam that the project accepts, in metres | Pass or fail of the check |
 
 ### Choosing the numbers
@@ -33,7 +33,7 @@ Help the person choose by what each means on screen:
 - `accept.footSlide`: how far a planted foot may drift during one contact; compare it with the character's foot length.
 - `accept.penetration`: how far a sole may go below the ground before it shows; a camera that never sees the feet allows more.
 - `accept.boundaryJump`: how far a joint may jump between two frames, at the start or end of a play and inside the clip. `accept.loopSeam`: the same across the wrap of a loop. The report gives how rough the clip's own smooth motion is (`boundary.smooth`), which helps when a first threshold turns out too tight.
-- `contacts.detect.height` must be above the noise of a planted foot and below the lowest point of a swinging one; `contacts.detect.speed` above the speed of a planted foot's noise and below a swinging foot's speed. A foot sliding faster than `detect.speed` is not detected as planted: declare the windows where it must hold in `contacts.planted`, and read the report's runs at ground height (check.md). To see the numbers before choosing, run the check with `--measure-only`.
+- `contacts.detect.height` is the project's contact height: a foot within it of the ground is in contact, at any speed, and its travel there counts as slide (check.md). It must be above the noise of a planted foot and below the height a swinging foot keeps. `contacts.detect.speed` must be above the speed of a planted foot's noise and below a swinging foot's speed; it decides the detected windows. To see the numbers before choosing, run the check with `--measure-only`.
 
 ## Template
 

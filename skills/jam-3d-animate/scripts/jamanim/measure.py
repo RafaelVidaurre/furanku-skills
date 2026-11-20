@@ -5,8 +5,9 @@ Contacts. A contact point (an ankle, a ball of the foot, a wrist) is planted on 
 On ground that is not flat only the speed decides. A contact window is a run of planted frames.
 
 Slide. In a window, the largest horizontal distance between any two of the point's positions. Also over each window
-the spec declares planted, however fast the foot moves there, and over each run of frames a foot spends at ground
-height without ever being slow enough to count as planted (a foot skating along the ground).
+the spec declares planted, however fast the foot moves there, and over each run of frames a foot spends within
+`detect.height` of the ground at any speed (in contact by the spec's own contact height); those two take the foot's
+least-moving point.
 
 Penetration. How far the lowest point of a foot (its mesh, or failing that its joints at their rest height) goes below
 the ground, over the whole clip and per window.
@@ -243,21 +244,22 @@ def declared_slides(points, expected, fps, frames):
 
 
 def grounded_runs(points, detect_height, ground, rest_heights, windows):
-    """Runs of frames where a foot's contact point is within detect_height of its rest height above flat ground, at any
-    speed. A run that holds no frame of a detected window of the same point is a foot moving along the ground without
-    ever stopping ("skating": true); its slide is judged like a window's. Other runs are reported only: their edges
-    include the frames where the foot lifts off or comes down."""
+    """Runs of frames where a foot touches flat ground: one of its contact points is within detect_height of its rest
+    height, at any speed. By the spec's own contact height the foot is in contact on those frames, so the run's slide,
+    the travel of the foot's least-moving point over the run, is judged like a window's. "planted" says whether
+    detection also found a slow frame in it. points: {(limb, landmark, bone): [F, 3]}."""
     out = []
-    for (limb, landmark, bone), p in points.items():
-        if not limb.startswith("foot"):
-            continue
-        near = p[:, UP] - ground - (rest_heights or {}).get(landmark, 0.0) <= detect_height + 1e-12
-        planted_frames = {f for w in windows if w["point"] == landmark for f in range(w["from"], w["to"] + 1)}
+    for limb in sorted({k[0] for k in points if k[0].startswith("foot")}):
+        own = {k: p for k, p in points.items() if k[0] == limb}
+        near = np.zeros(len(next(iter(own.values()))), dtype=bool)
+        for (_, landmark, _), p in own.items():
+            near |= p[:, UP] - ground - (rest_heights or {}).get(landmark, 0.0) <= detect_height + 1e-12
+        planted_frames = {f for w in windows if w["limb"] == limb for f in range(w["from"], w["to"] + 1)}
         for a, b in runs(near):
-            out.append({"limb": limb, "point": landmark, "bone": bone, "from": a, "to": b, "frames": b - a + 1,
-                        "slide": report.mm(diameter(p[a:b + 1][:, H])),
-                        "skating": not any(a <= f <= b for f in planted_frames)})
-    out.sort(key=lambda r: (r["from"], r["limb"], r["point"]))
+            per = {lm: report.mm(diameter(p[a:b + 1][:, H])) for (_, lm, _), p in own.items()}
+            out.append({"limb": limb, "from": a, "to": b, "frames": b - a + 1, "points": per, "slide": min(per.values()),
+                        "planted": any(a <= f <= b for f in planted_frames)})
+    out.sort(key=lambda r: (r["from"], r["limb"]))
     return out
 
 
