@@ -93,12 +93,13 @@ The skills that work only on 3D models carry `3d` in their names, so 2D skills c
 | `jam-texture` | `jam-3d-texture` |
 | `jam-rig` | `jam-3d-rig` |
 
-The shipped recipes name the new skills. `jam doctor`'s `skill names` line lists the old ones a project still has, installed or named in its own recipes. For each:
+The shipped recipes name the new skills. `jam doctor`'s `skill names` line lists the old ones a project still has, installed in one of the project's hidden folders or named in its own recipes, and names the folders it looked in. It does not look at skills installed for the person's user account, outside the project. For each old name:
 
 1. Install the new skill: `npx skills add rafaelvidaurre/furanku-skills --skill <new name>`.
 2. Remove the old skill's folder, which the doctor line names, and reload skills.
 3. In a project recipe under `jam/recipes/`, change the step's `"skill"` to the new name.
+4. Ask the person whether they also installed skills for their user (the agent's own skills folder, outside any project). If so, list the skills installed there with that agent's own command or folder, and replace the old names there the same way.
 
 Runs recorded before the rename keep the old names in their history; nothing needs changing there.
 
-Done when `jam doctor` shows `skill names` as `ok`.
+Done when `jam doctor` shows `skill names` as `ok` and no old name is left among the user's skills.

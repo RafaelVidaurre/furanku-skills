@@ -65,17 +65,17 @@ BRIDGE = """import json, sys
 args = json.loads(open(sys.argv[1]).read().split("ARGS = json.loads(", 1)[1].split("\\n", 1)[0][:-1].strip("'\\"").encode().decode("unicode_escape"))
 open(sys.argv[2], "w").write(json.dumps(args))
 print(json.dumps({"assets": [{"id": args["dest"] + "/" + args["name"] + n, "skeleton": "/Game/Hero/SKEL_Hero", "source": args["source"]} for n in NAMES],
-                  "other": [], "projectDir": "/x"}))
+                  "other": [], "projectDir": "/x", "saved": SAVED}))
 """
 
 
-def project(tmp_path, names):
+def project(tmp_path, names, saved=True):
     (tmp_path / "Game.uproject").write_text("{}")
     (tmp_path / "Art").mkdir()
     for name in ("clip.glb", "two.glb"):
         shutil.copy(os.path.join(FIXTURES, name), str(tmp_path / "Art" / name))
     bridge = tmp_path / "bridge.py"
-    bridge.write_text("NAMES = %r\n%s" % (names, BRIDGE))
+    bridge.write_text("NAMES = %r\nSAVED = %r\n%s" % (names, saved, BRIDGE))
     return {"transport": {"kind": "command", "run": [sys.executable, str(bridge), "{script}", str(tmp_path / "sent.json")]}}
 
 
@@ -86,8 +86,43 @@ def test_animation_import_sends_the_clip_joints_target_and_name_and_lists_each_s
     assert receipt == {"assets": [{"id": "/Game/Hero/Animations/AS_HeroWave", "kind": "animation-sequence", "source": "Art/clip.glb",
                                    "sha256": paths.sha256(str(tmp_path / "Art" / "clip.glb")), "skeleton": "/Game/Hero/SKEL_Hero"}]}
     sent = json.loads((tmp_path / "sent.json").read_text())
-    assert {k: sent[k] for k in ("source", "target", "joints", "dest", "name")} == {
-        "source": "Art/clip.glb", "target": "/Game/Hero/SK_Hero", "joints": ["root", "hips", "spine"], "dest": "/Game/Hero/Animations", "name": "AS_HeroWave"}
+    assert {k: sent[k] for k in ("source", "target", "joints", "dest", "name", "planned")} == {
+        "source": "Art/clip.glb", "target": "/Game/Hero/SK_Hero", "joints": ["root", "hips", "spine"], "dest": "/Game/Hero/Animations", "name": "AS_HeroWave",
+        "planned": ["/Game/Hero/Animations/AS_HeroWave"]}
+
+
+def test_a_sequence_the_editor_did_not_save_fails_the_import(tmp_path):
+    local = project(tmp_path, [""], saved=False)
+    code, receipt, _ = run_command(tmp_path, "--kind", "animation", "Art/clip.glb", "--target", "/Game/Hero/SK_Hero", "--destination", "/Game/A", local=local)
+    assert code == 1 and receipt["error"]["code"] == "save-failed" and "/Game/A/AS_clip" in receipt["error"]["message"]
+
+
+class _ImportData:
+    def __init__(self, names):
+        self.names = names
+
+    def extract_filenames(self):
+        return self.names
+
+
+class _Asset:
+    def __init__(self, names):
+        self.data = _ImportData(names)
+
+    def get_editor_property(self, name):
+        assert name == "asset_import_data"
+        return self.data
+
+
+def test_a_sequence_is_replaced_only_by_a_clip_from_its_own_source_file(tmp_path):
+    """The editor script refuses, before importing, to replace a sequence another file made (CO7)."""
+    from jam_unreal import editor_shared
+    project_dir = str(tmp_path)
+    mine = os.path.join(project_dir, "work", "walk", "1", "walk.glb")
+    editor_shared.jam_refuse_other_source("/Game/A/AS_walk", _Asset([mine]), "work/walk/1/walk.glb", project_dir)
+    for names, named in (([os.path.join(project_dir, "work", "run", "1", "walk.glb")], "work/run/1/walk.glb"), ([], "a file it does not remember")):
+        with pytest.raises(RuntimeError, match="AS_walk exists, imported from %s, not from work/walk/1/walk.glb" % named):
+            editor_shared.jam_refuse_other_source("/Game/A/AS_walk", _Asset(names), "work/walk/1/walk.glb", project_dir)
 
 
 def test_joints_are_compared_under_the_names_unreal_gives_bones(tmp_path):
@@ -148,6 +183,10 @@ def test_a_real_editor_imports_a_clip_onto_an_existing_skeleton_and_refuses_one_
         assert [(a["id"], a["skeleton"], a["source"]) for a in receipt["assets"]] == [("/Game/Hero/Animations/AS_Wave", skeleton, "Art/clip.glb")]
     details = json.loads((tmp_path / "details.json").read_text())["assets"][0]
     assert (details["frames"], details["fps"], details["seconds"]) == (30, 30.0, 1.0)
+    # another file never replaces it, even with the same bytes
+    shutil.copy(str(tmp_path / "Art" / "clip.glb"), str(tmp_path / "Art" / "clip-again.glb"))
+    code, receipt, _ = run_command(tmp_path, "--kind", "animation", "Art/clip-again.glb", "--name", "Wave", *args, local=local)
+    assert code == 1 and "AS_Wave exists, imported from Art/clip.glb, not from Art/clip-again.glb" in receipt["error"]["message"]
     code, receipt, err = run_command(tmp_path, "--kind", "animation", "Art/two.glb", "--name", "Hero", *args, local=local)
     assert code == 0, err
     assert [a["id"] for a in receipt["assets"]] == ["/Game/Hero/Animations/AS_HeroBow", "/Game/Hero/Animations/AS_HeroWave"]

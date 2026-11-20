@@ -10,7 +10,7 @@
     },
     "motion": {
       "modes": ["library", "text"],
-      "note": "Clips play only on a rig Meshy builds (a rigging task on the character's mesh): its 24-bone default skeleton, whose joint names are not published, or for bipeds a standard skeleton named by `skeleton_template`. Library: 1 to 10 preset clips per request from Meshy's catalog. Text: a 2 to 10 s clip from a prompt, standalone, FBX or BVH, applied to biped rigs. Retargeting brings either onto the project rig."
+      "note": "Clips play only on a rig Meshy builds (a rigging task on the character's mesh): its 24-bone default skeleton, whose joint names are not published, or for bipeds a standard skeleton named by `skeleton_template`. Library: 1 to 10 preset clips per request from Meshy's catalog. Text: a 2 to 10 s clip from a prompt, standalone, FBX or BVH, applied to biped rigs. Retargeting brings either onto the project rig, through a landmark map written from the downloaded clip (no rig.landmarks: see docs/providers.md, Motion)."
     }
   },
   "transports": [

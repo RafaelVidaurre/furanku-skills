@@ -82,11 +82,18 @@ export const AdapterCommand = Schema.Struct({
   run: Schema.NonEmptyArray(Schema.String).pipe(Schema.annotate({
     description: "Program and arguments. `python`, `blender` and `node` resolve to the machine's own; a path that exists in the adapter folder resolves there; {adapter}, {project} and {toolkit} are substituted. The command's own arguments are appended."
   })),
-  kinds: opt(Schema.Array(Id).pipe(Schema.annotate({ description: "For import: the asset kinds this command accepts (static, skinned, animation, textures, audio, ...). A recipe step conditioned on a kind runs only when it is listed." }))),
+  kinds: opt(Schema.Array(Id).pipe(Schema.annotate({ description: "For import: the asset kinds this command accepts (static, skinned, animation, textures, audio, ...). Absent: any kind but animation, which an adapter must list. A recipe step conditioned on a kind runs only when the command takes it." }))),
   timeoutSeconds: opt(PositiveInt),
   description: opt(Schema.String)
 })
 export type AdapterCommand = typeof AdapterCommand.Type
+
+/** Kinds an import command takes only when its `kinds` lists them: an animation plays on an asset already in the engine (`--target`). */
+const DECLARED_ONLY: ReadonlyArray<string> = ["animation"]
+
+/** Whether an import command that lists `kinds` (undefined: lists none) takes `kind`. Both `jam engine import` and recipe conditions ask this. */
+export const takesKind = (kinds: ReadonlyArray<string> | undefined, kind: string): boolean =>
+  kinds === undefined ? !DECLARED_ONLY.includes(kind) : kinds.includes(kind)
 
 export const Source = Schema.Struct({
   fact: Text.pipe(Schema.annotate({ description: "Dotted name of the fact, e.g. unitsPerMeter or textures.normalGreen" })),

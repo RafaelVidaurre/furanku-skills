@@ -6,6 +6,7 @@ import { fail, type ToolError } from "../../kernel/errors.ts"
 import { Ids, nowIso } from "../../kernel/Ids.ts"
 import { ProjectFiles } from "../../kernel/ProjectFiles.ts"
 import { Stamps } from "../../kernel/Stamps.ts"
+import { ClipSpec, runSpecs } from "../animation/clip.ts"
 import { Checks } from "../checks/Checks.ts"
 import { Measure } from "../measure/Measure.ts"
 import { Recipes } from "../recipes/Recipes.ts"
@@ -15,7 +16,7 @@ import { type RecordResult, recordSteps } from "../runs/record.ts"
 import { type RunContext, Runs } from "../runs/Runs.ts"
 import { latestRecord } from "../runs/schema.ts"
 import { Engine, type EngineOutcome } from "./Engine.ts"
-import { ConformReceipt, ImportReceipt } from "./schema.ts"
+import { ConformReceipt, ImportReceipt, takesKind } from "./schema.ts"
 
 export interface HostedResult {
   readonly outcome: EngineOutcome
@@ -93,7 +94,20 @@ export interface ImportInput extends RunTarget {
   readonly skeleton?: string | undefined
   /** What an animation plays on: an engine id, or a project file holding the import receipt of that asset. */
   readonly target?: string | undefined
+  /** The engine asset's name. For an animation imported for a run: the run's clip spec id unless given. */
+  readonly name?: string | undefined
 }
+
+/** The id of the run's clip spec: the name its animation is imported under, so two clips never share an engine asset by file name. */
+const clipNameOf = (context: RunContext): Effect.Effect<string, ToolError, ProjectFiles> =>
+  Effect.gen(function*() {
+    const specs = runSpecs(context.ref.run)
+    if (specs.length !== 1) {
+      return yield* fail("invalid", `the run records ${specs.length} clip specs, so the animation has no name to import under`, { fix: "record the clip spec at the define step, or pass --name <engine asset name>" })
+    }
+    const spec = yield* Effect.flatMap((yield* ProjectFiles).readJson(specs[0]!.path), decode(ClipSpec, { what: specs[0]!.path }))
+    return spec.id
+  })
 
 /** The engine id an animation plays on: given as such, or the first asset of an import receipt (a skinned import lists its skinned asset first). */
 const targetOf = (given: string): Effect.Effect<string, ToolError, ProjectFiles> =>
@@ -107,7 +121,7 @@ const targetOf = (given: string): Effect.Effect<string, ToolError, ProjectFiles>
 
 /**
  * `jam engine import`. The adapter's command receives
- * `--kind <kind> <file>... [--destination <where>] [--slot <name>=<material>]... [--skeleton <id>] [<extra>...]`.
+ * `--kind <kind> <file>... [--destination <where>] [--slot <name>=<material>]... [--skeleton <id>] [--target <id>] [--name <name>] [<extra>...]`.
  * For a run, the import step is recorded with the engine's asset ids.
  */
 export const importFor = (input: ImportInput): Effect.Effect<HostedResult, ToolError, Needs> =>
@@ -117,8 +131,10 @@ export const importFor = (input: ImportInput): Effect.Effect<HostedResult, ToolE
     const context = input.run === undefined ? null : yield* (yield* Runs).open(input.run)
     const step = context === null ? null : yield* stepFor(context, "import", input.step)
     const command = (yield* engine.resolved).adapter.commands?.["import"]
-    if (command != null && command.kinds !== undefined && !command.kinds.includes(input.kind)) {
-      return yield* fail("invalid", `--kind ${input.kind}: this adapter imports ${command.kinds.join(", ")}`)
+    if (command != null && !takesKind(command.kinds, input.kind)) {
+      return yield* fail("invalid", `--kind ${input.kind}: this adapter ${command.kinds === undefined ? `lists no kinds, and imports ${input.kind} only when it lists it` : `imports ${command.kinds.join(", ")}`}`, {
+        fix: `"jam engine show" lists the kinds the adapter's import takes`
+      })
     }
     const animation = input.kind === ANIMATION
     if (animation && input.target === undefined) {
@@ -127,11 +143,12 @@ export const importFor = (input: ImportInput): Effect.Effect<HostedResult, ToolE
       })
     }
     const target = input.target === undefined ? undefined : yield* targetOf(input.target)
+    const name = input.name ?? (animation && context !== null ? yield* clipNameOf(context) : undefined)
     const sources = context === null || step === null ? input.files : yield* sourcesFor(context, step, input.files, "import", input.kind.startsWith("audio") ? "audio" : animation ? "clip" : "model")
     if (sources.length === 0) return yield* fail("invalid", "name the files to import, or the run whose result to import with --run <id>")
     const budget = context?.ref.run.budget
     const skeleton = input.skeleton ?? (budget == null ? undefined : context?.config.budgets[budget]?.skeleton)
-    const flags = [...pair("--destination", input.destination), ...(input.slots ?? []).flatMap((slot) => ["--slot", slot]), ...pair("--skeleton", skeleton), ...pair("--target", target), ...(input.extra ?? [])]
+    const flags = [...pair("--destination", input.destination), ...(input.slots ?? []).flatMap((slot) => ["--slot", slot]), ...pair("--skeleton", skeleton), ...pair("--target", target), ...pair("--name", name), ...(input.extra ?? [])]
     const outcome = yield* engine.run("import", ["--kind", input.kind, ...sources, ...flags], resumeLine("import", input, ["--kind", input.kind, ...pair("--target", input.target), ...(input.run === undefined ? sources : [])]))
     if (outcome.status !== "ran" || context === null || step === null) return { outcome }
     const receipt = yield* decode(ImportReceipt, { what: `import receipt of adapter ${outcome.adapter}`, code: "malformed", strict: false })(outcome.receipt)

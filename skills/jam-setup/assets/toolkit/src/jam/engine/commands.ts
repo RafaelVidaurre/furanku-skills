@@ -94,13 +94,14 @@ const importCommand = Command.make("import", {
   slot: many("slot", "Which engine material a slot of the model uses, as name=material. Repeat per slot."),
   skeleton: text("skeleton", "Skeleton profile a skinned import binds to (default: the one the run's budget names)"),
   target: text("target", "For --kind animation: what the clip plays on, a skinned asset or skeleton already in the engine, as its engine id or as the import receipt file that made it"),
+  name: text("name", "The engine asset's name (default: the adapter's own rule; for --kind animation with --run, the id of the run's clip spec)"),
   files: fileArgs,
   ...runFlags
 }, (input) =>
   Effect.gen(function*() {
     const { files, extra } = yield* split(input.files)
     yield* emitHosted(yield* importFor({
-      kind: input.kind, files, destination: maybe(input.destination), slots: input.slot, skeleton: maybe(input.skeleton), target: maybe(input.target), run: maybe(input.run), step: maybe(input.step), extra
+      kind: input.kind, files, destination: maybe(input.destination), slots: input.slot, skeleton: maybe(input.skeleton), target: maybe(input.target), name: maybe(input.name), run: maybe(input.run), step: maybe(input.step), extra
     }))
   })).pipe(described(
     "Import files into the engine through the adapter and print its receipt (the engine's asset ids). With --run the import step is recorded with those ids; for --kind animation the run's recorded clip is imported onto --target. Without an import command it prints the adapter's guide for doing it by hand.",

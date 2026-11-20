@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect"
 import type * as Schema from "effect/Schema"
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
-import { readFileSync } from "node:fs"
+import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 import { decode } from "../../src/kernel/decode.ts"
@@ -50,6 +50,40 @@ describe("the clip spec", () => {
     const published = JSON.parse(readFileSync(join(import.meta.dirname, "../../schemas/animation-clip.schema.json"), "utf8")) as { $defs: { AnimationClip: { required: Array<string> } } }
     assert.deepEqual(published.$defs.AnimationClip.required, ["id", "purpose", "rig", "fps", "length", "loop", "root", "ground", "accept"])
   })
+
+  // The repository's shared clip-spec fixtures: jam-3d-animate's reader is held to the same list (test/clip-spec-fixtures.test.js).
+  const FIXTURES = join(import.meta.dirname, "../../../../../../test/fixtures/clip-specs")
+  const fixtures = (kind: "valid" | "invalid") => readdirSync(join(FIXTURES, kind)).filter((name) => name.endsWith(".json")).map((name) => [name, readFileSync(join(FIXTURES, kind, name), "utf8")] as const)
+  const read = (text: string): { readonly parsed: true; readonly value: unknown } | { readonly parsed: false } => {
+    try {
+      return { parsed: true, value: JSON.parse(text) as unknown }
+    } catch {
+      return { parsed: false }
+    }
+  }
+
+  it("accepts every shared valid fixture", async () => {
+    assert.ok(fixtures("valid").length >= 3)
+    for (const [name, text] of fixtures("valid")) {
+      const json = read(text)
+      assert.ok(json.parsed, `${name} is JSON`)
+      await Effect.runPromise(decode(ClipSpec as Pure, { what: name })(json.value))
+    }
+  })
+
+  it("refuses every shared invalid fixture: as unreadable JSON, as the clip-spec check does, or by the schema", async () => {
+    assert.ok(fixtures("invalid").length >= 10)
+    for (const [name, text] of fixtures("invalid")) {
+      const json = read(text)
+      if (!json.parsed) continue
+      const outcome = await Effect.runPromise(Effect.result(decode(ClipSpec as Pure, { what: name })(json.value)))
+      assert.equal(outcome._tag, "Failure", `${name} is refused`)
+    }
+    const message = async (name: string) => problem(JSON.parse(readFileSync(join(FIXTURES, "invalid", name), "utf8")))
+    assert.match(await message("duplicate-pose-names.json"), /each name once \(contact-left repeated\)/)
+    assert.match(await message("poses-out-of-time-order.json"), /in time order/)
+    assert.match(await message("pose-past-length-max.json"), /late at 1.5 s after length.max \(1.2 s\)/)
+  })
 })
 
 // An adapter whose import takes animation clips onto a target and lists what it made.
@@ -66,13 +100,15 @@ const ANIMATING = {
     console.log(JSON.stringify({ assets: [{ id: "/Anim/walk_loop", kind: "animation-sequence", source: args[2], skeleton: value("--target") + "_Skeleton" }], args }))`
 }
 
-const project = (adapter: "anim" | "static-only" | null) =>
+const IMPORTS = { "static-only": { run: ["node", "commands/import.mjs"], kinds: ["static", "skinned"] }, "no-kinds": { run: ["node", "commands/import.mjs"] } }
+
+const project = (adapter: "anim" | "static-only" | "no-kinds" | null) =>
   jamProject({
     git: true,
     config: { ...AGENT_MODE, engine: { adapter, facts: {} } },
     files: adapter === null ? {} : Object.fromEntries(Object.entries(adapter === "anim" ? ANIMATING : {
       ...ANIMATING,
-      "adapter.json": JSON.stringify({ ...JSON.parse(ANIMATING["adapter.json"]), id: "static-only", commands: { import: { run: ["node", "commands/import.mjs"], kinds: ["static", "skinned"] } } })
+      "adapter.json": JSON.stringify({ ...JSON.parse(ANIMATING["adapter.json"]), id: adapter, commands: { import: IMPORTS[adapter] } })
     }).map(([path, text]) => [`jam/engines/${adapter}/${path}`, text]))
   })
 
@@ -100,8 +136,8 @@ describe("the animation recipe", () => {
     assert.deepEqual(recipe.steps.find((step) => step.id === "check")!.checks, ["clip-report"])
   })
 
-  for (const adapter of ["anim", "static-only", null] as const) {
-    it(`runs to delivery ${adapter === "anim" ? "importing the clip onto its target" : adapter === null ? "with no engine" : "skipping the import when the adapter does not list animation"}`, async () => {
+  for (const adapter of ["anim", "static-only", "no-kinds", null] as const) {
+    it(`runs to delivery ${adapter === "anim" ? "importing the clip onto its target" : adapter === null ? "with no engine" : `skipping the import when the adapter ${adapter === "no-kinds" ? "lists no kinds" : "does not list animation"}`}`, async () => {
       const root = project(adapter)
       await start(root, "animation", "walk")
       const made = await files(root)
@@ -114,16 +150,33 @@ describe("the animation recipe", () => {
       await record(root, "walk", "motion", { files: [`clip=${made.raw}`], tool: "provider library clip", accept: "the clip asked for" })
       await record(root, "walk", "retarget", { files: [`clip=${made.clip}`], accept: "on the project rig" })
 
-      // check: a clip report that passed and measured this clip.
+      // check: a clip report that passed and measured this clip, against the run's spec and the rig it names, with one animation.
+      const stamp = (role: string, path: string) => ({ role, path, sha256: sha256(root, path) })
       const report = (name: string, fields: Record<string, unknown>) => {
-        write(root, `${made.dir}/${name}.json`, JSON.stringify({ passed: true, clip: { role: "clip", path: made.clip, sha256: sha256(root, made.clip) }, ...fields }))
+        write(root, `${made.dir}/${name}.json`, JSON.stringify({
+          passed: true, measureOnly: false, clip: stamp("clip", made.clip), spec: stamp("spec", made.spec), animation: "Walk", checks: { animations: { passed: true, names: ["Walk"], measured: "Walk" } },
+          rig: { model: stamp("rig", SPEC.rig.model), map: stamp("map", SPEC.rig.map) }, unmeasured: [], ...fields
+        }))
         return `evidence=${made.dir}/${name}.json`
       }
-      const attempt = (evidence: ReadonlyArray<string>) => recordFailure(root, "walk", "check", { files: [`clip=${made.clip}`, ...evidence], accept: "watched" })
+      const attempt = (evidence: ReadonlyArray<string>, note = "done") => recordFailure(root, "walk", "check", { files: [`clip=${made.clip}`, ...evidence], accept: "watched", note })
+      const other = { role: "x", path: "x", sha256: "0".repeat(64) }
       assert.match((await attempt([report("unmarked", { clip: undefined })])).message, /needs a clip report/)
       assert.match((await attempt([report("failed", { passed: false, failures: ["footSlide", "loopSeam"] })])).message, /the clip failed its check: footSlide; loopSeam/)
-      assert.match((await attempt([report("other", { clip: { role: "clip", path: "x.glb", sha256: "0".repeat(64) } })])).message, /measured another clip/)
+      assert.match((await attempt([report("other", { clip: other })])).message, /measured another clip/)
+      assert.match((await attempt([report("other-spec", { spec: other })])).message, /against another clip spec than the run's work\/.scratch\/walk\/1\/clip.json/)
+      assert.match((await attempt([report("other-rig", { rig: { model: other, map: stamp("map", SPEC.rig.map) } })])).message, /on another rig model than the one/)
+      assert.match((await attempt([report("other-map", { rig: { model: stamp("rig", SPEC.rig.model), map: other } })])).message, /on another rig map than the one/)
+      assert.match((await attempt([report("two", { checks: { animations: { passed: false, names: ["Walk", "Idle"], measured: "Walk" } } })])).message, /exactly one animation; the clip holds 2 \(Walk, Idle\)/)
+      assert.match((await attempt([report("unnamed", { checks: {} })])).message, /the report does not say the clip holds one \(checks.animations\)/)
+      assert.match((await attempt([report("measured-only", { measureOnly: true, passed: null })])).message, /only measured the clip \(--measure-only\) and judged nothing/)
+      assert.match((await attempt([report("unmeasured", { unmeasured: ["penetration"] })])).message, /could not measure penetration[^]*naming penetration/)
+      await record(root, "walk", "check", { files: [`clip=${made.clip}`, report("judged", { unmeasured: ["penetration"] })], accept: "watched", note: "penetration judged from the sheet and video: the feet stay on the step" })
       await record(root, "walk", "check", { files: [`clip=${made.clip}`, report("clip-report", {})], accept: "watched" })
+      // A later change to the rig the spec names makes the report stale.
+      write(root, SPEC.rig.map, JSON.stringify({ label: "hero", landmarks: { pelvis: "hips", spine_01: "spine" } }))
+      assert.match((await stepStatus(root, "walk", "check")).problems?.map((problem) => problem.message).join("\n") ?? "", /on another rig map/)
+      write(root, SPEC.rig.map, JSON.stringify({ label: "hero", landmarks: { pelvis: "hips" } }))
 
       const importStep = await stepStatus(root, "walk", "import")
       if (adapter === "anim") {
@@ -132,7 +185,8 @@ describe("the animation recipe", () => {
         // The target may be named by the receipt of the skinned import: its first asset is the skinned asset.
         write(root, "work/hero-import.json", JSON.stringify({ assets: [{ id: "/Game/Hero/SK_Hero", kind: "skeletal-mesh" }, { id: "/Game/Hero/T_Hero", kind: "texture" }] }))
         const imported = await jam(root, importFor({ kind: "animation", files: [], run: "walk", target: "work/hero-import.json" }))
-        assert.deepEqual(imported.outcome.status === "ran" && imported.outcome.receipt["args"], ["--kind", "animation", made.clip, "--target", "/Game/Hero/SK_Hero"])
+        // The sequence is named after the run's clip spec, so clips of different runs never share an engine asset by file name.
+        assert.deepEqual(imported.outcome.status === "ran" && imported.outcome.receipt["args"], ["--kind", "animation", made.clip, "--target", "/Game/Hero/SK_Hero", "--name", "walk-loop"])
         const stored = runFile(root, "walk").steps["import"]!.records[0]!
         assert.deepEqual(stored.engineAssets, [{ id: "/Anim/walk_loop", kind: "animation-sequence", source: made.clip, skeleton: "/Game/Hero/SK_Hero_Skeleton" }])
         assert.equal(stored.note, `Imported ${made.clip} as animation onto /Game/Hero/SK_Hero through engine adapter anim.`)
@@ -140,8 +194,14 @@ describe("the animation recipe", () => {
         assert.deepEqual(shown.kinds, { import: ["skinned", "animation"] })
       } else {
         assert.equal(importStep.state, "skipped")
-        assert.equal(importStep.reason, adapter === null ? "no engine adapter is configured, so there is no import command" : "engine adapter static-only's import command takes static, skinned, not animation")
+        assert.equal(importStep.reason, {
+          "static-only": "engine adapter static-only's import command takes static, skinned, not animation",
+          "no-kinds": "engine adapter no-kinds's import command lists no kinds, and takes animation only when it lists it",
+          null: "no engine adapter is configured, so there is no import command"
+        }[String(adapter)])
         assert.equal(importStep.condition!.when, "engine provides import --kind animation")
+        // jam engine import agrees with the condition: an adapter imports animation only when it lists it.
+        if (adapter !== null) assert.match((await jamFailure(root, importFor({ kind: "animation", files: [made.clip], target: "/Game/Hero/SK_Hero" }))).message, /--kind animation: this adapter (imports static, skinned|lists no kinds, and imports animation only when it lists it)$/)
       }
 
       await record(root, "walk", "delivery", { files: [`clip=${made.clip}`, `evidence=${made.dir}/clip-report.json`] })
@@ -159,7 +219,7 @@ describe("motion routes", () => {
     const motion = Object.fromEntries(listed.filter((row) => row.capabilities.includes("motion")).map((row) => [row.id, row.modes["motion"]]))
     assert.deepEqual(motion, { meshy: ["library", "text"], motionbricks: ["inbetween"], scenario: ["library", "text", "video"], tripo: ["library"] })
     const bricks = listed.find((row) => row.id === "motionbricks")!
-    assert.deepEqual([bricks.transports, bricks.spend.summary], [["skill"], "not billed per job (time on an NVIDIA GPU the person runs, own or rented; no charge per job)"])
+    assert.deepEqual([bricks.transports, bricks.spend.summary], [["skill"], "not billed per job (compute the person runs, own or rented; no charge per job)"])
     const text = cli(jamProject(), "provider", "list").stdout
     assert.match(text, /motionbricks +motion \(inbetween\)/)
     assert.match(text, /meshy +mesh \(single, multiview\), motion \(library, text\)/)

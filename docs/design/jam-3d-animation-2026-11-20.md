@@ -29,7 +29,7 @@ needs a file another skill ships (a landmark map), it takes it as a path argumen
 ## Shared file contracts
 
 ### Clip file
-A glTF 2.0 binary (`.glb`) holding the skinned rig and one or more named animations. glTF frame:
+A glTF 2.0 binary (`.glb`) holding the skinned rig and exactly one named animation when delivered. `jam-3d-animate`'s clip-spec reference is the definition. glTF frame:
 metres, `+Y` up, the character faces `+Z`, `+X` is its left. Frame rate is the clip spec's, sampled
 on whole frames. Engines convert in their adapter, never in these skills.
 
@@ -38,7 +38,7 @@ The existing landmark-map format (`label`, `notes`, `landmarks`: bone name → l
 vocabulary `jam-3d-rig` and provider descriptors (`rig.landmarks`) already use. Every skeleton a clip
 lives on is described by one: the project rig, SOMA, a provider's output skeleton, a library's.
 Bones at no landmark (twists, rolls, fingers a source lacks, attachment bones) are listed as
-unmapped and keep their own animation or rest pose; they are never guessed.
+unmapped and keep their rest pose; they are never guessed.
 
 ### Clip spec (`clip.json`, written by `jam-3d-animate`)
 Schema `tools/jam/schemas/animation-clip.schema.json`. Fields:
@@ -92,8 +92,8 @@ an agent to drive it and a game to ship the output.
   its MCP server actually exposes).
 - MotionBricks (`inbetween`) through the `jam-3d-motionbricks` skill.
 - Others the survey found usable (hosted text/video services, open models such as Kimodo) get a
-  descriptor only with a working transport; until then `docs/providers.md` lists them with what they
-  would need. Providers whose terms bar agent use, commercial output or ML use, or whose access is
+  descriptor only with a working transport; the survey in `docs/research` records them, and a project
+  may describe one in `jam/providers/<id>.json`. Providers whose terms bar agent use, commercial output or ML use, or whose access is
   gated, are not described.
 
 ## MotionBricks pipeline (inside `jam-3d-animate`'s provider route)

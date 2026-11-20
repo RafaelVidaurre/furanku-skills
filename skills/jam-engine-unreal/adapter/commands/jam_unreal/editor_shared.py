@@ -43,6 +43,15 @@ def jam_stored_source(asset, project_dir=None):
     return names[0] if relative.startswith("..") else relative
 
 
+def jam_refuse_other_source(asset_id, asset, source, project_dir=None):
+    """Refuse to import `source` over `asset`, already at `asset_id`, when the asset was imported from another file (or
+    remembers none): a re-import replaces its own source's asset, never another clip's."""
+    stored = jam_stored_source(asset, project_dir)
+    if stored != source:
+        raise RuntimeError("%s exists, imported from %s, not from %s: import this clip under another name, or delete that asset first"
+                           % (asset_id, stored or "a file it does not remember", source))
+
+
 def jam_dirty_packages():
     import unreal
     return sorted(p.get_name() for p in unreal.EditorLoadingAndSavingUtils.get_dirty_content_packages())

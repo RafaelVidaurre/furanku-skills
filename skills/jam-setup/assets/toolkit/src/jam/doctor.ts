@@ -150,11 +150,15 @@ export const diagnose: Effect.Effect<ReadonlyArray<DoctorLine>, never, Toolkit |
 
   add(yield* section("skill names", Effect.gen(function*() {
     // Agents install a project's skills under a hidden folder of the project root (<folder>/skills/<name>).
+    // Skills installed for the user, outside the project, are not looked at: where they live depends on the agent.
     const found: Array<string> = []
     const replacements = new Set<string>()
+    const scanned: Array<string> = []
     for (const folder of yield* files.list("")) {
       if (!folder.name.startsWith(".") || folder.name === ".git") continue
-      const installed = yield* files.list(`${folder.name}/skills`).pipe(Effect.catch(() => Effect.succeed([])))
+      const installed = yield* files.list(`${folder.name}/skills`).pipe(Effect.catch(() => Effect.succeed(null)))
+      if (installed === null) continue
+      scanned.push(`${folder.name}/skills`)
       for (const skill of installed) {
         const now = renamedTo(skill.name)
         if (now === undefined) continue
@@ -171,12 +175,13 @@ export const diagnose: Effect.Effect<ReadonlyArray<DoctorLine>, never, Toolkit |
         if (now !== undefined) named.push(`${entry.path} step ${step.id} names ${step.skill}, now ${now}`)
       }
     }
-    if (found.length === 0 && named.length === 0) return [line("skill names", "ok", "no skill installed or named in a project recipe under a retired name")]
+    const where = `looked in ${scanned.length === 0 ? "no project skill folder" : scanned.join(", ")} and the project's recipes, not in skills installed for your user outside the project`
+    if (found.length === 0 && named.length === 0) return [line("skill names", "ok", `no skill installed or named in a project recipe under a retired name (${where})`)]
     const fixes = [
       ...(replacements.size === 0 ? [] : [`install ${[...replacements].join(", ")} with "npx skills add rafaelvidaurre/furanku-skills --skill <name>" and remove the old folders`]),
       ...(named.length === 0 ? [] : ["change the \"skill\" of those steps to the new name"])
     ]
-    return [line("skill names", "warn", `renamed skills: ${[...found, ...named].join("; ")}`, `${fixes.join("; ")} (${toolkit.path("docs/setup.md")}#renamed-skills)`)]
+    return [line("skill names", "warn", `renamed skills: ${[...found, ...named].join("; ")} (${where})`, `${fixes.join("; ")}; remove old names from your user's skills too (${toolkit.path("docs/setup.md")}#renamed-skills)`)]
   })))
 
   add(yield* section("providers", Effect.gen(function*() {

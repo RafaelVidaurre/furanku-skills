@@ -2,68 +2,42 @@
 
 Notes for each step of the `animation` recipe. `jam run next` points here; `jam recipe show animation` lists the steps.
 
-A run makes one clip for a character that is already rigged: the project rig, a `.glb` holding the skinned character, with a skeleton map (a landmark map: bone name to landmark). Each step's skill says how the work is done; these notes say what each step records. Files pass between steps as files only.
-
-The clip file is glTF binary (`.glb`): the skinned rig and the named animation, in meters, `+Y` up, the character facing `+Z` with `+X` its left, sampled on whole frames at the spec's frame rate. Engines convert in their adapter.
+A run makes one clip for a character that is already rigged: the project rig, a `.glb` holding the skinned character, with a skeleton map (a landmark map: bone name to landmark). The skill named for each step says how the work is done and gives its exact `jam run record` command; these notes say what each step's record holds. Files pass between steps as files only. A delivered clip is in the clip format of `jam-3d-animate` (its clip-spec reference).
 
 ## define
 
-Write the clip spec, `clip.json`, against `schemas/animation-clip.schema.json` in the toolkit: what the clip is for, the rig and its map, frame rate, length, whether it loops, in place or with root motion, the ground, and the thresholds the check enforces. Paths in it are project-relative. Every threshold comes from the project or the person; there are no default numbers to fall back on. Ask for any that is missing.
+`jam-3d-animate` writes the clip spec, `clip.json`, against `schemas/animation-clip.schema.json` in the toolkit, with the thresholds the project or the person sets.
 
-```
-jam run record <id> define --file spec=<clip.json>
-```
-
-The `clip-spec` check validates it and confirms the rig and the map it names exist; the key-pose file it names is made at the next step. The person accepts the spec: it is what the clip is judged against.
+The record holds the spec as `spec`. The `clip-spec` check validates it and confirms the rig and the map it names exist; the key-pose file it names is made at the next step. The person accepts the spec: it is what the clip is judged against.
 
 ## keyposes
 
-Optional: skip it with a reason for a library clip or footage, where the poses come with the motion. Otherwise pose the project rig at each key pose the spec names and save them in the file its `keyPoses.file` names: the rig with one animation holding one key per pose at its time. The person accepts the poses before any motion is made.
+Optional: skipped with a reason for a library clip or footage, where the poses come with the motion. Otherwise `jam-3d-animate` poses the project rig at each key pose the spec names, in the file its `keyPoses.file` names.
 
-```
-jam run record <id> keyposes --file keyposes=<keyposes.glb>
-```
+The record holds that file as `keyposes`. The person accepts the poses before any motion is made.
 
 ## motion
 
-Make the motion by the route the person allows: by hand on the project rig, by retargeting a clip that exists, or from a motion provider (`jam provider list` shows the `motion` routes and their modes; the provider guide covers routes, jobs and spending). A paid job goes through the run's ledger (`jam job ...`) and is recorded with `--job`. Record the clip as the route returned it, whatever its skeleton and format:
+`jam-3d-animate` makes the motion by the route the person allows: by hand on the project rig, by retargeting a clip that exists, or from a motion provider (`jam provider list` shows the `motion` routes and their modes; the provider guide covers routes, jobs and spending).
 
-```
-jam run record <id> motion --file clip=<clip as returned> --tool "<route, model and version>"
-```
+The record holds the clip as the route returned it, whatever its skeleton and format, as `clip`, with the route as its tool. A paid job goes through the run's ledger (`jam job ...`) and the record names it with `--job`.
 
 ## retarget
 
-Applies when the motion is on any skeleton other than the project rig; otherwise skip it with that reason. `jam-3d-retarget` moves the clip onto the project rig through the two skeleton maps. Bones at no landmark keep their own animation or rest pose and are listed as unmapped.
+Applies when the motion is on any skeleton other than the project rig; otherwise skipped with that reason. `jam-3d-retarget` moves the clip onto the project rig through the two skeleton maps. Bones at no landmark keep their rest pose and are listed as unmapped.
 
-```
-jam run record <id> retarget --file clip=<clip on the project rig.glb> --evidence report=<retarget report> --evidence sheet=<pose sheet>
-```
+The record holds the clip on the project rig as `clip`, with the retarget report and its pose sheets as evidence.
 
 ## check
 
-Judge the final clip on the project rig, whatever route made it. The check writes `clip-report.json`: per contact window, slide and penetration; boundary and seam jumps; frames, frame rate and length; which thresholds pass. Contacts are found on the project rig from foot height and speed. Beside it go a pose sheet and, when a renderer is available, a video.
+`jam-3d-animate` judges the final clip on the project rig, whatever route made it, and writes the clip report with a pose sheet and, when a renderer is available, a video.
 
-```
-jam run record <id> check --file clip=<clip.glb> --file evidence=<clip-report.json> --file evidence=<clip-sheet.png>
-```
-
-The `clip-report` check requires a report that passed and measured this clip (its `clip` holds the clip's SHA-256). A clip that fails goes back to the step that caused it: the motion, the retarget, or the contacts. The person then watches the clip and accepts it.
+The record holds the clip as `clip` and the report and its sheet as `evidence`. The `clip-report` check requires a report that passed and that measured this clip, against the run's clip spec and the rig and map that spec names, on a clip holding exactly one animation. A threshold the report could not measure must be named in the record's note with how it was judged. A clip that fails goes back to the step that caused it: the motion, the retarget, or the contacts. The person then watches the clip and accepts it.
 
 ## import
 
-Runs only when the engine adapter's `import` lists the kind `animation` (`jam engine show`); otherwise the step is skipped and the run ends at the delivered clip. The clip must be on the skeleton of a skinned asset already in the engine: name it with `--target`, as its engine id or as the receipt file of its import.
-
-```
-jam engine import --kind animation --run <id> --target <engine id or import receipt>
-```
-
-The receipt lists the animation asset ids, which the step records.
+Runs only when the engine adapter's `import` takes the kind `animation` (`jam engine show`); otherwise the step is skipped and the run ends at the delivered clip. The clip must be on the skeleton of a skinned asset already in the engine: the step's command, `jam engine import --kind animation --run <id> --target <engine id or import receipt>`, names it, imports the clip under the clip spec's id and records the step with the animation asset ids the adapter returns. The `jam-engine` skill covers the command.
 
 ## delivery
 
-The clip accepted at the check step with its clip report; a person signs it off.
-
-```
-jam run record <id> delivery --file clip=<clip.glb> --file evidence=<clip-report.json> --tool "<the tool recorded at check>" --note "..."
-```
+The clip accepted at the check step, with its clip report, recorded as `jam-3d-animate` says; the same `clip-report` check applies, and a person signs it off.
