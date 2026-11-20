@@ -16,8 +16,8 @@ Travel is read from the hips' ground projection, in one of two ways (jamanim/tra
                   the rest, so every joint stays where it was in the world. Without root.bone: the travel stays on the
                   hips and any bone above them is held at rest.
 
-Writes <out-dir>/<name>.glb (default: the clip's name with -in-place or -root-motion), the same rig with only this
-animation, sampled on every frame, and travel.json: the travel per frame (glTF x and z, metres, from the first frame),
+Writes <out-dir>/<name>.glb (default: the clip's name with -in-place or -root-motion), the same rig with this one
+animation and no other (--animation picks it from a file that holds several), sampled on every frame, and travel.json: the travel per frame (glTF x and z, metres, from the first frame),
 which clip_check.py --travel gives back to an in-place clip when it measures contacts, with the hips' ground travel,
 sway and height range before and after.
 """
@@ -32,7 +32,7 @@ from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import jamanim  # noqa: E402
-from jamanim import gltf, measure, report, skelmap, spec as specs, travel as trav  # noqa: E402
+from jamanim import blend, gltf, measure, report, skelmap, spec as specs, travel as trav  # noqa: E402
 
 
 def fail(msg):
@@ -77,6 +77,7 @@ def ground_facts(g, along):
 
 def main():
     a = parse(jamanim.script_args(sys.argv))
+    blend.require_version(fail)
     try:
         s = specs.load(a.spec)
         smap = skelmap.load(s["rig"]["map"])
@@ -90,7 +91,7 @@ def main():
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
-    scene.render.fps, scene.render.fps_base = int(round(fps)), int(round(fps)) / fps
+    blend.gltf_rate(scene, fps)
     bpy.ops.import_scene.gltf(filepath=os.path.abspath(a.clip), disable_bone_shape=True)
     arms = [o for o in scene.objects if o.type == "ARMATURE"]
     if len(arms) != 1:
@@ -99,12 +100,7 @@ def main():
     action = bpy.data.actions.get(name) or next((x for x in bpy.data.actions if x.name.startswith(name)), None)
     if action is None:
         fail("Blender did not import the animation %r" % name)
-    ad = arm.animation_data or arm.animation_data_create()
-    for track in list(ad.nla_tracks):
-        ad.nla_tracks.remove(track)
-    ad.action = action
-    if hasattr(ad, "action_slot") and ad.action_slot is None and len(getattr(action, "slots", [])):
-        ad.action_slot = action.slots[0]
+    blend.assign(arm, action)
     for other in [x for x in bpy.data.actions if x != action]:
         bpy.data.actions.remove(other)
 
@@ -177,6 +173,9 @@ def main():
     bpy.ops.export_scene.gltf(filepath=os.path.abspath(out_glb), export_format="GLB", use_selection=True, export_yup=True,
                               export_animations=True, export_animation_mode="ACTIONS", export_force_sampling=True,
                               export_optimize_animation_size=False, export_apply=False)
+    written = gltf.Gltf(out_glb).animation_names()
+    if len(written) != 1:
+        fail("%s was written with %d animations (%s); a clip holds one" % (out_glb, len(written), ", ".join(written)))
     on = "removed" if mode == "in-place" else (root_name or hips.name)
     travel_path = os.path.join(a.out, "travel.json")
     trav.write(travel_path, fps, a.travel, mode, t, loop_end)

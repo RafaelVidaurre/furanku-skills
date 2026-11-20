@@ -1,19 +1,22 @@
 """Build a rigged test humanoid and a walk clip on it, optionally with known faults. Runs in Blender.
 
     blender --background --python-exit-code 1 --python make_test_clip.py -- <out-dir>
-            [--names landmark|camel] [--root-bone] [--fps 30] [--cycle 1.0] [--speed 1.0] [--loop-end open|duplicate]
-            [--slide <metres>] [--sink <metres>] [--pop start|end:<metres>] [--seam <metres>]
+            [--names landmark|camel] [--root-bone] [--fps 30] [--period 1.0] [--speed 1.0] [--loop-end open|duplicate]
+            [--slide <metres>] [--sink <metres>] [--pop start|end:<metres>] [--seam <metres>] [--step <frame>:<metres> ...]
             [--name walk] [--poses] [--no-mesh]
 
 The figure is 1.7 m tall, made of boxes each weighted wholly to one bone, its soles exactly on the ground at rest. The
-walk is computed, not keyed by hand: the hips travel at --speed (m/s) along the figure's front with a bob and a sway,
-each foot is planted for 60% of the cycle and swings for 40%, legs are solved to reach the feet, arms swing. Faults:
+walk is computed, not keyed by hand: one cycle lasts --period seconds, the hips travel at --speed (m/s) along the
+figure's front with a bob and a sway, each foot is planted for 60% of the cycle and swings for 40%, legs are solved to
+reach the feet, arms swing. Faults:
 
     --slide m      the left foot drifts forward m metres over its first planted window
     --sink m       the right foot sits m metres lower all through the clip (its sole goes below the ground)
     --pop start:m  the first or last frame jumps m metres sideways (--pop end:m: the last; the whole body)
     --seam m       the whole body rises m metres over the second half of the clip, so the last frame does not meet the
                    first
+    --step f:m     from frame f to the end the whole body sits m metres further forward (a jump inside the clip);
+                   repeat it for several
 
 Writes rig.glb (the rig at rest, no animation), clip.glb (the rig with the walk), map.json (its skeleton map),
 truth.json (the planted windows and the size of each fault as built) and, with --poses, poses.glb (two one-key
@@ -32,6 +35,7 @@ from mathutils import Matrix, Quaternion, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import jamanim  # noqa: E402
+from jamanim import blend  # noqa: E402
 
 FRONT = Vector((0, -1, 0))          # Blender frame: Z up, the figure faces -Y, +X is its left
 J = {"hips": (0, 0, 0.95), "spine": (0, 0, 1.05), "chest": (0, 0, 1.30), "neck": (0, 0, 1.45), "head": (0, 0, 1.52)}
@@ -184,7 +188,7 @@ def smooth(x):
 
 def foot_target(side, t, a):
     """Ankle position of one foot at time t: planted at a fixed spot for PLANTED of each cycle, then a swing."""
-    T, v = a.cycle, a.speed
+    T, v = a.period, a.speed
     offset = 0.0 if side == "l" else 0.5
     u = t / T - offset
     k = math.floor(u + 1e-9)
@@ -204,7 +208,7 @@ def foot_target(side, t, a):
 
 
 def hips_at(t, a):
-    phi = (t / a.cycle) % 1.0
+    phi = (t / a.period) % 1.0
     return (Vector(J["hips"]) + FRONT * (a.speed * t) + Vector((SWAY * math.sin(2 * math.pi * phi), 0,
             -DROP + BOB * math.cos(4 * math.pi * phi)))), phi
 
@@ -245,17 +249,18 @@ def main():
     p = argparse.ArgumentParser(prog="make_test_clip.py", description=__doc__.split("\n\n")[0])
     p.add_argument("out")
     p.add_argument("--names", choices=("landmark", "camel"), default="landmark"); p.add_argument("--root-bone", action="store_true")
-    p.add_argument("--fps", type=float, default=30); p.add_argument("--cycle", type=float, default=1.0); p.add_argument("--speed", type=float, default=1.0)
+    p.add_argument("--fps", type=float, default=30); p.add_argument("--period", type=float, default=1.0); p.add_argument("--speed", type=float, default=1.0)
     p.add_argument("--loop-end", choices=("open", "duplicate"), default="open")
     p.add_argument("--slide", type=float, default=0.0); p.add_argument("--sink", type=float, default=0.0)
-    p.add_argument("--pop"); p.add_argument("--seam", type=float, default=0.0)
+    p.add_argument("--pop"); p.add_argument("--seam", type=float, default=0.0); p.add_argument("--step", action="append", default=[])
     p.add_argument("--name", default="walk"); p.add_argument("--poses", action="store_true")
     p.add_argument("--no-mesh", action="store_true")
     a = p.parse_args(jamanim.script_args(sys.argv))
+    blend.require_version(lambda msg: sys.exit("error: " + msg))
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
-    scene.render.fps, scene.render.fps_base = int(round(a.fps)), int(round(a.fps)) / a.fps
+    blend.gltf_rate(scene, a.fps)
     os.makedirs(a.out, exist_ok=True)
     arm = build_rig(a.names, a.root_bone)
     objects = [arm] if a.no_mesh else [arm, build_mesh(arm, a.names)]
@@ -265,7 +270,7 @@ def main():
     export(os.path.join(a.out, "rig.glb"), objects, False)
 
     P = Poser(arm, a.names)
-    n = int(round(a.cycle * a.fps))
+    n = int(round(a.period * a.fps))
     frames = n + (1 if a.loop_end == "duplicate" else 0)
     action = bpy.data.actions.new(a.name)
     arm.animation_data_create(); arm.animation_data.action = action
@@ -277,7 +282,7 @@ def main():
         for s in planted:
             planted[s].append(flags[s])
 
-    truth = {"fps": a.fps, "frames": frames, "cycle": a.cycle, "speed": a.speed, "loopEnd": a.loop_end, "names": a.names,
+    truth = {"fps": a.fps, "frames": frames, "period": a.period, "speed": a.speed, "loopEnd": a.loop_end, "names": a.names,
              "rootBone": a.root_bone, "planted": {}, "faults": {}}
     for s in ("l", "r"):
         runs, start = [], None
@@ -294,23 +299,28 @@ def main():
                                     "metres": max((p - q).length for p in xs for q in xs)}
     if a.sink:
         truth["faults"]["sink"] = {"limb": "foot.r", "metres": a.sink}
+    offset = {}                                   # frame -> how far the whole body is moved (Blender frame)
     if a.pop:
         where, _, size = a.pop.partition(":")
         f = 0 if where == "start" else frames - 1
-        scene.frame_set(f)
-        P.reset(); pose_frame(P, f / a.fps, a)
-        hips = P.pb("hips"); M = hips.matrix.copy(); M.translation += Vector((float(size), 0, 0)); hips.matrix = M; P.update()
-        P.key(f, ["hips"])
+        offset[f] = offset.get(f, Vector()) + Vector((float(size), 0, 0))
         truth["faults"]["pop"] = {"at": where, "frame": f, "metres": float(size)}
     if a.seam:
         last = frames - 1
         half = last // 2
         for f in range(half, frames):
-            scene.frame_set(f)
-            P.reset(); pose_frame(P, f / a.fps, a)
-            hips = P.pb("hips"); M = hips.matrix.copy(); M.translation.z += a.seam * smooth((f - half) / (last - half)); hips.matrix = M; P.update()
-            P.key(f, ["hips"])
+            offset[f] = offset.get(f, Vector()) + Vector((0, 0, a.seam * smooth((f - half) / (last - half))))
         truth["faults"]["seam"] = {"metres": a.seam, "from": half}
+    for step in a.step:
+        at, _, size = step.partition(":")
+        for f in range(int(at), frames):
+            offset[f] = offset.get(f, Vector()) + FRONT * float(size)
+        truth["faults"].setdefault("steps", []).append({"frame": int(at), "metres": float(size)})
+    for f in sorted(offset):
+        scene.frame_set(f)
+        P.reset(); pose_frame(P, f / a.fps, a)
+        hips = P.pb("hips"); M = hips.matrix.copy(); M.translation += offset[f]; hips.matrix = M; P.update()
+        P.key(f, ["hips"])
 
     scene.frame_start, scene.frame_end = 0, frames - 1
     for fc in _fcurves(action):

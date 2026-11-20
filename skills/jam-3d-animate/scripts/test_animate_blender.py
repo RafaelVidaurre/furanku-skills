@@ -1,5 +1,6 @@
-"""The jam-3d-animate scripts run for real, in Blender, on generated test clips with known faults. Skipped when Blender
-is absent: set JAM_BLENDER to its executable (or have `blender` on PATH) to run them."""
+"""The jam-3d-animate scripts run for real, in Blender, on generated test clips with known faults. Blender is found
+through JAM_BLENDER (its executable), else `blender` on PATH, else, on macOS only, the application's usual place; the
+tests are skipped without it."""
 import json
 import os
 import shutil
@@ -11,11 +12,14 @@ import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from jamanim import gltf  # noqa: E402
+from jamanim import gltf, poses  # noqa: E402
 
 
 def find_blender():
-    for candidate in (os.environ.get("JAM_BLENDER"), shutil.which("blender"), "/Applications/Blender.app/Contents/MacOS/Blender"):
+    candidates = [os.environ.get("JAM_BLENDER"), shutil.which("blender")]
+    if sys.platform == "darwin":
+        candidates.append("/Applications/Blender.app/Contents/MacOS/Blender")
+    for candidate in candidates:
         if candidate and os.path.isfile(candidate):
             return candidate
     return None
@@ -87,6 +91,7 @@ def test_a_clean_loop_passes_with_its_evidence(make):
         built = {f for a, b in truth["planted"][limb] for f in range(a, b + 1)}
         assert len(built - found) <= 2 and len(found - built) <= 2, (limb, sorted(built - found), sorted(found - built))
     assert all(w["slide"] < 1e-3 for w in r["contacts"])
+    assert all(g["slide"] < 0.006 for g in r["grounded"])                    # lift-off and touch-down inside the contact height
     sheet = r["evidence"]["sheet"]
     assert os.path.getsize(sheet["path"]) > 0 and sheet["frames"] == [0, 10, 19, 29]
     video = r["evidence"]["video"]
@@ -101,7 +106,10 @@ def test_a_foot_sliding_while_planted_reads_its_slide(make, metres):
     worst = max((w for w in r["contacts"] if w["limb"] == "foot.l"), key=lambda w: w["slide"])
     assert worst["slide"] == pytest.approx(truth["metres"], abs=1e-3)
     assert worst["from"] == 0 and abs(worst["to"] - truth["frames"][1]) <= 1
-    assert code == 1 and r["failures"] == ["footSlide"] and r["accept"]["footSlide"]["measured"] == worst["slide"]
+    assert code == 1 and r["failures"] == ["footSlide"]
+    # the judged slide also holds the foot's whole run at ground height: the slide plus its lift-off and touch-down
+    run = max((g for g in r["grounded"] if g["limb"] == "foot.l"), key=lambda g: g["slide"])
+    assert r["accept"]["footSlide"]["measured"] == run["slide"] and truth["metres"] <= run["slide"] <= truth["metres"] + 0.006
 
 
 def test_a_sunken_foot_reads_its_penetration_on_the_mesh_and_on_joints(make):
@@ -109,7 +117,10 @@ def test_a_sunken_foot_reads_its_penetration_on_the_mesh_and_on_joints(make):
         folder = make(name, "--sink", 0.03, *extra)
         code, _, r = check(folder)
         assert r["feet"]["foot.r"]["penetration"] == pytest.approx(0.03, abs=1e-3) and r["feet"]["foot.l"]["penetration"] < 1e-3
-        assert code == 1 and r["failures"] == ["penetration"]
+        # a foot sunk below the ground is within the contact height for most of its swing: it drags through the ground
+        assert code == 1 and r["failures"] == ["footSlide", "penetration"]
+        assert max(g["slide"] for g in r["grounded"] if g["limb"] == "foot.r") > 0.05
+        assert max(g["slide"] for g in r["grounded"] if g["limb"] == "foot.l") < ACCEPT["footSlide"]
         assert r["penetrationMeasuredOn"] == ("foot joints at their rest height" if extra else "foot mesh vertices")
         assert all(w["penetration"] == pytest.approx(0.03, abs=1e-3) for w in r["contacts"] if w["limb"] == "foot.r")
 
@@ -253,3 +264,131 @@ def test_video_through_an_outside_ffmpeg(make):
     code, log, r = check(folder, "--ffmpeg", shutil.which("ffmpeg"), out="ffmpeg")
     assert code == 0, log[-2000:]
     assert os.path.getsize(r["evidence"]["video"]["path"]) > 0
+
+
+# ---- faults the measures once missed, and the clip format ----------------------------------------------------------
+
+def test_a_slide_faster_than_detection_still_fails(make):
+    """A foot sliding 0.4 m over its planted window moves faster than detect.speed, so detection never plants it."""
+    folder = make("slide-fast", "--slide", 0.4)
+    truth = read(os.path.join(folder, "truth.json"))["faults"]["slide"]
+    code, _, r = check(folder)                # nothing declared: the foot is within the contact height, so it is in contact
+    run = max((g for g in r["grounded"] if g["limb"] == "foot.l"), key=lambda g: g["slide"])
+    assert run["slide"] >= truth["metres"] - 2e-3 and run["from"] == 0 and run["passed"] is False
+    assert code == 1 and "footSlide" in r["failures"] and r["accept"]["footSlide"]["measured"] >= truth["metres"] - 2e-3
+    a, b = truth["frames"]
+    write_spec(folder, "declared.json", contacts={"detect": DETECT, "planted": [{"limb": "foot.l", "from": a / 30, "to": b / 30}]})
+    code, _, r = check(folder, spec="declared.json", out="declared")
+    assert code == 1 and "footSlide" in r["failures"]
+    assert r["expectedContacts"][0]["slide"] == pytest.approx(truth["metres"], abs=2e-3) and r["expectedContacts"][0]["passed"] is False
+
+
+def test_a_jump_inside_the_clip_hides_no_pop_and_fails_itself(make):
+    folder = make("pop-and-step", "--pop", "start:0.08", "--step", "15:0.08")
+    code, _, r = check(folder)
+    assert r["boundary"]["start"]["worst"]["jump"] == pytest.approx(0.08, abs=3e-3)
+    assert r["boundary"]["interior"]["frames"][1] == 15 and r["measures"]["interiorJump"] == pytest.approx(0.08, abs=5e-3)
+    assert code == 1 and {"boundaryJump", "interiorJump"} <= set(r["failures"])
+    clean = check(make("clean", "--poses"))[2]
+    assert clean["accept"]["interiorJump"]["passed"] and clean["accept"]["interiorJump"]["threshold"] == ACCEPT["boundaryJump"]
+
+
+def test_a_loop_that_does_not_close_fails_with_jumps_inside(make):
+    folder = make("seam-and-steps", "--seam", 0.2, "--step", "8:0.05", "--step", "12:-0.05")
+    code, _, r = check(folder)
+    assert code == 1 and "loopSeam" in r["failures"] and r["seam"]["worst"]["jump"] > 0.15
+
+
+def test_a_frame_rate_that_is_not_whole(make):
+    folder = make("ntsc", "--fps", 29.97, "--period", 30 / 29.97)
+    write_spec(folder, "ntsc.json", fps=29.97, length={"min": 30 / 29.97, "max": 30 / 29.97}, root={"mode": "in-place"})
+    times = gltf.Gltf(os.path.join(folder, "clip.glb")).key_times()
+    assert len(times) == 30 and times[-1] == pytest.approx(29 / 29.97, abs=1e-6)
+    code, log, out = blender("root_convention.py", "clip.glb", "ntsc.json", "rc", cwd=folder)
+    assert code == 0, log[-2000:]
+    assert gltf.Gltf(os.path.join(folder, out["clip"])).key_times()[-1] == pytest.approx(29 / 29.97, abs=1e-6)
+    code, log, r = check(folder, "--travel", os.path.join(folder, "rc", "travel.json"), spec="ntsc.json", clip="rc/clip-in-place.glb", out="ntsc")
+    assert code == 0, log[-2000:]
+    assert r["checks"]["wholeFrames"]["passed"] and r["checks"]["length"]["passed"] and r["frames"] == 30
+
+
+def test_a_rig_whose_rest_differs_fails_the_skeleton_check(make):
+    folder = make("clean", "--poses")
+    g = gltf.Gltf(os.path.join(folder, "rig.glb"))
+    k = next(i for i, n in enumerate(g.nodes) if n.get("name") == "lower-leg.l")
+    g.json["nodes"][k]["translation"] = [x * 1.02 for x in g.json["nodes"][k]["translation"]]
+    poses.write_with_animation(g, os.path.join(folder, "longer-rig.glb"), "rest", 30, {k: {"scale": np.ones((2, 3))}})
+    write_spec(folder, "longer.json", rig={"model": "longer-rig.glb", "map": "map.json"})
+    code, _, r = check(folder, spec="longer.json", out="longer")
+    assert code == 1 and "skeleton" in r["failures"] and not r["checks"]["skeleton"]["missing"]
+    assert r["checks"]["skeleton"]["rest"]["position"] > 0.005
+
+
+def test_a_file_with_two_animations_is_measured_but_not_delivered(make):
+    folder = make("clean", "--poses")
+    two = ("import bpy, os; bpy.ops.wm.read_factory_settings(use_empty=True); bpy.context.scene.render.fps = 30; "
+           "bpy.ops.import_scene.gltf(filepath='clip.glb'); a = bpy.data.actions[0]; c = a.copy(); c.name = 'walk-copy'; "
+           "a.use_fake_user = True; c.use_fake_user = True; "
+           "bpy.ops.export_scene.gltf(filepath=os.path.abspath('two.glb'), export_format='GLB', export_animation_mode='ACTIONS', export_force_sampling=True)")
+    done = subprocess.run([BLENDER, "--background", "--factory-startup", "--python-exit-code", "1", "--python-expr", two], capture_output=True, text=True, cwd=folder)
+    assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
+    names = gltf.Gltf(os.path.join(folder, "two.glb")).animation_names()
+    assert len(names) == 2
+    walk = next(n for n in names if "copy" not in n)
+    code, _, r = check(folder, "--animation", walk, clip="two.glb", out="two")
+    assert code == 1 and r["failures"] == ["animations"] and r["checks"]["animations"]["names"] == names
+    code, log, out = blender("root_convention.py", "two.glb", "clip.json", "rc-two", "--animation", walk, cwd=folder)
+    assert code == 0, log[-2000:]
+    assert len(gltf.Gltf(os.path.join(folder, out["clip"])).animation_names()) == 1
+
+
+def test_measure_only_needs_no_thresholds(make):
+    folder = make("pop-end", "--pop", "end:0.08")
+    with open(os.path.join(folder, "clip.json"), encoding="utf-8") as f:
+        doc = json.load(f)
+    del doc["accept"]; doc["contacts"] = {}
+    with open(os.path.join(folder, "bare.json"), "w", encoding="utf-8") as f:
+        json.dump(doc, f)
+    code, log, r = check(folder, "--measure-only", spec="bare.json", out="measure")
+    assert code == 0, log[-2000:]
+    assert r["passed"] is None and r["accept"] is None and r["measureOnly"]
+    assert r["measures"]["boundaryJump"] == pytest.approx(0.08, abs=3e-3) and r["contacts"] is None and "footSlide" in r["unmeasured"]
+
+
+def test_key_poses_from_a_rig_kept_in_centimetres(make):
+    """The poses' armature is scaled 0.01 with its bones a hundred times longer: the same pose in the world."""
+    folder = make("clean", "--poses")
+    cm = ("import bpy, os; bpy.ops.wm.read_factory_settings(use_empty=True); "
+          "bpy.ops.import_scene.gltf(filepath='poses.glb'); arm = [o for o in bpy.context.scene.objects if o.type == 'ARMATURE'][0]; "
+          "bpy.ops.object.select_all(action='DESELECT'); arm.select_set(True); bpy.context.view_layer.objects.active = arm; "
+          "arm.scale = (100, 100, 100); bpy.ops.object.transform_apply(location=False, rotation=False, scale=True); arm.scale = (0.01, 0.01, 0.01); "
+          "[setattr(k, 'co', (k.co[0], k.co[1] * 100)) for a in bpy.data.actions for l in a.layers for st in l.strips for b in st.channelbags "
+          "for c in b.fcurves if c.data_path.endswith('location') for k in c.keyframe_points]; "
+          "[setattr(a, 'use_fake_user', True) for a in bpy.data.actions]; "
+          "bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath('poses-cm.blend'))")
+    done = subprocess.run([BLENDER, "--background", "--factory-startup", "--python-exit-code", "1", "--python-expr", cm], capture_output=True, text=True, cwd=folder)
+    assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
+    write_spec(folder, "kp-cm.json", keyPoses={"file": "kp-cm/keyposes.glb", "poses": [{"name": "contact", "time": 0.0}, {"name": "passing", "time": 0.4}]})
+    code, log, out = blender("keyposes.py", "kp-cm.json", "--poses", "poses-cm.blend", cwd=folder)
+    assert code == 0, log[-2000:]
+    k, c = gltf.Gltf(os.path.join(folder, out["keyposes"])), gltf.Gltf(os.path.join(folder, "clip.glb"))
+    ck, cc = k.channels(), c.channels()
+    for t_key, t_clip in ((0.0, 0.0), (0.4, 7 / 30)):
+        wk, wc = k.pose_world(t_key, channels=ck), c.pose_world(t_clip, channels=cc)
+        assert max(float(np.abs(wk[n][:3, 3] - wc[n][:3, 3]).max()) for n, _ in c.skeleton()) < 1e-4
+
+
+def test_a_blockout_from_the_key_poses_is_a_clip(make):
+    """keyposes.py writes the poses and their sheet; blockout.py makes them a clip the check reads in full."""
+    folder = make("clean", "--poses")
+    write_spec(folder, "block.json", loop=False, length={"min": 0.5, "max": 0.5}, accept={k: v for k, v in ACCEPT.items() if k != "loopSeam"},
+               keyPoses={"file": "block/keyposes.glb", "poses": [{"name": "contact", "time": 0.0}, {"name": "passing", "time": 0.4}]})
+    code, log, out = blender("keyposes.py", "block.json", "--poses", "poses.glb", "--size", "160x200", cwd=folder)
+    assert code == 0, log[-2000:]
+    assert out["sheet"] == "block/keyposes-sheet.png" and os.path.getsize(os.path.join(folder, out["sheet"])) > 0
+    done = subprocess.run([sys.executable, os.path.join(HERE, "blockout.py"), "block.json", "block/clip.glb"], capture_output=True, text=True, cwd=folder)
+    assert done.returncode == 0, done.stdout + done.stderr
+    code, log, r = check(folder, "--measure-only", spec="block.json", clip="block/clip.glb", out="block-check")
+    assert code == 0, log[-2000:]
+    assert all(r["checks"][k]["passed"] for k in ("animations", "skeleton", "wholeFrames", "length")), r["checks"]
+    assert r["frames"] == 16

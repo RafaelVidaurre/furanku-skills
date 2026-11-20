@@ -1,8 +1,10 @@
 """A minimal glTF 2.0 reader for clips: the skeleton of each skin, the animations, their key times, and joint world
-positions at any key time. Reads .glb and .gltf (external buffers beside the file; no data URIs)."""
+positions at any key time. Reads .glb and .gltf (external buffers beside the file, their URIs percent-decoded; no data
+URIs)."""
 import json
 import os
 import struct
+import urllib.parse
 
 import numpy as np
 
@@ -72,7 +74,7 @@ class Gltf:
             elif uri.startswith("data:"):
                 raise GltfError("buffers stored as data URIs are not read; pack the file as .glb")
             else:
-                with open(os.path.join(os.path.dirname(self.path), uri), "rb") as f:
+                with open(os.path.join(os.path.dirname(self.path), urllib.parse.unquote(uri)), "rb") as f:
                     self._buffers[index] = f.read()
         return self._buffers[index]
 
@@ -210,3 +212,61 @@ def whole_frames(times, fps):
         return True, 0.0
     off = max(abs(t * fps - round(t * fps)) for t in times)
     return off < 1e-3, float(off)
+
+
+def sampling(model, fps, name=None):
+    """How an animation is sampled against the frame grid of fps:
+    {"passed", "largestOffsetFrames", "framesWithoutKey": [...], "sparse": [...]}.
+
+    It passes when every key lies on a whole frame, every frame from the first key to the last has a key, and every
+    channel either has a key on each of those frames or holds one value throughout (a bone the clip does not move).
+    A channel keyed on fewer frames than that leaves the frames between to the engine's interpolation, which is not the
+    clip the spec asks for."""
+    channels = model.channels(name)
+    times = model.key_times(name)
+    on_grid, off = whole_frames(times, fps)
+    first, last = int(round(times[0] * fps)), int(round(times[-1] * fps))
+    grid = set(range(first, last + 1))
+    keyed = {int(round(t * fps)) for t in times}
+    sparse = []
+    for node, paths in sorted(channels.items()):
+        for path, (t, v, _) in sorted(paths.items()):
+            if {int(round(x * fps)) for x in t} >= grid:
+                continue
+            if len(v) and float(np.abs(v - v[0]).max()) <= 1e-6:
+                continue
+            sparse.append("%s.%s (%d keys over %d frames)" % (model.name(node), path, len(t), len(grid)))
+    missing = sorted(grid - keyed)
+    return {"passed": bool(on_grid and not missing and not sparse), "largestOffsetFrames": round(off, 5),
+            "framesWithoutKey": missing[:20], "sparse": sparse[:20]}
+
+
+def rest_world(model):
+    """{joint name: 4x4 world matrix at rest} for every joint of every skin: the nodes' own transforms, parents
+    (joints or not) included."""
+    local = {i: model.rest_local(i) for i in range(len(model.nodes))}
+    world = {}
+
+    def w(i):
+        if i not in world:
+            world[i] = w(model.parent[i]) @ local[i] if i in model.parent else local[i]
+        return world[i]
+    return {model.name(j): w(j) for skin in model.json.get("skins", []) for j in skin["joints"]}
+
+
+def rest_difference(clip, rig, names):
+    """Worst difference between two rests over the named joints: {"position": m, "positionBone", "linear", "linearBone"}
+    where linear is the largest entry of the difference of the joints' world rotation-and-scale matrices (0.0002 is
+    about a hundredth of a degree)."""
+    a, b = rest_world(clip), rest_world(rig)
+    out = {"position": 0.0, "positionBone": None, "linear": 0.0, "linearBone": None}
+    for n in names:
+        if n not in a or n not in b:
+            continue
+        dp = float(np.linalg.norm(a[n][:3, 3] - b[n][:3, 3]))
+        dl = float(np.abs(a[n][:3, :3] - b[n][:3, :3]).max())
+        if dp > out["position"]:
+            out["position"], out["positionBone"] = dp, n
+        if dl > out["linear"]:
+            out["linear"], out["linearBone"] = dl, n
+    return out

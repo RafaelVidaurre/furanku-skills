@@ -1,6 +1,6 @@
-"""Pure helpers behind the jam-3d-animate scripts: the clip spec, skeleton maps, a glTF reader, and the clip
-measurements (contacts, slide, penetration, boundary and seam jumps, travel). Nothing here imports Blender; `gltf`,
-`measure` and `travel` use numpy."""
+"""Helpers behind the jam-3d-animate scripts: the clip spec, skeleton maps, a glTF reader, the clip measurements
+(contacts, slide, penetration, jumps, seams, travel) and key poses to frames. Only `blend` imports Blender, and only the
+Blender scripts import it; `gltf`, `measure`, `poses` and `travel` use numpy."""
 VERSION = "1"
 
 

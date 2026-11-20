@@ -1,9 +1,8 @@
 """Blender-free behaviour of the jam-3d-animate helpers: the clip spec, skeleton maps, the glTF reader, the clip
-measurements and travel. Run with `python3 -m pytest`."""
+measurements, travel and the blockout. Run with `python3 -m pytest`."""
 import json
 import math
 import os
-import re
 import struct
 import sys
 
@@ -12,7 +11,8 @@ import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from jamanim import gltf, measure, skelmap, spec, travel  # noqa: E402
+from jamanim import gltf, measure, poses, skelmap, spec, travel  # noqa: E402
+import blockout  # noqa: E402
 import clip_spec  # noqa: E402
 
 FPS = 30.0
@@ -24,9 +24,6 @@ def good_spec(**over):
            "accept": {"footSlide": 0.01, "penetration": 0.005, "boundaryJump": 0.01, "loopSeam": 0.01}}
     doc.update(over)
     return doc
-
-
-TOOLKIT_SCHEMA = os.path.join(HERE, "..", "..", "jam-setup", "assets", "toolkit", "schemas", "animation-clip.schema.json")
 
 
 # ---- clip spec -----------------------------------------------------------------------------------------------------
@@ -105,24 +102,37 @@ def test_spec_paths_are_project_relative_and_open_from_the_project_root(tmp_path
     assert "rig.model: no file at nowhere.glb" in str(e.value)
 
 
-def test_spec_reader_follows_the_toolkit_schema():
-    """The toolkit's schema is the spec's one definition; this reader must accept the same fields and values."""
-    if not os.path.isfile(TOOLKIT_SCHEMA):
-        pytest.skip("the jam toolkit's sources are not beside this skill")
-    with open(TOOLKIT_SCHEMA, encoding="utf-8") as f:
-        clip = json.load(f)["$defs"]["AnimationClip"]
-    props = clip["properties"]
-    assert tuple(props) == spec.TOP_KEYS
-    assert set(clip["required"]) == {k for k in spec.TOP_KEYS if k not in ("$schema", "keyPoses", "contacts")}
-    assert tuple(props["accept"]["properties"]) == spec.ACCEPT_KEYS and set(props["accept"]["required"]) == set(spec.ACCEPT_KEYS) - {"loopSeam"}
-    assert tuple(props["contacts"]["properties"]["planted"]["items"]["properties"]["limb"]["enum"]) == spec.LIMBS
-    assert props["root"]["properties"]["mode"]["enum"] == ["in-place", "root-motion"]
-    assert [g["properties"]["kind"]["enum"][0] for g in props["ground"]["anyOf"]] == ["flat", "change"]
-    assert props["length"]["required"] == ["min", "max"]
-    assert props["id"]["pattern"] == spec.ID.pattern
-    portable = re.compile(props["rig"]["properties"]["model"]["pattern"])
-    for path in ("rig.glb", "a/b.glb", "/a.glb", "a/../b", "./a", "a//b", "a\\b", "C:/a", "a/", ".hidden/x"):
-        assert bool(portable.match(path)) == bool(spec.PORTABLE.match(path)), path
+@pytest.mark.parametrize("over", [
+    {"contacts": {"detect": None}}, {"contacts": None}, {"keyPoses": None}, {"contacts": {"planted": None}},
+    {"root": {"mode": "root-motion", "bone": None}}, {"root": {"mode": "in-place", "bone": "root"}},
+    {"fps": float("inf")}, {"fps": float("nan")}, {"length": {"min": 1.0, "max": float("inf")}},
+    {"accept": {"footSlide": float("inf"), "penetration": 0.005, "boundaryJump": 0.01, "loopSeam": 0.01}},
+    {"accept": {"footSlide": 0.01, "penetration": 0.005, "boundaryJump": 0.01}},
+    {"loop": False}, {"id": "walk\n"}, {"purpose": " \t"}, {"rig": {"model": "rig.glb\n", "map": "map.json"}},
+    {"$schema": 1}, {"colour": "red"},
+    {"keyPoses": {"file": "kp.glb", "poses": [{"name": "a", "time": 0.5}, {"name": "a", "time": 0.6}]}},
+    {"keyPoses": {"file": "kp.glb", "poses": [{"name": "a", "time": 0.5}, {"name": "b", "time": 0.2}]}},
+    {"keyPoses": {"file": "kp.glb", "poses": [{"name": "a", "time": 1.01}]}},
+    {"contacts": {"planted": [{"limb": "foot.l", "from": 0.5, "to": 0.2}]}},
+])
+def test_spec_refuses_what_the_toolkit_refuses(over):
+    with pytest.raises(spec.SpecError):
+        spec.normalize(good_spec(**over), check_files=False)
+
+
+def test_spec_refuses_numbers_that_are_not_json(tmp_path):
+    for text in ("Infinity", "-Infinity", "NaN", "1e400"):
+        path = tmp_path / "clip.json"
+        path.write_text(json.dumps(good_spec()).replace('"fps": 30', '"fps": %s' % text))
+        with pytest.raises(spec.SpecError, match="fps|not JSON"):
+            spec.load(str(path), check_files=False)
+
+
+def test_spec_without_thresholds_for_measuring_only():
+    doc = good_spec(); del doc["accept"]
+    with pytest.raises(spec.SpecError, match="accept"):
+        spec.normalize(doc, check_files=False)
+    assert spec.normalize(doc, check_files=False, thresholds=False)["accept"] is None
 
 
 def test_clip_spec_command(tmp_path, capsys, monkeypatch):
@@ -135,6 +145,11 @@ def test_clip_spec_command(tmp_path, capsys, monkeypatch):
     (tmp_path / "clip.json").write_text(json.dumps(good_spec(fps="thirty")))
     assert clip_spec.main(["clip.json"]) == 1
     assert "error: fps:" in capsys.readouterr().out
+    (tmp_path / "clip.json").write_text(json.dumps(good_spec(contacts={"detect": None})))
+    assert clip_spec.main(["clip.json", "--no-files"]) == 1
+    assert "error: contacts.detect" in capsys.readouterr().out
+    (tmp_path / "clip.json").write_text(json.dumps(good_spec(rig={"model": "elsewhere.glb", "map": "nowhere.json"}, fps=29.97)))
+    assert clip_spec.main(["clip.json", "--no-files"]) == 0
 
 
 # ---- skeleton maps -------------------------------------------------------------------------------------------------
@@ -149,6 +164,19 @@ def test_map_on_a_rig():
         skelmap.on_rig(doc, ["Hips", "LeftFoot", "L_Foot", "RightFoot"])
     with pytest.raises(skelmap.MapError, match="no bone of this rig maps to foot.r"):
         skelmap.on_rig(doc, ["Hips", "LeftFoot"])
+
+
+def test_map_reads_the_three_shapes(tmp_path):
+    shapes = {"map.json": {"label": "x", "landmarks": {"Hips": "hips", "LeftFoot": "foot.l", "RightFoot": "foot.r"}},
+              "descriptor.json": {"id": "p", "rig": {"landmarks": {"Hips": "hips", "LeftFoot": "foot.l", "RightFoot": "foot.r"}}},
+              "profile.json": {"label": "x", "bones": {"hips": "Hips", "foot.l": "LeftFoot", "foot.r": "RightFoot"}}}
+    for name, doc in shapes.items():
+        (tmp_path / name).write_text(json.dumps(doc))
+        assert skelmap.load(str(tmp_path / name))["landmarks"] == {"Hips": "hips", "LeftFoot": "foot.l", "RightFoot": "foot.r"}, name
+    for bad in ({"label": "x"}, {"landmarks": {}}, {"landmarks": {"Hips": "pelvis"}}, {"bones": {"hips": 3}}, []):
+        (tmp_path / "bad.json").write_text(json.dumps(bad))
+        with pytest.raises(skelmap.MapError):
+            skelmap.load(str(tmp_path / "bad.json"))
 
 
 # ---- measurements --------------------------------------------------------------------------------------------------
@@ -218,6 +246,24 @@ def test_boundary_jump_reads_a_pop_and_not_smooth_motion():
     assert b["end"][0][2] == pytest.approx(0.04, abs=1e-6) and b["start"][0].max() < 1e-3
 
 
+def test_a_jump_inside_the_clip_neither_hides_an_end_pop_nor_goes_unread():
+    pos = body(30)
+    assert measure.step_jumps(pos).max() < 1e-3                             # smooth motion reads close to 0
+    stepped = pos.copy(); stepped[0] += [0.08, 0, 0]; stepped[15:] += [0, 0, 0.08]
+    b = measure.boundary_jumps(stepped)
+    assert b["start"][0][1:].max() == pytest.approx(0.08, abs=2e-3)         # the pop at the start, at its size
+    assert b["steps"][15].max() == pytest.approx(0.08, abs=2e-3) and b["steps"].argmax() // 3 == 15
+    spiked = pos.copy(); spiked[12, 2] += [0, 0.03, 0]
+    assert measure.step_jumps(spiked)[:, 2].max() == pytest.approx(0.05, abs=1e-6)   # one frame out of line by d reads 5/3 d
+    assert measure.step_jumps(stepped)[:4].max() == 0 and measure.step_jumps(stepped)[-3:].max() == 0
+
+
+def test_a_loop_that_does_not_close_fails_whatever_happens_inside_it():
+    pos = body(30)
+    gap = pos.copy(); gap[12:] += [0.05, 0, 0]; gap[22:] -= [0.05, 0, 0]; gap[25:] += [0, 0.2, 0]
+    assert measure.seam_jumps(gap)["open-end"][0].max() == pytest.approx(0.2, abs=5e-3)
+
+
 def test_seam_reads_both_loop_ends():
     open_end = body(30)                       # frames 0..29 of a 1 s cycle at 30 fps
     s = measure.seam_jumps(open_end)
@@ -236,6 +282,25 @@ def test_loop_end_from_the_spec_then_the_poses():
     span = {"min": 0.5, "max": 2.0}
     assert measure.loop_end(31, FPS, span, body(31))[0] == "duplicate"
     assert measure.loop_end(30, FPS, span, body(30))[0] == "open"
+
+
+def test_a_declared_window_measures_a_slide_too_fast_to_detect():
+    planted = [True] * 10 + [False] * 5 + [True] * 10
+    p = walk_point(25, planted, slide=0.4)                                 # 0.4 m over 9 frames: about 1.3 m/s
+    toe = p.copy(); toe[:, 1] -= 0.06
+    pts = {("foot.l", "foot.l", "LeftFoot"): p, ("foot.l", "toes.l", "LeftToe"): toe}
+    detect = {"height": 0.01, "speed": 0.5}
+    windows = measure.contact_windows(pts, FPS, detect, ground=0.0, rest_heights={"foot.l": 0.08, "toes.l": 0.02})
+    assert all(w["from"] >= 10 for w in windows)                            # detection never sees the slide
+    d = measure.declared_slides(pts, [{"limb": "foot.l", "from": 0.0, "to": 9 / FPS}], FPS, 25)
+    assert d[0]["frames"] == [0, 9] and d[0]["slide"] == pytest.approx(0.4, abs=1e-4)
+    held = dict(pts); held[("foot.l", "toes.l", "LeftToe")] = np.tile(toe[:1], (25, 1))   # the ball stays put: a pivot
+    assert measure.declared_slides(held, [{"limb": "foot.l", "from": 0.0, "to": 9 / FPS}], FPS, 25)[0]["slide"] == 0.0
+    runs = measure.grounded_runs(pts, 0.01, 0.0, {"foot.l": 0.08, "toes.l": 0.02}, windows)
+    assert [(r["from"], r["to"], r["planted"]) for r in runs] == [(0, 9, False), (15, 24, True)]
+    assert runs[0]["slide"] == pytest.approx(0.4, abs=1e-4) and runs[1]["slide"] == 0.0     # in contact at any speed
+    pivot = measure.grounded_runs(held, 0.01, 0.0, {"foot.l": 0.08, "toes.l": 0.02}, windows)
+    assert pivot[0]["slide"] == 0.0                                          # the least-moving point
 
 
 def test_coverage_of_declared_contacts():
@@ -278,8 +343,9 @@ def test_travel_file_round_trip_and_refusals(tmp_path):
 
 # ---- glTF reader ---------------------------------------------------------------------------------------------------
 
-def write_glb(path, times, hips_y, rotation_b):
-    """Two joints: hips (animated translation) and its child b one metre up (animated rotation about x)."""
+def write_glb(path, times, hips_y, rotation_b, rotation_times=None, b_offset=1.0):
+    """Two joints: hips (animated translation) and its child b b_offset metres up (animated rotation about x, keyed at
+    rotation_times, default the same times)."""
     blobs, views, accessors = [], [], []
 
     def add(values, kind):
@@ -294,12 +360,13 @@ def write_glb(path, times, hips_y, rotation_b):
         return len(accessors) - 1
 
     t = add(times, "SCALAR")
+    rt = t if rotation_times is None else add(rotation_times, "SCALAR")
     tr = add([[0, y, 0] for y in hips_y], "VEC3")
     rot = add([[math.sin(a / 2), 0, 0, math.cos(a / 2)] for a in rotation_b], "VEC4")
-    doc = {"asset": {"version": "2.0"}, "nodes": [{"name": "hips", "children": [1]}, {"name": "b", "translation": [0, 1, 0]}],
+    doc = {"asset": {"version": "2.0"}, "nodes": [{"name": "hips", "children": [1]}, {"name": "b", "translation": [0, b_offset, 0]}],
            "skins": [{"joints": [0, 1]}], "accessors": accessors, "bufferViews": views,
            "buffers": [{"byteLength": sum(len(b) for b in blobs)}],
-           "animations": [{"name": "walk", "samplers": [{"input": t, "output": tr}, {"input": t, "output": rot}],
+           "animations": [{"name": "walk", "samplers": [{"input": t, "output": tr}, {"input": rt, "output": rot}],
                            "channels": [{"sampler": 0, "target": {"node": 0, "path": "translation"}},
                                         {"sampler": 1, "target": {"node": 1, "path": "rotation"}}]}]}
     js = json.dumps(doc).encode(); js += b" " * (-len(js) % 4)
@@ -324,6 +391,74 @@ def test_gltf_reader_samples_poses(tmp_path):
     assert half["hips"][1, 3] == pytest.approx(0.95, abs=1e-6)
     with pytest.raises(gltf.GltfError, match="no animation 'run'"):
         g.animation("run")
+
+
+def test_gltf_reader_decodes_buffer_uris(tmp_path):
+    glb = str(tmp_path / "clip.glb")
+    write_glb(glb, [0, 1 / 30, 2 / 30], [0.9, 1.0, 0.9], [0, math.pi / 2, 0])
+    g = gltf.Gltf(glb)
+    (tmp_path / "clip data.bin").write_bytes(g.bin)
+    doc = dict(g.json, buffers=[{"byteLength": g.json["buffers"][0]["byteLength"], "uri": "clip%20data.bin"}])
+    (tmp_path / "clip.gltf").write_text(json.dumps(doc))
+    assert gltf.Gltf(str(tmp_path / "clip.gltf")).pose_world(1 / 30)["b"][1, 3] == pytest.approx(2.0, abs=1e-6)
+
+
+def test_sampling_needs_a_key_on_every_frame(tmp_path):
+    path = str(tmp_path / "clip.glb")
+    write_glb(path, [0, 1 / 30, 2 / 30], [0.9, 1.0, 0.9], [0, 0.5, 0])
+    assert gltf.sampling(gltf.Gltf(path), 30)["passed"]
+    write_glb(path, [0, 1 / 15, 2 / 15], [0.9, 1.0, 0.9], [0, 0.5, 0])             # whole frames of 30, every other one
+    check = gltf.sampling(gltf.Gltf(path), 30)
+    assert not check["passed"] and check["framesWithoutKey"] == [1, 3]
+    write_glb(path, [0, 1 / 30, 2 / 30], [0.9, 1.0, 0.9], [0.3, 0.3], rotation_times=[0, 2 / 30])   # held still: 2 keys
+    assert gltf.sampling(gltf.Gltf(path), 30)["passed"]
+    write_glb(path, [0, 1 / 30, 2 / 30], [0.9, 1.0, 0.9], [0.0, 0.3], rotation_times=[0, 2 / 30])   # moving on 2 keys
+    check = gltf.sampling(gltf.Gltf(path), 30)
+    assert not check["passed"] and check["sparse"][0].startswith("b.rotation")
+
+
+def test_rest_difference(tmp_path):
+    a, b = str(tmp_path / "a.glb"), str(tmp_path / "b.glb")
+    write_glb(a, [0, 1 / 30], [0.9, 1.0], [0, 0])
+    write_glb(b, [0, 1 / 30], [0.9, 1.0], [0, 0], b_offset=1.01)
+    same = gltf.rest_difference(gltf.Gltf(a), gltf.Gltf(a), ["hips", "b"])
+    assert same["position"] == 0 and same["linear"] == 0
+    moved = gltf.rest_difference(gltf.Gltf(b), gltf.Gltf(a), ["hips", "b"])
+    assert moved["position"] == pytest.approx(0.01, abs=1e-6) and moved["positionBone"] == "b"
+
+
+# ---- blockout ------------------------------------------------------------------------------------------------------
+
+def test_slerp_and_frames_between():
+    q0, q1 = [0, 0, 0, 1], [math.sin(math.pi / 4), 0, 0, math.cos(math.pi / 4)]           # 0 and 90 degrees about x
+    assert poses.slerp(q0, q1, 0.5) == pytest.approx([math.sin(math.pi / 8), 0, 0, math.cos(math.pi / 8)])
+    assert poses.slerp(q0, [-x for x in q1], 0.5) == pytest.approx(poses.slerp(q0, q1, 0.5))  # the shorter way
+    out = poses.frames_between([[0, 0, 0], [0, 0, 1.0]], [2, 6], 10)
+    assert out[:, 2] == pytest.approx([0, 0, 0, 0.25, 0.5, 0.75, 1, 1, 1, 1])
+    loop = poses.frames_between([[0, 0, 0], [0, 0, 1.0]], [0, 4], 8, cycle=8)                # back to the first pose at 8
+    assert loop[:, 2] == pytest.approx([0, 0.25, 0.5, 0.75, 1, 0.75, 0.5, 0.25])
+
+
+def test_blockout_writes_a_clip_on_every_frame(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    write_glb(str(tmp_path / "keyposes.glb"), [0, 0.4], [0.9, 1.3], [0, math.pi / 2])
+    doc = good_spec(loop=False, length={"min": 0.5, "max": 0.5}, accept={"footSlide": 0.01, "penetration": 0.005, "boundaryJump": 0.01},
+                    keyPoses={"file": "keyposes.glb", "poses": [{"name": "stand", "time": 0.0}, {"name": "reach", "time": 0.4}]})
+    (tmp_path / "rig.glb").write_bytes(b""); (tmp_path / "map.json").write_text("{}")
+    (tmp_path / "clip.json").write_text(json.dumps(doc))
+    assert blockout.main(["clip.json", "out.glb"]) == 0
+    done = json.loads(capsys.readouterr().out)
+    assert done["frames"] == 16 and [p["frame"] for p in done["poses"]] == [0, 12]
+    g = gltf.Gltf("out.glb")
+    assert g.animation_names() == ["walk"] and gltf.sampling(g, 30)["passed"] and len(g.key_times()) == 16
+    mid = g.pose_world(6 / 30)
+    assert mid["hips"][1, 3] == pytest.approx(1.1, abs=1e-6)                                 # travel halfway
+    assert (mid["b"][:3, :3] @ [0, 1, 0]) == pytest.approx([0, math.sin(math.pi / 4), math.sin(math.pi / 4)], abs=1e-6)   # 45 degrees
+    assert g.pose_world(15 / 30)["hips"][1, 3] == pytest.approx(1.3, abs=1e-6)               # the last pose holds
+    (tmp_path / "clip.json").write_text(json.dumps(dict(doc, loop=True, accept=dict(doc["accept"], loopSeam=0.01))))
+    assert blockout.main(["clip.json", "out.glb"]) == 1 and "--loop-end" in capsys.readouterr().out
+    assert blockout.main(["clip.json", "out.glb", "--loop-end", "open"]) == 0
+    assert json.loads(capsys.readouterr().out)["frames"] == 15
 
 
 def test_script_args_drop_a_passed_through_separator():
