@@ -14,7 +14,7 @@ These are MotionBricks' requirements as this skill applies them; `host_check.py`
 | Git, Git LFS, uv | NVIDIA's install: the ONNX models come through Git LFS, the environment through `uv sync`. uv also fetches Python 3.12 when the machine lacks it. |
 | About 5 GB of disk for the clone, plus its environment and plans | v0.2.0's Git LFS files total 2.48 GB (the sizes their pointers state), and a clone keeps them twice: in the working tree and under `.git/lfs`. A warning, not a failure. |
 
-MotionBricks documents no minimum VRAM, GPU model or CPU-only speed; `host_check.py` reports VRAM without judging it. On a machine with several GPUs, CUDA numbers them fastest first while `nvidia-smi` numbers them by bus, so `host_check.py` identifies the GPU behind `--device` only with `--import-check` (or `CUDA_DEVICE_ORDER=PCI_BUS_ID`); until then it judges every GPU and reports `unknown` when they disagree.
+MotionBricks documents no minimum VRAM, GPU model or CPU-only speed; `host_check.py` reports VRAM without judging it. A machine qualifies when any of its GPUs meets the GPU requirement (`compute-capability`); the `device` requirement then judges the GPU `--device` names. On a machine with several GPUs, CUDA numbers them fastest first while `nvidia-smi` numbers them by bus, so `host_check.py` knows which GPU `--device` is only with `--import-check`, or when `CUDA_DEVICE_ORDER=PCI_BUS_ID` is set for it and for `generate.py` alike; until then `device` is `unknown` when the GPUs disagree, so the host may qualify without being ready, and a cached plan built for only some of the GPUs is not counted as fitting.
 
 ## Install
 

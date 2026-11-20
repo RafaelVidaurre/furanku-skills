@@ -7,12 +7,14 @@ references/setup.md ("What the host needs"), which is where each one is stated a
 
 Prints one JSON object: `host` (what was found), `requirements` (one entry per requirement with `status` pass, fail,
 warn or unknown, what was `found`, and the `source` of the requirement), `qualifies` (the OS, GPU and driver
-requirements pass, so MotionBricks can be installed here), `ready` (no requirement failed or unknown, so it can
-generate now), and `missing` (what to fix, in words). Exit status 0 when ready, 1 when not, 2 on bad arguments.
+requirements pass, the GPU one on any GPU of this machine, so MotionBricks can be installed here), `ready` (no
+requirement failed or unknown, `device` included, so it can generate now), and `missing` (what to fix, in words).
+Exit status 0 when ready, 1 when not, 2 on bad arguments.
 
 --motionbricks   an existing clone, to check the install, the model files and the TensorRT plans.
 --precision      which plan to look for (default fp32); --tf32 as generate.py will be given it (default auto).
---device         the CUDA device generate.py will use (default cuda:0). Its GPU is the one judged; every GPU is reported.
+--device         the CUDA device generate.py will use (default cuda:0). The `device` requirement judges its GPU, once
+                 it is known which GPU that is; every GPU is reported.
 --import-check   also start MotionBricks' own interpreter and ask TensorRT and Warp whether that device works, and which
                  GPU it is. Takes tens of seconds; the definitive check that the install runs on this GPU.
 """
@@ -42,7 +44,7 @@ CLONE_BYTES = 2 * LFS_BYTES
 # enable_tf32 unless false; MotionBricks keys its plan cache on that payload.
 BUILD_DEFAULTS = {"workspace_size_bytes": None, "builder_optimization_level": 3, "batch_size": 1}
 LFS_POINTER = b"version https://git-lfs"
-HARDWARE = ("os", "glibc", "nvidia-gpu", "compute-capability", "driver", "driver-cuda")
+HARDWARE = ("os", "glibc", "nvidia-gpu", "compute-capability", "driver", "driver-cuda")  # not `device`: it judges --device
 ONNX = {"fp32": "mmm_v6_soma_fp32.onnx", "fp16": "mmm_v6_soma_fp16.onnx"}
 
 SRC = {
@@ -131,7 +133,8 @@ def select_gpu(facts):
         match = [g for g in gpus if g.get("index") == ordinal]
         if match:
             return match[0], "CUDA_DEVICE_ORDER=PCI_BUS_ID"
-    return None, "several GPUs, and CUDA orders them fastest first: run with --import-check to tell which one it is"
+    return None, ("several GPUs, and CUDA numbers them fastest first while nvidia-smi numbers them by bus: once "
+                  "MotionBricks is installed, run with --import-check to tell which one it is")
 
 
 def parse_cuda_version(smi_text):
@@ -175,7 +178,8 @@ def plan_mismatches(meta, expect):
     """What keeps a cached plan's metadata from fitting a generation here: the fields MotionBricks keys its plan cache
     on, compared with what this host would use. Returns (mismatches, unchecked); a plan fits when the first is empty.
     expect: onnxFile, onnxSha256, tensorrt (None when unknown), buildOptions, system, machine, gpus (GPUs it may run
-    on: the selected one, or every GPU when that is not known)."""
+    on: the selected one, or every GPU when that is not known). A plan built for only some of several possible GPUs
+    is not called fitting: its GPU goes to `unchecked`."""
     wrong, unchecked = [], []
     if meta.get("onnx_filename") != expect["onnxFile"]:
         wrong.append(f"model file {meta.get('onnx_filename')}")
@@ -190,14 +194,16 @@ def plan_mismatches(meta, expect):
     if plat.get("system") != expect["system"] or plat.get("machine") != expect["machine"]:
         wrong.append(f"platform {plat.get('system')} {plat.get('machine')}")
     device = meta.get("device") or {}
-    on_gpu = False
-    for gpu in expect["gpus"]:
+
+    def built_for(gpu):
         cc = parse_version(gpu.get("computeCapability"))
         arch = cc[0] * 10 + cc[1] if cc else None
-        if device.get("name") == gpu["name"] and (arch is None or device.get("architecture") == arch):
-            on_gpu = True
-    if not on_gpu:
+        return device.get("name") == gpu["name"] and (arch is None or device.get("architecture") == arch)
+    fits = [built_for(g) for g in expect["gpus"]]
+    if not any(fits):
         wrong.append(f"GPU {device.get('name')} sm_{device.get('architecture')}")
+    elif not all(fits):
+        unchecked.append(f"GPU (the plan is for {device.get('name')}, and which GPU the device is, is not known)")
     return wrong, unchecked
 
 
@@ -339,17 +345,27 @@ def evaluate(facts):
         reqs.append(_req("nvidia-gpu", "an NVIDIA GPU with its driver", "pass", ", ".join(g["name"] for g in gpus), "gpu"))
         gpu, how = select_gpu(facts)
         device = facts.get("device")
-        judged = [gpu] if gpu else [] if gpu is False else gpus
 
         def judge(value):
             cc = parse_version(value.get("computeCapability"))
             return "unknown" if cc is None else ("pass" if cc >= MIN_COMPUTE else "fail")
-        verdicts = {judge(g) for g in judged}
-        status = "fail" if gpu is False else verdicts.pop() if len(verdicts) == 1 else "unknown"
-        listed = "; ".join(f"{g['name']}: {g.get('computeCapability') or 'not reported'}" for g in judged)
-        found = f"{device}: {how}" if gpu is False else f"{device} is {listed} ({how})" if gpu else (
-            f"{device}: {how}; every GPU judged alike: {listed}" if status != "unknown" else f"{device}: {how}; GPUs: {listed}")
-        reqs.append(_req("compute-capability", f"compute capability 7.5 or higher on the GPU {device} names", status, found, "compute"))
+
+        def listed(judged):
+            return "; ".join(f"{g['name']}: {g.get('computeCapability') or 'not reported'}" for g in judged)
+        verdicts = {judge(g) for g in gpus}
+        status = "pass" if "pass" in verdicts else "unknown" if "unknown" in verdicts else "fail"
+        reqs.append(_req("compute-capability", "a GPU of compute capability 7.5 or higher", status, listed(gpus), "compute"))
+        # The machine qualifies on any GPU that meets the requirement; generation runs on the one --device names.
+        if gpu is False:
+            status, found = "fail", f"{device}: {how}"
+        elif gpu:
+            status, found = judge(gpu), f"{device} is {listed([gpu])} ({how})"
+        elif len(verdicts) == 1:
+            status, found = verdicts.pop(), f"{device}: {how}; every GPU judged alike: {listed(gpus)}"
+        else:
+            status, found = "unknown", (f"{device}: {how}, or set CUDA_DEVICE_ORDER=PCI_BUS_ID so that cuda:N is "
+                                        f"nvidia-smi's GPU N (for this check and for generate.py alike); GPUs: {listed(gpus)}")
+        reqs.append(_req("device", f"compute capability 7.5 or higher on the GPU {device} names", status, found, "compute"))
         driver = gpus[0].get("driver")  # one driver serves every GPU
         drv = parse_version(driver, 1)
         reqs.append(_req("driver", f"NVIDIA driver {MIN_DRIVER} or newer",
