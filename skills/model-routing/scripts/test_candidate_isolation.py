@@ -14,10 +14,10 @@ import sys
 import tempfile
 import unittest
 
+import routing_fixture
 
-SCRIPT = Path(__file__).with_name("router.py")
-CONFIG = Path(__file__).with_name("config.py")
-VALID_CANDIDATE = "grok/grok-4.7/high"
+
+VALID_CANDIDATE = "grok/model-epsilon/high"
 MALFORMED_ID = "synthetic/malformed/high"
 ROUTE_BASIS = "Principal requested the Worker route for this task."
 
@@ -28,6 +28,9 @@ class CandidateIsolationTest(unittest.TestCase):
         self.base = Path(self.temporary.name)
         self.home = self.base / "home"
         self.home.mkdir()
+        scripts = routing_fixture.skills_root() / "model-routing" / "scripts"
+        self.router_script = scripts / "router.py"
+        self.config_script = scripts / "config.py"
         self.codex_home = self.base / "codex"
         self.codex_home.mkdir()
         self.repo = self.base / "repo"
@@ -43,12 +46,12 @@ class CandidateIsolationTest(unittest.TestCase):
                 "routes": {
                     "captain": {
                         "agent": "codex",
-                        "model": "gpt-6.2-astra",
+                        "model": "model-alpha",
                         "effort": "high",
                     },
                     "worker": {
                         "agent": "grok",
-                        "model": "grok-4.7",
+                        "model": "model-epsilon",
                         "effort": "high",
                     },
                 },
@@ -88,7 +91,7 @@ class CandidateIsolationTest(unittest.TestCase):
             runtime_path = self.base / "runtime.json"
             runtime_path.write_text(json.dumps(runtime), encoding="utf-8")
             command += ["--runtime-file", str(runtime_path)]
-        return self.run_script(SCRIPT, *command, expect_code=expect_code)
+        return self.run_script(self.router_script, *command, expect_code=expect_code)
 
     def check(self, *args, runtime=None, expect_code=0):
         result = self.run_router(
@@ -145,11 +148,11 @@ class CandidateIsolationTest(unittest.TestCase):
             "launch requires only agent, model, and effort",
             payload["malformed_candidates"][MALFORMED_ID]["error"],
         )
-        report = self.run_script(CONFIG, "report").stdout
+        report = self.run_script(self.config_script, "report").stdout
         self.assertIn("## Excluded malformed candidates", report)
         self.assertIn(MALFORMED_ID, report)
         report_json = json.loads(
-            self.run_script(CONFIG, "report", "--format", "json").stdout
+            self.run_script(self.config_script, "report", "--format", "json").stdout
         )
         self.assertIn(MALFORMED_ID, report_json["malformed_candidates"])
 
@@ -202,7 +205,7 @@ class CandidateIsolationTest(unittest.TestCase):
                     VALID_CANDIDATE: {
                         "launch": {
                             "agent": "grok",
-                            "model": "grok-4.7",
+                            "model": "model-epsilon",
                             "effort": "high",
                             "extra": "nope",
                         }
@@ -224,7 +227,7 @@ class CandidateIsolationTest(unittest.TestCase):
         self.assertFalse(result.stdout.strip())
         decision = self.check(
             "--candidate",
-            "codex/gpt-6.2-astra/high",
+            "codex/model-alpha/high",
             "--reason",
             "Unrelated valid candidate stays checkable.",
             runtime={"harnesses": {"codex": {"quota": {"status": "known"}}}},
@@ -253,7 +256,7 @@ class CandidateIsolationTest(unittest.TestCase):
             "version": 4, "routes": {}, "candidates": {
                 VALID_CANDIDATE: {"launch": {"effort": None}},
                 "synthetic/valid-alias": {
-                    "launch": {"agent": "grok", "model": "grok-4.7", "effort": "high"},
+                    "launch": {"agent": "grok", "model": "model-epsilon", "effort": "high"},
                 },
             },
         })
@@ -334,7 +337,7 @@ class CandidateIsolationTest(unittest.TestCase):
                     "captain..bad": {
                         "work": "Invalid id.",
                         "agent": "codex",
-                        "model": "gpt-6.2-astra",
+                        "model": "model-alpha",
                         "effort": "high",
                     }
                 },

@@ -13,6 +13,8 @@ import unittest
 
 
 SCRIPT = Path(__file__).with_name("assignment.py")
+sys.path.insert(0, str(SCRIPT.parents[2] / "model-routing" / "scripts"))
+import routing_fixture  # noqa: E402
 PACKET_HOME = tempfile.TemporaryDirectory()
 PACKET_ENV = os.environ.copy()
 PACKET_ENV["HOME"] = PACKET_HOME.name
@@ -41,9 +43,9 @@ ROUTE_BASIS = "Principal requested the Worker route for this task."
 SELECTED = {
     "status": "selected",
     "selected": {
-        "id": "codex/gpt-6-luna/max",
+        "id": "codex/model-gamma/max",
         "agent": "codex",
-        "model": "gpt-6-luna",
+        "model": "model-gamma",
         "effort": "max",
     },
     "reason": "Bounded low-risk edit; cheapest capable candidate.",
@@ -55,9 +57,9 @@ SELECTED = {
 GROK_SELECTED = {
     "status": "selected",
     "selected": {
-        "id": "grok/grok-4.7/high",
+        "id": "grok/model-epsilon/high",
         "agent": "grok",
-        "model": "grok-4.7",
+        "model": "model-epsilon",
         "effort": "high",
     },
     "reason": "Bounded independent audit; use the configured Worker default.",
@@ -123,9 +125,9 @@ def fake_router(
 
 class PacketTest(unittest.TestCase):
     def test_real_router_requires_user_routes_and_preserves_their_selection(self):
-        router = SCRIPT.parents[2] / "model-routing" / "scripts" / "router.py"
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            router = routing_fixture.skills_root() / "model-routing" / "scripts" / "router.py"
             env = {**PACKET_ENV, "HOME": str(root / "home"), "CODEX_HOME": str(root / "codex")}
             # Substitute only quota collection; both production CLIs and their
             # default-route wiring remain real, and no provider is contacted.
@@ -137,7 +139,7 @@ class PacketTest(unittest.TestCase):
             )
             runtime = root / "runtime.json"
             runtime.write_text(json.dumps({"harnesses": {"codex": {"quota": {"status": "known"}}}}))
-            override = {"agent": "codex", "model": "gpt-6.2-sol", "effort": "high"}
+            override = {"agent": "codex", "model": "model-beta", "effort": "high"}
             for config in (None, {"version": 4, "routes": {"worker": override}}):
                 if config:
                     path = root / "home" / ".furanku-skills" / "model-routing" / "config.json"
@@ -156,17 +158,17 @@ class PacketTest(unittest.TestCase):
                 self.assertEqual(0, result.returncode, result.stderr)
                 routing = json.loads(result.stdout)["routing"]
                 self.assertEqual("global", routing["source"]["scope"])
-                self.assertEqual("gpt-6.2-sol", routing["model"])
+                self.assertEqual("model-beta", routing["model"])
                 self.assertEqual("high", routing["effort"])
 
-    def test_sol61_packet_uses_real_catalog_gate_and_preserves_descendant_constraint(self):
-        router = SCRIPT.parents[2] / "model-routing" / "scripts" / "router.py"
-        constraint = "All new Codex descendants must use gpt-6.2-sol at high."
+    def test_packet_uses_real_router_gate_and_preserves_descendant_constraint(self):
+        constraint = "All new Codex descendants must use model-beta at high."
         with tempfile.TemporaryDirectory() as directory:
+            router = routing_fixture.skills_root() / "model-routing" / "scripts" / "router.py"
             decision_path = Path(directory) / "decision.json"
             checked = subprocess.run(
                 [sys.executable, str(router), "check", "--repo", directory,
-                 "--candidate", "codex/gpt-6.2-sol/high", "--launchable-via", "codex",
+                 "--candidate", "codex/model-beta/high", "--launchable-via", "codex",
                  "--reason", "Verify the principal's exact launch constraint.",
                  "--accept-quota-unknown", "Hermetic test only; no agent is launched."],
                 capture_output=True, text=True, env=PACKET_ENV, check=False,
@@ -178,9 +180,9 @@ class PacketTest(unittest.TestCase):
             result = run(*args)
         self.assertEqual(0, result.returncode, result.stderr)
         packet = json.loads(result.stdout)
-        self.assertEqual("gpt-6.2-sol", packet["routing"]["model"])
+        self.assertEqual("model-beta", packet["routing"]["model"])
         self.assertEqual("high", packet["routing"]["effort"])
-        self.assertEqual(["codex", "--no-alt-screen", "--model", "gpt-6.2-sol", "-c", "model_reasoning_effort=high"], packet["launch_argv"])
+        self.assertEqual(["codex", "--no-alt-screen", "--model", "model-beta", "-c", "model_reasoning_effort=high"], packet["launch_argv"])
         self.assertIn(constraint, packet["spec"])
 
     def test_brief_derives_launchers_from_manifest(self):
@@ -282,11 +284,11 @@ class PacketTest(unittest.TestCase):
         self.assertIn("selected", saved)
 
     def test_packet_carries_explicit_model_request_to_router_and_spec(self):
-        basis = "Use grok-4.7 at high for this review."
+        basis = "Use model-epsilon at high for this review."
         decision = {**GROK_SELECTED, "explicit_basis": basis}
         with tempfile.TemporaryDirectory() as directory:
             router = fake_router(Path(directory), ["--explicit-basis", basis], decision)
-            result = run(*BASE, "--candidate", "grok/grok-4.7/high",
+            result = run(*BASE, "--candidate", "grok/model-epsilon/high",
                          "--reason", decision["reason"], "--explicit-basis", basis,
                          "--router", str(router))
         self.assertEqual(0, result.returncode, result.stderr)
@@ -295,11 +297,11 @@ class PacketTest(unittest.TestCase):
         self.assertIn(f'explicit_basis: "{basis}"', payload["spec"])
 
     def test_packet_rejects_router_response_with_changed_explicit_basis(self):
-        basis = "Use grok-4.7 at high."
+        basis = "Use model-epsilon at high."
         with tempfile.TemporaryDirectory() as directory:
             router = fake_router(Path(directory), ["--explicit-basis", basis],
                                  {**GROK_SELECTED, "explicit_basis": "Use Astra at high."})
-            result = run(*BASE, "--candidate", "grok/grok-4.7/high",
+            result = run(*BASE, "--candidate", "grok/model-epsilon/high",
                          "--reason", GROK_SELECTED["reason"], "--explicit-basis", basis,
                          "--router", str(router))
         self.assertNotEqual(0, result.returncode)
@@ -404,7 +406,7 @@ class PacketTest(unittest.TestCase):
             result = run(
                 *BASE,
                 "--candidate",
-                "codex/gpt-6.2-astra/high",
+                "codex/model-alpha/high",
                 "--reason",
                 SELECTED["reason"],
                 "--router",
@@ -444,7 +446,7 @@ class PacketTest(unittest.TestCase):
         result = run(
             *packet_args(SELECTED),
             "--candidate",
-            "codex/gpt-6.2-astra/high",
+            "codex/model-alpha/high",
             "--reason",
             "A reason.",
         )
@@ -455,7 +457,7 @@ class PacketTest(unittest.TestCase):
         candidate = run(
             *BASE,
             "--candidate",
-            "codex/gpt-6.2-astra/high",
+            "codex/model-alpha/high",
             "--reason",
             "A reason.",
             "--route-basis",
@@ -496,7 +498,7 @@ class PacketTest(unittest.TestCase):
             {"id": "orca", "extras": {"front_key": "run-1/shell"}},
             payload["mechanism"],
         )
-        self.assertEqual("codex/gpt-6-luna/max", payload["routing"]["candidate"])
+        self.assertEqual("codex/model-gamma/max", payload["routing"]["candidate"])
         self.assertIn('outcome: "Deliver shell palette"', payload["spec"])
         self.assertIn("role: worker", payload["spec"])
         self.assertIn("reports_to: captain", payload["spec"])
@@ -568,8 +570,8 @@ class PacketTest(unittest.TestCase):
                 self.assertEqual(decision, {key: replayed["routing_decision"][key] for key in decision})
 
     def test_builtin_orca_cursor_packet_encodes_model_and_effort_together(self):
-        for model, effort in (("gpt-6.2-sol", "high"), ("claude-opus-5-5", "max"),
-                              ("claude-fable-5-2", "medium"), ("grok-4.7", "xhigh")):
+        for model, effort in (("model-beta", "high"), ("model-eta", "max"),
+                              ("model-zeta", "medium"), ("model-epsilon", "xhigh")):
             with self.subTest(model=model, effort=effort):
                 decision = {**SELECTED, "selected": {"id": f"cursor/{model}/{effort}",
                             "agent": "cursor", "model": model, "effort": effort}}
@@ -645,7 +647,7 @@ class PacketTest(unittest.TestCase):
         manifest = {**ORCA_MANIFEST, "principals": ["user"]}
         args = list(BASE)
         args[args.index(json.dumps(ORCA_MANIFEST))] = json.dumps(manifest)
-        result = run(*args, "--candidate", "codex/gpt-6-luna/max", "--reason", "test",
+        result = run(*args, "--candidate", "codex/model-gamma/max", "--reason", "test",
                      "--router", "/not/a/router.py")
         self.assertNotEqual(0, result.returncode)
         self.assertIn("cannot report to 'captain'", result.stderr)
@@ -737,7 +739,7 @@ class PacketTest(unittest.TestCase):
             "selected": {
                 "id": None,
                 "agent": "grok",
-                "model": "grok-4.7",
+                "model": "model-epsilon",
                 "effort": "high",
             },
             "exact_route": "worker",
@@ -790,7 +792,7 @@ class PacketTest(unittest.TestCase):
             "selected": {
                 "id": None,
                 "agent": "grok",
-                "model": "grok-4.7",
+                "model": "model-epsilon",
                 "effort": "high",
             },
             "exact_route": "worker",

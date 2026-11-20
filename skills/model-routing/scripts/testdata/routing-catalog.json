@@ -1,0 +1,812 @@
+{
+  "version": 2,
+  "routes": {},
+  "preferences": [],
+  "methodology": {
+    "reasoning": "Artificial Analysis Intelligence Index divided by 100 at the exact effort; the cell names its index version, and different versions are not comparable.",
+    "implementation": "CursorBench 4.0 resolved-task rate at the exact effort; candidates without a CursorBench row keep their DeepSWE v1.1 rate, a separate scale that runs about 30 points higher for the same model.",
+    "task-cost": "DeepSWE average task cost only when the benchmark names the exact model and effort. An equivalent launch tuple may transfer across harnesses; effort-level proxies remain unknown.",
+    "agentic": "AA-Briefcase v1.1 Elo at the exact effort, mapped as (Elo - 500) / 2000.",
+    "ui": "Percentile of the dated Arena WebDev rank at the exact effort.",
+    "spatial-3d": "Percentile of the dated Design Arena 3D rank at the exact effort.",
+    "conservative": "A documented lower estimate reflecting effort or harness transfer and evidence confidence; it is the value used for routing.",
+    "boundary": "Public research only. No local model evaluation contributes capability scores; missing direct evidence remains unknown or is labeled as a proxy on the capability evidence itself.",
+    "scale": "Every known cell names its benchmark and version in scale. Scores on different scales are not comparable; the brief letters each scale where a column mixes them."
+  },
+  "candidates": {
+    "codex/model-alpha/high": {
+      "launch": {
+        "agent": "codex",
+        "model": "model-alpha",
+        "effort": "high"
+      },
+      "features": [
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.51,
+          "conservative": 0.49,
+          "confidence": "high",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-alpha/reasoning"
+          ],
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Fixture reasoning cell."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.7323,
+          "conservative": 0.698,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-alpha/implementation"
+          ],
+          "scale": "DeepSWE v1.1 (mini-swe-agent)",
+          "note": "Fixture implementation cell."
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.503,
+          "conservative": 0.479,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-alpha/agentic"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Fixture agentic cell."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Fixture: no exact ui evidence.",
+          "researched_at": "2026-09-22"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Fixture: no exact spatial-3d evidence.",
+          "researched_at": "2026-09-22"
+        }
+      },
+      "economics": {
+        "task_cost_usd": {
+          "value": 3.9237,
+          "basis": "Fixture task_cost_usd",
+          "assessed_at": "2026-09-22",
+          "source": "https://example.com/evidence/model-alpha/task_cost_usd"
+        },
+        "output_tokens_per_second": {
+          "value": 52.2,
+          "basis": "Fixture output_tokens_per_second",
+          "assessed_at": "2026-09-22",
+          "source": "https://example.com/evidence/model-alpha/output_tokens_per_second"
+        }
+      }
+    },
+    "claudex/model-alpha/high": {
+      "launch": {
+        "agent": "claudex",
+        "model": "model-alpha",
+        "effort": "high"
+      },
+      "features": [
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.51,
+          "conservative": 0.49,
+          "confidence": "high",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-alpha/reasoning"
+          ],
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Fixture reasoning cell."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.7323,
+          "conservative": 0.698,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-alpha/implementation"
+          ],
+          "scale": "DeepSWE v1.1 (mini-swe-agent)",
+          "note": "Fixture implementation cell."
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.503,
+          "conservative": 0.479,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-alpha/agentic"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Fixture agentic cell."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Fixture: no exact ui evidence.",
+          "researched_at": "2026-09-22"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Fixture: no exact spatial-3d evidence.",
+          "researched_at": "2026-09-22"
+        }
+      },
+      "economics": {
+        "task_cost_usd": {
+          "value": 3.9237,
+          "basis": "Fixture task_cost_usd",
+          "assessed_at": "2026-09-22",
+          "source": "https://example.com/evidence/model-alpha/task_cost_usd"
+        },
+        "output_tokens_per_second": {
+          "value": 52.2,
+          "basis": "Fixture output_tokens_per_second",
+          "assessed_at": "2026-09-22",
+          "source": "https://example.com/evidence/model-alpha/output_tokens_per_second"
+        }
+      },
+      "quota_provider": {
+        "provider": "codex",
+        "detail": "Fixture proxy route billed to the codex provider."
+      }
+    },
+    "codex/model-beta/high": {
+      "launch": {
+        "agent": "codex",
+        "model": "model-beta",
+        "effort": "high"
+      },
+      "features": [
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Fixture: no exact reasoning evidence.",
+          "researched_at": "2026-09-29"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Fixture: no exact implementation evidence.",
+          "researched_at": "2026-09-29"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Fixture: no exact agentic evidence.",
+          "researched_at": "2026-09-29"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Fixture: no exact ui evidence.",
+          "researched_at": "2026-09-29"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Fixture: no exact spatial-3d evidence.",
+          "researched_at": "2026-09-29"
+        }
+      }
+    },
+    "codex/model-gamma/max": {
+      "launch": {
+        "agent": "codex",
+        "model": "model-gamma",
+        "effort": "max"
+      },
+      "features": [
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.37,
+          "conservative": 0.35,
+          "confidence": "high",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-gamma/reasoning"
+          ],
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Fixture reasoning cell."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.637,
+          "conservative": 0.597,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-gamma/implementation"
+          ],
+          "scale": "DeepSWE v1.1 (Codex harness, Artificial Analysis)",
+          "note": "Fixture implementation cell."
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.4,
+          "conservative": 0.375,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-gamma/agentic"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Fixture agentic cell."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Fixture: no exact ui evidence.",
+          "researched_at": "2026-09-22"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Fixture: no exact spatial-3d evidence.",
+          "researched_at": "2026-09-22"
+        }
+      }
+    },
+    "codex/model-delta/max": {
+      "launch": {
+        "agent": "codex",
+        "model": "model-delta",
+        "effort": "max"
+      },
+      "features": [
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.42,
+          "conservative": 0.4,
+          "confidence": "high",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-delta/reasoning"
+          ],
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Fixture reasoning cell."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.413,
+          "conservative": 0.383,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-delta/implementation"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "Fixture implementation cell."
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.418,
+          "conservative": 0.394,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-delta/agentic"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Fixture agentic cell."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Fixture: no exact ui evidence.",
+          "researched_at": "2026-09-22"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Fixture: no exact spatial-3d evidence.",
+          "researched_at": "2026-09-22"
+        }
+      },
+      "economics": {
+        "task_cost_usd": {
+          "value": 4.95,
+          "basis": "Fixture task_cost_usd",
+          "assessed_at": "2026-07-31",
+          "source": "https://example.com/evidence/model-delta/task_cost_usd"
+        },
+        "output_tokens_per_second": {
+          "value": 95.2,
+          "basis": "Fixture output_tokens_per_second",
+          "assessed_at": "2026-09-22",
+          "source": "https://example.com/evidence/model-delta/output_tokens_per_second"
+        }
+      }
+    },
+    "grok/model-epsilon/high": {
+      "launch": {
+        "agent": "grok",
+        "model": "model-epsilon",
+        "effort": "high"
+      },
+      "features": [
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.46,
+          "conservative": 0.44,
+          "confidence": "high",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-epsilon/reasoning"
+          ],
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Fixture reasoning cell."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.439,
+          "conservative": 0.409,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-epsilon/implementation"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "Fixture implementation cell."
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.572,
+          "conservative": 0.547,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-epsilon/agentic"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Fixture agentic cell."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Fixture: no exact ui evidence.",
+          "researched_at": "2026-09-22"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Fixture: no exact spatial-3d evidence.",
+          "researched_at": "2026-09-22"
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 49.8,
+          "basis": "Fixture output_tokens_per_second",
+          "assessed_at": "2026-09-22",
+          "source": "https://example.com/evidence/model-epsilon/output_tokens_per_second"
+        }
+      }
+    },
+    "claude/model-zeta/high": {
+      "launch": {
+        "agent": "claude",
+        "model": "model-zeta",
+        "effort": "high"
+      },
+      "features": [
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.6182,
+          "conservative": 0.5982,
+          "confidence": "high",
+          "assessed_at": "2026-11-10",
+          "evidence": [
+            "https://example.com/evidence/model-zeta/reasoning"
+          ],
+          "scale": "AA Intelligence Index v5.0.1",
+          "note": "Fixture reasoning cell."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.569,
+          "conservative": 0.539,
+          "confidence": "medium",
+          "assessed_at": "2026-11-10",
+          "evidence": [
+            "https://example.com/evidence/model-zeta/implementation"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "Fixture implementation cell."
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.5887,
+          "conservative": 0.5637,
+          "confidence": "medium",
+          "assessed_at": "2026-11-10",
+          "evidence": [
+            "https://example.com/evidence/model-zeta/agentic"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Fixture agentic cell."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Fixture: no exact ui evidence.",
+          "researched_at": "2026-11-10"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Fixture: no exact spatial-3d evidence.",
+          "researched_at": "2026-11-10"
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 93.5,
+          "basis": "Fixture output_tokens_per_second",
+          "assessed_at": "2026-11-10",
+          "source": "https://example.com/evidence/model-zeta/output_tokens_per_second"
+        }
+      }
+    },
+    "claude/model-eta/high": {
+      "launch": {
+        "agent": "claude",
+        "model": "model-eta",
+        "effort": "high"
+      },
+      "features": [
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.54,
+          "conservative": 0.52,
+          "confidence": "high",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-eta/reasoning"
+          ],
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Fixture reasoning cell."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.56,
+          "conservative": 0.53,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-eta/implementation"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "Fixture implementation cell."
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.602,
+          "conservative": 0.577,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-eta/agentic"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Fixture agentic cell."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Fixture: no exact ui evidence.",
+          "researched_at": "2026-09-22"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Fixture: no exact spatial-3d evidence.",
+          "researched_at": "2026-09-22"
+        }
+      }
+    },
+    "claude/model-theta/high": {
+      "launch": {
+        "agent": "claude",
+        "model": "model-theta",
+        "effort": "high"
+      },
+      "features": [
+        "vision"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "confidence": "high",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://example.com/evidence/model-theta/reasoning"
+          ],
+          "score": 0.3782,
+          "conservative": 0.3582,
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Fixture reasoning cell."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.423,
+          "conservative": 0.393,
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://example.com/evidence/model-theta/implementation"
+          ],
+          "scale": "CursorBench 4.0",
+          "note": "Fixture implementation cell."
+        },
+        "agentic": {
+          "status": "known",
+          "confidence": "medium",
+          "assessed_at": "2026-10-08",
+          "evidence": [
+            "https://example.com/evidence/model-theta/agentic"
+          ],
+          "score": 0.4713,
+          "conservative": 0.4464,
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Fixture agentic cell."
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Fixture: no exact ui evidence.",
+          "researched_at": "2026-10-08"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Fixture: no exact spatial-3d evidence.",
+          "researched_at": "2026-10-08"
+        }
+      },
+      "economics": {
+        "output_tokens_per_second": {
+          "value": 178.45,
+          "basis": "Fixture output_tokens_per_second",
+          "assessed_at": "2026-10-08",
+          "source": "https://example.com/evidence/model-theta/output_tokens_per_second"
+        }
+      }
+    },
+    "opencode/vendor/model-iota/max": {
+      "launch": {
+        "agent": "opencode",
+        "model": "vendor/model-iota",
+        "effort": "max"
+      },
+      "features": [
+        "vision",
+        "video"
+      ],
+      "capabilities": {
+        "reasoning": {
+          "status": "known",
+          "score": 0.44,
+          "conservative": 0.42,
+          "confidence": "high",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-iota/reasoning"
+          ],
+          "scale": "AA Intelligence Index v4.3.2",
+          "note": "Fixture reasoning cell."
+        },
+        "implementation": {
+          "status": "known",
+          "score": 0.685,
+          "conservative": 0.64,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-iota/implementation"
+          ],
+          "scale": "DeepSWE v1.1 (mini-swe-agent)",
+          "note": "Fixture implementation cell."
+        },
+        "agentic": {
+          "status": "known",
+          "score": 0.505,
+          "conservative": 0.481,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-iota/agentic"
+          ],
+          "scale": "AA-Briefcase v1.1 Elo, mapped",
+          "note": "Fixture agentic cell."
+        },
+        "ui": {
+          "status": "known",
+          "score": 0.969,
+          "conservative": 0.945,
+          "confidence": "high",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-iota/ui"
+          ],
+          "scale": "Arena WebDev rank, percentile",
+          "note": "Fixture ui cell."
+        },
+        "spatial-3d": {
+          "status": "known",
+          "score": 0.98,
+          "conservative": 0.93,
+          "confidence": "medium",
+          "assessed_at": "2026-09-22",
+          "evidence": [
+            "https://example.com/evidence/model-iota/spatial-3d"
+          ],
+          "scale": "Design Arena 3D rank, percentile",
+          "note": "Fixture spatial-3d cell."
+        }
+      },
+      "economics": {
+        "task_cost_usd": {
+          "value": 4.65,
+          "basis": "Fixture task_cost_usd",
+          "assessed_at": "2026-07-31",
+          "source": "https://example.com/evidence/model-iota/task_cost_usd"
+        },
+        "output_tokens_per_second": {
+          "value": 38.2,
+          "basis": "Fixture output_tokens_per_second",
+          "assessed_at": "2026-09-22",
+          "source": "https://example.com/evidence/model-iota/output_tokens_per_second"
+        }
+      }
+    },
+    "cursor/model-beta/high": {
+      "launch": {
+        "agent": "cursor",
+        "model": "model-beta",
+        "effort": "high"
+      },
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Fixture: no exact reasoning evidence.",
+          "researched_at": "2026-10-21"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Fixture: no exact implementation evidence.",
+          "researched_at": "2026-10-21"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Fixture: no exact agentic evidence.",
+          "researched_at": "2026-10-21"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Fixture: no exact ui evidence.",
+          "researched_at": "2026-10-21"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Fixture: no exact spatial-3d evidence.",
+          "researched_at": "2026-10-21"
+        }
+      }
+    },
+    "cursor/model-eta/high": {
+      "launch": {
+        "agent": "cursor",
+        "model": "model-eta",
+        "effort": "high"
+      },
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Fixture: no exact reasoning evidence.",
+          "researched_at": "2026-10-21"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Fixture: no exact implementation evidence.",
+          "researched_at": "2026-10-21"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Fixture: no exact agentic evidence.",
+          "researched_at": "2026-10-21"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Fixture: no exact ui evidence.",
+          "researched_at": "2026-10-21"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Fixture: no exact spatial-3d evidence.",
+          "researched_at": "2026-10-21"
+        }
+      }
+    },
+    "cursor/model-zeta/high": {
+      "launch": {
+        "agent": "cursor",
+        "model": "model-zeta",
+        "effort": "high"
+      },
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Fixture: no exact reasoning evidence.",
+          "researched_at": "2026-11-10"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Fixture: no exact implementation evidence.",
+          "researched_at": "2026-11-10"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Fixture: no exact agentic evidence.",
+          "researched_at": "2026-11-10"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Fixture: no exact ui evidence.",
+          "researched_at": "2026-11-10"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Fixture: no exact spatial-3d evidence.",
+          "researched_at": "2026-11-10"
+        }
+      }
+    },
+    "cursor/model-epsilon/high": {
+      "launch": {
+        "agent": "cursor",
+        "model": "model-epsilon",
+        "effort": "high"
+      },
+      "capabilities": {
+        "reasoning": {
+          "status": "unknown",
+          "reason": "Fixture: no exact reasoning evidence.",
+          "researched_at": "2026-10-21"
+        },
+        "implementation": {
+          "status": "unknown",
+          "reason": "Fixture: no exact implementation evidence.",
+          "researched_at": "2026-10-21"
+        },
+        "agentic": {
+          "status": "unknown",
+          "reason": "Fixture: no exact agentic evidence.",
+          "researched_at": "2026-10-21"
+        },
+        "ui": {
+          "status": "unknown",
+          "reason": "Fixture: no exact ui evidence.",
+          "researched_at": "2026-10-21"
+        },
+        "spatial-3d": {
+          "status": "unknown",
+          "reason": "Fixture: no exact spatial-3d evidence.",
+          "researched_at": "2026-10-21"
+        }
+      }
+    }
+  }
+}

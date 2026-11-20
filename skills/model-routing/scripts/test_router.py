@@ -14,9 +14,9 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import router
+import routing_fixture
 
 
-SCRIPT = Path(__file__).with_name("router.py")
 ROUTE_BASIS = "Principal requested the Worker route for this task."
 
 
@@ -26,6 +26,11 @@ class RouterTest(unittest.TestCase):
         self.base = Path(self.temporary.name)
         self.home = self.base / "home"
         self.home.mkdir()
+        self.script = routing_fixture.skills_root() / "model-routing" / "scripts" / "router.py"
+        for module in (router, router.exact_config):
+            patch = mock.patch.object(module, "CATALOG", routing_fixture.FIXTURE_CATALOG)
+            patch.start()
+            self.addCleanup(patch.stop)
         self.repo = self.base / "repo"
         self.repo.mkdir()
         subprocess.run(["git", "init", "-q", str(self.repo)], check=True)
@@ -40,19 +45,19 @@ class RouterTest(unittest.TestCase):
             "routes": {
                 "captain": {
                     "agent": "codex",
-                    "model": "gpt-6.2-astra",
+                    "model": "model-alpha",
                     "effort": "high",
                 },
                 "worker": {
                     "agent": "grok",
-                    "model": "grok-4.7",
+                    "model": "model-epsilon",
                     "effort": "high",
                 },
             },
             "preferences": [
-                "Captains default to gpt-6.2-astra at high.",
+                "Captains default to model-alpha at high.",
                 "For the most complex architecture or systems design, use "
-                "claude-fable-5-2 or gpt-6.2-astra at high.",
+                "model-zeta or model-alpha at high.",
             ],
         }
         path = self.home / ".furanku-skills" / "model-routing" / "config.json"
@@ -63,7 +68,7 @@ class RouterTest(unittest.TestCase):
         self.temporary.cleanup()
 
     def run_router(self, *args, runtime=None, expect_code=0):
-        command = [sys.executable, str(SCRIPT), *args, "--repo", str(self.repo)]
+        command = [sys.executable, str(self.script), *args, "--repo", str(self.repo)]
         if runtime is not None:
             runtime_path = self.base / "runtime.json"
             runtime_path.write_text(json.dumps(runtime), encoding="utf-8")
@@ -117,21 +122,18 @@ class RouterTest(unittest.TestCase):
             brief.index("| codex/test-frontier/max |"),
         )
 
-    def test_sol62_support_keeps_unmeasured_cells_unknown_and_gates_live_requirements(self):
-        candidate_id = "codex/gpt-6.2-sol/high"
+    def test_launch_only_candidate_keeps_evidence_unknown_and_gates_live_requirements(self):
+        candidate_id = "codex/model-beta/high"
         brief = json.loads(self.run_router("brief", "--format", "json").stdout)
         candidate = brief["candidates"][candidate_id]
-        self.assertEqual({"agent": "codex", "model": "gpt-6.2-sol", "effort": "high"}, candidate["launch"])
+        self.assertEqual({"agent": "codex", "model": "model-beta", "effort": "high"}, candidate["launch"])
         self.assertEqual(["vision"], candidate.get("features"))
-        self.assertNotIn("task_cost_usd", candidate.get("economics", {}))
+        self.assertFalse(candidate.get("economics"))
         self.assertEqual(set(router.DIMENSIONS), set(candidate["capabilities"]))
-        known = {name for name, cell in candidate["capabilities"].items() if cell["status"] == "known"}
-        self.assertEqual({"reasoning", "agentic"}, known)
-        for name, cell in candidate["capabilities"].items():
-            if name not in known:
-                self.assertEqual("unknown", cell["status"])
-                self.assertNotIn("score", cell)
-                self.assertNotIn("conservative", cell)
+        for cell in candidate["capabilities"].values():
+            self.assertEqual("unknown", cell["status"])
+            self.assertNotIn("score", cell)
+            self.assertNotIn("conservative", cell)
         args = ("--candidate", candidate_id, "--reason", "Principal requested the exact supported tuple.")
         pending = self.check(*args, expect_code=2)
         self.assertEqual("needs-acceptance", pending["status"])
@@ -146,19 +148,19 @@ class RouterTest(unittest.TestCase):
     def test_brief_shows_preferences_with_scope_tags(self):
         brief = self.run_router("brief").stdout
         self.assertIn("## Routing preferences", brief)
-        self.assertIn("- (global) Captains default to gpt-6.2-astra at high.", brief)
-        self.assertIn("claude-fable-5-2 or gpt-6.2-astra at high", brief)
+        self.assertIn("- (global) Captains default to model-alpha at high.", brief)
+        self.assertIn("model-zeta or model-alpha at high", brief)
 
     def test_cursor_routes_keep_vendor_quota_separate_and_gate_launch_surface(self):
         brief = json.loads(self.run_router("brief", "--format", "json", "--launchable-via", "cursor").stdout)
         self.assertEqual(
-            {"gpt-6.2-sol", "claude-opus-5-5", "claude-fable-5-2", "grok-4.7"},
+            {"model-beta", "model-eta", "model-zeta", "model-epsilon"},
             {row["launch"]["model"] for row in brief["candidates"].values()},
         )
         self.assertTrue(all(row["launch"]["agent"] == "cursor" for row in brief["candidates"].values()))
         vendor_runtime = {"harnesses": {agent: {"quota": {"status": "exhausted"}}
                                        for agent in ("codex", "claude", "grok")}}
-        for model in ("gpt-6.2-sol", "claude-opus-5-5", "claude-fable-5-2", "grok-4.7"):
+        for model in ("model-beta", "model-eta", "model-zeta", "model-epsilon"):
             candidate_id = f"cursor/{model}/high"
             args = ("--candidate", candidate_id, "--reason", "Use the requested Cursor harness.")
             with self.subTest(model=model):
@@ -173,8 +175,8 @@ class RouterTest(unittest.TestCase):
 
     def test_cursor_codexbar_runtime_is_attributed_to_cursor_only(self):
         candidates = {
-            "cursor/opus/high": {"launch": {"agent": "cursor", "model": "claude-opus-5-5", "effort": "high"}},
-            "claude/opus/high": {"launch": {"agent": "claude", "model": "claude-opus-5-5", "effort": "high"}},
+            "cursor/opus/high": {"launch": {"agent": "cursor", "model": "model-eta", "effort": "high"}},
+            "claude/opus/high": {"launch": {"agent": "claude", "model": "model-eta", "effort": "high"}},
         }
         runtime = router.codexbar_runtime({"cursor": {
             "status": "unknown", "windows": [], "detail": "No verified Cursor quota contract",
@@ -204,10 +206,10 @@ class RouterTest(unittest.TestCase):
     def test_brief_limits_candidates_to_consumer_launchers(self):
         brief = self.run_router("brief", "--launchable-via", "codex").stdout
         self.assertIn("**Launchable agents:** codex", brief)
-        self.assertIn("| codex/gpt-6.2-astra/high |", brief)
-        self.assertNotIn("| grok/grok-4.7/high |", brief)
-        self.assertNotIn("### grok/grok-4.7/high", brief)
-        self.assertIn("| worker | — | grok | grok-4.7 | high |", brief)
+        self.assertIn("| codex/model-alpha/high |", brief)
+        self.assertNotIn("| grok/model-epsilon/high |", brief)
+        self.assertNotIn("### grok/model-epsilon/high", brief)
+        self.assertIn("| worker | — | grok | model-epsilon | high |", brief)
 
         payload = json.loads(
             self.run_router(
@@ -231,8 +233,8 @@ class RouterTest(unittest.TestCase):
             )
         )
 
-        codex_candidate = "codex/gpt-6.2-astra/high"
-        grok_candidate = "grok/grok-4.7/high"
+        codex_candidate = "codex/model-alpha/high"
+        grok_candidate = "grok/model-epsilon/high"
         payload = json.loads(
             self.run_router(
                 "brief",
@@ -259,10 +261,10 @@ class RouterTest(unittest.TestCase):
         brief = self.run_router("brief").stdout
         self.assertIn(router.EXACT_ROUTE_SEMANTICS, brief)
         self.assertIn(
-            "| captain | — | codex | gpt-6.2-astra | high | global |",
+            "| captain | — | codex | model-alpha | high | global |",
             brief,
         )
-        self.assertIn("claude/claude-fable-5-2/high", brief)
+        self.assertIn("claude/model-zeta/high", brief)
         self.assertIn(router.MAX_EFFORT_POLICY, brief)
         rows = {
             line.split("|", 2)[1].strip(): line
@@ -270,16 +272,16 @@ class RouterTest(unittest.TestCase):
             if line.startswith("|") and "/" in line
         }
         self.assertIn(
-            "| 0.60 (h, C) | 0.54 (m, A) | 0.56 (m) | ? | ? | ? | 94 |",
-            rows["claude/claude-fable-5-2/high"],
+            "| 0.60 (h, B) | 0.54 (m, A) | 0.56 (m) | ? | ? | ? | 94 |",
+            rows["claude/model-zeta/high"],
         )
         self.assertIn(
-            "| 0.58 (h, C) | ? | 0.51 (m) | ? | ? | ? | 56 |",
-            rows["codex/gpt-6.2-astra/high"],
+            "| 0.49 (h, A) | 0.70 (m, C) | 0.48 (m) | ? | ? | $3.92 | 52 |",
+            rows["codex/model-alpha/high"],
         )
         self.assertIn(
             "| 0.44 (h, A) | 0.41 (m, A) | 0.55 (m) | ? | ? | ? | 50 |",
-            rows["grok/grok-4.7/high"],
+            rows["grok/model-epsilon/high"],
         )
         self.assertIn(
             "different versions are not comparable",
@@ -290,7 +292,7 @@ class RouterTest(unittest.TestCase):
             brief,
         )
         self.assertIn("## Evidence", brief)
-        self.assertIn("https://deepswe.datacurve.ai/", brief)
+        self.assertIn("https://example.com/evidence/model-alpha/implementation", brief)
         self.assertIn("## Evidence methodology", brief)
 
     def test_brief_accumulates_preferences_across_layers(self):
@@ -310,16 +312,16 @@ class RouterTest(unittest.TestCase):
             {
                 "version": 4,
                 "routes": {},
-                "candidates": {"codex/gpt-6-luna/max": {"enabled": False}},
+                "candidates": {"codex/model-gamma/max": {"enabled": False}},
             }
         )
         brief = self.run_router("brief").stdout
-        self.assertIn("Disabled by configuration: codex/gpt-6-luna/max", brief)
-        self.assertNotIn("| codex/gpt-6-luna/max |", brief)
+        self.assertIn("Disabled by configuration: codex/model-gamma/max", brief)
+        self.assertNotIn("| codex/model-gamma/max |", brief)
 
     def test_brief_json_carries_candidates_preferences_and_layers(self):
         payload = json.loads(self.run_router("brief", "--format", "json").stdout)
-        self.assertIn("claude/claude-fable-5-2/high", payload["candidates"])
+        self.assertIn("claude/model-zeta/high", payload["candidates"])
         self.assertEqual("global", payload["preferences"][-1]["scope"])
         self.assertEqual(router.EXACT_ROUTE_SEMANTICS, payload["routes"]["semantics"])
         self.assertEqual(
@@ -403,7 +405,7 @@ class RouterTest(unittest.TestCase):
         result = self.run_router(
             "check",
             "--candidate",
-            "codex/gpt-6.2-astra/high",
+            "codex/model-alpha/high",
             expect_code=1,
         )
         self.assertIn("requires --reason", result.stderr)
@@ -451,12 +453,12 @@ class RouterTest(unittest.TestCase):
             {
                 "version": 4,
                 "routes": {},
-                "candidates": {"codex/gpt-6-luna/max": {"enabled": False}},
+                "candidates": {"codex/model-gamma/max": {"enabled": False}},
             }
         )
         decision = self.check(
             "--candidate",
-            "codex/gpt-6-luna/max",
+            "codex/model-gamma/max",
             "--reason",
             "Cheap bulk edit.",
             expect_code=1,
@@ -465,28 +467,32 @@ class RouterTest(unittest.TestCase):
         self.assertIn("disabled by configuration", decision["reasons"])
 
     def test_explicit_candidate_requires_principal_basis(self):
-        candidate = "codex/gpt-6.2-astra/high"
-        self.write_repo_layer({"version": 4, "routes": {}, "candidates": {candidate: {"explicit": True}}})
+        candidate = "codex/gpt-9-orbit/high"
+        launch = {"agent": "codex", "model": "gpt-9-orbit", "effort": "high"}
+        self.write_repo_layer({"version": 4, "routes": {}, "candidates": {
+            candidate: {"launch": launch, "features": [], "capabilities": {}, "explicit": True}}})
         brief = self.run_router("brief").stdout
         self.assertIn(f"| {candidate} | explicit |", brief)
         refused = self.check("--candidate", candidate, "--reason", "Suitable for this task.", expect_code=1)
         self.assertIn("explicit-only candidate requires --explicit-basis", refused["reasons"][0])
         bad_basis = self.check("--candidate", candidate, "--reason", "Principal chose it.",
                                "--explicit-basis", "Use a model for this task.", expect_code=1)
-        self.assertIn("explicit basis must name gpt-6.2-astra", bad_basis["reasons"][0])
+        self.assertIn("explicit basis must name gpt-9-orbit", bad_basis["reasons"][0])
+        # The vendor-prefix-free alias counts when no other model shares it.
         selected = self.check("--candidate", candidate, "--reason", "Principal chose it.",
-                              "--explicit-basis", "Use Astra at high for this task.",
+                              "--explicit-basis", "Use Orbit at high for this task.",
                               runtime={"harnesses": {"codex": {"quota": {"status": "known"}}}})
         self.assertEqual("selected", selected["status"])
-        self.assertEqual("Use Astra at high for this task.", selected["explicit_basis"])
+        self.assertEqual("Use Orbit at high for this task.", selected["explicit_basis"])
+
     def test_exact_route_does_not_bypass_explicit_state(self):
         self.write_repo_layer({"version": 4, "routes": {},
-                               "candidates": {"grok/grok-4.7/high": {"explicit": True}}})
+                               "candidates": {"grok/model-epsilon/high": {"explicit": True}}})
         refused = self.check("--exact-route", "worker", "--route-basis", ROUTE_BASIS,
                              expect_code=1)
         self.assertIn("explicit-only candidate requires --explicit-basis", refused["reasons"][0])
         chosen = self.check("--exact-route", "worker", "--route-basis", ROUTE_BASIS,
-                            "--explicit-basis", "Use grok-4.7 at high.",
+                            "--explicit-basis", "Use model-epsilon at high.",
                             runtime={"harnesses": {"grok": {"quota": {"status": "known"}}}})
         self.assertEqual("exact", chosen["status"])
 
@@ -503,7 +509,7 @@ class RouterTest(unittest.TestCase):
         self.assertEqual(brief[header].count("|"), brief[header + 1].count("|"))
 
     def test_check_refuses_exhausted_quota(self):
-        candidate = "grok/grok-4.7/high"
+        candidate = "grok/model-epsilon/high"
         decision = self.check(
             "--candidate",
             candidate,
@@ -516,7 +522,7 @@ class RouterTest(unittest.TestCase):
         self.assertIn("quota exhausted (account unattributed)", decision["reasons"])
 
     def test_check_stale_quota_needs_acceptance_then_records_it(self):
-        candidate = "grok/grok-4.7/high"
+        candidate = "grok/model-epsilon/high"
         runtime = {"candidates": {candidate: {"quota": {"status": "stale"}}}}
         decision = self.check(
             "--candidate",
@@ -607,7 +613,7 @@ class RouterTest(unittest.TestCase):
     def test_check_refuses_launcher_outside_launchable_via(self):
         decision = self.check(
             "--candidate",
-            "grok/grok-4.7/high",
+            "grok/model-epsilon/high",
             "--reason",
             "Low-risk mechanical change.",
             "--launchable-via",
@@ -621,7 +627,7 @@ class RouterTest(unittest.TestCase):
         )
         decision = self.check(
             "--candidate",
-            "grok/grok-4.7/high",
+            "grok/model-epsilon/high",
             "--reason",
             "Low-risk mechanical change.",
             "--launchable-via",
@@ -636,7 +642,7 @@ class RouterTest(unittest.TestCase):
         consumer that had parked claudex still routed work to it."""
         decision = self.check(
             "--candidate",
-            "claudex/gpt-6.2-astra/high",
+            "claudex/model-alpha/high",
             "--reason",
             "Captain tier for a hostile-repository security front.",
             "--launchable-via",
@@ -650,10 +656,10 @@ class RouterTest(unittest.TestCase):
             decision["reasons"],
         )
         # The same model stays reachable through the launcher that does serve
-        # it: parking claudex retires the proxy route, not Astra itself.
+        # it: parking claudex retires the proxy route, not model-alpha itself.
         decision = self.check(
             "--candidate",
-            "codex/gpt-6.2-astra/high",
+            "codex/model-alpha/high",
             "--reason",
             "Captain tier for a hostile-repository security front.",
             "--launchable-via",
@@ -665,7 +671,7 @@ class RouterTest(unittest.TestCase):
     def test_check_enforces_feature_gate(self):
         decision = self.check(
             "--candidate",
-            "codex/gpt-5.6-terra/max",
+            "codex/model-delta/max",
             "--reason",
             "Needs to watch a screen recording.",
             "--require-feature",
@@ -678,7 +684,7 @@ class RouterTest(unittest.TestCase):
         result = self.run_router(
             "check",
             "--candidate",
-            "codex/gpt-5.6-terra/max",
+            "codex/model-delta/max",
             "--reason",
             "Misspelled requirement.",
             "--require-feature",
@@ -698,7 +704,7 @@ class RouterTest(unittest.TestCase):
             expect_code=1,
         )
         self.assertIn("unknown candidate", result.stderr)
-        self.assertIn("claude/claude-fable-5-2/high", result.stderr)
+        self.assertIn("claude/model-zeta/high", result.stderr)
 
     def test_check_exact_route_keeps_provenance(self):
         decision = self.check(
@@ -710,7 +716,7 @@ class RouterTest(unittest.TestCase):
         )
         self.assertEqual("exact", decision["status"])
         self.assertEqual("grok", decision["selected"]["agent"])
-        self.assertEqual("grok/grok-4.7/high", decision["selected"]["id"])
+        self.assertEqual("grok/model-epsilon/high", decision["selected"]["id"])
         self.assertEqual(ROUTE_BASIS, decision["route_basis"])
         self.assertEqual("global", decision["provenance"]["winner"]["scope"])
 
@@ -731,7 +737,7 @@ class RouterTest(unittest.TestCase):
             {
                 "version": 4,
                 "routes": {},
-                "candidates": {"grok/grok-4.7/high": {"enabled": False}},
+                "candidates": {"grok/model-epsilon/high": {"enabled": False}},
             }
         )
         decision = self.check(
@@ -744,7 +750,7 @@ class RouterTest(unittest.TestCase):
         self.assertEqual("refused", decision["status"])
         self.assertIn("disabled by configuration", decision["reasons"])
         self.assertEqual("global", decision["route_provenance"]["winner"]["scope"])
-        self.assertEqual("grok/grok-4.7/high", decision["candidate"])
+        self.assertEqual("grok/model-epsilon/high", decision["candidate"])
         self.assertEqual(["builtin", "repo"], decision["candidate_sources"])
 
     def test_check_exact_route_gates_unmatched_routes_by_harness(self):
@@ -789,7 +795,7 @@ class RouterTest(unittest.TestCase):
         (self.home / ".furanku-skills" / "model-routing" / "config.json").unlink()
         defaults = self.base / "consumer.json"
         defaults.write_text(json.dumps({"version": 4, "routes": {
-            "review": {"agent": "codex", "model": "gpt-6-luna", "effort": "max"}
+            "review": {"agent": "codex", "model": "model-gamma", "effort": "max"}
         }}))
         decision = self.check(
             "--exact-route",
@@ -801,7 +807,7 @@ class RouterTest(unittest.TestCase):
         )
         self.assertEqual("exact", decision["status"])
         self.assertEqual("codex", decision["selected"]["agent"])
-        self.assertEqual("gpt-6-luna", decision["selected"]["model"])
+        self.assertEqual("model-gamma", decision["selected"]["model"])
         self.assertEqual("consumer", decision["provenance"]["winner"]["scope"])
         brief = json.loads(self.run_router("brief", "--defaults", str(defaults), "--format", "json").stdout)
         self.assertEqual({"review"}, set(brief["routes"]["effective"]))
@@ -813,23 +819,23 @@ class RouterTest(unittest.TestCase):
                 "version": 4,
                 "routes": {},
                 "candidates": {
-                    "codex/gpt-6.2-astra/high": {
+                    "codex/model-alpha/high": {
                         "capabilities": {"reasoning": {"conservative": 0.6}}
                     }
                 },
             }
         )
         payload = json.loads(self.run_router("brief", "--format", "json").stdout)
-        merged = payload["candidates"]["codex/gpt-6.2-astra/high"]
+        merged = payload["candidates"]["codex/model-alpha/high"]
         self.assertEqual(0.6, merged["capabilities"]["reasoning"]["conservative"])
-        self.assertEqual(0.6009, merged["capabilities"]["reasoning"]["score"])
+        self.assertEqual(0.51, merged["capabilities"]["reasoning"]["score"])
         self.assertEqual(
             ["builtin", "repo"],
-            payload["candidate_sources"]["codex/gpt-6.2-astra/high"],
+            payload["candidate_sources"]["codex/model-alpha/high"],
         )
 
     def test_harness_exhaustion_dominates_candidate_quota(self):
-        candidate = "claude/claude-fable-5-2/high"
+        candidate = "claude/model-zeta/high"
         decision = self.check(
             "--candidate",
             candidate,
@@ -860,7 +866,7 @@ class RouterTest(unittest.TestCase):
                     "routes": {
                         "captain": {
                             "agent": "codex",
-                            "model": "gpt-6.2-astra",
+                            "model": "model-alpha",
                             "effort": "high",
                         }
                     },
@@ -870,7 +876,7 @@ class RouterTest(unittest.TestCase):
         )
         brief = self.run_router("brief").stdout
         self.assertIn(
-            "| captain | — | codex | gpt-6.2-astra | high | global |", brief
+            "| captain | — | codex | model-alpha | high | global |", brief
         )
         routes = json.loads(self.run_router("brief", "--format", "json").stdout)["routes"]["effective"]
         self.assertEqual({"captain"}, set(routes))
@@ -880,15 +886,15 @@ class RouterTest(unittest.TestCase):
             {
                 "version": 4,
                 "routes": {},
-                "candidates": {"grok/grok-4.7/high": None},
+                "candidates": {"grok/model-epsilon/high": None},
             }
         )
         payload = json.loads(self.run_router("brief", "--format", "json").stdout)
-        self.assertNotIn("grok/grok-4.7/high", payload["candidates"])
+        self.assertNotIn("grok/model-epsilon/high", payload["candidates"])
         result = self.run_router(
             "check",
             "--candidate",
-            "grok/grok-4.7/high",
+            "grok/model-epsilon/high",
             "--reason",
             "Cheap pick.",
             expect_code=1,
@@ -900,20 +906,20 @@ class RouterTest(unittest.TestCase):
             {
                 "version": 4,
                 "routes": {},
-                "candidates": {"codex/gpt-6.2-astra/high": {"economics": "free"}},
+                "candidates": {"codex/model-alpha/high": {"economics": "free"}},
             }
         )
         brief = self.run_router("brief").stdout
         self.assertIn("Excluded malformed candidates:", brief)
-        self.assertIn("codex/gpt-6.2-astra/high", brief)
+        self.assertIn("codex/model-alpha/high", brief)
         self.assertIn("economics must be an object", brief)
         payload = json.loads(self.run_router("brief", "--format", "json").stdout)
-        self.assertNotIn("codex/gpt-6.2-astra/high", payload["candidates"])
-        self.assertIn("codex/gpt-6.2-astra/high", payload["malformed_candidates"])
+        self.assertNotIn("codex/model-alpha/high", payload["candidates"])
+        self.assertIn("codex/model-alpha/high", payload["malformed_candidates"])
         result = self.run_router(
             "check",
             "--candidate",
-            "codex/gpt-6.2-astra/high",
+            "codex/model-alpha/high",
             "--reason",
             "Invalid pick.",
             expect_code=1,
@@ -921,7 +927,7 @@ class RouterTest(unittest.TestCase):
         self.assertIn("economics must be an object", result.stderr)
         decision = self.check(
             "--candidate",
-            "grok/grok-4.7/high",
+            "grok/model-epsilon/high",
             "--reason",
             "Valid unrelated pick.",
             runtime={"harnesses": {"grok": {"quota": {"status": "known"}}}},
@@ -959,7 +965,7 @@ class RouterTest(unittest.TestCase):
                     {
                         "version": 4,
                         "routes": {},
-                        "candidates": {"codex/gpt-5.6-terra/max": patch},
+                        "candidates": {"codex/model-delta/max": patch},
                     }
                 )
                 result = self.run_router("brief")
@@ -967,11 +973,11 @@ class RouterTest(unittest.TestCase):
                 payload = json.loads(
                     self.run_router("brief", "--format", "json").stdout
                 )
-                self.assertNotIn("codex/gpt-5.6-terra/max", payload["candidates"])
-                self.assertIn("codex/gpt-5.6-terra/max", payload["malformed_candidates"])
+                self.assertNotIn("codex/model-delta/max", payload["candidates"])
+                self.assertIn("codex/model-delta/max", payload["malformed_candidates"])
 
     def test_malformed_runtime_state_fails_closed(self):
-        candidate = "grok/grok-4.7/high"
+        candidate = "grok/model-epsilon/high"
         result = self.run_router(
             "check",
             "--candidate",
@@ -1024,7 +1030,7 @@ class RouterTest(unittest.TestCase):
         self.fail("routing catalog has no codex candidate")
 
     def pooled_codex_proxy_candidate(self, catalog):
-        candidate_id = "claudex/gpt-6.2-astra/high"
+        candidate_id = "claudex/model-alpha/high"
         candidate = deepcopy(catalog["candidates"][candidate_id])
         candidate.pop("quota_provider", None)
         candidate["quota_pool"] = {
@@ -1188,7 +1194,7 @@ class RouterTest(unittest.TestCase):
             self.codex_snapshot(0, {"email": "launch-account@example.com"}),
             catalog["candidates"],
         )
-        native = "codex/gpt-6.2-astra/high"
+        native = "codex/model-alpha/high"
         reasons, _warnings = router.gate(native, catalog["candidates"][native], runtime)
         self.assertEqual(
             ["quota exhausted (account launch-account@example.com)"], reasons
@@ -1288,20 +1294,6 @@ class RouterTest(unittest.TestCase):
             )
         self.assertIn("scale must be a non-empty string", str(caught.exception))
 
-    def test_builtin_known_capabilities_name_their_scale(self):
-        catalog = json.loads(
-            (SCRIPT.parent.parent / "references" / "routing-catalog.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        unlabelled = [
-            f"{candidate_id}.{dimension}"
-            for candidate_id, candidate in catalog["candidates"].items()
-            for dimension, cell in candidate.get("capabilities", {}).items()
-            if cell.get("status") == "known" and not cell.get("scale")
-        ]
-        self.assertEqual([], unlabelled)
-
     def test_quota_summary_reports_the_measured_account(self):
         summary = router.quota_summary(
             {
@@ -1314,8 +1306,8 @@ class RouterTest(unittest.TestCase):
         self.assertEqual({"email": "launch-account@example.com"}, summary["account"])
 
 
-    def test_check_surfaces_kimi_credential_detail_in_warning(self):
-        candidate = "opencode/kimi-for-coding/k3/max"
+    def test_check_surfaces_unreadable_credential_detail_in_warning(self):
+        candidate = "opencode/vendor/model-iota/max"
         decision = self.check(
             "--candidate",
             candidate,
@@ -1343,7 +1335,7 @@ class RouterTest(unittest.TestCase):
 
 
     def test_check_stale_quota_pending_names_remedy(self):
-        candidate = "grok/grok-4.7/high"
+        candidate = "grok/model-epsilon/high"
         decision = self.check(
             "--candidate",
             candidate,

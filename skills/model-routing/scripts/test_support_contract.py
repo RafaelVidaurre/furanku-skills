@@ -93,7 +93,9 @@ def test_catalog_models_and_billing_providers_reach_public_reports(cli, command)
 
 def test_cursor_web_usage_does_not_silently_authorize_a_cli_launch(cli):
     _, run = cli
-    args = ('check', '--candidate', 'cursor/claude-opus-5-5/high', '--codexbar',
+    catalog = json.loads(router.CATALOG.read_text())['candidates']
+    candidate = next(key for key, row in catalog.items() if row['launch']['agent'] == 'cursor')
+    args = ('check', '--candidate', candidate, '--codexbar',
             '--launchable-via', 'cursor', '--reason', 'Check the requested Cursor tuple.')
     pending = json.loads(run(router.__file__, *args, code=2))
     assert pending['status'] == 'needs-acceptance'
@@ -104,7 +106,7 @@ def test_cursor_web_usage_does_not_silently_authorize_a_cli_launch(cli):
     assert selected['status'] == 'selected'
 
 
-def test_builtin_crew_launchers_have_catalog_models_and_preserve_packet_tuples(cli):
+def test_every_catalog_candidate_reaches_crew_as_its_exact_tuple(cli):
     _, run = cli
     # Read the actual manifest rather than maintain a parallel list of harnesses.
     import importlib.util
@@ -112,10 +114,14 @@ def test_builtin_crew_launchers_have_catalog_models_and_preserve_packet_tuples(c
     crew = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(crew)
     catalog = json.loads(router.CATALOG.read_text())['candidates']
-    for agent in crew.KNOWN_MANIFESTS['orca']['launchable_agents']:
-        matches = [(key, row) for key, row in catalog.items() if row['launch']['agent'] == agent]
-        assert matches, f'Crew advertises {agent}, but routing has no candidate for it'
-        key, candidate = matches[0]
+    launchable = crew.KNOWN_MANIFESTS['orca']['launchable_agents']
+    for agent in launchable:
+        assert any(row['launch']['agent'] == agent for row in catalog.values()), \
+            f'Crew advertises {agent}, but routing has no candidate for it'
+    for key, candidate in catalog.items():
+        agent = candidate['launch']['agent']
+        if agent not in launchable:
+            continue
         decision = {'status': 'selected', 'selected': {'id': key, **candidate['launch']},
                     'reason': 'Synthetic support contract; no agent is launched.', 'quota': {'status': 'known'}}
         packet = json.loads(run(CREW, 'packet', '--title', 'Check launch support', '--role', 'worker',
@@ -127,20 +133,3 @@ def test_builtin_crew_launchers_have_catalog_models_and_preserve_packet_tuples(c
         for field in ('model', 'effort'):
             if not any(candidate['launch'][field] in arg for arg in packet['launch_argv']):
                 assert field in packet.get('launch_warning', ''), f'{agent} silently lost {field}'
-
-
-@pytest.mark.parametrize('effort', ['high', 'xhigh'])
-def test_terra_61_reaches_crew_as_an_exact_codex_tuple(cli, effort):
-    _, run = cli
-    key = f'codex/gpt-6.1-terra/{effort}'
-    brief = json.loads(run(router.__file__, 'brief', '--format', 'json'))
-    candidate = brief['candidates'][key]
-    assert candidate['launch'] == {'agent': 'codex', 'model': 'gpt-6.1-terra', 'effort': effort}
-    decision = {'status': 'selected', 'selected': {'id': key, **candidate['launch']},
-                'reason': 'Synthetic contract test.', 'quota': {'status': 'known'}}
-    packet = json.loads(run(CREW, 'packet', '--title', 'Check Terra', '--role', 'worker',
-                            '--reports-to', 'user', '--manifest', 'orca', '--extra', 'front_key=test/terra',
-                            '--work-ref', 'beads:synthetic', '--decision-json', json.dumps(decision)))
-    assert packet['routing']['model'] == 'gpt-6.1-terra'
-    assert packet['routing']['effort'] == effort
-    assert 'gpt-6.1-terra' in packet['launch_argv']

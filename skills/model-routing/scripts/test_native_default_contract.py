@@ -7,10 +7,7 @@ import sys
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[3]
-ROUTER = ROOT / 'skills/model-routing/scripts/router.py'
-CONFIG = ROUTER.with_name('config.py')
-CREW = ROOT / 'skills/crew/scripts/assignment.py'
+import routing_fixture
 
 
 @pytest.mark.parametrize('alias_org, remaining, selected', [
@@ -23,6 +20,10 @@ def test_default_alias_preserves_identity_and_quota_gates(tmp_path, alias_org, r
     home, repo, binary = (tmp_path / name for name in ('home', 'repo', 'bin'))
     for path in (home, repo, binary):
         path.mkdir()
+    skills = routing_fixture.skills_root()
+    router_script = skills / 'model-routing/scripts/router.py'
+    config_script = router_script.with_name('config.py')
+    crew_script = skills / 'crew/scripts/assignment.py'
     env = {**os.environ, 'HOME': str(home), 'CODEX_HOME': str(home / 'codex'),
            'PATH': str(binary) + os.pathsep + os.environ['PATH'],
            'CLAUDE_CONFIG_DIR': '/synthetic/ambient-profile',
@@ -78,10 +79,10 @@ def test_default_alias_preserves_identity_and_quota_gates(tmp_path, alias_org, r
             'claude:system-default': {'profile': profile, 'profile_mode': 'native-default',
                                       'discovery': 'configured', 'min_remaining_percent': 0},
         }}}))
-    run(CONFIG, 'write', 'global', '--file', str(config))
-    run(ROUTER, 'setup', '--selector', 'agent')
-    decision = run(ROUTER, 'check', '--repo', str(repo), '--codexbar',
-                   '--candidate', 'claude/claude-opus-5-5/high',
+    run(config_script, 'write', 'global', '--file', str(config))
+    run(router_script, 'setup', '--selector', 'agent')
+    decision = run(router_script, 'check', '--repo', str(repo), '--codexbar',
+                   '--candidate', 'claude/model-eta/high',
                    '--reason', 'Preserve the requested native-default launch.',
                    '--native-account-only', 'claude', '--launchable-via', 'claude',
                    code=0 if selected else 1)
@@ -99,7 +100,7 @@ def test_default_alias_preserves_identity_and_quota_gates(tmp_path, alias_org, r
     assert binding['expected_identity'] == {'email': 'default@example.test', 'organizationUuid': 'default-org'}
     saved = tmp_path / 'decision.json'
     saved.write_text(json.dumps(decision))
-    packet = run(CREW, 'packet', '--repo', str(repo), '--manifest', 'orca',
+    packet = run(crew_script, 'packet', '--repo', str(repo), '--manifest', 'orca',
                  '--extra', 'front_key=fixture/default', '--title', 'Native default contract',
                  '--role', 'worker', '--reports-to', 'user', '--work-ref', 'beads:synthetic',
                  '--decision-json', str(saved))

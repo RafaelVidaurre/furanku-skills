@@ -11,8 +11,12 @@ import sys
 import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
-ROUTER = ROOT / 'skills/model-routing/scripts/router.py'
-CREW = Path(__file__).with_name('assignment.py')
+sys.path.insert(0, str(ROOT / 'skills/model-routing/scripts'))
+import routing_fixture  # noqa: E402
+
+# Crew runs beside a model-routing copy that carries the fixture catalog.
+ROUTER = routing_fixture.skills_root() / 'model-routing/scripts/router.py'
+CREW = routing_fixture.skills_root() / 'crew/scripts/assignment.py'
 ACCOUNT_ENVIRONMENT = json.loads((ROOT / 'skills/model-routing/references/account-environment.json').read_text())
 
 
@@ -45,7 +49,7 @@ def test_orca_routes_measured_claude_default_without_switching_active_account(tm
         manifest = json.dumps(custom)
     command = [sys.executable, str(CREW), 'packet', '--repo', str(tmp_path), '--manifest', manifest,
                '--router', str(wrapper), '--runtime-file', str(runtime_file),
-               '--candidate', 'claude/claude-opus-5-5/high', '--reason', 'Bounded UI implementation.',
+               '--candidate', 'claude/model-eta/high', '--reason', 'Bounded UI implementation.',
                '--title', 'Fixture', '--role', 'worker', '--reports-to', 'captain',
                '--work-ref', 'beads:fixture', '--extra', 'front_key=fixture/board']
     result = subprocess.run(command, env=env, capture_output=True, text=True)
@@ -62,7 +66,7 @@ def test_orca_routes_measured_claude_default_without_switching_active_account(tm
     assert packet['routing_decision']['requirements']['native_account_only'] == []
     assert packet['account_binding']['env'] == {}
     assert 'CLAUDE_CONFIG_DIR' in packet['account_binding']['unset_env']
-    assert '--model claude-opus-5-5 --effort high' in packet['launch_command']
+    assert '--model model-eta --effort high' in packet['launch_command']
     assert 'quota_identity' in packet['delivery_gate']
     assert 'worker-start --terminal' in packet['delivery_gate']
 
@@ -84,7 +88,7 @@ def test_gate_binding_survives_crew_shell_and_expires(tmp_path, selection, max_a
          'measurement': {'status': 'known', 'refreshed_at': now, 'windows': [{'id': 'session', 'percentRemaining': 1}]}}]}}
     runtime_file = tmp_path / 'runtime.json';runtime_file.write_text(json.dumps(runtime))
     subprocess.run([sys.executable, str(ROUTER), 'setup', '--selector', 'agent'], env=env, capture_output=True, check=True)
-    check = subprocess.run([sys.executable, str(ROUTER), 'check', '--repo', str(tmp_path), '--candidate', 'claude/claude-haiku-5-5/high', '--reason', 'Bounded implementation with review', '--runtime-file', str(runtime_file)], env=env, capture_output=True, text=True)
+    check = subprocess.run([sys.executable, str(ROUTER), 'check', '--repo', str(tmp_path), '--candidate', 'claude/model-theta/high', '--reason', 'Bounded implementation with review', '--runtime-file', str(runtime_file)], env=env, capture_output=True, text=True)
     assert check.returncode == 0, check.stderr + check.stdout
     decision = json.loads(check.stdout)
     decision_file = tmp_path / 'decision.json';decision_file.write_text(check.stdout)
@@ -468,7 +472,7 @@ def test_native_capability_interruption_and_expiry_leave_assignment_undelivered(
 
 
 @pytest.mark.parametrize('active_remaining, expected_method', [(10, 'command'), (80, 'orca-native')])
-@pytest.mark.parametrize('provider,model', [('codex', 'gpt-6.2-astra'), ('claude', 'claude-opus-5-5')])
+@pytest.mark.parametrize('provider,model', [('codex', 'model-alpha'), ('claude', 'model-eta')])
 def test_orca_rotates_accounts_before_changing_model(tmp_path, active_remaining, expected_method, provider, model):
     env, argv, path, decision, log, response = native_fixture(tmp_path, provider=provider, active='other', native_only=False)
     capabilities = tmp_path / 'capabilities.json'

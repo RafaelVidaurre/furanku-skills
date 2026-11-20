@@ -22,7 +22,9 @@ Groups live in `.claude-plugin/marketplace.json`, not in the directory tree: a s
 
 `npm test` runs everything: the Node suites (`test/`, `skills/guidance-composer/test/`) and the Python suites (`skills/crew/scripts`, `skills/model-routing/scripts`). The vendored jam toolkit has its own dependencies and suites; run them with `npm run test:jam-toolkit` after changing anything under `skills/jam-setup/assets/toolkit/`. `test/jam-neutrality.test.js` fails when a jam skill, recipe or toolkit source names an engine or a vendor outside an adapter, a preset or a provider file. Tests must stay hermetic — a suite that reads real user config (`$CODEX_HOME`, `$HOME`) pins those variables to a temp dir so a run never writes to the machine's own files.
 
-After changing Crew/model-routing harness or model support, run `npm run check:routing`. It checks catalog visibility, billing-provider coverage in both account-report commands, quota parsing and launch gates, and Crew packet commands through isolated public entrypoints. A provider without a usable reader must appear with an explicit status and reason.
+Routing and Crew tests run against the fixture catalog in `skills/model-routing/scripts/testdata/` through `routing_fixture.py`, so adding, re-scoring or replacing a model changes no test. Only `test_catalog_invariants.py` and `test_support_contract.py` read the shipped catalog, and they check rules every candidate follows, never a particular model.
+
+After changing Crew/model-routing harness or model support, run `npm run check:routing`. It checks catalog well-formedness, catalog visibility, billing-provider coverage in both account-report commands, quota parsing and launch gates, and Crew packet commands through isolated public entrypoints. A provider without a usable reader must appear with an explicit status and reason.
 
 Work is tracked in [Beads](https://github.com/gastownhall/beads) (`bd`): `.beads/issues.jsonl` is the shared record, the Dolt database beside it is local-only. This repo is public — keep personal data out of anything tracked there.
 

@@ -10,9 +10,10 @@ from types import SimpleNamespace
 import pytest
 import recovery
 import router
+import routing_fixture
 
-ORIGINAL = 'codex/gpt-6.2-sol/high'
-ALTERNATIVE = 'grok/grok-4.7/high'
+ORIGINAL = 'codex/model-beta/high'
+ALTERNATIVE = 'grok/model-epsilon/high'
 NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
@@ -22,6 +23,8 @@ def case(tmp_path, monkeypatch):
     home.mkdir()
     monkeypatch.setenv('HOME', str(home))
     monkeypatch.setenv('CODEX_HOME', str(home / 'codex'))
+    for module in (router, router.exact_config):
+        monkeypatch.setattr(module, 'CATALOG', routing_fixture.FIXTURE_CATALOG)
     repo = tmp_path / 'repo'
     repo.mkdir()
     compiled = router.compile_brief(str(repo))
@@ -138,7 +141,8 @@ def test_recovery_public_entrypoint_without_orca_or_provider_tools(case, tmp_pat
     event_file, runtime_file = tmp_path / 'event.json', tmp_path / 'runtime.json'
     event_file.write_text(json.dumps(event))
     runtime_file.write_text(json.dumps(runtime))
-    result = subprocess.run([sys.executable, router.__file__, 'recover', '--repo', args.repo,
+    script = routing_fixture.skills_root() / 'model-routing' / 'scripts' / 'router.py'
+    result = subprocess.run([sys.executable, str(script), 'recover', '--repo', args.repo,
                              '--event-file', str(event_file), '--runtime-file', str(runtime_file),
                              '--alternative', ALTERNATIVE, '--equivalence-reason', args.equivalence_reason],
                             capture_output=True, text=True)
