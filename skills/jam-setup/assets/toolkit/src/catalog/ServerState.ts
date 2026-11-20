@@ -27,8 +27,13 @@ export const ServerRecord = Schema.Struct({
   /** Version of the toolkit that started it; a newer toolkit replaces an older server. */
   toolkit: Schema.String,
   startedAt: Schema.String,
-  /** Origins it admits besides this machine's (`--allow-origin`); `open` reuses it only for the same ones. */
-  allowOrigins: Schema.optionalKey(Schema.Array(Schema.String))
+  /** Origins it admits besides this machine's (`--allow-origin`); `open` reuses a server it started only for the same ones. */
+  allowOrigins: Schema.optionalKey(Schema.Array(Schema.String)),
+  /**
+   * `open` when `jam catalog open` started it; `serve` when a person or a service manager ran `jam catalog serve`.
+   * `open` never stops a `serve` server: whoever started it owns it. Absent in records of older toolkits: `open`.
+   */
+  startedBy: Schema.optionalKey(Schema.Literals(["open", "serve"]))
 })
 export type ServerRecord = typeof ServerRecord.Type
 

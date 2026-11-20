@@ -19,9 +19,13 @@ const toolkit = (): string => (JSON.parse(readFileSync(new URL("../../../package
 /** This process, as a server reports itself. Read at the command edge, like every other ambient value. */
 const identity = () => ({ pid: process.pid, toolkit: toolkit(), browser: { channel: process.env["CATALOG_BROWSER_CHANNEL"] } })
 
+/** Set by `open` on the server it starts, so the record says who owns that server. */
+const STARTED_BY = "JAM_CATALOG_STARTED_BY"
+
 /** The same toolkit, started again as `catalog serve` for a project: how `open` launches the server. */
 const launchFor = (root: string, allowOrigins: ReadonlyArray<string>): Launch => ({
   command: process.execPath,
+  env: { [STARTED_BY]: "open" },
   args: [...process.execArgv, process.argv[1] ?? "", "catalog", "serve", "--root", root, "--port", "auto", ...allowOrigins.flatMap((origin) => ["--allow-origin", origin])],
   toolkit: toolkit(),
   allowOrigins
@@ -41,7 +45,7 @@ const open = Command.make("open", { allowOrigin }, (flags) =>
     yield* output.emit(opened, opened.url)
     yield* output.note(opened.started
       ? `started the catalog server (process ${opened.pid}); it keeps running after this command. Stop it with: jam catalog stop`
-      : `the catalog server was already running (process ${opened.pid})`)
+      : `the catalog server was already running (process ${opened.pid}${opened.startedBy === "serve" ? ", started with jam catalog serve" : ""})${opened.allowOrigins.length > 0 ? `; it also admits ${opened.allowOrigins.join(", ")}` : ""}`)
   })).pipe(Command.withDescription("Print the address of this checkout's catalog, starting its server when none is running"))
 
 const stop = Command.make("stop", {}, () =>
@@ -56,7 +60,7 @@ const status = Command.make("status", {}, () =>
     const current = toolkit()
     yield* (yield* Output).emit({ ...found, current: found.toolkit === null ? null : found.toolkit === current }, () =>
       found.running
-        ? `running at ${found.url} (process ${found.pid}, since ${found.startedAt}${found.toolkit === current ? "" : `, toolkit ${found.toolkit}; jam catalog open replaces it with ${current}`})`
+        ? `running at ${found.url} (process ${found.pid}, since ${found.startedAt}${found.toolkit === current ? "" : found.startedBy === "serve" ? `, toolkit ${found.toolkit}; restart it where it was started to run ${current}` : `, toolkit ${found.toolkit}; jam catalog open replaces it with ${current}`})`
         : found.reason === null
         ? "not running. Start it with: jam catalog open"
         : `not running: the recorded server at ${found.url} is gone (${found.reason}). Start one with: jam catalog open`)
@@ -77,7 +81,7 @@ const serve = Command.make(
       const port = yield* portOf(flags.port)
       const allowOrigins = yield* originsOf(flags.allowOrigin)
       const { serve: program } = yield* Effect.promise(() => import("./programs.ts"))
-      return yield* program({ ...identity(), port, record: true, allowOrigins })
+      return yield* program({ ...identity(), port, record: true, allowOrigins, startedBy: process.env[STARTED_BY] === "open" ? "open" : "serve" })
     })
 ).pipe(Command.withDescription("Serve the catalog in the foreground until interrupted (127.0.0.1 only)"))
 

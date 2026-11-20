@@ -39,6 +39,8 @@ export interface ServeOptions {
   readonly browser?: BrowserOptions | undefined
   /** Exact origins admitted besides this machine's: a private HTTPS proxy in front of the server. */
   readonly allowOrigins?: ReadonlyArray<string> | undefined
+  /** Who started it, for the record: `jam catalog open`, or `jam catalog serve` run directly. */
+  readonly startedBy?: "open" | "serve" | undefined
 }
 
 const toolkitRoot = fileURLToPath(new URL("../../../", import.meta.url))
@@ -102,7 +104,7 @@ export class CatalogServer extends Context.Service<CatalogServer, {
         const url = `http://${LOOPBACK}:${port}/`
         const record = options.record && (yield* state.known) === null
         if (record) {
-          yield* state.write({ pid: options.pid, port, url, toolkit: options.toolkit, startedAt: yield* nowIso, allowOrigins: [...config.allowed.origins] })
+          yield* state.write({ pid: options.pid, port, url, toolkit: options.toolkit, startedAt: yield* nowIso, allowOrigins: [...config.allowed.origins], startedBy: options.startedBy ?? "serve" })
           yield* Effect.addFinalizer(() => state.clear(options.pid))
         }
         return { url, port, recorded: record }

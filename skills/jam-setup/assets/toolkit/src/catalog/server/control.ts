@@ -17,8 +17,9 @@ export interface Launch {
   readonly command: string
   readonly args: ReadonlyArray<string>
   readonly toolkit: string
-  /** The exact origins the server must admit besides this machine's; a server admitting others is replaced. */
+  /** The exact origins the server must admit besides this machine's; a server `open` started admitting others is replaced. */
   readonly allowOrigins: ReadonlyArray<string>
+  readonly env?: Readonly<Record<string, string>>
 }
 
 const sameOrigins = (record: ServerRecord, wanted: ReadonlyArray<string>): boolean =>
@@ -33,6 +34,8 @@ export interface ServerStatus {
   readonly startedAt: string | null
   /** Why a recorded server does not count as running, when it does not. */
   readonly reason: string | null
+  /** `open` or `serve` (see `ServerRecord.startedBy`); null when nothing is recorded. */
+  readonly startedBy: "open" | "serve" | null
 }
 
 export interface Opened extends ServerStatus {
@@ -49,9 +52,9 @@ type Services = ServerState | Detached | ProjectFiles | Git
 const OPEN_LOCK = `${LOCAL_DIR}/server-open.lock`
 const START_TIMEOUT_MS = 60_000
 
-const describe = (record: ServerRecord): Omit<ServerStatus, "running" | "reason"> => ({ url: record.url, port: record.port, pid: record.pid, toolkit: record.toolkit, startedAt: record.startedAt })
+const describe = (record: ServerRecord): Omit<ServerStatus, "running" | "reason"> => ({ url: record.url, port: record.port, pid: record.pid, toolkit: record.toolkit, startedAt: record.startedAt, startedBy: record.startedBy ?? "open" })
 const opened = (record: ServerRecord, started: boolean): Opened => ({ running: true, ...describe(record), url: record.url, reason: null, started, log: SERVER_LOG_FILE, allowOrigins: record.allowOrigins ?? [] })
-const NONE: ServerStatus = { running: false, url: null, port: null, pid: null, toolkit: null, startedAt: null, reason: null }
+const NONE: ServerStatus = { running: false, url: null, port: null, pid: null, toolkit: null, startedAt: null, reason: null, startedBy: null }
 
 /**
  * What the record says, checked against what answers: the recorded process must be alive and a
@@ -84,7 +87,7 @@ const start = (launch: Launch): Effect.Effect<Opened, ToolError, Services> =>
     // A fresh log per start: what is in it is about this server.
     yield* files.writeText(SERVER_LOG_FILE, "", { noFollow: true })
     const log = yield* files.resolve(SERVER_LOG_FILE, { noFollow: true })
-    const pid = yield* detached.start(launch.command, launch.args, { cwd: files.root, log })
+    const pid = yield* detached.start(launch.command, launch.args, { cwd: files.root, log, ...(launch.env ? { env: launch.env } : {}) })
     for (let waited = 0; waited < START_TIMEOUT_MS; waited += 100) {
       const record = yield* state.recorded
       if (record?.pid === pid && (yield* health(record.url))?.pid === pid) return opened(record, true)
@@ -99,7 +102,9 @@ const start = (launch: Launch): Effect.Effect<Opened, ToolError, Services> =>
 
 /**
  * The address of this checkout's server, starting it when none is running. A running server of
- * this toolkit version is reused; a dead, foreign or older one is replaced.
+ * this toolkit version is reused; a dead, foreign or older one is replaced. A server started with
+ * `jam catalog serve` belongs to whoever started it (a person, a service manager): it is reused
+ * whatever origins it admits, and never stopped; one of another toolkit version is an error.
  */
 export const openServer = (launch: Launch): Effect.Effect<Opened, ToolError, Services> =>
   Effect.gen(function*() {
@@ -110,6 +115,14 @@ export const openServer = (launch: Launch): Effect.Effect<Opened, ToolError, Ser
     yield* files.lock(OPEN_LOCK).pipe(Effect.retry({ schedule: Schedule.spaced("250 millis"), times: 280, while: (error) => error.code === "locked" }))
     const { confirmed, reason, record } = yield* inspect
     if (record !== null) {
+      if (confirmed && reason === null && record.startedBy === "serve") {
+        if (record.toolkit === launch.toolkit && launch.allowOrigins.every((origin) => (record.allowOrigins ?? []).includes(origin))) return opened(record, false)
+        return yield* fail("unavailable", record.toolkit === launch.toolkit
+          ? `the catalog server at ${record.url} (process ${record.pid}) was started with jam catalog serve and does not admit ${launch.allowOrigins.join(", ")}`
+          : `the catalog server at ${record.url} (process ${record.pid}) was started with jam catalog serve by toolkit ${record.toolkit}, not ${launch.toolkit}`, {
+          fix: "restart it where it was started (the command or service that runs jam catalog serve), with the toolkit and origins wanted; open does not stop a server it did not start"
+        })
+      }
       if (confirmed && reason === null && record.toolkit === launch.toolkit && sameOrigins(record, launch.allowOrigins)) return opened(record, false)
       // Only a process that answered as this checkout's server is stopped; anything else is left alone.
       if (confirmed) yield* (yield* Detached).stop(record.pid)
