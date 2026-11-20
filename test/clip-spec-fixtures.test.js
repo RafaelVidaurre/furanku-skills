@@ -19,8 +19,7 @@ const python = spawnSync("python3", ["--version"], { encoding: "utf8" });
 const noPython = python.error || python.status !== 0 ? "python3 is not available" : false;
 
 test("the shared fixtures cover the cases both readers must agree on", () => {
-  assert.ok(fixtures("valid").includes("poses-at-the-same-time.json"), "poses may share a time");
-  for (const name of ["duplicate-pose-names", "poses-out-of-time-order", "pose-past-length-max", "fps-overflows-to-infinity", "threshold-nan",
+  for (const name of ["duplicate-pose-names", "poses-out-of-time-order", "poses-on-one-frame", "pose-past-length-max", "fps-overflows-to-infinity", "threshold-nan",
     "length-infinity", "detect-null", "key-poses-null", "contacts-null", "planted-null", "root-bone-null", "unknown-top-key", "unknown-accept-key",
     "unknown-rig-key", "unknown-pose-key", "unknown-detect-key", "planted-from-after-to", "id-trailing-newline", "path-trailing-newline",
     "schema-not-a-string", "loop-seam-without-loop", "loop-without-loop-seam", "bone-with-in-place"]) {

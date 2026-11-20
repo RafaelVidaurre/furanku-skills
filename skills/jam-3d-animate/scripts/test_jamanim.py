@@ -84,6 +84,14 @@ def test_spec_checks_key_poses_and_contacts():
     assert "contacts.detect" in text and "contacts.planted[0]" in text
 
 
+def test_spec_keys_each_pose_on_its_own_frame():
+    """A pose is keyed on the nearest whole frame, halves rounding up as the toolkit rounds; two on one frame are refused."""
+    at = lambda *times: good_spec(keyPoses={"file": "keyposes.glb", "poses": [{"name": "p%d" % i, "time": t} for i, t in enumerate(times)]})
+    with pytest.raises(spec.SpecError, match="p0 and p1 both fall on frame 5"):
+        spec.normalize(at(0.15, 0.1666), check_files=False)                  # 4.5 and 4.998 frames at 30 fps
+    assert [spec.frame_of(p["time"], 30) for p in spec.normalize(at(0.1334, 0.15), check_files=False)["keyPoses"]["poses"]] == [4, 5]
+
+
 def test_spec_paths_are_project_relative_and_open_from_the_project_root(tmp_path, monkeypatch):
     (tmp_path / "rig").mkdir(); (tmp_path / "anim").mkdir()
     (tmp_path / "rig" / "rig.glb").write_bytes(b"")
@@ -254,14 +262,42 @@ def test_a_jump_inside_the_clip_neither_hides_an_end_pop_nor_goes_unread():
     assert b["start"][0][1:].max() == pytest.approx(0.08, abs=2e-3)         # the pop at the start, at its size
     assert b["steps"][15].max() == pytest.approx(0.08, abs=2e-3) and b["steps"].argmax() // 3 == 15
     spiked = pos.copy(); spiked[12, 2] += [0, 0.03, 0]
-    assert measure.step_jumps(spiked)[:, 2].max() == pytest.approx(0.05, abs=1e-6)   # one frame out of line by d reads 5/3 d
+    assert measure.step_jumps(spiked)[:, 2].max() == pytest.approx(0.03 * 10 / 9, abs=1e-6)   # one frame out of line by d reads 10/9 d
     assert measure.step_jumps(stepped)[:4].max() == 0 and measure.step_jumps(stepped)[-3:].max() == 0
+
+
+def test_an_interior_jump_is_read_against_the_motion_around_it():
+    """Fast smooth motion departs from its neighbouring steps too; only a departure in a jump's pattern is read."""
+    for fps in (23.976, 29.97, 60.0):
+        t = np.arange(int(round(fps))) / fps
+        fast = np.zeros((len(t), 2, 3))                                                  # one point moving fast, one still
+        fast[:, 0, 2] = 0.5 * np.sin(2 * math.pi * t) + 0.1 * np.sin(6 * math.pi * t)   # up to 5 m/s
+        departs = float(np.linalg.norm(measure.departures(fast), axis=-1).max())
+        assert measure.step_jumps(fast).max() < min(0.1 * departs, 1e-3), fps
+        stepped = fast.copy(); stepped[len(t) // 2:] += [0.08, 0, 0]
+        jumps = measure.step_jumps(stepped)
+        assert jumps[:, 1].max() == pytest.approx(0.08, abs=1e-6) and jumps[:, 1].argmax() == len(t) // 2    # the still point reads it whole
+        assert 0.06 < jumps[:, 0].max() <= 0.08 + 1e-6                                   # the fast one, less its own roughness
+    stop = np.zeros((30, 1, 3)); stop[:, 0, 0] = np.minimum(np.arange(30), 14) / FPS           # 1 m/s, then still
+    assert measure.step_jumps(stop).max() == pytest.approx(1 / (3 * FPS), abs=1e-6)
 
 
 def test_a_loop_that_does_not_close_fails_whatever_happens_inside_it():
     pos = body(30)
     gap = pos.copy(); gap[12:] += [0.05, 0, 0]; gap[22:] -= [0.05, 0, 0]; gap[25:] += [0, 0.2, 0]
     assert measure.seam_jumps(gap)["open-end"][0].max() == pytest.approx(0.2, abs=5e-3)
+
+
+def test_a_hitch_just_after_the_wrap_counts_in_the_seam():
+    """The extrapolation across the wrap reads the first frame only; a stall on the frames after it is read on the
+    cycle as it plays."""
+    stalled = body(30); stalled[1] = stalled[0]
+    step = float(np.linalg.norm(stalled[2] - stalled[0], axis=-1).max()) / 2
+    assert measure.seam_jumps(body(30))["open-end"][0].max() < 1e-3
+    assert measure.seam_jumps(stalled)["open-end"][0].max() > 0.8 * step
+    held = body(31); held[1] = held[0]; held[-1] = held[0]
+    assert measure.seam_jumps(body(31))["duplicate-end"][0].max() < 1e-3
+    assert measure.seam_jumps(held)["duplicate-end"][0].max() > 0.8 * step
 
 
 def test_seam_reads_both_loop_ends():
@@ -364,9 +400,10 @@ def test_travel_file_round_trip_and_refusals(tmp_path):
 
 # ---- glTF reader ---------------------------------------------------------------------------------------------------
 
-def write_glb(path, times, hips_y, rotation_b, rotation_times=None, b_offset=1.0):
+def write_glb(path, times, hips_y, rotation_b, rotation_times=None, b_offset=1.0, bind=None, vertices=None):
     """Two joints: hips (animated translation) and its child b b_offset metres up (animated rotation about x, keyed at
-    rotation_times, default the same times)."""
+    rotation_times, default the same times). bind: the joints' heights at rest, written as the skin's inverse bind
+    matrices (none: the skin has none). vertices: [(position, joint index)] of a skinned mesh, each wholly on one joint."""
     blobs, views, accessors = [], [], []
 
     def add(values, kind):
@@ -384,8 +421,16 @@ def write_glb(path, times, hips_y, rotation_b, rotation_times=None, b_offset=1.0
     rt = t if rotation_times is None else add(rotation_times, "SCALAR")
     tr = add([[0, y, 0] for y in hips_y], "VEC3")
     rot = add([[math.sin(a / 2), 0, 0, math.cos(a / 2)] for a in rotation_b], "VEC4")
-    doc = {"asset": {"version": "2.0"}, "nodes": [{"name": "hips", "children": [1]}, {"name": "b", "translation": [0, b_offset, 0]}],
-           "skins": [{"joints": [0, 1]}], "accessors": accessors, "bufferViews": views,
+    skin = {"joints": [0, 1]}
+    if bind is not None:
+        inverse = [np.linalg.inv(gltf.trs([0, y, 0], [0, 0, 0, 1], [1, 1, 1])) for y in bind]
+        skin["inverseBindMatrices"] = add([m.T.reshape(-1) for m in inverse], "MAT4")
+    nodes = [{"name": "hips", "children": [1]}, {"name": "b", "translation": [0, b_offset, 0]}] + ([{"name": "body", "mesh": 0, "skin": 0}] if vertices else [])
+    doc = {"asset": {"version": "2.0"}, "nodes": nodes,
+           "skins": [skin], "accessors": accessors, "bufferViews": views,
+           **({"meshes": [{"primitives": [{"attributes": {"POSITION": add([p for p, _ in vertices], "VEC3"),
+                                                          "JOINTS_0": add([[j, 0, 0, 0] for _, j in vertices], "VEC4"),
+                                                          "WEIGHTS_0": add([[1, 0, 0, 0] for _ in vertices], "VEC4")}}]}]} if vertices else {}),
            "buffers": [{"byteLength": sum(len(b) for b in blobs)}],
            "animations": [{"name": "walk", "samplers": [{"input": t, "output": tr}, {"input": rt, "output": rot}],
                            "channels": [{"sampler": 0, "target": {"node": 0, "path": "translation"}},
@@ -444,8 +489,26 @@ def test_rest_difference(tmp_path):
     write_glb(b, [0, 1 / 30], [0.9, 1.0], [0, 0], b_offset=1.01)
     same = gltf.rest_difference(gltf.Gltf(a), gltf.Gltf(a), ["hips", "b"])
     assert same["position"] == 0 and same["linear"] == 0
-    moved = gltf.rest_difference(gltf.Gltf(b), gltf.Gltf(a), ["hips", "b"])
+    moved = gltf.rest_difference(gltf.Gltf(b), gltf.Gltf(a), ["hips", "b"])           # no inverse bind matrices: the nodes
     assert moved["position"] == pytest.approx(0.01, abs=1e-6) and moved["positionBone"] == "b"
+
+
+def test_rest_is_the_bind_pose_when_the_skin_has_one(tmp_path):
+    """An exporter may write a pose into the nodes; the skin's inverse bind matrices still hold the rest."""
+    rig, posed, edited = (str(tmp_path / n) for n in ("rig.glb", "posed.glb", "edited.glb"))
+    write_glb(rig, [0, 1 / 30], [0.9, 1.0], [0, 0], bind=[0.0, 1.0])
+    write_glb(posed, [0, 1 / 30], [0.9, 1.0], [0, 0], b_offset=1.2, bind=[0.0, 1.0])     # nodes at a pose, bound at rest
+    write_glb(edited, [0, 1 / 30], [0.9, 1.0], [0, 0], b_offset=1.02, bind=[0.0, 1.02])  # the rig itself changed
+    assert gltf.rest_world(gltf.Gltf(posed))["b"][:3, 3] == pytest.approx([0, 1.0, 0], abs=1e-6)
+    assert gltf.rest_difference(gltf.Gltf(posed), gltf.Gltf(rig), ["hips", "b"])["position"] < 1e-6
+    changed = gltf.rest_difference(gltf.Gltf(edited), gltf.Gltf(rig), ["hips", "b"])
+    assert changed["position"] == pytest.approx(0.02, abs=1e-6) and changed["positionBone"] == "b"
+    # the vertices at rest: as stored when the skin is bound, skinned by the nodes when it is not
+    write_glb(posed, [0, 1 / 30], [0.9, 1.0], [0, 0], b_offset=1.2, bind=[0.0, 1.0], vertices=[([0, 0.95, 0], 1), ([0, 0.1, 0], 0)])
+    assert gltf.rest_vertices(gltf.Gltf(posed), {"b"}).tolist() == [[0, pytest.approx(0.95), 0]]
+    write_glb(posed, [0, 1 / 30], [0.9, 1.0], [0, 0], b_offset=1.2, vertices=[([0, -0.05, 0], 1), ([0, 0.1, 0], 0)])
+    assert gltf.rest_vertices(gltf.Gltf(posed), {"b"})[:, 1] == pytest.approx([1.15])
+    assert len(gltf.rest_vertices(gltf.Gltf(posed), {"foot"})) == 0
 
 
 # ---- blockout ------------------------------------------------------------------------------------------------------

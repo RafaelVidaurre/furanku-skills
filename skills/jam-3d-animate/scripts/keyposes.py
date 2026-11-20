@@ -13,8 +13,9 @@ carried over as its motion from rest in the world, parents first, so a source ar
 (a rig kept in centimetres under a 0.01 scale) gives the same pose.
 
 Writes keyPoses.file (the animation is named "<spec id>-keyposes"; keys at whole frames of the spec's fps); beside it
-with the extension .json, a manifest listing each pose with its time, frame and the action it came from; and beside it
+as <name>.keyposes.json, a manifest listing each pose with its time, frame and the action it came from; and beside it
 as <name>-sheet.png, one still of the rig per pose, stamped with the pose's name and frame (tiles in <name>-sheet/).
+A manifest path already holding a file this script did not write is refused before anything is written.
 """
 import argparse
 import json
@@ -99,6 +100,24 @@ def pose_sheet(scene, rig, rig_objects, rows, out_glb, a):
     return os.path.join(os.path.dirname(out_glb), stem + ".png")
 
 
+TOOL = "jam-3d-animate keyposes.py"
+
+
+def manifest_path(out_glb):
+    """<name>.keyposes.json beside the key-pose file; refused when a file there is not a manifest this script wrote."""
+    path = os.path.splitext(out_glb)[0] + ".keyposes.json"
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                ours = str(json.load(f).get("tool", "")).startswith(TOOL)
+        except (OSError, ValueError, AttributeError):
+            ours = False
+        if not ours:
+            fail("%s already holds a file keyposes.py did not write; it writes its manifest there, so move that file or "
+                 "give keyPoses.file another name" % path)
+    return path
+
+
 def main():
     a = parse(jamanim.script_args(sys.argv))
     blend.require_version(fail)
@@ -109,6 +128,8 @@ def main():
     if not s["keyPoses"]:
         fail("the clip spec lists no keyPoses")
     fps = float(s["fps"])
+    out_glb = s["keyPoses"]["file"]
+    manifest_at = manifest_path(out_glb)
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
@@ -172,16 +193,13 @@ def main():
         if abs(pose["time"] * fps - frame) > 1e-6:
             print("note: %s at %g s falls between frames at %g fps; keyed on frame %d (%g s)" % (pose["name"], pose["time"], fps, frame, frame / fps),
                   file=sys.stderr)
-    frames = [r["frame"] for r in rows]
-    if len(set(frames)) != len(frames):
-        fail("two poses fall on one frame at %s fps: %s" % (fps, ", ".join("%s@%d" % (r["name"], r["frame"]) for r in rows)))
+    frames = [r["frame"] for r in rows]          # one per pose: the spec reader refuses two poses on one frame
 
     for act in [x for x in bpy.data.actions if x != out_action]:
         bpy.data.actions.remove(act)
     for ob in pose_objects:                     # whatever else the poses file held (bone shapes, props) stays out
         bpy.data.objects.remove(ob)
     scene.frame_start, scene.frame_end = min(frames), max(frames)
-    out_glb = s["keyPoses"]["file"]
     os.makedirs(os.path.dirname(os.path.abspath(out_glb)), exist_ok=True)
     bpy.ops.object.select_all(action="DESELECT")
     for ob in rig_objects:
@@ -190,14 +208,13 @@ def main():
                               export_animations=True, export_animation_mode="ACTIONS", export_force_sampling=False,
                               export_optimize_animation_size=False, export_apply=False)
     sheet = pose_sheet(scene, rig, rig_objects, rows, out_glb, a)
-    manifest = {"tool": "jam-3d-animate keyposes.py " + jamanim.VERSION, "blender": bpy.app.version_string,
+    manifest = {"tool": TOOL + " " + jamanim.VERSION, "blender": bpy.app.version_string,
                 "rig": report.stamp("rig", rig_path), "spec": report.stamp("spec", a.spec),
                 "poses-from": report.stamp("poses", a.poses) if a.poses else None,
                 "animation": out_action.name, "fps": fps, "poses": rows, "output": report.stamp("keyposes", out_glb),
                 "sheet": dict(report.stamp("sheet", sheet), view=a.view)}
-    manifest_path = os.path.splitext(out_glb)[0] + ".json"
-    report.write(manifest_path, manifest)
-    print(json.dumps({"keyposes": out_glb.replace(os.sep, "/"), "manifest": manifest_path.replace(os.sep, "/"), "sheet": sheet.replace(os.sep, "/"),
+    report.write(manifest_at, manifest)
+    print(json.dumps({"keyposes": out_glb.replace(os.sep, "/"), "manifest": manifest_at.replace(os.sep, "/"), "sheet": sheet.replace(os.sep, "/"),
                       "animation": out_action.name, "poses": rows}))
 
 

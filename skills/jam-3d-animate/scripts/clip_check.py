@@ -2,7 +2,7 @@
 from the project root (the spec's paths are project-relative).
 
     blender --background --python-exit-code 1 --python clip_check.py -- <clip.glb> <clip.json> <out-dir>
-            [--measure-only] [--animation <name>] [--contact-height <m> --contact-speed <m/s>]
+            [--measure-only] [--animation <name>] [--contact-height <m> --contact-speed <m/s>] [--acknowledge <name> ...]
             [--travel <travel.json> | --travel-velocity <vx>,<vz>] [--provider-contacts <file>]
             [--loop-end auto|open|duplicate] [--sheet-frames 8] [--view side|front|three-quarter|back]
             [--size 320x400] [--video auto|none] [--ffmpeg <path>] [--engine workbench|cycles]
@@ -15,8 +15,13 @@ when the spec loops. A foot's travel within the contact height on frames no cont
 touch-down, or a slide faster than detection) is reported, not judged: a run of it longer than the slide threshold is
 listed in `unjudged` for a person to judge from the sheet and video. Each measure is held against the
 spec's `accept` thresholds; jumps inside the clip against `accept.boundaryJump`. Contact detection takes
-`contacts.detect` from the spec, or --contact-height and --contact-speed. Contacts a provider returned are never used;
---provider-contacts stamps their file into the report beside the measured ones.
+`contacts.detect` from the spec; --contact-height and --contact-speed stand in for it only where the spec has none, or
+with --measure-only. Contacts a provider returned are never used; --provider-contacts stamps their file into the report
+beside the measured ones.
+
+What the check leaves to a person (`unjudged`) or could not measure (`unmeasured`) is a person's to judge from the sheet
+and video. Until each is acknowledged, `passed` is null and the check exits 3; once the person has judged one, run again
+with --acknowledge <name> (repeatable), which the report records in `acknowledged`.
 
 --measure-only reads no thresholds (the spec may have none yet) and judges nothing: the report holds the measures and
 `passed` is null. Without detection numbers it then leaves the detected contacts unmeasured.
@@ -29,7 +34,8 @@ one of them.
 Writes clip-report.json, clip-sheet.png (stills over time; green markers on planted points, red where their window
 failed, amber on a foot's travel at ground height that is for a person to judge) with its tiles in clip-sheet/, and clip.mp4 when an encoder is found (Blender's own, else ffmpeg);
 otherwise the report says why there is no video. Exits 0 when every check passed (with --measure-only: when the clip
-was measured), 1 when one failed or the clip could not be read.
+was measured), 1 when one failed or the clip could not be read, 3 when nothing failed but something awaits a person's
+judgement (`awaiting`).
 """
 import argparse
 import json
@@ -48,6 +54,9 @@ from jamanim.blend import to_blender, to_gltf  # noqa: E402
 # round-off of exporting the same rig again, far below any edit to it.
 REST_POSITION = 1e-4       # metres
 REST_LINEAR = 2e-4         # largest entry of the difference of the world rotation-and-scale matrices (about 0.01 degree)
+# What a person may acknowledge: each measure that can go unmeasured, and the travel at ground height left to them.
+TO_ACKNOWLEDGE = ("footSlide", "penetration", "boundaryJump", "interiorJump", "loopSeam", "groundTravel")
+AWAITING = 3               # exit code: nothing failed, something awaits a person's judgement
 
 
 def parse(argv):
@@ -55,6 +64,7 @@ def parse(argv):
     p.add_argument("clip"); p.add_argument("spec"); p.add_argument("out")
     p.add_argument("--measure-only", action="store_true")
     p.add_argument("--animation"); p.add_argument("--contact-height", type=float); p.add_argument("--contact-speed", type=float)
+    p.add_argument("--acknowledge", action="append", default=[], choices=TO_ACKNOWLEDGE)
     p.add_argument("--travel"); p.add_argument("--travel-velocity"); p.add_argument("--provider-contacts")
     p.add_argument("--loop-end", choices=("auto", "open", "duplicate"), default="auto")
     p.add_argument("--sheet-frames", type=int, default=8)
@@ -112,6 +122,15 @@ def foot_vertices(meshes, arm, at):
     return out
 
 
+def below(skeleton, bone):
+    """The bone and every joint under it, from a skeleton's [(joint, parent joint)]."""
+    out, grew = {bone}, True
+    while grew:
+        more = {j for j, parent in skeleton if parent in out} - out
+        out |= more; grew = bool(more)
+    return out
+
+
 def lowest(found):
     """Lowest world height (Blender Z) of the given vertices as currently posed; None without any."""
     if not found:
@@ -158,11 +177,17 @@ def main():
         smap = skelmap.load(s["rig"]["map"])
     except (specs.SpecError, skelmap.MapError, OSError) as e:
         fail("the clip spec is not usable: %s" % e)
+    if a.acknowledge and not judge:
+        fail("--acknowledge records a person's judgement of a judged check; --measure-only judges nothing")
     detect = s["contacts"]["detect"]
     detect_from = "clip spec contacts.detect"
     if a.contact_height is not None or a.contact_speed is not None:
         if a.contact_height is None or a.contact_speed is None:
             fail("give both --contact-height and --contact-speed")
+        if judge and detect is not None:
+            fail("the clip spec sets contacts.detect, and a judged check detects contacts with it; --contact-height and "
+                 "--contact-speed apply with --measure-only, or to a spec without contacts.detect. To judge with other "
+                 "numbers, change the spec with the person")
         detect, detect_from = {"height": a.contact_height, "speed": a.contact_speed}, "--contact-height/--contact-speed"
     if detect is None and judge:
         fail("contact detection needs a height and a speed: set contacts.detect in the clip spec, or pass --contact-height <m> --contact-speed <m/s>")
@@ -202,19 +227,21 @@ def main():
     keys = skelmap.contact_points(at, limbs)
     feet = foot_vertices(meshes, arm, at)
 
-    # rest: where the ground is and how high each contact point stands on it
-    arm.data.pose_position = "REST"; bpy.context.view_layer.update()
-    W = arm.matrix_world
-    rest_point = {lm: (W @ arm.pose.bones[bone].head).z for _, lm, bone in keys}
-    soles = [x for x in (lowest(feet[l]) for l in ("foot.l", "foot.r")) if x is not None]
+    # rest, as the clip's skin was bound (the skeleton check holds it to the rig's): where the ground is and how high
+    # each contact point stands on it
+    bound = gltf.rest_world(g)
+    rest_point = {lm: float(bound[bone][1, 3]) for _, lm, bone in keys}
+    chain = {limb: below(clip_skeleton, at[limb]) for limb in ("foot.l", "foot.r")}
+    soles = [float(v[:, 1].min()) for v in (gltf.rest_vertices(g, chain[l]) for l in ("foot.l", "foot.r")) if len(v)]
     flat = s["ground"]["kind"] == "flat"
     if soles:
-        ground, ground_from = min(soles), "the lowest foot vertex with the rig at rest"
+        ground, ground_from = min(soles), "the lowest vertex weighted to a foot, with the skin at rest"
     else:
         ground, ground_from = 0.0, "y = 0: the clip has no mesh weighted to the feet"
     rest_heights = {lm: z - ground for lm, z in rest_point.items()}
-    figure_top = max((W @ pb.tail).z for pb in arm.pose.bones)
-    fig_height = figure_top - ground
+    soles = soles if all(feet[l] for l in ("foot.l", "foot.r")) else []   # the clip's mesh in Blender gives the lowest point per frame
+    arm.data.pose_position = "REST"; bpy.context.view_layer.update()
+    fig_height = max((arm.matrix_world @ pb.tail).z for pb in arm.pose.bones) - min((arm.matrix_world @ pb.head).z for pb in arm.pose.bones)
     arm.data.pose_position = "POSE"; bpy.context.view_layer.update()
 
     labels, pos, pts, low = sample(scene, arm, frame0, frames, keys, feet)
@@ -313,11 +340,13 @@ def main():
                          "wanted": s["length"]}}
     unmeasured = [k for k, v in measures.items() if v is None]
     unjudged = (["groundTravel"] if any(r["toJudge"] for r in grounded) else []) if judge else None
+    acknowledged = sorted(set(a.acknowledge)) if judge else None
     if judge:
         failures = [k for k, v in checks.items() if not v["passed"]] + [k for k, v in accept.items() if v["passed"] is False]
-        passed = not failures
+        awaiting = [k for k in unmeasured + unjudged if k not in acknowledged]
+        passed = False if failures else (None if awaiting else True)
     else:
-        failures, passed = None, None
+        failures, awaiting, passed = None, None, None
 
     hips_k = labels.index((at["hips"], "head"))
     hips_g = pos[:, hips_k]
@@ -367,15 +396,20 @@ def main():
            if a.provider_contacts else None,
            "boundary": boundary, "seam": seam, "root": root_facts,
            "checks": checks, "measures": {k: (None if v is None else report.mm(v)) for k, v in measures.items()},
-           "accept": accept, "failures": failures, "unmeasured": unmeasured, "unjudged": unjudged, "passed": passed,
+           "accept": accept, "failures": failures, "unmeasured": unmeasured, "unjudged": unjudged,
+           "acknowledged": acknowledged, "awaiting": awaiting, "passed": passed,
            "evidence": {"sheet": dict(report.stamp("sheet", sheet), frames=picks, columns=columns, view=a.view),
                         "video": report.stamp("video", video) if video else {"skipped": why_no_video}}}
     out_report = os.path.join(a.out, "clip-report.json")
     report.write(out_report, doc)
     print(json.dumps({"report": out_report.replace(os.sep, "/"), "passed": passed, "failures": failures, "unmeasured": unmeasured, "unjudged": unjudged,
+                      "acknowledged": acknowledged, "awaiting": awaiting,
                       "sheet": sheet.replace(os.sep, "/"), "video": video.replace(os.sep, "/") if video else None,
                       "measures": doc["measures"]}))
-    sys.exit(0 if passed is not False else 1)
+    if awaiting:
+        print("awaiting a person's judgement: %s. Show the person the sheet and video; once they have judged each, run "
+              "again with %s" % (", ".join(awaiting), " ".join("--acknowledge " + k for k in awaiting)))
+    sys.exit(1 if passed is False else AWAITING if awaiting and passed is None else 0)
 
 
 if __name__ == "__main__":

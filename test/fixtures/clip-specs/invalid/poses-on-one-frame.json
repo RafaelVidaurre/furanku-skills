@@ -1,5 +1,5 @@
 {
-  "id": "poses-at-the-same-time",
+  "id": "poses-on-one-frame",
   "purpose": "The hero's default walk, looped under player control.",
   "rig": {
     "model": "art/hero/hero.glb",
@@ -26,7 +26,7 @@
       },
       {
         "name": "contact-right",
-        "time": 0.5
+        "time": 0.51
       }
     ]
   },

@@ -185,7 +185,7 @@
                 ],
                 "additionalProperties": false
               },
-              "description": "Named poses with their intended times, in the order of their keys: each name once, in time order, none after length.max"
+              "description": "Named poses with their intended times, in the order of their keys: each name once, in time order, each on its own whole frame of fps, none after length.max"
             }
           },
           "required": [
@@ -302,7 +302,7 @@
       ],
       "additionalProperties": false,
       "title": "Clip spec (clip.json): one animation clip on the project rig. Paths are project-relative.",
-      "description": "Beyond each field's own shape: accept.loopSeam is given exactly when loop is true; key poses have distinct names, are in time order and none is after length.max. Numbers are finite; an optional field is left out, never null."
+      "description": "Beyond each field's own shape: accept.loopSeam is given exactly when loop is true; key poses have distinct names, are in time order, fall on distinct whole frames of fps (the nearest, halves rounding up) and none is after length.max. Numbers are finite; an optional field is left out, never null."
     }
   }
 }

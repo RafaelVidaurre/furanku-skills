@@ -242,7 +242,10 @@ def sampling(model, fps, name=None):
 
 
 def rest_world(model):
-    """{joint name: 4x4 world matrix at rest} for every joint of every skin: the nodes' own transforms, parents
+    """{joint name: 4x4 world matrix at rest} for every joint of every skin (the first skin that lists a joint gives
+    it). A skin's rest is the pose its mesh was bound in, which its inverse bind matrices hold: each joint's is the
+    inverse of its matrix. The nodes' own transforms may hold any pose (an exporter can write an animation's first
+    frame there), so they stand in only for a skin without inverse bind matrices: the nodes' transforms, parents
     (joints or not) included."""
     local = {i: model.rest_local(i) for i in range(len(model.nodes))}
     world = {}
@@ -251,7 +254,50 @@ def rest_world(model):
         if i not in world:
             world[i] = w(model.parent[i]) @ local[i] if i in model.parent else local[i]
         return world[i]
-    return {model.name(j): w(j) for skin in model.json.get("skins", []) for j in skin["joints"]}
+    out = {}
+    for skin in model.json.get("skins", []):
+        bind = None
+        if "inverseBindMatrices" in skin:
+            bind = model.accessor(skin["inverseBindMatrices"]).reshape(-1, 4, 4).transpose(0, 2, 1)   # stored column-major
+        for k, j in enumerate(skin["joints"]):
+            if model.name(j) not in out:
+                out[model.name(j)] = np.linalg.inv(bind[k]) if bind is not None else w(j)
+    return out
+
+
+def rest_vertices(model, joints):
+    """[N, 3]: where the skinned vertices whose heaviest weight is on one of `joints` (names) stand with the skin at its
+    rest (rest_world). With inverse bind matrices that is each vertex as stored; without them, each vertex skinned by
+    the joints' node transforms. Morph targets are not applied."""
+    rest = rest_world(model)
+    out = []
+    for node in model.nodes:
+        if "mesh" not in node or "skin" not in node:
+            continue
+        skin = model.json["skins"][node["skin"]]
+        names = [model.name(j) for j in skin["joints"]]
+        if "inverseBindMatrices" in skin:
+            skinning = None
+        else:
+            skinning = np.stack([rest[n] for n in names])
+        for prim in model.json["meshes"][node["mesh"]].get("primitives", []):
+            att = prim.get("attributes", {})
+            if "POSITION" not in att or "JOINTS_0" not in att or "WEIGHTS_0" not in att:
+                continue
+            v = model.accessor(att["POSITION"])
+            sets = [(model.accessor(att["JOINTS_%d" % n]).astype(int), model.accessor(att["WEIGHTS_%d" % n]))
+                    for n in range(8) if "JOINTS_%d" % n in att and "WEIGHTS_%d" % n in att]
+            J = np.concatenate([j for j, _ in sets], axis=1); W = np.concatenate([w for _, w in sets], axis=1)
+            heaviest = J[np.arange(len(J)), W.argmax(axis=1)]
+            keep = np.array([names[h] in joints for h in heaviest]) & (W.max(axis=1) > 0)
+            if not keep.any():
+                continue
+            v, J, W = v[keep], J[keep], W[keep]
+            if skinning is not None:
+                M = np.einsum("ni,nijk->njk", W, skinning[J])
+                v = np.einsum("njk,nk->nj", M[:, :3, :3], v) + M[:, :3, 3]
+            out.append(v)
+    return np.concatenate(out) if out else np.zeros((0, 3))
 
 
 def rest_difference(clip, rig, names):
