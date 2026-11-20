@@ -67,7 +67,8 @@ test("open starts a server that outlives the command, reuses it, links results t
     assert.match(first.stderr, /started the catalog server \(process \d+\); it keeps running/)
     const record = JSON.parse(readFileSync(stateFile(dir), "utf8"))
     started.add(record.pid)
-    assert.deepEqual(Object.keys(record).sort(), ["allowOrigins", "checkout", "host", "pid", "port", "startedAt", "toolkit", "url"])
+    assert.deepEqual(Object.keys(record).sort(), ["allowOrigins", "checkout", "host", "pid", "port", "startedAt", "startedBy", "toolkit", "url"])
+    assert.equal(record.startedBy, "open")
     assert.deepEqual(record.allowOrigins, [])
     assert.deepEqual([record.url, record.port, record.host], [url, Number(new URL(url).port), hostname()])
     assert.ok(record.port >= 4600, "ports are taken from 4600 up")
@@ -203,6 +204,40 @@ test("open --allow-origin: a server admits exactly the origins it was opened wit
     assert.match(JSON.parse(wrong.stderr).error.message, /is not one origin/)
   } finally {
     run("stop")
+    cleanup(dir)
+  }
+})
+
+test("a server started with serve belongs to whoever started it: open reuses it whatever origins it admits, and never stops it", async () => {
+  const dir = await standardProject()
+  const run = cli(dir)
+  const PROXY = "https://box.tail.ts.net:8908"
+  // A person or a service manager runs the server in the foreground.
+  const service = spawn(process.execPath, [CLI, "catalog", "serve", "--root", dir, "--port", "auto", "--allow-origin", PROXY], { env, stdio: "ignore" })
+  started.add(service.pid!)
+  try {
+    let record: Any = null
+    for (let i = 0; i < 300 && record?.pid !== service.pid; i++) {
+      await new Promise((done) => setTimeout(done, 100))
+      if (existsSync(stateFile(dir))) record = JSON.parse(readFileSync(stateFile(dir), "utf8"))
+    }
+    assert.deepEqual([record.pid, record.startedBy, record.allowOrigins], [service.pid, "serve", [PROXY]])
+    const reused = opened(dir)
+    assert.deepEqual([reused.started, reused.pid, reused.startedBy, reused.allowOrigins], [false, service.pid, "serve", [PROXY]])
+    assert.match(run("open").stderr + run("open").stdout, /started with jam catalog serve\); it also admits https:\/\/box\.tail\.ts\.net:8908/)
+    assert.equal(opened(dir, "--allow-origin", PROXY).pid, service.pid, "an origin it admits: the same server")
+    const other = run("open", "--allow-origin", "https://other.tail.ts.net:8908", "--json")
+    assert.notEqual(other.status, 0)
+    assert.match(JSON.parse(other.stderr).error.message, /started with jam catalog serve and does not admit/)
+    writeFileSync(stateFile(dir), JSON.stringify({ ...JSON.parse(readFileSync(stateFile(dir), "utf8")), toolkit: "0.0.1" }))
+    const older = run("open", "--json")
+    assert.notEqual(older.status, 0)
+    assert.match(JSON.parse(older.stderr).error.message, /by toolkit 0\.0\.1/)
+    assert.match(run("status").stdout, /restart it where it was started/)
+    assert.ok(alive(service.pid!), "open never stopped the server it did not start")
+  } finally {
+    service.kill("SIGINT")
+    await gone(service.pid!)
     cleanup(dir)
   }
 })
