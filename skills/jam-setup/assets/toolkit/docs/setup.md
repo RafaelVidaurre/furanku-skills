@@ -80,3 +80,25 @@ What migration does to `jam.config.json`:
 Version 1 runs stay readable as runs of the `asset` recipe. Version 1 commands map to: `init` → `jam run start`, `status` → `jam run status`, `register` → `jam run record`, `review` → `jam run review`, `job-intent` → `jam job open`, `job-update` → `jam job submitted|done|failed|cancelled|lost`, `settings` → `jam config set`, `check-delivery` → `jam run deliver`. No command takes a hand-written JSON record any more.
 
 After an upgrade: `jam doctor`, `jam recipe check`, and `jam run status` to see how open runs read.
+
+## Renamed skills
+
+The skills that work only on 3D models carry `3d` in their names, so 2D skills can sit beside them:
+
+| Before | Now |
+| --- | --- |
+| `jam-model` | `jam-3d-model` |
+| `jam-retopo` | `jam-3d-retopo` |
+| `jam-uv` | `jam-3d-uv` |
+| `jam-texture` | `jam-3d-texture` |
+| `jam-rig` | `jam-3d-rig` |
+
+The shipped recipes name the new skills. `jam doctor`'s `skill names` line lists the old ones a project still has, installed or named in its own recipes. For each:
+
+1. Install the new skill: `npx skills add rafaelvidaurre/furanku-skills --skill <new name>`.
+2. Remove the old skill's folder, which the doctor line names, and reload skills.
+3. In a project recipe under `jam/recipes/`, change the step's `"skill"` to the new name.
+
+Runs recorded before the rename keep the old names in their history; nothing needs changing there.
+
+Done when `jam doctor` shows `skill names` as `ok`.

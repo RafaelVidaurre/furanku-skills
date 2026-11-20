@@ -34,6 +34,16 @@ export interface DoctorLine {
 
 const MINIMUM_NODE = [22, 20] as const
 
+/** Skills that shipped under another name, by old name. A project may still have the old ones installed or named in its recipes. */
+export const RENAMED_SKILLS: ReadonlyMap<string, string> = new Map([
+  ["jam-model", "jam-3d-model"],
+  ["jam-retopo", "jam-3d-retopo"],
+  ["jam-uv", "jam-3d-uv"],
+  ["jam-texture", "jam-3d-texture"],
+  ["jam-rig", "jam-3d-rig"]
+])
+const renamedTo = (name: string | undefined): string | undefined => name === undefined ? undefined : RENAMED_SKILLS.get(name)
+
 const line = (check: string, status: DoctorLine["status"], detail: string, fix?: string): DoctorLine => ({ check, status, detail, ...(fix === undefined ? {} : { fix }) })
 
 /** Run a section; a failure inside it becomes that section's own failing line. */
@@ -138,6 +148,37 @@ export const diagnose: Effect.Effect<ReadonlyArray<DoctorLine>, never, Toolkit |
       : line("recipes", "fail", `${problems.length} problem${problems.length === 1 ? "" : "s"}: ${problems.slice(0, 3).join("; ")}${problems.length > 3 ? "; ..." : ""}`, `"jam recipe check" lists every problem with its fix`)]
   })))
 
+  add(yield* section("skill names", Effect.gen(function*() {
+    // Agents install a project's skills under a hidden folder of the project root (<folder>/skills/<name>).
+    const found: Array<string> = []
+    const replacements = new Set<string>()
+    for (const folder of yield* files.list("")) {
+      if (!folder.name.startsWith(".") || folder.name === ".git") continue
+      const installed = yield* files.list(`${folder.name}/skills`).pipe(Effect.catch(() => Effect.succeed([])))
+      for (const skill of installed) {
+        const now = renamedTo(skill.name)
+        if (now === undefined) continue
+        found.push(`${folder.name}/skills/${skill.name} is now ${now}`)
+        replacements.add(now)
+      }
+    }
+    const recipes = yield* Recipes
+    const named: Array<string> = []
+    for (const entry of (yield* recipes.list).filter((recipe) => recipe.source === "project")) {
+      const authored = yield* recipes.authored(entry.id).pipe(Effect.catch(() => Effect.succeed(null)))
+      for (const step of authored?.steps ?? []) {
+        const now = renamedTo(step.skill)
+        if (now !== undefined) named.push(`${entry.path} step ${step.id} names ${step.skill}, now ${now}`)
+      }
+    }
+    if (found.length === 0 && named.length === 0) return [line("skill names", "ok", "no skill installed or named in a project recipe under a retired name")]
+    const fixes = [
+      ...(replacements.size === 0 ? [] : [`install ${[...replacements].join(", ")} with "npx skills add rafaelvidaurre/furanku-skills --skill <name>" and remove the old folders`]),
+      ...(named.length === 0 ? [] : ["change the \"skill\" of those steps to the new name"])
+    ]
+    return [line("skill names", "warn", `renamed skills: ${[...found, ...named].join("; ")}`, `${fixes.join("; ")} (${toolkit.path("docs/setup.md")}#renamed-skills)`)]
+  })))
+
   add(yield* section("providers", Effect.gen(function*() {
     const providers = yield* Providers
     const routed = new Set(Object.values(ready?.routes ?? {}))
@@ -198,6 +239,6 @@ export const doctor = Command.make("doctor", {}, () =>
       failing === 0 ? (warning === 0 ? "everything jam needs is in place" : `usable; ${warning} warning${warning === 1 ? "" : "s"}`) : `${failing} problem${failing === 1 ? "" : "s"} to fix`
     ))
   })).pipe(described(
-    "Report everything the toolkit depends on: Node, npm packages, Python imaging packages, Blender, ffmpeg, Git and LFS, configuration, recipes, providers, the engine adapter, unsettled jobs and stale locks. Each line has a status and a fix. Nothing is changed.",
+    "Report everything the toolkit depends on: Node, npm packages, Python imaging packages, Blender, ffmpeg, Git and LFS, configuration, recipes, skills installed under a retired name, providers, the engine adapter, unsettled jobs and stale locks. Each line has a status and a fix. Nothing is changed.",
     "jam doctor"
   ))

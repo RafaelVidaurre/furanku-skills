@@ -18,7 +18,7 @@ describe("doctor", () => {
     const root = jamProject({ git: true })
     const lines = await jam(root, diagnose)
     const checks = lines.map((line) => line.check)
-    for (const expected of ["toolkit", "node", "packages", "python", "blender", "ffmpeg", "git", "configuration", "machine paths", "recipes", "provider meshy", "provider scenario", "provider codex", "engine", "jobs", "locks"]) {
+    for (const expected of ["toolkit", "node", "packages", "python", "blender", "ffmpeg", "git", "configuration", "machine paths", "recipes", "skill names", "provider meshy", "provider scenario", "provider codex", "engine", "jobs", "locks"]) {
       assert.ok(checks.includes(expected), `${expected} in ${checks.join(", ")}`)
     }
     for (const line of lines) {
@@ -26,7 +26,7 @@ describe("doctor", () => {
       if (line.status === "warn" || line.status === "fail") assert.ok(line.fix, `${line.check} (${line.status}) says what to do`)
     }
     const byCheck = Object.fromEntries(lines.map((line) => [line.check, line]))
-    assert.deepEqual([byCheck["toolkit"]!.status, byCheck["node"]!.status, byCheck["packages"]!.status, byCheck["configuration"]!.status, byCheck["recipes"]!.status, byCheck["jobs"]!.status, byCheck["locks"]!.status], ["ok", "ok", "ok", "ok", "ok", "ok", "ok"])
+    assert.deepEqual([byCheck["toolkit"]!.status, byCheck["node"]!.status, byCheck["packages"]!.status, byCheck["configuration"]!.status, byCheck["recipes"]!.status, byCheck["skill names"]!.status, byCheck["jobs"]!.status, byCheck["locks"]!.status], ["ok", "ok", "ok", "ok", "ok", "ok", "ok", "ok"])
     assert.match(byCheck["packages"]!.detail, /npm packages installed \(measurement and the catalog need them\)/)
     assert.match(byCheck["engine"]!.detail, /gltf \(no engine chosen\); engine steps are skipped or done by hand/)
     assert.match(byCheck["provider meshy"]!.detail, /installed (yes|no), authenticated unknown, reachable unknown; per run 10, total 25 Meshy credits; routed|installed/)
@@ -52,6 +52,24 @@ describe("doctor", () => {
     assert.equal(missing["packages"]!.status, "fail")
     assert.match(missing["packages"]!.detail, /not installed: effect@4\.1\.4, some-decoder@1\.0\.0; models cannot be measured without them/)
     assert.match(missing["packages"]!.fix!, /npm ci --ignore-scripts/)
+  })
+
+  it("names skills installed or named in a project recipe under a retired name, with the new name and how to cross over", async () => {
+    const root = jamProject({ files: {
+      ".agents/skills/jam-rig/SKILL.md": "---\nname: jam-rig\n---\n",
+      ".agents/skills/jam-3d-uv/SKILL.md": "---\nname: jam-3d-uv\n---\n",
+      ".other-agent/skills/jam-uv/SKILL.md": "---\nname: jam-uv\n---\n",
+      "jam/recipes/statue.json": JSON.stringify({ version: 1, id: "statue", steps: [{ id: "mesh", skill: "jam-model" }, { id: "views", skill: "jam-turnaround" }] })
+    } })
+    const found = (await report(root))["skill names"]!
+    assert.equal(found.status, "warn")
+    assert.match(found.detail, /\.agents\/skills\/jam-rig is now jam-3d-rig/)
+    assert.match(found.detail, /\.other-agent\/skills\/jam-uv is now jam-3d-uv/)
+    assert.match(found.detail, /jam\/recipes\/statue\.json step mesh names jam-model, now jam-3d-model/)
+    assert.doesNotMatch(found.detail, /jam-3d-uv\/|turnaround/)
+    assert.match(found.fix!, /install jam-3d-rig, jam-3d-uv with "npx skills add rafaelvidaurre\/furanku-skills --skill <name>" and remove the old folders/)
+    assert.match(found.fix!, /change the "skill" of those steps to the new name/)
+    assert.match(found.fix!, /docs\/setup\.md#renamed-skills/)
   })
 
   it("flags a missing or version 1 configuration, broken recipes, unsettled jobs, stale locks and unreadable run files", async () => {

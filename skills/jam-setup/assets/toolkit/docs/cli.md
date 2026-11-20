@@ -43,7 +43,7 @@ A recipe step may carry a condition (`when`), such as "the engine adapter provid
 | `jam engine` | The engine adapter: conventions, and commands that reach the engine |
 | `jam audio` | Sound effects and voiced dialogue: generate, process to loudness targets, check, keep originals |
 | `jam schemas` | The published contract: JSON Schemas of every authored file, and the command reference |
-| `jam doctor` | Report everything the toolkit depends on: Node, npm packages, Python imaging packages, Blender, ffmpeg, Git and LFS, configuration, recipes, providers, the engine adapter, unsettled jobs and stale locks |
+| `jam doctor` | Report everything the toolkit depends on: Node, npm packages, Python imaging packages, Blender, ffmpeg, Git and LFS, configuration, recipes, skills installed under a retired name, providers, the engine adapter, unsettled jobs and stale locks |
 
 ## where
 
@@ -1497,7 +1497,7 @@ jam schemas check
 
 ## doctor
 
-Report everything the toolkit depends on: Node, npm packages, Python imaging packages, Blender, ffmpeg, Git and LFS, configuration, recipes, providers, the engine adapter, unsettled jobs and stale locks. Each line has a status and a fix. Nothing is changed.
+Report everything the toolkit depends on: Node, npm packages, Python imaging packages, Blender, ffmpeg, Git and LFS, configuration, recipes, skills installed under a retired name, providers, the engine adapter, unsettled jobs and stale locks. Each line has a status and a fix. Nothing is changed.
 
 ```
 jam doctor
