@@ -162,11 +162,15 @@ const runSpec = (input: CheckInput): { readonly path: string; readonly sha256: s
 
 const stampOf = (value: unknown): string | undefined => (isRecord(value) && typeof value["sha256"] === "string" ? value["sha256"] : undefined)
 
+/** The clip report's `detect.from` when contacts were detected with the clip spec's own numbers. */
+const DETECT_FROM_SPEC = "clip spec contacts.detect"
+
 /**
  * A clip is judged by its clip report (jam-3d-animate's clip check writes it). The report must pass,
  * be about the clip this record holds, the run's clip spec and the rig and map that spec names now,
- * judge (not only measure), find exactly one animation in the clip (checks.animations), and leave no
- * threshold unmeasured, and nothing it left to a person (unjudged), unless the record's note says how that one was judged.
+ * judge (not only measure) with the spec's own contact detection, find exactly one animation in the
+ * clip (checks.animations), and list every name it could not measure (unmeasured) or left to a person
+ * (unjudged) in `acknowledged`, which the check fills only when it is rerun after the person judged.
  */
 const clipReport = (files: ProjectFiles["Service"]): Check => ({
   id: "clip-report",
@@ -196,11 +200,27 @@ const clipReport = (files: ProjectFiles["Service"]): Check => ({
       }
       const problems: Array<Problem> = []
       for (const { path, report } of reports) {
+        const listed = (key: string): Array<string> => (Array.isArray(report[key]) ? (report[key] as Array<unknown>).map(String) : [])
+        const acknowledged = listed("acknowledged")
+        const awaiting = [...listed("unmeasured"), ...listed("unjudged")].filter((name) => !acknowledged.includes(name))
+        const failures = listed("failures")
         if (report["measureOnly"] === true) {
           problems.push({ message: `${path} only measured the clip (--measure-only) and judged nothing`, fix: "run the clip check against the clip spec's thresholds and record that report" })
-        } else if (report["passed"] !== true) {
-          const failures = Array.isArray(report["failures"]) ? report["failures"].map(String) : []
+        } else if (report["passed"] !== true && (failures.length > 0 || awaiting.length === 0)) {
           problems.push({ message: `${path}: the clip failed its check${failures.length === 0 ? "" : `: ${failures.join("; ")}`}`, fix: "fix the motion, retarget or contacts and check again; the report names what failed" })
+        }
+        if (report["measureOnly"] !== true && awaiting.length > 0) {
+          problems.push({
+            message: `${path}: ${awaiting.join(", ")} ${awaiting.length === 1 ? "awaits" : "await"} a person's judgement (unmeasured or unjudged, and not acknowledged)`,
+            fix: `show the person what the report and its sheet say to look at; once they have judged it acceptable, check again with ${awaiting.map((name) => `--acknowledge ${name}`).join(" ")}`
+          })
+        }
+        const detect = isRecord(report["detect"]) ? report["detect"] : null
+        if (report["measureOnly"] !== true && detect?.["from"] !== DETECT_FROM_SPEC) {
+          problems.push({
+            message: `${path} detected contacts with ${detect === null ? "no detection numbers" : `numbers from ${String(detect["from"])}`}, not the clip spec's contacts.detect`,
+            fix: "set contacts.detect in the clip spec with the person, record the spec again, and check the clip against it"
+          })
         }
         if (clips.length > 0 && !clips.includes(stampOf(report["clip"])!)) {
           problems.push({ message: `${path} measured another clip than the one recorded`, fix: "record the clip the report was written for, or check the recorded clip again" })
@@ -221,16 +241,6 @@ const clipReport = (files: ProjectFiles["Service"]): Check => ({
             message: `${path}: a delivered clip holds exactly one animation; ${names === null ? "the report does not say the clip holds one (checks.animations)" : `the clip holds ${names.length} (${names.join(", ")})`}`,
             fix: "write the clip with only the checked animation, then check it again"
           })
-        }
-        const unmeasured = Array.isArray(report["unmeasured"]) ? report["unmeasured"].map(String) : []
-        const unsaid = unmeasured.filter((name) => !input.record.note.includes(name))
-        if (unsaid.length > 0) {
-          problems.push({ message: `${path}: the check could not measure ${unsaid.join(", ")}`, fix: `say in the record's --note how ${unsaid.length === 1 ? "it was" : "each was"} judged, naming ${unsaid.join(", ")} (the report and its sheet say why it was not measured)` })
-        }
-        const unjudged = Array.isArray(report["unjudged"]) ? report["unjudged"].map(String) : []
-        const unanswered = unjudged.filter((name) => !input.record.note.includes(name))
-        if (unanswered.length > 0) {
-          problems.push({ message: `${path}: the check measured ${unanswered.join(", ")} but leaves ${unanswered.length === 1 ? "it" : "them"} to a person to judge`, fix: `say in the record's --note how ${unanswered.length === 1 ? "it was" : "each was"} judged from the sheet and video, naming ${unanswered.join(", ")} (the report lists what to look at)` })
         }
       }
       return problems

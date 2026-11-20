@@ -81,7 +81,7 @@ def test_a_clean_loop_passes_with_its_evidence(make):
     folder = make("clean", "--poses")
     code, log, r = check(folder)
     assert code == 0, log[-2000:]
-    assert r["passed"] and r["failures"] == [] and r["unmeasured"] == [] and r["unjudged"] == []
+    assert r["passed"] and r["failures"] == [] and r["unmeasured"] == [] and r["unjudged"] == [] and r["acknowledged"] == [] and r["awaiting"] == []
     assert r["checks"]["skeleton"]["passed"] and r["checks"]["wholeFrames"]["passed"] and r["checks"]["length"]["passed"]
     assert r["frames"] == 30 and r["seam"]["convention"] == "open-end" and r["seam"]["chosenBy"].startswith("the spec")
     assert r["ground"]["height"] == pytest.approx(0.0, abs=1e-4) and r["penetrationMeasuredOn"] == "foot mesh vertices"
@@ -146,7 +146,8 @@ def test_a_loop_ending_on_its_first_pose(make):
     folder = make("duplicate", "--loop-end", "duplicate")
     code, log, r = check(folder)
     assert code == 0, log[-2000:]
-    assert r["frames"] == 31 and r["seam"]["convention"] == "duplicate-end" and r["seam"]["worst"]["jump"] < 1e-3
+    # the knee where the figure's leg solver straightens it reads about 2 mm at the wrap, as it does inside the clip
+    assert r["frames"] == 31 and r["seam"]["convention"] == "duplicate-end" and r["seam"]["worst"]["jump"] < 3e-3
 
 
 def test_in_place_takes_off_travel_and_keeps_the_pelvis(make):
@@ -163,7 +164,7 @@ def test_in_place_takes_off_travel_and_keeps_the_pelvis(make):
     clip = out["clip"]
     code, log, r = check(folder, "--travel", out["travel"], spec="in-place.json", clip=os.path.relpath(clip, folder), out="ip")
     assert code == 0, log[-2000:]
-    assert r["seam"]["relativeTo"] == "the world (in-place)" and r["seam"]["worst"]["jump"] < 1e-3
+    assert r["seam"]["relativeTo"] == "the world (in-place)" and r["seam"]["worst"]["jump"] < 3e-3
     assert max(w["slide"] for w in r["contacts"]) < 1e-3
     code, log, _ = check(folder, spec="in-place.json", clip=os.path.relpath(clip, folder), out="ip-bare")
     assert code == 1 and "pass --travel" in log
@@ -204,10 +205,14 @@ def test_a_clip_on_another_skeleton_fails_the_skeleton_check(make):
 def test_ground_that_is_not_flat_leaves_penetration_to_a_person(make):
     folder = make("clean", "--poses")
     write_spec(folder, "stairs.json", ground={"kind": "change", "description": "steps up one stair of 0.18 m"})
-    code, _, r = check(folder, spec="stairs.json", out="stairs")
-    assert code == 0 and r["passed"] and r["unmeasured"] == ["penetration"]
+    code, log, r = check(folder, spec="stairs.json", out="stairs")
+    assert code == 3 and r["passed"] is None and r["failures"] == [] and r["unmeasured"] == ["penetration"] and r["awaiting"] == ["penetration"]
+    assert "--acknowledge penetration" in log
     assert r["accept"]["penetration"]["passed"] is None and "not flat" in r["accept"]["penetration"]["unmeasured"]
     assert r["contacts"]                                                     # contacts still found, by speed alone
+    # once the person has judged it from the sheet and video
+    code, _, r = check(folder, "--acknowledge", "penetration", spec="stairs.json", out="stairs-judged")
+    assert code == 0 and r["passed"] is True and r["acknowledged"] == ["penetration"] and r["awaiting"] == []
 
 
 def test_contact_detection_numbers_come_from_the_spec_or_the_command(make):
@@ -217,6 +222,11 @@ def test_contact_detection_numbers_come_from_the_spec_or_the_command(make):
     assert code == 1 and "contact detection needs a height and a speed" in log
     code, log, r = check(folder, "--contact-height", "0.01", "--contact-speed", "0.5", spec="no-detect.json", out="nd2")
     assert code == 0 and r["detect"]["from"] == "--contact-height/--contact-speed"
+    # a spec that sets them is judged by them; other numbers only measure
+    code, log, r = check(folder, "--contact-height", "0.0001", "--contact-speed", "0.0001", out="override")
+    assert code == 1 and "a judged check detects contacts with it" in log and r is None
+    code, log, r = check(folder, "--measure-only", "--contact-height", "0.0001", "--contact-speed", "0.0001", out="override-measured")
+    assert code == 0 and r["detect"] == {"height": 0.0001, "speed": 0.0001, "from": "--contact-height/--contact-speed"}
 
 
 def test_key_poses_are_written_on_the_rig_at_their_times(make):
@@ -225,7 +235,8 @@ def test_key_poses_are_written_on_the_rig_at_their_times(make):
     code, log, out = blender("keyposes.py", "kp.json", "--poses", "poses.glb", cwd=folder)
     assert code == 0, log[-2000:]
     assert [(p["name"], p["frame"]) for p in out["poses"]] == [("contact", 0), ("passing", 12)]
-    assert out["keyposes"] == "kp/keyposes.glb" and os.path.isfile(os.path.join(folder, "kp", "keyposes.json"))   # where the spec says
+    assert out["keyposes"] == "kp/keyposes.glb" and out["manifest"] == "kp/keyposes.keyposes.json"   # where the spec says
+    assert read(os.path.join(folder, out["manifest"]))["poses"] == out["poses"]
     k, c = gltf.Gltf(os.path.join(folder, out["keyposes"])), gltf.Gltf(os.path.join(folder, "clip.glb"))
     assert k.animation_names() == ["walk-keyposes"] and k.key_times() == pytest.approx([0.0, 0.4], abs=1e-5)
     ck, cc = k.channels(), c.channels()
@@ -235,6 +246,16 @@ def test_key_poses_are_written_on_the_rig_at_their_times(make):
     write_spec(folder, "kp-missing.json", keyPoses={"file": "kp2/keyposes.glb", "poses": [{"name": "reach", "time": 0.0}]})
     code, log, _ = blender("keyposes.py", "kp-missing.json", "--poses", "poses.glb", cwd=folder)
     assert code == 1 and "no action or animation named reach" in log
+    # the manifest never replaces a file it did not write: here the spec, named like the key-pose file
+    spec_path = write_spec(folder, "walk.keyposes.json", keyPoses={"file": "walk.glb", "poses": [{"name": "contact", "time": 0.0}]})
+    with open(spec_path, encoding="utf-8") as f:
+        before = f.read()
+    code, log, _ = blender("keyposes.py", "walk.keyposes.json", "--poses", "poses.glb", cwd=folder)
+    assert code == 1 and "did not write" in log and not os.path.exists(os.path.join(folder, "walk.glb"))
+    with open(spec_path, encoding="utf-8") as f:
+        assert f.read() == before
+    code, log, out = blender("keyposes.py", "kp.json", "--poses", "poses.glb", cwd=folder)       # its own manifest, written again
+    assert code == 0, log[-2000:]
 
 
 def test_key_poses_from_a_blend_keep_only_the_rig(make):
@@ -293,6 +314,23 @@ def test_a_jump_inside_the_clip_hides_no_pop_and_fails_itself(make):
     assert clean["accept"]["interiorJump"]["passed"] and clean["accept"]["interiorJump"]["threshold"] == ACCEPT["boundaryJump"]
 
 
+@pytest.mark.parametrize("fps", [23.976, 29.97, 60])
+def test_an_interior_jump_reads_its_size_and_smooth_motion_reads_close_to_0(make, fps):
+    """The swinging knee moves up to about 4 m/s, a large share of a frame at 24 fps; only a jump's own pattern is read."""
+    whole = int(round(fps))
+    spec = dict(fps=fps, length={"min": whole / fps, "max": whole / fps})
+    clean = make("walk-%g" % fps, "--fps", fps, "--period", whole / fps)
+    write_spec(clean, "rate.json", **spec)
+    code, log, r = check(clean, spec="rate.json", out="rate")
+    assert code == 0, log[-2000:]
+    assert r["measures"]["interiorJump"] < 3e-3 and r["measures"]["loopSeam"] < 3e-3
+    stepped = make("step-%g" % fps, "--fps", fps, "--period", whole / fps, "--step", "%d:0.08" % (whole // 2))
+    write_spec(stepped, "rate.json", **spec)
+    code, _, r = check(stepped, spec="rate.json", out="rate")
+    assert code == 1 and "interiorJump" in r["failures"]
+    assert r["measures"]["interiorJump"] == pytest.approx(0.08, abs=2e-3) and r["boundary"]["interior"]["frames"][1] == whole // 2
+
+
 def test_a_loop_that_does_not_close_fails_with_jumps_inside(make):
     folder = make("seam-and-steps", "--seam", 0.2, "--step", "8:0.05", "--step", "12:-0.05")
     code, _, r = check(folder)
@@ -312,16 +350,51 @@ def test_a_frame_rate_that_is_not_whole(make):
     assert r["checks"]["wholeFrames"]["passed"] and r["checks"]["length"]["passed"] and r["frames"] == 30
 
 
+def nodes_rest(g):
+    """{joint: world matrix} from the nodes' own transforms, whatever the skin's inverse bind matrices say."""
+    without = dict(g.json, skins=[{k: v for k, v in sk.items() if k != "inverseBindMatrices"} for sk in g.json["skins"]])
+    nodes_only = gltf.Gltf.__new__(gltf.Gltf); nodes_only.__dict__.update(g.__dict__, json=without)
+    return gltf.rest_world(nodes_only)
+
+
+def bind_to_nodes(g):
+    """Rewrite the skin's inverse bind matrices (in g.bin) from the nodes' transforms: the rig bound as its nodes stand."""
+    skin = g.json["skins"][0]
+    acc = g.json["accessors"][skin["inverseBindMatrices"]]; view = g.json["bufferViews"][acc["bufferView"]]
+    start = view.get("byteOffset", 0) + acc.get("byteOffset", 0)
+    world = nodes_rest(g)
+    inverse = np.stack([np.linalg.inv(world[g.name(j)]).T for j in skin["joints"]]).astype(np.float32).tobytes()
+    g.bin = g.bin[:start] + inverse + g.bin[start + len(inverse):]
+
+
 def test_a_rig_whose_rest_differs_fails_the_skeleton_check(make):
     folder = make("clean", "--poses")
     g = gltf.Gltf(os.path.join(folder, "rig.glb"))
     k = next(i for i, n in enumerate(g.nodes) if n.get("name") == "lower-leg.l")
     g.json["nodes"][k]["translation"] = [x * 1.02 for x in g.json["nodes"][k]["translation"]]
+    bind_to_nodes(g)                                                         # an edited rig is bound as it now stands
     poses.write_with_animation(g, os.path.join(folder, "longer-rig.glb"), "rest", 30, {k: {"scale": np.ones((2, 3))}})
     write_spec(folder, "longer.json", rig={"model": "longer-rig.glb", "map": "map.json"})
     code, _, r = check(folder, spec="longer.json", out="longer")
     assert code == 1 and "skeleton" in r["failures"] and not r["checks"]["skeleton"]["missing"]
     assert r["checks"]["skeleton"]["rest"]["position"] > 0.005
+
+
+def test_a_clip_whose_nodes_hold_its_first_frame_is_on_the_rig(make):
+    """An exporter may write the first frame of the animation into the joints' nodes; the skin's inverse bind matrices
+    still hold the rest the rig was bound in, and the skeleton check reads that."""
+    folder = make("clean", "--poses")
+    g = gltf.Gltf(os.path.join(folder, "clip.glb"))
+    for node, paths in g.channels().items():
+        for path, (_, values, _) in paths.items():
+            g.json["nodes"][node][path] = [float(x) for x in values[0]]
+    first = {node: {path: v for path, (_, v, _) in paths.items()} for node, paths in g.channels().items()}
+    poses.write_with_animation(g, os.path.join(folder, "first-frame.glb"), "walk", 30, first)
+    posed, rest = nodes_rest(gltf.Gltf(os.path.join(folder, "first-frame.glb"))), nodes_rest(gltf.Gltf(os.path.join(folder, "rig.glb")))
+    assert max(float(np.linalg.norm(posed[n][:3, 3] - rest[n][:3, 3])) for n in rest) > 0.01   # the nodes are not at rest
+    code, log, r = check(folder, clip="first-frame.glb", out="first-frame")
+    assert r["checks"]["skeleton"]["passed"] and r["checks"]["skeleton"]["rest"]["position"] < 1e-4, r["checks"]["skeleton"]
+    assert code == 0, log[-2000:]
 
 
 def test_a_file_with_two_animations_is_measured_but_not_delivered(make):
@@ -351,6 +424,8 @@ def test_measure_only_needs_no_thresholds(make):
         json.dump(doc, f)
     code, log, r = check(folder, "--measure-only", spec="bare.json", out="measure")
     assert code == 0, log[-2000:]
+    code, log, _ = check(folder, "--measure-only", "--acknowledge", "footSlide", spec="bare.json", out="measure-ack")
+    assert code == 1 and "--measure-only judges nothing" in log
     assert r["passed"] is None and r["accept"] is None and r["measureOnly"]
     assert r["measures"]["boundaryJump"] == pytest.approx(0.08, abs=3e-3) and r["contacts"] is None and "footSlide" in r["unmeasured"]
 

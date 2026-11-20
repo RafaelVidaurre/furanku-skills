@@ -22,10 +22,12 @@ the same joint's smooth motion shows inside the clip (jumps inside the clip are 
 for the last frame. A calm joint whose first frame pops by d reads about d; a joint already moving fast hides part of
 a pop of its own.
 
-Interior jump. Between any two frames inside the clip, how far a joint's step departs from the steps around it.
+Interior jump. Between any two frames inside the clip, how far a joint's step departs from the steps around it, beyond
+how far the motion around it departs (step_jumps): a jump reads its size, smooth motion close to 0 however fast.
 
 Loop seam. The boundary measure across the wrap from the last frame to the first, under the clip's loop-end
-convention (references/clip-spec.md), positions taken relative to the root.
+convention (references/clip-spec.md), positions taken relative to the root; and the interior measure on the steps
+around the wrap, read on the cycle as it plays (the last frames, then the first).
 """
 import numpy as np
 
@@ -34,6 +36,8 @@ from . import report
 H = (0, 2)          # horizontal axes of the glTF frame
 STEP_FRAMES = 8     # the fewest frames with a step whose stencil touches neither end
 UP = 1
+JUMP = np.array([1.0, -4.0, 6.0, -4.0, 1.0]) / 6.0   # departures (see step_jumps) around one jump of 1, steps k-2 .. k+2
+WRAP = 10           # frames on each side of a loop's wrap that the seam reads with the interior measure
 
 
 def horizontal_speed(p, fps):
@@ -102,28 +106,48 @@ def extrapolation_residual(p0, p1, p2, p3):
     return np.linalg.norm(p0 - (3 * p1 - 3 * p2 + p3), axis=-1)
 
 
+def departures(pos):
+    """[F, K, 3]: for each step from frame k-1 to frame k, with v_k the step p_k - p_(k-1), its departure from the steps
+    around it, D_k = (v_(k-2) - 4 v_(k-1) + 6 v_k - 4 v_(k+1) + v_(k+2)) / 6 (a fifth difference), on steps whose
+    frames touch neither the first nor the last frame (zero elsewhere)."""
+    F = len(pos)
+    out = np.zeros(pos.shape)
+    v = np.diff(pos, axis=0)                     # v[i] = p[i+1] - p[i] is the step into frame i+1
+    for k in range(4, F - 3):                    # steps k-2 .. k+2 use frames k-3 .. k+2, inside 1 .. F-2
+        i = k - 1
+        out[k] = (v[i - 2] - 4 * v[i - 1] + 6 * v[i] - 4 * v[i + 1] + v[i + 2]) / 6.0
+    return out
+
+
 def step_jumps(pos):
-    """[F, K]: for each step from frame k-1 to frame k, how far it departs from the steps around it. With v_k the step
-    p_k - p_(k-1), it is |v_(k-2) - 4 v_(k-1) + 6 v_k - 4 v_(k+1) + v_(k+2)| / 6 (a fifth difference): a joint that
-    jumps by d between two frames reads d there, one frame out of line by d reads 1.7 d, and smooth motion reads close
-    to 0. A joint that stops dead within one frame from a speed of s m/s reads s / (2 fps). Measured on steps whose
-    frames touch neither the first nor the last frame (zero elsewhere): those two are the boundary measure's."""
+    """[F, K]: for each step from frame k-1 to frame k, how far it jumps beyond the motion around it.
+
+    A joint that jumps by d between two frames departs (departures) by exactly d at that step, by -4d/6 at the steps
+    beside it and by d/6 two steps away (JUMP). Smooth motion departs too, more the faster it moves for the frame rate,
+    but not in that pattern. So the jump at a step is its departure less the most any of the four steps around it
+    strays from that pattern scaled to it: a jump of d reads d less the roughness of the motion around it, one frame out
+    of line by d reads about 1.1 d, smooth motion reads close to 0, and a joint stopping dead within one frame from a
+    speed of s m/s reads s / (3 fps). A second jump within four steps lowers the reading by up to a sixth of that jump.
+    Measured on steps whose frames touch neither the first nor the last frame (zero elsewhere): those two are the
+    boundary measure's."""
     F = len(pos)
     out = np.zeros(pos.shape[:2])
     if F < STEP_FRAMES:
         return out
-    v = np.diff(pos, axis=0)                     # v[i] = p[i+1] - p[i] is the step into frame i+1
-    for k in range(4, F - 3):                    # steps k-2 .. k+2 use frames k-3 .. k+2, inside 1 .. F-2
-        i = k - 1
-        d = v[i - 2] - 4 * v[i - 1] + 6 * v[i] - 4 * v[i + 1] + v[i + 2]
-        out[k] = np.linalg.norm(d, axis=-1) / 6.0
+    D = departures(pos)
+    for k in range(4, F - 3):
+        stray = np.zeros(pos.shape[1])
+        for i in (-2, -1, 1, 2):
+            if 4 <= k + i <= F - 4:
+                stray = np.maximum(stray, np.linalg.norm(D[k + i] - JUMP[i + 2] * D[k], axis=-1))
+        out[k] = np.maximum(0.0, np.linalg.norm(D[k], axis=-1) - stray)
     return out
 
 
 def smooth_baseline(pos, jumps):
     """[K]: the largest residual (see extrapolation_residual) a point shows inside the clip, from stencils that touch
     neither the first nor the last frame, leaving out every stencil a jump inside it accounts for. A jump of d raises a
-    residual by at most 2 d (a frame out of line by d: at most 3 d, while it reads 1.7 d), and the motion around it adds
+    residual by at most 2 d (a frame out of line by d: at most 3 d, while it reads about 1.1 d), and the motion around it adds
     its own, so a stencil whose residual is at most three times the largest step jump among its steps is the jump's.
     What is left is how rough the point's smooth motion is."""
     F, K = pos.shape[:2]
@@ -150,13 +174,23 @@ def boundary_jumps(pos):
     return {"start": (np.maximum(0.0, start - base), start), "end": (np.maximum(0.0, end - base), end), "baseline": base, "steps": steps}
 
 
+def wrap_jumps(cycle):
+    """[K]: the largest interior jump (step_jumps) a point makes on the steps whose measure reaches across a loop's wrap,
+    read on the cycle as it plays: its last WRAP frames, then its first WRAP. cycle [N, K, 3]: one cycle, the first pose
+    once (an open end; a duplicate end without its last frame)."""
+    seq = cycle[np.arange(-WRAP, WRAP) % len(cycle)]
+    steps = step_jumps(seq)
+    return steps[WRAP - 4:WRAP + 6].max(axis=0)   # step WRAP is the wrap; each step's measure spans frames k-5 .. k+4
+
+
 def seam_jumps(rel):
     """rel [F, K, 3] (positions relative to the root) -> {"open-end": (jump [K], residual [K]), "duplicate-end": ...,
     "baseline": [K]}.
 
     open-end: the first frame continues the last three. duplicate-end: the last frame is the first frame again, and the
-    second frame continues the last three. Jumps are residuals beyond the point's smooth baseline, as for boundaries;
-    a duplicate end that differs from the first frame counts in full."""
+    second frame continues the last three. Jumps are residuals beyond the point's smooth baseline, as for boundaries,
+    or the largest interior jump around the wrap (wrap_jumps), whichever is larger; a duplicate end that differs from
+    the first frame counts in full."""
     if len(rel) < 4:
         raise ValueError("a loop seam needs at least 4 frames; the clip has %d" % len(rel))
     base = smooth_baseline(rel, step_jumps(rel))
@@ -164,9 +198,9 @@ def seam_jumps(rel):
     open_res = np.linalg.norm(rel[0] - ahead, axis=-1)
     mismatch = np.linalg.norm(rel[-1] - rel[0], axis=-1)
     dup_res = np.linalg.norm(rel[1] - ahead, axis=-1)
-    dup_jump = np.maximum(mismatch, np.maximum(0.0, dup_res - base))
-    return {"open-end": (np.maximum(0.0, open_res - base), open_res), "duplicate-end": (dup_jump, np.maximum(mismatch, dup_res)),
-            "baseline": base}
+    open_jump = np.maximum(np.maximum(0.0, open_res - base), wrap_jumps(rel))
+    dup_jump = np.maximum(np.maximum(mismatch, np.maximum(0.0, dup_res - base)), wrap_jumps(rel[:-1]))
+    return {"open-end": (open_jump, open_res), "duplicate-end": (dup_jump, np.maximum(mismatch, dup_res)), "baseline": base}
 
 
 def loop_end(frames, fps, length, rel=None):

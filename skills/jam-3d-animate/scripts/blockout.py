@@ -51,8 +51,6 @@ def build(spec_path, out, length=None, loop_end=None):
     fps = float(s["fps"])
     frames, cycle = frame_count(s, length, loop_end, fps)
     pose_frames = [specs.frame_of(p["time"], fps) for p in s["keyPoses"]["poses"]]
-    if len(set(pose_frames)) != len(pose_frames):
-        raise Refused("two key poses fall on one frame at %g fps" % fps)
     if pose_frames[-1] > (cycle if cycle is not None else frames - 1):
         raise Refused("a key pose (frame %d) lies past the clip's last frame" % pose_frames[-1])
     model = gltf.Gltf(s["keyPoses"]["file"])

@@ -32,7 +32,7 @@ The record holds the clip on the project rig as `clip`, with the retarget report
 
 `jam-3d-animate` judges the final clip on the project rig, whatever route made it, and writes the clip report with a pose sheet and, when a renderer is available, a video.
 
-The record holds the clip as `clip` and the report and its sheet as `evidence`. The `clip-report` check requires a report that passed and that measured this clip, against the run's clip spec and the rig and map that spec names, on a clip holding exactly one animation. A threshold the report could not measure must be named in the record's note with how it was judged. A clip that fails goes back to the step that caused it: the motion, the retarget, or the contacts. The person then watches the clip and accepts it.
+The record holds the clip as `clip` and the report and its sheet as `evidence`. The `clip-report` check requires a report that passed and that measured this clip, against the run's clip spec and the rig and map that spec names, with that spec's own contact detection (`contacts.detect`), on a clip holding exactly one animation. What the report could not measure (`unmeasured`) or left to a person (`unjudged`) must be in its `acknowledged`: the clip check records a name there only when it is run again with `--acknowledge` after the person has judged it from the sheet and video. A clip that fails goes back to the step that caused it: the motion, the retarget, or the contacts. The person then watches the clip and accepts it.
 
 ## import
 

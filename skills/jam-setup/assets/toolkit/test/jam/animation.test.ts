@@ -82,6 +82,11 @@ describe("the clip spec", () => {
     const message = async (name: string) => problem(JSON.parse(readFileSync(join(FIXTURES, "invalid", name), "utf8")))
     assert.match(await message("duplicate-pose-names.json"), /each name once \(contact-left repeated\)/)
     assert.match(await message("poses-out-of-time-order.json"), /in time order/)
+    assert.match(await message("poses-on-one-frame.json"), /one key per frame at 30 fps; contact-left and contact-right both fall on frame 15/)
+    // The nearest whole frame, halves rounding up, as jam-3d-animate's reader rounds: at 30 fps 0.15 s (4.5 frames) is frame 5, as 0.1666 s is.
+    const at = (times: ReadonlyArray<number>) => ({ ...SPEC, keyPoses: { ...SPEC.keyPoses, poses: times.map((time, index) => ({ name: `p${index}`, time })) } })
+    assert.match(await problem(at([0.15, 0.1666])), /p0 and p1 both fall on frame 5/)
+    await Effect.runPromise(decode(ClipSpec as Pure, { what: "clip.json" })(at([0.1334, 0.15])))
     assert.match(await message("pose-past-length-max.json"), /late at 1.5 s after length.max \(1.2 s\)/)
   })
 })
@@ -155,7 +160,8 @@ describe("the animation recipe", () => {
       const report = (name: string, fields: Record<string, unknown>) => {
         write(root, `${made.dir}/${name}.json`, JSON.stringify({
           passed: true, measureOnly: false, clip: stamp("clip", made.clip), spec: stamp("spec", made.spec), animation: "Walk", checks: { animations: { passed: true, names: ["Walk"], measured: "Walk" } },
-          rig: { model: stamp("rig", SPEC.rig.model), map: stamp("map", SPEC.rig.map) }, unmeasured: [], ...fields
+          rig: { model: stamp("rig", SPEC.rig.model), map: stamp("map", SPEC.rig.map) }, detect: { ...SPEC.contacts.detect, from: "clip spec contacts.detect" },
+          unmeasured: [], unjudged: [], acknowledged: [], ...fields
         }))
         return `evidence=${made.dir}/${name}.json`
       }
@@ -170,10 +176,19 @@ describe("the animation recipe", () => {
       assert.match((await attempt([report("two", { checks: { animations: { passed: false, names: ["Walk", "Idle"], measured: "Walk" } } })])).message, /exactly one animation; the clip holds 2 \(Walk, Idle\)/)
       assert.match((await attempt([report("unnamed", { checks: {} })])).message, /the report does not say the clip holds one \(checks.animations\)/)
       assert.match((await attempt([report("measured-only", { measureOnly: true, passed: null })])).message, /only measured the clip \(--measure-only\) and judged nothing/)
-      assert.match((await attempt([report("unmeasured", { unmeasured: ["penetration"] })])).message, /could not measure penetration[^]*naming penetration/)
-      await record(root, "walk", "check", { files: [`clip=${made.clip}`, report("judged", { unmeasured: ["penetration"] })], accept: "watched", note: "penetration judged from the sheet and video: the feet stay on the step" })
-      assert.match((await attempt([report("unjudged", { unjudged: ["groundTravel"] })])).message, /measured groundTravel but leaves it to a person to judge[^]*naming groundTravel/)
-      await record(root, "walk", "check", { files: [`clip=${made.clip}`, report("ground-judged", { unjudged: ["groundTravel"] })], accept: "watched", note: "groundTravel judged from the sheet and video: the swing foot passes low, nothing drags" })
+      // What the check could not measure or left to a person is acknowledged in the report, after the person judged it;
+      // a note naming it is not enough.
+      const waiting = await attempt([report("unmeasured", { passed: null, failures: [], unmeasured: ["penetration"] })], "penetration judged from the sheet")
+      assert.match(waiting.message, /penetration awaits a person's judgement[^]*--acknowledge penetration/)
+      assert.doesNotMatch(waiting.message, /failed its check/)
+      assert.match((await attempt([report("edited", { unmeasured: ["penetration"] })])).message, /penetration awaits a person's judgement/)
+      assert.match((await attempt([report("both", { passed: false, failures: ["footSlide"], unjudged: ["groundTravel"] })])).message, /failed its check: footSlide[^]*groundTravel awaits/)
+      await record(root, "walk", "check", { files: [`clip=${made.clip}`, report("judged", { unmeasured: ["penetration"], acknowledged: ["penetration"] })], accept: "watched", note: "penetration judged from the sheet and video: the feet stay on the step" })
+      assert.match((await attempt([report("unjudged", { passed: null, failures: [], unjudged: ["groundTravel"] })])).message, /groundTravel awaits a person's judgement[^]*--acknowledge groundTravel/)
+      await record(root, "walk", "check", { files: [`clip=${made.clip}`, report("ground-judged", { unjudged: ["groundTravel"], acknowledged: ["groundTravel"] })], accept: "watched" })
+      // Contacts detected with the spec's own numbers, never ones given on the command line.
+      assert.match((await attempt([report("cli-detect", { detect: { height: 0.0001, speed: 0.0001, from: "--contact-height/--contact-speed" } })])).message, /numbers from --contact-height\/--contact-speed, not the clip spec's contacts.detect/)
+      assert.match((await attempt([report("no-detect", { detect: null })])).message, /no detection numbers, not the clip spec's contacts.detect/)
       await record(root, "walk", "check", { files: [`clip=${made.clip}`, report("clip-report", {})], accept: "watched" })
       // A later change to the rig the spec names makes the report stale.
       write(root, SPEC.rig.map, JSON.stringify({ label: "hero", landmarks: { pelvis: "hips", spine_01: "spine" } }))

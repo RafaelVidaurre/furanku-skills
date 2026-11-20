@@ -62,7 +62,7 @@ export const ClipSpec = Schema.Struct({
   ground: Ground,
   keyPoses: opt(Schema.Struct({
     file: PortablePath.pipe(Schema.annotate({ description: "keyposes.glb: the project rig with one animation holding one key per pose" })),
-    poses: Schema.NonEmptyArray(KeyPose).pipe(Schema.annotate({ description: "Named poses with their intended times, in the order of their keys: each name once, in time order, none after length.max" }))
+    poses: Schema.NonEmptyArray(KeyPose).pipe(Schema.annotate({ description: "Named poses with their intended times, in the order of their keys: each name once, in time order, each on its own whole frame of fps, none after length.max" }))
   })),
   contacts: opt(Schema.Struct({
     detect: opt(Schema.Struct({
@@ -80,7 +80,7 @@ export const ClipSpec = Schema.Struct({
 }).pipe(
   Schema.annotate({
     title: "Clip spec (clip.json): one animation clip on the project rig. Paths are project-relative.",
-    description: "Beyond each field's own shape: accept.loopSeam is given exactly when loop is true; key poses have distinct names, are in time order and none is after length.max. Numbers are finite; an optional field is left out, never null."
+    description: "Beyond each field's own shape: accept.loopSeam is given exactly when loop is true; key poses have distinct names, are in time order, fall on distinct whole frames of fps (the nearest, halves rounding up) and none is after length.max. Numbers are finite; an optional field is left out, never null."
   }),
   Schema.check(Schema.makeFilter((spec) => {
     const problems: Array<string> = []
@@ -91,6 +91,10 @@ export const ClipSpec = Schema.Struct({
     const twice = names.filter((name, index) => names.indexOf(name) !== index)
     if (twice.length > 0) problems.push(`keyPoses.poses: each name once (${[...new Set(twice)].join(", ")} repeated)`)
     if (poses.some((pose, index) => index > 0 && pose.time < poses[index - 1]!.time)) problems.push("keyPoses.poses: list the poses in time order")
+    // One key per frame: a pose is keyed on the whole frame nearest its time (halves round up).
+    const frame = (time: number) => Math.floor(time * spec.fps + 0.5)
+    const shared = poses.flatMap((pose, index) => (index > 0 && frame(pose.time) === frame(poses[index - 1]!.time) ? [`${poses[index - 1]!.name} and ${pose.name} both fall on frame ${frame(pose.time)}`] : []))
+    if (shared.length > 0) problems.push(`keyPoses.poses: one key per frame at ${spec.fps} fps; ${shared.join(", ")}`)
     const late = poses.filter((pose) => pose.time > spec.length.max)
     if (late.length > 0) problems.push(`keyPoses.poses: ${late.map((pose) => `${pose.name} at ${pose.time} s`).join(", ")} after length.max (${spec.length.max} s)`)
     return problems.length === 0 ? undefined : problems.join("; ")

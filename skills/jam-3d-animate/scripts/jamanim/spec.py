@@ -147,6 +147,10 @@ def normalize(doc, root=None, check_files=True, thresholds=True):
             times = [p["time"] for p in good]
             if times != sorted(times):
                 problems.append("keyPoses.poses: list the poses in time order")
+            if _positive(fps):
+                same = [(a["name"], b["name"], frame_of(b["time"], fps)) for a, b in zip(good, good[1:]) if frame_of(a["time"], fps) == frame_of(b["time"], fps)]
+                if same:
+                    problems.append("keyPoses.poses: one key per frame at %g fps; %s" % (fps, ", ".join("%s and %s both fall on frame %d" % x for x in same)))
             if out["length"] and times and max(times) > out["length"]["max"]:
                 problems.append("keyPoses.poses: a pose at %.3f s is past the clip's length (length.max %.3f s)" % (max(times), out["length"]["max"]))
             out["keyPoses"] = {"file": path, "poses": good}
@@ -216,4 +220,5 @@ def load(path, root=None, check_files=True, thresholds=True):
 
 
 def frame_of(seconds, fps):
-    return int(round(seconds * fps))
+    """The whole frame nearest a time, halves rounding up (as the toolkit rounds)."""
+    return int(math.floor(seconds * fps + 0.5))
