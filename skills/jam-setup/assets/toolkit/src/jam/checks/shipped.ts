@@ -166,7 +166,7 @@ const stampOf = (value: unknown): string | undefined => (isRecord(value) && type
  * A clip is judged by its clip report (jam-3d-animate's clip check writes it). The report must pass,
  * be about the clip this record holds, the run's clip spec and the rig and map that spec names now,
  * judge (not only measure), find exactly one animation in the clip (checks.animations), and leave no
- * threshold unmeasured unless the record's note says how that one was judged.
+ * threshold unmeasured, and nothing it left to a person (unjudged), unless the record's note says how that one was judged.
  */
 const clipReport = (files: ProjectFiles["Service"]): Check => ({
   id: "clip-report",
@@ -226,6 +226,11 @@ const clipReport = (files: ProjectFiles["Service"]): Check => ({
         const unsaid = unmeasured.filter((name) => !input.record.note.includes(name))
         if (unsaid.length > 0) {
           problems.push({ message: `${path}: the check could not measure ${unsaid.join(", ")}`, fix: `say in the record's --note how ${unsaid.length === 1 ? "it was" : "each was"} judged, naming ${unsaid.join(", ")} (the report and its sheet say why it was not measured)` })
+        }
+        const unjudged = Array.isArray(report["unjudged"]) ? report["unjudged"].map(String) : []
+        const unanswered = unjudged.filter((name) => !input.record.note.includes(name))
+        if (unanswered.length > 0) {
+          problems.push({ message: `${path}: the check measured ${unanswered.join(", ")} but leaves ${unanswered.length === 1 ? "it" : "them"} to a person to judge`, fix: `say in the record's --note how ${unanswered.length === 1 ? "it was" : "each was"} judged from the sheet and video, naming ${unanswered.join(", ")} (the report lists what to look at)` })
         }
       }
       return problems

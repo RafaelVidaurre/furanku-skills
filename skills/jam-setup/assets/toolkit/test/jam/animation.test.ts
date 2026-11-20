@@ -172,6 +172,8 @@ describe("the animation recipe", () => {
       assert.match((await attempt([report("measured-only", { measureOnly: true, passed: null })])).message, /only measured the clip \(--measure-only\) and judged nothing/)
       assert.match((await attempt([report("unmeasured", { unmeasured: ["penetration"] })])).message, /could not measure penetration[^]*naming penetration/)
       await record(root, "walk", "check", { files: [`clip=${made.clip}`, report("judged", { unmeasured: ["penetration"] })], accept: "watched", note: "penetration judged from the sheet and video: the feet stay on the step" })
+      assert.match((await attempt([report("unjudged", { unjudged: ["groundTravel"] })])).message, /measured groundTravel but leaves it to a person to judge[^]*naming groundTravel/)
+      await record(root, "walk", "check", { files: [`clip=${made.clip}`, report("ground-judged", { unjudged: ["groundTravel"] })], accept: "watched", note: "groundTravel judged from the sheet and video: the swing foot passes low, nothing drags" })
       await record(root, "walk", "check", { files: [`clip=${made.clip}`, report("clip-report", {})], accept: "watched" })
       // A later change to the rig the spec names makes the report stale.
       write(root, SPEC.rig.map, JSON.stringify({ label: "hero", landmarks: { pelvis: "hips", spine_01: "spine" } }))

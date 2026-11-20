@@ -296,11 +296,32 @@ def test_a_declared_window_measures_a_slide_too_fast_to_detect():
     assert d[0]["frames"] == [0, 9] and d[0]["slide"] == pytest.approx(0.4, abs=1e-4)
     held = dict(pts); held[("foot.l", "toes.l", "LeftToe")] = np.tile(toe[:1], (25, 1))   # the ball stays put: a pivot
     assert measure.declared_slides(held, [{"limb": "foot.l", "from": 0.0, "to": 9 / FPS}], FPS, 25)[0]["slide"] == 0.0
-    runs = measure.grounded_runs(pts, 0.01, 0.0, {"foot.l": 0.08, "toes.l": 0.02}, windows)
-    assert [(r["from"], r["to"], r["planted"]) for r in runs] == [(0, 9, False), (15, 24, True)]
-    assert runs[0]["slide"] == pytest.approx(0.4, abs=1e-4) and runs[1]["slide"] == 0.0     # in contact at any speed
-    pivot = measure.grounded_runs(held, 0.01, 0.0, {"foot.l": 0.08, "toes.l": 0.02}, windows)
-    assert pivot[0]["slide"] == 0.0                                          # the least-moving point
+    rest = {"foot.l": 0.08, "toes.l": 0.02}
+    runs = measure.grounded_runs(pts, FPS, detect, 0.0, rest, windows, [])
+    assert [(r["from"], r["limb"]) for r in runs] == [(0, "foot.l")] and runs[0]["to"] < 10   # at ground height, unplanted
+    assert runs[0]["travel"] == pytest.approx(0.4 * runs[0]["to"] / 9, abs=1e-4) and runs[0]["peakSpeed"] > detect["speed"]
+    assert measure.grounded_runs(pts, FPS, detect, 0.0, rest, windows, d) == []                # declared: judged as a slide
+
+
+def test_a_low_swing_is_travel_at_ground_height_never_a_detected_slide():
+    """A swing that passes within the contact height (as a real foot's lowest clearance in mid-swing does) and the frames
+    of lift-off and touch-down are reported as travel at ground height; detection plants neither, so no slide is read."""
+    F = 30
+    planted = [True] * 10 + [False] * 10 + [True] * 10
+    p = np.zeros((F, 3)); p[:, 1] = 0.08
+    lift = [0.03, 0.07, 0.08, 0.04, 0.005, 0.005, 0.03, 0.06, 0.04, 0.015]   # two humps, down to the ground in mid-swing
+    for f in range(10, 20):
+        s = (f - 9) / 11.0
+        p[f, 2] = 0.6 * (3 * s * s - 2 * s ** 3)                         # 0.6 m forward, eased
+        p[f, 1] += lift[f - 10]
+    p[20:, 2] = 0.6
+    pts = {("foot.l", "foot.l", "LeftFoot"): p}
+    detect = {"height": 0.01, "speed": 0.5}
+    windows = measure.contact_windows(pts, FPS, detect, ground=0.0, rest_heights={"foot.l": 0.08})
+    assert max(w["slide"] for w in windows) < 1e-9
+    runs = measure.grounded_runs(pts, FPS, detect, 0.0, {"foot.l": 0.08}, windows, [])
+    assert runs and max(r["travel"] for r in runs) > 0.05                    # the mid-swing pass reads its travel
+    assert all(not any(r["from"] <= f <= r["to"] for f in range(w["from"], w["to"] + 1)) for r in runs for w in windows)
 
 
 def test_coverage_of_declared_contacts():

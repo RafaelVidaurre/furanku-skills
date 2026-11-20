@@ -20,9 +20,9 @@ Every value in the spec comes from the person, from the project's own files (the
 | `length` | Seconds as `{min, max}`: a range when any length in it will do, `min` equal to `max` for a fixed length | Checked against the delivered clip |
 | `loop` | Does the clip repeat seamlessly? | Adds the loop-seam check and its threshold |
 | `root` | `mode`: `in-place` (travel removed, the game moves the character) or `root-motion` (the clip moves it). For root motion, `bone`: the ground-level root bone that carries travel; leave it out when the rig has none and the hips carry travel | `root_convention.py` puts the travel there; the check reads the seam relative to it |
-| `ground` | `kind`: `flat`, or `change` with a `description` of the height change the clip crosses (a stair, a ledge) | Penetration and runs at ground height are measured only on flat ground |
+| `ground` | `kind`: `flat`, or `change` with a `description` of the height change the clip crosses (a stair, a ledge) | Penetration and travel at ground height are measured only on flat ground |
 | `keyPoses` | The poses that must appear, each with a name (lowercase, hyphens) and a time, in time order, and the project path of the file step 2 writes them to. Ask for them when the motion has moments that matter (a contact, the peak of a jump, an impact) or the route needs them (`inbetween`) | Step 2 builds that file from them |
-| `contacts.planted` | Which feet (or hands) must stay planted when | Slide is measured over each of these windows whatever the foot's speed, so a foot that must hold cannot slide unseen |
+| `contacts.planted` | Which feet (or hands) must stay planted when | Slide is measured over each of these windows whatever the foot's speed, so a foot that must hold cannot slide unseen; outside them, a foot's fast travel near the ground is left to the person (check.md) |
 | `contacts.detect` | How close to its resting height (metres) a foot is in contact, and how slow (m/s) it must be to count as planted | Which frames count toward slide |
 | `accept` | The largest foot slide while planted, penetration below the ground, jump at the first or last frame or between two frames, and (when looping) loop seam that the project accepts, in metres | Pass or fail of the check |
 
@@ -33,7 +33,7 @@ Help the person choose by what each means on screen:
 - `accept.footSlide`: how far a planted foot may drift during one contact; compare it with the character's foot length.
 - `accept.penetration`: how far a sole may go below the ground before it shows; a camera that never sees the feet allows more.
 - `accept.boundaryJump`: how far a joint may jump between two frames, at the start or end of a play and inside the clip. `accept.loopSeam`: the same across the wrap of a loop. The report gives how rough the clip's own smooth motion is (`boundary.smooth`), which helps when a first threshold turns out too tight.
-- `contacts.detect.height` is the project's contact height: a foot within it of the ground is in contact, at any speed, and its travel there counts as slide (check.md). It must be above the noise of a planted foot and below the height a swinging foot keeps. `contacts.detect.speed` must be above the speed of a planted foot's noise and below a swinging foot's speed; it decides the detected windows. To see the numbers before choosing, run the check with `--measure-only`.
+- `contacts.detect.height`: how close to its resting height a foot point must be to count as planted; it must be above the noise of a planted foot. `contacts.detect.speed`: how slow it must be; above a planted foot's noise and below a swinging foot's speed. Together they decide the detected windows; a foot within the height but faster is reported for the person to judge, never judged as slide (check.md). To see the numbers before choosing, run the check with `--measure-only`.
 
 ## Template
 

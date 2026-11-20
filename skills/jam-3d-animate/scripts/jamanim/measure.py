@@ -5,9 +5,13 @@ Contacts. A contact point (an ankle, a ball of the foot, a wrist) is planted on 
 On ground that is not flat only the speed decides. A contact window is a run of planted frames.
 
 Slide. In a window, the largest horizontal distance between any two of the point's positions. Also over each window
-the spec declares planted, however fast the foot moves there, and over each run of frames a foot spends within
-`detect.height` of the ground at any speed (in contact by the spec's own contact height); those two take the foot's
-least-moving point.
+the spec declares planted, however fast the foot moves there; that one takes the foot's least-moving point.
+
+Ground travel. A foot within `detect.height` of the ground that detection finds planted on none of its points, outside
+the windows the spec declares for it, is a swing passing low, a foot lifting off or coming down, or a planted foot
+sliding faster than detection: height and speed cannot tell these apart. Each such run of frames is reported with its
+travel (the least-moving point's), for a person to judge when it exceeds the slide threshold; it is never judged as a
+slide.
 
 Penetration. How far the lowest point of a foot (its mesh, or failing that its joints at their rest height) goes below
 the ground, over the whole clip and per window.
@@ -243,22 +247,31 @@ def declared_slides(points, expected, fps, frames):
     return out
 
 
-def grounded_runs(points, detect_height, ground, rest_heights, windows):
-    """Runs of frames where a foot touches flat ground: one of its contact points is within detect_height of its rest
-    height, at any speed. By the spec's own contact height the foot is in contact on those frames, so the run's slide,
-    the travel of the foot's least-moving point over the run, is judged like a window's. "planted" says whether
-    detection also found a slow frame in it. points: {(limb, landmark, bone): [F, 3]}."""
+def grounded_runs(points, fps, detect, ground, rest_heights, windows, declared):
+    """Runs of frames where a foot is at ground height (one of its contact points within detect["height"] of its rest
+    height) while detection finds none of its points planted and no window the spec declares for that foot holds the
+    frame. Per run: each point's travel (largest horizontal distance between its positions), the run's travel (the
+    least-moving point's) and the foot's peak horizontal speed. points: {(limb, landmark, bone): [F, 3]}; windows: the
+    detected windows (contact_windows); declared: the declared windows with their frames (declared_slides)."""
     out = []
     for limb in sorted({k[0] for k in points if k[0].startswith("foot")}):
         own = {k: p for k, p in points.items() if k[0] == limb}
-        near = np.zeros(len(next(iter(own.values()))), dtype=bool)
+        F = len(next(iter(own.values())))
+        near = np.zeros(F, dtype=bool)
         for (_, landmark, _), p in own.items():
-            near |= p[:, UP] - ground - (rest_heights or {}).get(landmark, 0.0) <= detect_height + 1e-12
-        planted_frames = {f for w in windows if w["limb"] == limb for f in range(w["from"], w["to"] + 1)}
-        for a, b in runs(near):
+            near |= p[:, UP] - ground - (rest_heights or {}).get(landmark, 0.0) <= detect["height"] + 1e-12
+        held = np.zeros(F, dtype=bool)
+        for w in windows:
+            if w["limb"] == limb:
+                held[w["from"]:w["to"] + 1] = True
+        for d in declared:
+            if d["limb"] == limb:
+                held[d["frames"][0]:d["frames"][1] + 1] = True
+        speed = np.max([horizontal_speed(p, fps) for p in own.values()], axis=0)
+        for a, b in runs(near & ~held):
             per = {lm: report.mm(diameter(p[a:b + 1][:, H])) for (_, lm, _), p in own.items()}
-            out.append({"limb": limb, "from": a, "to": b, "frames": b - a + 1, "points": per, "slide": min(per.values()),
-                        "planted": any(a <= f <= b for f in planted_frames)})
+            out.append({"limb": limb, "from": a, "to": b, "frames": b - a + 1, "fromTime": round(a / fps, 4), "toTime": round(b / fps, 4),
+                        "points": per, "travel": min(per.values()), "peakSpeed": round(float(speed[a:b + 1].max()), 3)})
     out.sort(key=lambda r: (r["from"], r["limb"]))
     return out
 

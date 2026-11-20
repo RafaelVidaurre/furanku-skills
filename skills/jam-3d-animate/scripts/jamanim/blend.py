@@ -101,9 +101,9 @@ def stage(scene, hips_track, ground, height, top, extent, a, frames, frame0, mar
     mesh.materials.append(light); mesh.materials.append(dark)
     scene.collection.objects.link(bpy.data.objects.new("ground", mesh))
 
-    # contact markers: one green and one red sphere per contact point, shown on planted frames
-    for (key, ok, bad) in markers:
-        for ob, color in ((ok, (0.1, 0.8, 0.2, 1)), (bad, (0.9, 0.1, 0.1, 1))):
+    # contact markers per contact point: green on planted frames, red where the window failed, amber to judge
+    for (key, ok, bad, judge) in markers:
+        for ob, color in ((ok, (0.1, 0.8, 0.2, 1)), (bad, (0.9, 0.1, 0.1, 1)), (judge, (1.0, 0.65, 0.0, 1))):
             ob.data.materials.append(material(ob.name, color))
 
     above = max(height * 1.25, top - ground + height * 0.12)
@@ -124,23 +124,24 @@ def add_markers(scene, contact_keys, height):
     out = []
     for key in contact_keys:
         pair = []
-        for tag in ("ok", "bad"):
+        for tag in ("ok", "bad", "judge"):
             bm = bmesh.new(); bmesh.ops.create_uvsphere(bm, u_segments=12, v_segments=8, radius=height * 0.018)
             mesh = bpy.data.meshes.new("marker-%s-%s" % (key[1], tag)); bm.to_mesh(mesh); bm.free()
             ob = bpy.data.objects.new(mesh.name, mesh); scene.collection.objects.link(ob)
             pair.append(ob)
-        out.append((key, pair[0], pair[1]))
+        out.append((key, pair[0], pair[1], pair[2]))
     return out
 
 
 def key_markers(markers, pts_world, planted_state, frame0, frames, toward_camera):
-    """planted_state[key][f] is None (not planted), True (planted, window passed) or False (planted, window failed).
-    Markers sit on their joint, moved toward the camera so the foot does not hide them."""
-    for key, ok, bad in markers:
+    """planted_state[key][f] is None (not planted), True (planted, window passed), False (planted, window failed) or
+    "judge" (at ground height, unplanted, for a person to judge). Markers sit on their joint, moved toward the camera so
+    the foot does not hide them."""
+    for key, ok, bad, judge in markers:
         for f in range(frames):
             state = planted_state[key][f]
             loc = to_blender(pts_world[key][f]) + toward_camera
-            for ob, show in ((ok, state is True), (bad, state is False)):
+            for ob, show in ((ok, state is True), (bad, state is False), (judge, state == "judge")):
                 ob.location = loc; ob.hide_render = not show
                 ob.keyframe_insert("location", frame=frame0 + f); ob.keyframe_insert("hide_render", frame=frame0 + f)
 

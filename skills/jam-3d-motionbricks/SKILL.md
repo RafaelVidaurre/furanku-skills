@@ -32,7 +32,7 @@ These hold for every project. Sources: MotionBricks' README, runtime API, Inbetw
 10. **`Hips` carries travel and pelvis motion together**; SOMA has no ground-level root bone. A root bone or an in-place clip is made on the receiving side.
 11. **Foot contacts are confidences** from 0 to 1 per heel (`LeftFoot`, `RightFoot`) and toe (`…ToeBase`), predicted with the motion, not measured (NVIDIA's viewers draw them above 0.5). `contacts.json` carries them to whatever checks the clip on the receiving rig.
 12. **Pin precision and backend for reproducible results.** Identical inputs give identical motion on one backend and precision (there is no seed); FP32 and mixed FP16 can choose different motion, and differences grow through chaining. The request records precision, backend and TF32; the result records the model file hash, TensorRT version, device and GPU.
-13. **Stay within what the model does.** It works best with target poses like its training data; it takes no text or scene geometry, avoids no collisions, and its quality on other body proportions is not established.
+13. **Stay within what the model does.** It works best with target poses like its training data, which is captured motion: a standing pose taken from a rig's rest legs (knees locked straight, hips at the reference height) is not like it, since captured standing keeps the knees slightly bent, and steps generated from and to such a pose sank and dragged the feet (references/validation.md); it takes no text or scene geometry, avoids no collisions, and its quality on other body proportions is not established.
 
 ## Licence rules (hard guardrails)
 

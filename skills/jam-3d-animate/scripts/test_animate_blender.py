@@ -81,7 +81,7 @@ def test_a_clean_loop_passes_with_its_evidence(make):
     folder = make("clean", "--poses")
     code, log, r = check(folder)
     assert code == 0, log[-2000:]
-    assert r["passed"] and r["failures"] == [] and r["unmeasured"] == []
+    assert r["passed"] and r["failures"] == [] and r["unmeasured"] == [] and r["unjudged"] == []
     assert r["checks"]["skeleton"]["passed"] and r["checks"]["wholeFrames"]["passed"] and r["checks"]["length"]["passed"]
     assert r["frames"] == 30 and r["seam"]["convention"] == "open-end" and r["seam"]["chosenBy"].startswith("the spec")
     assert r["ground"]["height"] == pytest.approx(0.0, abs=1e-4) and r["penetrationMeasuredOn"] == "foot mesh vertices"
@@ -91,7 +91,7 @@ def test_a_clean_loop_passes_with_its_evidence(make):
         built = {f for a, b in truth["planted"][limb] for f in range(a, b + 1)}
         assert len(built - found) <= 2 and len(found - built) <= 2, (limb, sorted(built - found), sorted(found - built))
     assert all(w["slide"] < 1e-3 for w in r["contacts"])
-    assert all(g["slide"] < 0.006 for g in r["grounded"])                    # lift-off and touch-down inside the contact height
+    assert all(g["travel"] < 0.006 and not g["toJudge"] for g in r["grounded"])   # lift-off and touch-down inside the contact height
     sheet = r["evidence"]["sheet"]
     assert os.path.getsize(sheet["path"]) > 0 and sheet["frames"] == [0, 10, 19, 29]
     video = r["evidence"]["video"]
@@ -106,10 +106,7 @@ def test_a_foot_sliding_while_planted_reads_its_slide(make, metres):
     worst = max((w for w in r["contacts"] if w["limb"] == "foot.l"), key=lambda w: w["slide"])
     assert worst["slide"] == pytest.approx(truth["metres"], abs=1e-3)
     assert worst["from"] == 0 and abs(worst["to"] - truth["frames"][1]) <= 1
-    assert code == 1 and r["failures"] == ["footSlide"]
-    # the judged slide also holds the foot's whole run at ground height: the slide plus its lift-off and touch-down
-    run = max((g for g in r["grounded"] if g["limb"] == "foot.l"), key=lambda g: g["slide"])
-    assert r["accept"]["footSlide"]["measured"] == run["slide"] and truth["metres"] <= run["slide"] <= truth["metres"] + 0.006
+    assert code == 1 and r["failures"] == ["footSlide"] and r["accept"]["footSlide"]["measured"] == worst["slide"]
 
 
 def test_a_sunken_foot_reads_its_penetration_on_the_mesh_and_on_joints(make):
@@ -117,10 +114,11 @@ def test_a_sunken_foot_reads_its_penetration_on_the_mesh_and_on_joints(make):
         folder = make(name, "--sink", 0.03, *extra)
         code, _, r = check(folder)
         assert r["feet"]["foot.r"]["penetration"] == pytest.approx(0.03, abs=1e-3) and r["feet"]["foot.l"]["penetration"] < 1e-3
-        # a foot sunk below the ground is within the contact height for most of its swing: it drags through the ground
-        assert code == 1 and r["failures"] == ["footSlide", "penetration"]
-        assert max(g["slide"] for g in r["grounded"] if g["limb"] == "foot.r") > 0.05
-        assert max(g["slide"] for g in r["grounded"] if g["limb"] == "foot.l") < ACCEPT["footSlide"]
+        # a foot sunk below the ground is within the contact height for most of its swing: its travel there is for a
+        # person to judge, beside the penetration that fails
+        assert code == 1 and r["failures"] == ["penetration"] and r["unjudged"] == ["groundTravel"]
+        assert max(g["travel"] for g in r["grounded"] if g["limb"] == "foot.r" and g["toJudge"]) > 0.05
+        assert not any(g["toJudge"] for g in r["grounded"] if g["limb"] == "foot.l")
         assert r["penetrationMeasuredOn"] == ("foot joints at their rest height" if extra else "foot mesh vertices")
         assert all(w["penetration"] == pytest.approx(0.03, abs=1e-3) for w in r["contacts"] if w["limb"] == "foot.r")
 
@@ -268,19 +266,21 @@ def test_video_through_an_outside_ffmpeg(make):
 
 # ---- faults the measures once missed, and the clip format ----------------------------------------------------------
 
-def test_a_slide_faster_than_detection_still_fails(make):
+def test_a_slide_faster_than_detection_fails_when_declared_and_is_put_to_the_person_when_not(make):
     """A foot sliding 0.4 m over its planted window moves faster than detect.speed, so detection never plants it."""
     folder = make("slide-fast", "--slide", 0.4)
     truth = read(os.path.join(folder, "truth.json"))["faults"]["slide"]
-    code, _, r = check(folder)                # nothing declared: the foot is within the contact height, so it is in contact
-    run = max((g for g in r["grounded"] if g["limb"] == "foot.l"), key=lambda g: g["slide"])
-    assert run["slide"] >= truth["metres"] - 2e-3 and run["from"] == 0 and run["passed"] is False
-    assert code == 1 and "footSlide" in r["failures"] and r["accept"]["footSlide"]["measured"] >= truth["metres"] - 2e-3
+    code, _, r = check(folder)                # nothing declared: height and speed cannot tell it from a low swing
+    run = max((g for g in r["grounded"] if g["limb"] == "foot.l"), key=lambda g: g["travel"])
+    # all of it but the last frames, where the foot slows enough for detection to plant it
+    assert 0.9 * truth["metres"] <= run["travel"] <= truth["metres"] and run["from"] == 0 and run["toJudge"] is True
+    assert "footSlide" not in r["failures"] and r["unjudged"] == ["groundTravel"]
     a, b = truth["frames"]
     write_spec(folder, "declared.json", contacts={"detect": DETECT, "planted": [{"limb": "foot.l", "from": a / 30, "to": b / 30}]})
     code, _, r = check(folder, spec="declared.json", out="declared")
     assert code == 1 and "footSlide" in r["failures"]
     assert r["expectedContacts"][0]["slide"] == pytest.approx(truth["metres"], abs=2e-3) and r["expectedContacts"][0]["passed"] is False
+    assert not any(g["limb"] == "foot.l" and g["from"] <= b and g["toJudge"] for g in r["grounded"])   # the window is judged
 
 
 def test_a_jump_inside_the_clip_hides_no_pop_and_fails_itself(make):
