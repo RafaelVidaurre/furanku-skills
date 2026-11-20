@@ -1,6 +1,6 @@
 ---
 name: jam-turnaround
-description: Produce five consistent views of one asset (front, left, back, right, three-quarter) from a chosen design, cropped to equal canvases, as the input for 3D generation. Use when the user asks for a turnaround, orthographic views or a model sheet, or when a run's next step names this skill.
+description: Produce five consistent views of one asset (front, left, back, right, three-quarter) from a chosen design, cropped to equal canvases, as the input for 3D generation or a 2D sheet. Use when the user asks for a turnaround, orthographic views or a model sheet, or when a run's next step names this skill.
 ---
 
 # Five-view turnaround
@@ -24,7 +24,7 @@ Inside a run, start from `jam run next <id>`: it names this step's guide, its ou
    ```
 
    It cuts without resampling onto equal canvases, checks that left and right face opposite ways, and prints the `--file` flags for recording. Add `--symmetric` only when the subject's two sides really are identical. Done when the five files exist and you have opened each: right view under the right name, centred, same scale, clean background. Equal sizes alone prove none of that.
-4. **Show the five originals** with the sheet available (`tools/jam/docs/images.md#show-the-originals`) and ask the one decision: are these the views to model from.
+4. **Show the five originals** with the sheet available (`tools/jam/docs/images.md#show-the-originals`) and ask the one decision: are these the views to build from.
 5. **Record:**
 
    ```
@@ -35,4 +35,4 @@ Inside a run, start from `jam run next <id>`: it names this step's guide, its ou
 
    `--job <job>` replaces `--tool` for a paid result; `--symmetric` is repeated here when it was used to crop. Then the gate: relay the person's answer or request review, as `jam run next <id>` prints.
 
-Done when `jam run status <id>` shows `turnaround` accepted, or the person holds the question. Keep all five views even when the mesh route takes fewer.
+Done when `jam run status <id>` shows `turnaround` accepted, or the person holds the question. Keep all five views even when the next step uses fewer.

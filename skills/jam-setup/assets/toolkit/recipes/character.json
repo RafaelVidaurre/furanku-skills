@@ -39,7 +39,7 @@
       "needs": [
         "texture"
       ],
-      "skill": "jam-rig",
+      "skill": "jam-3d-rig",
       "guide": "toolkit:docs/recipes/character.md#rig",
       "paid": true,
       "produces": [

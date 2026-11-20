@@ -277,13 +277,13 @@ First use walks you through approving which model tools may run on your machine.
 | Role | Skills |
 | --- | --- |
 | Entry | `jam-setup` installs, upgrades and configures. `jam-recipe` follows a recipe from brief to delivery and writes or changes recipes |
-| Operations | `jam-style`, `jam-concept`, `jam-turnaround`, `jam-model`, `jam-retopo`, `jam-uv`, `jam-texture`, `jam-rig`: one operation each, usable inside a recipe or alone |
+| Operations | `jam-style`, `jam-concept`, `jam-turnaround`, `jam-3d-model`, `jam-3d-retopo`, `jam-3d-uv`, `jam-3d-texture`, `jam-3d-rig`: one operation each, usable inside a recipe or alone |
 | Engine | `jam-engine` chooses, uses and writes engine adapters. `jam-engine-unreal` is the Unreal Engine adapter |
 | Catalog | `jam-catalog` browses, organises and reviews content, and extends the catalog with plugins |
 | Audio | `jam-sfx` for sound effects, `jam-voice` for voiced dialogue |
 
 ```bash
-npx skills add rafaelvidaurre/furanku-skills --skill jam-setup jam-recipe jam-style jam-concept jam-turnaround jam-model jam-retopo jam-uv jam-texture jam-rig jam-engine jam-engine-unreal jam-catalog jam-sfx jam-voice
+npx skills add rafaelvidaurre/furanku-skills --skill jam-setup jam-recipe jam-style jam-concept jam-turnaround jam-3d-model jam-3d-retopo jam-3d-uv jam-3d-texture jam-3d-rig jam-engine jam-engine-unreal jam-catalog jam-sfx jam-voice
 ```
 
 ```text
@@ -306,7 +306,7 @@ What has been validated and what has not:
 **Changed from version 1:**
 
 - Recipes replace the fixed list of stages. The shipped ones are `asset`, `prop`, `character`, `image`, `sfx`, `voice-line` and `provider-test`.
-- `jam-3d`, `jam-3d-prop` and `jam-3d-character` are gone. `jam-recipe` is the entry point, and `jam recipe list` says which recipe a request is for. The prop and character procedures are the `prop` and `character` recipes with a guide per step; rigging is `jam-rig`; fitting a rig to the Unreal Mannequin and the import scripts moved into `jam-engine-unreal`. The swappable character parts and outfit workflows were one game's assembly and were dropped; `jam-recipe` shows how a project adds such steps to its own recipe.
+- `jam-3d`, `jam-3d-prop` and `jam-3d-character` are gone. `jam-recipe` is the entry point, and `jam recipe list` says which recipe a request is for. The prop and character procedures are the `prop` and `character` recipes with a guide per step; rigging is `jam-3d-rig`; fitting a rig to the Unreal Mannequin and the import scripts moved into `jam-engine-unreal`. The swappable character parts and outfit workflows were one game's assembly and were dropped; `jam-recipe` shows how a project adds such steps to its own recipe.
 - Steps are recorded with flags, and the tool hashes, measures and validates. No command takes a hand-written JSON record.
 - One review system: a person approves in the catalog, or an agent records the person's answer as a relay with their words. One setting lowers the gates for a crunch.
 - Spending has a limit per asset and a total per provider, in that provider's own unit, plus an optional standing authorization in your words.

@@ -55,7 +55,7 @@
       "needs": [
         "turnaround"
       ],
-      "skill": "jam-model",
+      "skill": "jam-3d-model",
       "guide": "toolkit:docs/recipes/asset.md#mesh",
       "paid": true,
       "produces": [
@@ -73,7 +73,7 @@
       "needs": [
         "mesh"
       ],
-      "skill": "jam-retopo",
+      "skill": "jam-3d-retopo",
       "guide": "toolkit:docs/recipes/asset.md#topology",
       "paid": true,
       "produces": [
@@ -94,7 +94,7 @@
       "needs": [
         "topology"
       ],
-      "skill": "jam-uv",
+      "skill": "jam-3d-uv",
       "guide": "toolkit:docs/recipes/asset.md#uv",
       "paid": true,
       "produces": [
@@ -112,7 +112,7 @@
       "needs": [
         "uv"
       ],
-      "skill": "jam-texture",
+      "skill": "jam-3d-texture",
       "guide": "toolkit:docs/recipes/asset.md#texture",
       "paid": true,
       "produces": [

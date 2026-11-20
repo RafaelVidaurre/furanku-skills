@@ -10,7 +10,7 @@ Settle these in the brief before any image is made; changing one later redoes ev
 
 | Decision | Settle | Why |
 | --- | --- | --- |
-| Skeleton | The skeleton profile the rig will use (`jam engine facts skeletons`), or none (`jam-rig` then builds the landmark skeleton) | It fixes the bind pose and which joints must exist |
+| Skeleton | The skeleton profile the rig will use (`jam engine facts skeletons`), or none (`jam-3d-rig` then builds the landmark skeleton) | It fixes the bind pose and which joints must exist |
 | Bind pose | The pose the character is drawn, modelled and bound in: the profile's rest pose, else arms about 45 degrees down from level and legs slightly apart | A mesh modelled in another pose stretches when it is bound |
 | Proportions | Limb lengths as shares of body height: shoulder to wrist, hip to ankle, hand, foot | Animations and gameplay values made for a skeleton assume its proportions; a character 20% shorter in the arm misses what it reaches for |
 | Hands | Separate fingers that move, or mittens that follow the hand | Fingers constrain every image, need finger joints and more triangles; mittens need none of it |
@@ -30,25 +30,25 @@ A mesh can be rigged when its limbs are separate from the body and from each oth
 
 ## topology
 
-A deforming budget needs quads in loops around each joint, which reducing a dense mesh does not give: use `jam-retopo`'s provider remesh route (its routes reference, "Meshes that deform"), asking for half the triangle target in faces. The evidence adds a close-up of each joint and of a hand to the fixed views.
+A deforming budget needs quads in loops around each joint, which reducing a dense mesh does not give: use `jam-3d-retopo`'s provider remesh route (its routes reference, "Meshes that deform"), asking for half the triangle target in faces. The evidence adds a close-up of each joint and of a hand to the fixed views.
 
 ## uv
 
-Get the landmark file now (`jam-rig` says where joint positions come from); the rig step reuses it. `jam-uv`'s `seam_hints_from_landmarks.py` turns it into garment-style seams for the seams route. Give the head and hands their share of the texture: check their checker squares in close-ups, not only the whole figure.
+Get the landmark file now (`jam-3d-rig` says where joint positions come from); the rig step reuses it. `jam-3d-uv`'s `seam_hints_from_landmarks.py` turns it into garment-style seams for the seams route. Give the head and hands their share of the texture: check their checker squares in close-ups, not only the whole figure.
 
 ## texture
 
-Bake from the generated mesh onto the new layout (`jam-texture`). Judge it unlit, in close-ups of the face, each hand and every border between materials, and beside the turnaround's front, back and side views.
+Bake from the generated mesh onto the new layout (`jam-3d-texture`). Judge it unlit, in close-ups of the face, each hand and every border between materials, and beside the turnaround's front, back and side views.
 
 ## rig
 
-`jam-rig`. The step has two outputs: the skinned model, and deformation evidence showing each pose the budget names.
+`jam-3d-rig`. The step has two outputs: the skinned model, and deformation evidence showing each pose the budget names.
 
 ```
 jam run record <id> rig --file model=<skinned.glb> --file deformation=<pose sheet> ...
 ```
 
-For each extreme pose, `jam-retopo`'s `edge_stretch.py` on the mesh at rest and posed adds a number to the stills: no face edge stretched beyond twice its rest length. A joint that fails goes back to topology for more loops there, not to the weights.
+For each extreme pose, `jam-3d-retopo`'s `edge_stretch.py` on the mesh at rest and posed adds a number to the stills: no face edge stretched beyond twice its rest length. A joint that fails goes back to topology for more loops there, not to the weights.
 
 ## conform
 
