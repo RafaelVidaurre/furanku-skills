@@ -46,16 +46,21 @@ const show = Command.make("show", {}, () =>
     const current = yield* engine.resolved
     const own = current.provides.filter((name) => !VERBS.includes(name as Verb))
     const topics = yield* engine.topics
+    const kinds = Object.fromEntries(current.provides.flatMap((name) => {
+      const listed = current.adapter.commands?.[name]?.kinds
+      return listed === undefined ? [] : [[name, listed]]
+    }))
     yield* (yield* Output).emit(
       {
         id: current.id, label: current.label, source: current.source, dir: current.dir, versions: current.adapter.versions ?? null,
-        commands: Object.fromEntries(VERBS.map((verb) => [verb, current.provides.includes(verb)])), own, docs: topics, available: yield* engine.available
+        commands: Object.fromEntries(VERBS.map((verb) => [verb, current.provides.includes(verb)])), kinds, own, docs: topics, available: yield* engine.available
       },
       pairs([
         ["adapter", `${current.id}: ${current.label}`],
         ["source", current.source === "project" ? current.dir : current.source === "preset" ? "preset shipped with the toolkit (facts and a guide)" : "no engine chosen"],
         ["versions", current.adapter.versions],
         ["runs", VERBS.filter((verb) => current.provides.includes(verb)).join(", ") || "nothing: every engine step is done by hand or skipped"],
+        ["imports", current.provides.includes("import") ? (kinds["import"]?.join(", ") ?? "kinds not listed") : undefined],
         ["its own", own.length === 0 ? undefined : `${own.join(", ")}  (jam engine run <name>)`],
         ["guides", topics.join(", ") || undefined],
         ["others", (yield* engine.available).filter((other) => other.id !== current.id).map((other) => other.id).join(", ") || undefined]
@@ -84,18 +89,21 @@ const runFlags = {
 const fileArgs = Argument.String("file").pipe(Argument.withDescription("Project files; with --run they default to the run's current model, or for an audio kind its processed audio. Anything after -- goes to the adapter's command as typed."), Argument.variadic())
 
 const importCommand = Command.make("import", {
-  kind: Flag.String("kind").pipe(Flag.withDescription("What is imported: static, skinned, textures, audio, ... (the adapter says which it accepts)")),
+  kind: Flag.String("kind").pipe(Flag.withDescription("What is imported: static, skinned, animation, textures, audio, ... (the adapter says which it accepts; \"jam engine show\" lists them)")),
   destination: text("destination", "Where in the engine's content the assets go (default: the adapter's own rule)"),
   slot: many("slot", "Which engine material a slot of the model uses, as name=material. Repeat per slot."),
   skeleton: text("skeleton", "Skeleton profile a skinned import binds to (default: the one the run's budget names)"),
+  target: text("target", "For --kind animation: what the clip plays on, a skinned asset or skeleton already in the engine, as its engine id or as the import receipt file that made it"),
   files: fileArgs,
   ...runFlags
 }, (input) =>
   Effect.gen(function*() {
     const { files, extra } = yield* split(input.files)
-    yield* emitHosted(yield* importFor({ kind: input.kind, files, destination: maybe(input.destination), slots: input.slot, skeleton: maybe(input.skeleton), run: maybe(input.run), step: maybe(input.step), extra }))
+    yield* emitHosted(yield* importFor({
+      kind: input.kind, files, destination: maybe(input.destination), slots: input.slot, skeleton: maybe(input.skeleton), target: maybe(input.target), run: maybe(input.run), step: maybe(input.step), extra
+    }))
   })).pipe(described(
-    "Import files into the engine through the adapter and print its receipt (the engine's asset ids). With --run the import step is recorded with those ids. Without an import command it prints the adapter's guide for doing it by hand.",
+    "Import files into the engine through the adapter and print its receipt (the engine's asset ids). With --run the import step is recorded with those ids; for --kind animation the run's recorded clip is imported onto --target. Without an import command it prints the adapter's guide for doing it by hand.",
     "jam engine import --kind static --run oak-barrel"
   ))
 

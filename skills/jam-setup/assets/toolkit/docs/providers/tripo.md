@@ -1,10 +1,11 @@
 # Tripo
 
-Serves the mesh route. Unit: Tripo credits. API credits and Studio (browser) credits are separate balances with separate prices. The neutral procedure is [providers.md](../providers.md).
+Serves the mesh and motion routes. Unit: Tripo credits. API credits and Studio (browser) credits are separate balances with separate prices. The neutral procedure is [providers.md](../providers.md).
 
 ## Reach
 
 - **CLI:** `npm install -g tripo-cli` ([official guide](https://developers.tripo3d.ai/en/docs/cli)), then `tripo --version`. The CLI carries its own skill: read `tripo docs --topic skill`, then the `commands/make` and `commands/generate` topics and the topic of any processing step you use.
+- **MCP:** the official server is `npx -y tripo-cli mcp` ([guide](https://developers.tripo3d.ai/en/mcp)); with `--toolset full` it serves `tripo_rig_check`, `tripo_rig`, `tripo_animate` and `tripo_download`. The CLI documents `tripo anim rig`.
 - **Studio (browser):** only when the person chooses it. An API-key sign-in does not identify the Studio account. Check the visible account, its balance, the model and options and the displayed price before submitting; a CLI estimate does not price a Studio job. Open the job with `--transport browser` and the Studio account as `--scope`, keep the visible task id, and download through the page. Credits that redeem in Studio are not API credits.
 
 ## Sign-in
@@ -24,7 +25,19 @@ Verified with `tripo doctor --json` and `tripo balance --json`. Report installed
 - `make` takes 2 to 4 images for multiview. Send individual views and read the normalized mapping in the dry run.
 - Text-to-model suits a connectivity test, not production work.
 - `face_limit` and generated UVs and textures are still measured and reviewed like any other result.
-- Auto-rigging says nothing about fitting the project's own skeleton.
+
+## Motion (checked 2026-11-20)
+
+From the API v3 docs ([rig check](https://developers.tripo3d.ai/en/docs/animations-rig-check), [rig](https://developers.tripo3d.ai/en/docs/animations-rig), [retarget](https://developers.tripo3d.ai/en/docs/animations-retarget), [pricing](https://developers.tripo3d.ai/en/pricing), [changelog](https://developers.tripo3d.ai/en/docs/changelog) to "Rigging v3.0 and retargeting upgrade (2026-10)").
+
+- **Clips play only on a model Tripo rigged.** Retarget means "Apply a preset animation to a rigged 3D model": its input is a Tripo rig task (or a later task on that model). No call takes the person's own skeleton or clip. Auto-rigging says nothing about fitting the project's own skeleton.
+- **Rig check** (free) takes GLB, FBX, OBJ or STL up to 150 MB and returns whether the model can be rigged and a recommended rig type (biped, quadruped, hexapod, octopod, avian, serpentine, aquatic).
+- **Rig models.** `v1.0-20240301` (default): bipeds only, the 90+ `preset:biped:*` clips. `v3.0-20260909`: "recommended for humanoid characters", requested explicitly. `v2.5-20260210`: creatures. Output `glb` (default) or `fbx`.
+- **Output skeleton.** For bipeds `spec` picks the bone naming: `tripo` (default) or `mixamo`, and on v3.0 also `actorcore`, `unity`, `unreal` or `vrm`. No joint list is published. Retargeting brings the clip onto the project rig unless its skeleton is the project's.
+- **Presets.** Up to 5 per request. v3.0 bipeds: `idle, walk, run, dive, climb, jump, slash, shoot, hurt, fall, turn`; creatures one each. `animate_in_place` plays a clip "in place without displacement". Frame rate, clip length and presets for avian rigs are not stated.
+- **Prices:** "1 credit = $0.01 USD". Rig check free, rig 25 credits, retarget 10 per animation; "Failed and cancelled tasks are not charged."
+- **Limits:** 10 rig-check, rig or retarget tasks at a time per account (HTTP 429 beyond). From 2026-12-01 API outputs are kept "for a maximum of 7 days".
+- **Output rights** ([terms](https://developers.tripo3d.ai/en/terms), updated 2025-07-11): paid users "generally have all rights" and Tripo "will not use Inputs and Outputs as training data"; for free users Tripo retains all rights. Outputs may not be used to build competing models or services.
 
 ## Job custody
 

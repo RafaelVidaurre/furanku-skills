@@ -29,6 +29,17 @@ export const Transport = Schema.Struct({
 )))
 export type Transport = typeof Transport.Type
 
+const ROUTE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u
+
+/** How a motion provider makes a clip. */
+export const MOTION_MODES = ["inbetween", "text", "video", "library"] as const
+
+const Capability = Schema.Struct({
+  modes: opt(Schema.Array(Id)),
+  inputs: opt(Schema.Struct({ min: opt(PositiveInt), max: opt(PositiveInt) })),
+  note: opt(Schema.String)
+})
+
 export const Descriptor = Schema.Struct({
   $schema: opt(Schema.String),
   id: Id,
@@ -38,11 +49,27 @@ export const Descriptor = Schema.Struct({
     label: Text,
     paid: Schema.Boolean.pipe(Schema.annotate({ description: "false when use is included in a plan or the agent session, so no spending cap applies" }))
   }),
-  capabilities: Schema.Record(Id, Schema.Struct({
-    modes: opt(Schema.Array(Id)),
-    inputs: opt(Schema.Struct({ min: opt(PositiveInt), max: opt(PositiveInt) })),
-    note: opt(Schema.String)
-  })).pipe(Schema.annotate({ description: "What it can serve, by route name (image, mesh, sound, voice, ...)" })),
+  capabilities: Schema.StructWithRest(
+    Schema.Struct({
+      motion: opt(Schema.Struct({
+        modes: Schema.NonEmptyArray(Schema.Literals(MOTION_MODES)).pipe(Schema.annotate({
+          description: "inbetween: motion between given poses. text: motion from a written prompt. video: motion captured from footage. library: preset clips applied to a rig."
+        })),
+        inputs: opt(Schema.Struct({ min: opt(PositiveInt), max: opt(PositiveInt) })),
+        note: opt(Schema.String.pipe(Schema.annotate({
+          description: "What the provider's own docs state: limits, output skeleton and formats, and whether it animates only its own auto-rigged copy of a mesh"
+        })))
+      }).pipe(Schema.annotate({ description: "Animation clips for a rigged character. Its output skeleton is the one rig.landmarks maps, or the one the note names." })))
+    }),
+    // String keys, checked as ids below, so the published schema keeps the shape of every other route.
+    [Schema.Record(Schema.String, Capability)]
+  ).pipe(
+    Schema.check(Schema.makeFilter((capabilities) => {
+      const bad = Object.keys(capabilities).filter((route) => !ROUTE.test(route))
+      return bad.length === 0 ? undefined : `route names are lowercase ids: ${bad.join(", ")}`
+    })),
+    Schema.annotate({ description: "What it can serve, by route name (image, mesh, motion, sound, voice, ...)" })
+  ),
   transports: Schema.Array(Transport),
   pacing: opt(Schema.Struct({
     concurrent: opt(PositiveInt.pipe(Schema.annotate({ description: "Jobs to run at once on one account" }))),

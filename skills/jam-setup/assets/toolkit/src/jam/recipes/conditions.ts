@@ -6,7 +6,14 @@ import type { Condition } from "./schema.ts"
 
 export interface ConditionFacts {
   /** The engine adapter in force and the commands it provides; `problem` when it cannot be resolved. */
-  readonly engine: { readonly id: string; readonly chosen: boolean; readonly commands: ReadonlySet<string>; readonly problem?: string }
+  readonly engine: {
+    readonly id: string
+    readonly chosen: boolean
+    readonly commands: ReadonlySet<string>
+    /** The kinds each command lists; a command that lists none is absent. */
+    readonly kinds: ReadonlyMap<string, ReadonlyArray<string>>
+    readonly problem?: string
+  }
   readonly budgetName: string | null
   readonly budget: Budget | null
 }
@@ -23,7 +30,11 @@ export const evaluateCondition = (condition: Condition, facts: ConditionFacts): 
   const parts: Array<string> = []
   const unmet: Array<string> = []
   if (condition.engine !== undefined) {
-    parts.push(`engine provides ${condition.engine}`)
+    parts.push(`engine provides ${condition.engine}${condition.kind === undefined ? "" : ` --kind ${condition.kind}`}`)
+    if (facts.engine.commands.has(condition.engine) && condition.kind !== undefined && !(facts.engine.kinds.get(condition.engine) ?? []).includes(condition.kind)) {
+      const listed = facts.engine.kinds.get(condition.engine)
+      unmet.push(`engine adapter ${facts.engine.id}'s ${condition.engine} command ${listed === undefined ? "lists no kinds" : `takes ${listed.join(", ")}`}, not ${condition.kind}`)
+    }
     if (!facts.engine.commands.has(condition.engine)) {
       unmet.push(
         facts.engine.problem !== undefined

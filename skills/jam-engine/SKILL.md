@@ -26,7 +26,7 @@ Done when `jam engine show` names the adapter you chose and `jam engine facts` p
 | Need | Command |
 | --- | --- |
 | A convention | `jam engine facts [<dotted path>]`, for example `jam engine facts mesh.static` |
-| Put delivered files in the engine | `jam engine import --kind <kind> <files>`, or `--run <id>` to import a run's result and record the step |
+| Put delivered files in the engine | `jam engine import --kind <kind> <files>`, or `--run <id>` to import a run's result and record the step. An animation clip goes onto a skinned asset already in the engine: `--kind animation --target <its engine id or import receipt>` |
 | What the engine made of an asset | `jam engine inspect <engine asset id>` |
 | What refers to an asset | `jam engine references <engine asset id>` |
 | Everything the engine's content holds: files, assets, classes, engine metadata, references | `jam engine inventory`: writes one inventory file and prints its path; run again, it reads only files that changed. `--engine` lets the adapter start the engine for files it cannot read itself |

@@ -5,7 +5,11 @@
   "unit": { "id": "CU", "label": "Scenario Compute Units (CU)", "paid": true },
   "capabilities": {
     "image": {},
-    "mesh": { "modes": ["single", "multiview"], "note": "Hosted 3D models differ in input count and UV limits; read the chosen model's schema." }
+    "mesh": { "modes": ["single", "multiview"], "note": "Hosted 3D models differ in input count and UV limits; read the chosen model's schema." },
+    "motion": {
+      "modes": ["library", "text", "video"],
+      "note": "Hosted rigging and motion models of other vendors, run like any hosted model. Each model's output skeleton, length, frame rate and formats are its vendor's, with fewer options than the vendor's own API; read the model's schema. Retargeting brings the clips onto the project rig."
+    }
   },
   "transports": [
     { "kind": "mcp", "server": "scenario", "note": "Native HTTP MCP endpoint with OAuth." }

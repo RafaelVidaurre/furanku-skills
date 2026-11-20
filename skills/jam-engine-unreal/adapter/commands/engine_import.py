@@ -6,6 +6,7 @@
     engine_import.py --kind skinned <mesh.fbx> [--skeleton <profile id>] [--name <Name>] [--dest /Game/<folder>]
                      [--slot "<material slot>=<color.png>,<normal.png>,<masks.png>" | --slot "<material slot>=/Game/<existing material>"] ...
                      [--two-sided <material slot>] ... [--parent-material /Game/<existing parent>] [--physics-asset /Game/<asset> | none]
+    engine_import.py --kind animation <clip.glb> --target <skeleton or skeletal mesh id> [--name <Name>] [--dest /Game/<folder>]
     engine_import.py --kind audio <sound.wav> ... [--dest /Game/<folder>] [--name <Name>]
     engine_import.py --kind audio-variants <take.wav> ... | --variant /Game/<sound wave> ... [--asset /Game/<folder>/<Name>] [--name <Name>]
 Common: [--normal-green up|down] (convention of the normal maps given; default up) [--details <file.json>] [--project <dir>]
@@ -15,8 +16,10 @@ folder comes from the project's `engine.facts.extra.destinations.<kind>`; withou
 the file. A file `<source stem>.import.json` beside a source supplies any of name, dest, skeleton, slots, twoSided,
 physicsAsset and normalGreen for it; flags win over it. A texture given without a role takes it from its file name
 (`_Normal` or `_N`: normal; `_ORM`, `_Masks` or `_MetallicRoughness`: masks; anything else: color).
-Prints {"assets": [{"id", "kind", "source", "sha256"}]}. Importing the same source to the same destination again
-reimports into the same asset id; a static mesh that already exists is refused (docs/import.md, "Replacing a mesh").
+Prints {"assets": [{"id", "kind", "source", "sha256", "skeleton"?}]}. Importing the same source to the same destination
+again reimports into the same asset id; a static mesh that already exists is refused (docs/import.md, "Replacing a mesh").
+An animation clip is a .glb holding the skinned rig and its named animations; it is refused when the target's skeleton
+lacks any of its joints, and each animation sequence is listed with the skeleton it plays on.
 """
 import argparse
 import json
@@ -25,10 +28,10 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from jam_unreal import cli, locks, paths, receipts  # noqa: E402
+from jam_unreal import cli, gltf, locks, paths, receipts  # noqa: E402
 from jam_unreal.errors import AdapterError  # noqa: E402
 
-KINDS = ("static", "skinned", "textures", "audio", "audio-variants")
+KINDS = ("static", "skinned", "animation", "textures", "audio", "audio-variants")
 TEXTURE_ROLES = ("color", "normal", "masks")
 MATERIAL_KINDS = {"color": "BaseColor", "normal": "Normal", "masks": "ORM"}
 
@@ -192,6 +195,35 @@ def import_skinned(cfg, a):
     return receipts.import_receipt(assets)
 
 
+def import_animation(cfg, a):
+    if len(a.source) != 1:
+        raise AdapterError("invalid", "--kind animation takes exactly one clip file")
+    if not a.target:
+        raise AdapterError("invalid", "--kind animation needs --target: the skeleton or skeletal mesh already in the project that the clip plays on",
+                           fix="pass --target /Game/<folder>/<asset>")
+    source, digest = paths.source_stamp(cfg.project, a.source[0])
+    if not source.lower().endswith(".glb"):
+        raise AdapterError("invalid", "%s: an animation clip is imported from a .glb file" % source, fix="export the clip as glTF binary with its skinned rig")
+    facts = gltf.clip_facts(paths.absolute(cfg.project, source))
+    side = sidecar(cfg, source)
+    base = cli.asset_name(a.name or side.get("name") or os.path.splitext(os.path.basename(source))[0])
+    prefix = cfg.prefix("animSequence")
+    base = base[len(prefix):] if prefix and base.startswith(prefix) else base
+    dest = cfg.destination("animation", a.dest or side.get("dest"))
+    name = cfg.named("animSequence", base)
+    # The importer names one animation after `name`, several as `name` followed by each animation's own name.
+    planned = [paths.asset_id(dest, name)] if len(facts["animations"]) == 1 else [paths.asset_id(dest, name + cli.asset_name(n)) for n in facts["animations"]]
+    lock(cfg, planned)
+    result, = cli.editor(cfg, "import-animation", [("animation", "import_animation", {
+        "source": source, "sha256": digest, "target": paths.package_of(a.target), "joints": facts["joints"], "dest": dest, "name": name})])
+    cli.write_details(cfg, a.details, result)
+    for path in result.get("other") or []:
+        receipts.note("the import also made %s, which is not an animation" % path)
+    return receipts.import_receipt([
+        receipts.asset(item["id"], "animation-sequence", stored(item.get("source"), result.get("projectDir"), source), digest, item["skeleton"])
+        for item in result["assets"]])
+
+
 def import_audio(cfg, a):
     if not a.source:
         raise AdapterError("invalid", "--kind audio needs at least one --source")
@@ -252,13 +284,13 @@ def build(cfg, argv):
     p.add_argument("--two-sided", action="append", default=[])
     p.add_argument("--variant", action="append", default=[])
     p.add_argument("--destination", "--dest", dest="dest")  # --destination is what jam passes
-    for flag in ("--name", "--skeleton", "--parent-material", "--physics-asset", "--asset", "--details"):
+    for flag in ("--name", "--skeleton", "--target", "--parent-material", "--physics-asset", "--asset", "--details"):
         p.add_argument(flag)
     p.add_argument("--normal-green", choices=("up", "down"))
     p.add_argument("--collision-complexity", choices=("simple-and-complex",))
     a = p.parse_args(argv)
     a.source = a.source + a.files
-    return {"static": import_static, "textures": import_textures, "skinned": import_skinned, "audio": import_audio,
+    return {"static": import_static, "textures": import_textures, "skinned": import_skinned, "animation": import_animation, "audio": import_audio,
             "audio-variants": import_audio_variants}[a.kind](cfg, a)
 
 

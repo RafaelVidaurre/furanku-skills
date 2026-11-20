@@ -28,6 +28,15 @@ const ALLOWED = [
   /(^|\/)test_[^/]+\.py$/,
   /\.test\.[a-z]+$/
 ];
+// A provider's own skill, named by a skill transport of a shipped descriptor, is to its provider
+// what an adapter is to its engine.
+const providerSkills = () => {
+  const dir = path.join(ROOT, TOOLKIT, "providers");
+  return fs.readdirSync(dir).filter((name) => name.endsWith(".json")).flatMap((file) =>
+    (JSON.parse(fs.readFileSync(path.join(dir, file), "utf8")).transports ?? [])
+      .filter((transport) => transport.kind === "skill" && typeof transport.name === "string")
+      .map((transport) => new RegExp(`^skills/${transport.name.replace(/[^a-z0-9-]/g, "")}/`)));
+};
 // Files that may name an engine on a line that presents it as an example of a preset.
 const PRESET_EXAMPLES = [/^skills\/jam-engine\/(SKILL\.md|references\/)/, new RegExp(`^${TOOLKIT}/docs/recipes/`)];
 
@@ -79,7 +88,8 @@ function files() {
   for (const name of fs.readdirSync(SKILLS).sort()) {
     if (name.startsWith("jam-") && fs.statSync(path.join(SKILLS, name)).isDirectory()) walk(path.join(SKILLS, name));
   }
-  return out.filter((file) => !ALLOWED.some((pattern) => pattern.test(file)));
+  const allowed = [...ALLOWED, ...providerSkills()];
+  return out.filter((file) => !allowed.some((pattern) => pattern.test(file)));
 }
 
 function hits(terms, { presetExamples }) {
@@ -105,6 +115,7 @@ test("the scan covers the jam skills, the recipes and the toolkit sources", () =
     assert.ok(scanned.includes(expected), `${expected} is scanned`);
   }
   assert.ok(vendors().length >= 2, "vendor names are read from the provider descriptors");
+  assert.ok(providerSkills().some((pattern) => pattern.test("skills/jam-3d-motionbricks/SKILL.md")), "a provider's own skill may name its provider");
 });
 
 test("no engine is named in a jam skill, recipe or toolkit source", () => {
