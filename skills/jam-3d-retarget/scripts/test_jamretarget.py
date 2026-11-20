@@ -198,6 +198,18 @@ def naive(plan, src_world, src_local, align):
 
 
 @pytest.mark.parametrize("src_name, tgt_name", [("a", "b"), ("b", "a")])
+def test_a_source_standing_at_rest_leaves_the_target_feet_at_their_rest(rigs, src_name, tgt_name):
+    """The foot's pitch at rest is the rig's build, not a posture: copying the source's would sink or lift the toes."""
+    src, tgt = skel(rigs, src_name), skel(rigs, tgt_name)
+    plan = transfer.Plan(src, tgt)
+    assert {plan.how["foot." + s] for s in "lr"} == {"foot"}
+    _, tw, _, _ = transfer.transfer(plan, src.rest_world[None])
+    for side in "lr":                                   # ankle to toes as at the target's own rest
+        foot, toes = tgt.at["foot." + side], tgt.at["toes." + side]
+        assert np.abs((tw[0, toes, :3, 3] - tw[0, foot, :3, 3]) - (tgt.pos("toes." + side) - tgt.pos("foot." + side))).max() < 1e-9
+
+
+@pytest.mark.parametrize("src_name, tgt_name", [("a", "b"), ("b", "a")])
 def test_arms_follow_the_source_across_a_and_t_rests_where_naive_transfers_cross_the_body(rigs, src_name, tgt_name):
     src, tgt = skel(rigs, src_name), skel(rigs, tgt_name)
     plan = transfer.Plan(src, tgt)
@@ -205,6 +217,7 @@ def test_arms_follow_the_source_across_a_and_t_rests_where_naive_transfers_cross
     _, tw, _, _ = transfer.transfer(plan, world)
     agree = measure.segment_agreement(plan, world, tw)
     assert agree["arms"]["maxDegrees"] < 1e-6 and agree["legs"]["maxDegrees"] < 1e-6
+    assert agree["feet"]["maxDegrees"] == pytest.approx(max(plan.describe()["foot.%s" % s]["restDifferenceDegrees"] for s in "lr"), abs=0.01)   # feet keep their own rest
     assert all(n == 0 for n in measure.side_flips(plan, world, tw).values())
     asked = load(str(rigs / "motions.json"))["rig-" + src_name]["arms"]["directions"]   # the world directions the motion asked for
     for k in ("upper-arm.l", "lower-arm.r"):

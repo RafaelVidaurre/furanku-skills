@@ -215,7 +215,7 @@ def import_animation(cfg, a):
     planned = [paths.asset_id(dest, name)] if len(facts["animations"]) == 1 else [paths.asset_id(dest, name + cli.asset_name(n)) for n in facts["animations"]]
     lock(cfg, planned)
     result, = cli.editor(cfg, "import-animation", [("animation", "import_animation", {
-        "source": source, "sha256": digest, "target": paths.package_of(a.target), "joints": facts["joints"], "dest": dest, "name": name})])
+        "source": source, "sha256": digest, "target": paths.package_of(a.target), "joints": [gltf.unreal_name(j) for j in facts["joints"]], "dest": dest, "name": name})])
     cli.write_details(cfg, a.details, result)
     for path in result.get("other") or []:
         receipts.note("the import also made %s, which is not an animation" % path)

@@ -43,6 +43,17 @@ Poses: `make_test_poses.py` on the real rig (standing, arms lowered; built from 
 | FP16 (plan built first: 523.6 s, then `generate.py plan` reported it) | 50/50 (14), 50/50 (14) | 99 frames | Same token counts as FP32, different motion: joints up to 0.463 m apart, as NVIDIA's model card warns. Ends at the same target. 0.98 s in all |
 | FP32, target 1 `early=10`, target 2 `tokens=9-9` | 50/40 (14), 30/30 (9) | 69 frames | The first generation stops 10 frames early, the fixed count gives exactly 30 frames. Largest joint move across the seam 0.051 m (a fingertip), against 0.013 m at the seam of the default run and 0.216 m inside the motion |
 
+## Poses from a project rig, end to end
+
+Later on 2026-11-20 the same two machines ran a whole `animation` recipe in a scratch project. The project rig was `jam-3d-rig`'s bound test humanoid; its key poses (`stand`, and `greet` 0.8 m ahead with the right hand raised) and a 4-frame context holding `stand` were authored on it in Blender and retargeted onto the SOMA rig with `jam-3d-retarget` and `assets/landmark-maps/soma.json`.
+
+- **Host check** with `--motionbricks <clone> --import-check`, FP32: all nine requirements passed, `ready: true`. `generate.py skeleton` read 77 joints, 30 model joints, as before.
+- **Pack:** context ending at its last frame, one target, `start=1.1` (the `greet` key), `poses=1`, `early=0`, `tokens=10-10`, FP32. The first pack's floor offset was −0.030 m: the retarget had turned SOMA's feet to the project rig's foot pitch, and the generated step then dipped a toe 3.5 cm under the ground. After `jam-3d-retarget` kept each foot's own rest, the floor offset was 0.0003 m. Ground distance 0.917 m, implied speeds 0.48 to 1.62 m/s.
+- **Generate:** 34 frames (10 tokens), plan cached, encode 286 ms and inference 8.4 ms on the first call of the session, 23 ms and 8.0 ms later. With `tokens=12-12` the same request gave 42 frames; with the default 8 to 14 the model chose 14 tokens, 50 frames.
+- **Unpack:** 34 frames, 1.1 s; the hips from (0, 1.012, 0) to (0, 1.012, 0.917), path 0.964 m, height 0.904 to 1.025 m; the largest one-frame move 0.212 m, a fingertip end. Looked at with `clip_strip.py`: it steps with the right leg, closes with the left while the right arm rises, and stops standing at the target. The strip first cut off the raised arm; it is now framed on every still's full height.
+- **What the motion carried:** the planted feet drift: the left ankle moved 8.9 cm over its first 0.5 s on the ground, about 0.2 m/s, and the right 7.6 cm over its last 14 frames. The ball of the stepping foot sank 2.9 cm below its standing height while the foot pivoted. Both came through to the project rig and were measured there by `jam-3d-animate`'s check, as rule 12 expects.
+- **Hand-over:** the clip went back to the project rig through `jam-3d-retarget`, which named `Spine2`, `Neck2`, `Jaw` and the eyes as not carried (rule 10), and on to the check, an engine import and delivery.
+
 ## Blender-only and unit tests
 
 - `test_motionbricks.py`, 48 tests: pose math (frame conversion, pack on SOMA itself, independence from bone axes, round trips through a rig with other bone frames), the request and result checks, chaining arithmetic, target options, the host check's parsing and judgement, plan matching, LFS pointers, seam steps, the landmark map.
@@ -53,7 +64,7 @@ Poses: `make_test_poses.py` on the real rig (standing, arms lowered; built from 
 - **Any Linux host, any cloud instance, any other GPU or driver.** Failing requirements (old GPU, old driver, old glibc, macOS) are judged only in unit tests and on the macOS machine.
 - **A fresh install** following [setup.md](setup.md): the host already had its clone; a plan was built from scratch only for FP16.
 - **`uv run --project`** as the interpreter: runs used the environment's interpreter directly.
-- **Real project content:** no pose came through `jam-3d-retarget` from a project rig, and no target was a moving four-pose target on the real model (four-pose sampling ran only in the Blender tests).
-- **Settings not run on the model:** `--tf32 on|off`, `--no-endpoint-correction`, `--onnx-sha256`, `--context-end`, target `start=`.
-- **`clip_strip.py` on rigs other than the SOMA proxy figure; glTF files holding several animations**, or rigs whose rest pose differs from SOMA's by less than the tolerance but more than zero.
+- **Real project content beyond one generated test figure,** and a moving four-pose target on the real model (four-pose sampling ran only in the Blender tests).
+- **Settings not run on the model:** `--tf32 on|off`, `--no-endpoint-correction`, `--onnx-sha256`, `--context-end`.
+- **`clip_strip.py` on rigs other than SOMA's; glTF files holding several animations**, or rigs whose rest pose differs from SOMA's by less than the tolerance but more than zero.
 - **Another MotionBricks release.**

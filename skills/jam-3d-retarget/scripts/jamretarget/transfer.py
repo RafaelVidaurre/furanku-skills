@@ -38,6 +38,10 @@ class Plan:
         joint, side = split(k)
         if joint in TRUNK:
             return np.eye(3), "trunk"
+        if joint == "foot":
+            # Both skeletons rest standing on their soles: the foot's pitch at rest is its build (ankle height against
+            # foot length), not a posture, so each foot keeps its own rest and stands flat when the source's does.
+            return np.eye(3), "foot"
         if joint == "hand" and all(f % side in self.shared for f in ("index-1.%s", "pinky-1.%s")):
             def hand_frame(s):
                 knuckles = (s.pos("index-1." + side) + s.pos("pinky-1." + side)) / 2
@@ -58,7 +62,7 @@ class Plan:
         for k in self.shared:
             entry = {"rule": self.how[k], "turnDegrees": round(float(mathx.rotation_angle(self.align[k])), 2)}
             child = main_child(k)
-            if split(k)[0] in TRUNK and child in self.shared:
+            if (split(k)[0] in TRUNK or split(k)[0] == "foot") and child in self.shared:
                 d = mathx.angle_between(self.src.pos(child) - self.src.pos(k), self.tgt.pos(child) - self.tgt.pos(k))
                 entry["restDifferenceDegrees"] = round(float(d), 2)
             out[k] = entry

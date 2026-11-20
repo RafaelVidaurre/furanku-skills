@@ -70,6 +70,8 @@ def group_of(name):
         return "fingers"
     if joint in TRUNK:
         return "trunk"
+    if joint in ("foot", "toes"):
+        return "feet"
     return "arms" if joint in ("shoulder", "upper-arm", "lower-arm", "hand") else "legs"
 
 

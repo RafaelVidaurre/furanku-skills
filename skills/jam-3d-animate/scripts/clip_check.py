@@ -164,8 +164,9 @@ def material(name, rgba):
 VIEWS = {"side": Vector((1, 0, 0.12)), "front": Vector((0, -1, 0.12)), "back": Vector((0, 1, 0.12)), "three-quarter": Vector((0.7, -0.7, 0.25))}
 
 
-def stage(scene, hips_track, ground, height, extent, a, frames, frame0, markers):
-    """Lights, a checkered ground, a camera that follows the hips over the ground, frame stamps, contact markers."""
+def stage(scene, hips_track, ground, height, top, extent, a, frames, frame0, markers):
+    """Lights, a checkered ground, a camera that follows the hips over the ground, frame stamps, contact markers. The
+    frame reaches from below the ground to above `top`, the highest joint of the clip (a raised arm, a jump)."""
     width, height_px = (int(x) for x in a.size.lower().split("x"))
     scene.render.resolution_x, scene.render.resolution_y, scene.render.resolution_percentage = width, height_px, 100
     world = bpy.data.worlds.new("clip-check"); world.color = (0.5, 0.5, 0.5); scene.world = world
@@ -205,14 +206,16 @@ def stage(scene, hips_track, ground, height, extent, a, frames, frame0, markers)
         for ob, color in ((ok, (0.1, 0.8, 0.2, 1)), (bad, (0.9, 0.1, 0.1, 1))):
             ob.data.materials.append(material(ob.name, color))
 
-    cam_data = bpy.data.cameras.new("camera"); cam_data.type = "ORTHO"; cam_data.ortho_scale = height * 1.5
+    above = max(height * 1.25, top - ground + height * 0.12)
+    cam_data = bpy.data.cameras.new("camera"); cam_data.type = "ORTHO"; cam_data.sensor_fit = "VERTICAL"
+    cam_data.ortho_scale = above + height * 0.25
     cam = bpy.data.objects.new("camera", cam_data); scene.collection.objects.link(cam); scene.camera = cam
     d = VIEWS[a.view].normalized()
     cam.rotation_euler = (-d).to_track_quat("-Z", "Y").to_euler()
     cam_data.clip_start, cam_data.clip_end = 0.01, 40 * height
     for f in range(frames):
         x, y = hips_track[f]
-        cam.location = Vector((x, y, ground + height * 0.5)) + d * (10 * height)
+        cam.location = Vector((x, y, ground + (above - height * 0.25) / 2)) + d * (10 * height)
         cam.keyframe_insert("location", frame=frame0 + f)
     return width, height_px
 
@@ -472,7 +475,7 @@ def main():
         k = next(k for k in keys if k[1] == w["point"])
         for f in range(w["from"], w["to"] + 1):
             state[k][f] = w["passed"]
-    size = stage(scene, hips_track, ground, fig_height, ((min(allx), min(ally)), (max(allx), max(ally))), a, frames, frame0, markers)
+    size = stage(scene, hips_track, ground, fig_height, float(pos[..., 1].max()), ((min(allx), min(ally)), (max(allx), max(ally))), a, frames, frame0, markers)
     key_markers(markers, pts, state, frame0, frames, VIEWS[a.view].normalized() * fig_height * 0.3)
     sheet, picks, columns = render_sheet(scene, a.out, frame0, frames, a.sheet_frames, size)
     video, why_no_video = render_video(scene, a.out, frame0, frames, fps, a)

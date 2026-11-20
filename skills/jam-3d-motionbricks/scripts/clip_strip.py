@@ -41,6 +41,7 @@ def main(argv):
     root = next(pb for pb in arm.pose.bones if pb.parent is None)
     # Blender's frame: the character faces -Y. Side view looks along -X and spreads stills along Y; front along +Y.
     spread = Vector((0, 1, 0)) if args.view == "side" else Vector((1, 0, 0))
+    low, high = 0.0, 0.0
     for k, f in enumerate(frames):
         scene.frame_set(f)
         hips = arm.matrix_world @ root.head
@@ -50,19 +51,23 @@ def main(argv):
             still = bpy.data.objects.new(f"{o.name}-{f}", mesh)
             still.matrix_world = Matrix.Translation(Vector((-hips.x, -hips.y, 0)) + spread * (k * SPACING)) @ o.matrix_world
             scene.collection.objects.link(still)
+            heights = [(still.matrix_world @ v.co).z for v in mesh.vertices]
+            low, high = min([low] + heights), max([high] + heights)
     width = len(frames) * SPACING + 0.6
     cam = bpy.data.objects.new("strip-camera", bpy.data.cameras.new("strip-camera"))
     scene.collection.objects.link(cam)
     scene.camera = cam
-    cam.data.type, cam.data.ortho_scale = "ORTHO", width
-    middle = spread * ((len(frames) - 1) * SPACING / 2)
+    cam.data.type, cam.data.ortho_scale, cam.data.sensor_fit = "ORTHO", width, "HORIZONTAL"
+    # framed on every still from its lowest point to its highest (a raised arm, a jump), with a margin
+    low, high = low - 0.1, high + 0.1
+    middle = spread * ((len(frames) - 1) * SPACING / 2) + Vector((0, 0, (low + high) / 2))
     if args.view == "side":
-        cam.location, cam.rotation_euler = middle + Vector((8, 0, 0.9)), (1.5708, 0, 1.5708)
+        cam.location, cam.rotation_euler = middle + Vector((8, 0, 0)), (1.5708, 0, 1.5708)
     else:
-        cam.location, cam.rotation_euler = middle + Vector((0, -8, 0.9)), (1.5708, 0, 0)
+        cam.location, cam.rotation_euler = middle + Vector((0, -8, 0)), (1.5708, 0, 0)
     scene.render.engine = "BLENDER_WORKBENCH"
     scene.render.resolution_x = 1800
-    scene.render.resolution_y = max(200, int(1800 * 2.2 / width))
+    scene.render.resolution_y = max(200, int(1800 * (high - low) / width))
     scene.render.filepath = args.out
     bpy.ops.render.render(write_still=True)
     print(json.dumps({"strip": args.out, "frames": frames}))

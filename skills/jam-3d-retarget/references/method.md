@@ -15,6 +15,7 @@ For every landmark both maps place, a turn `Q` is computed once from the two res
 | Landmark | `Q` |
 | --- | --- |
 | `hips`, `spine`, `chest`, `neck`, `head` | none: both skeletons stand upright facing `+Z`, so their trunks already correspond. How far the rest trunks differ is reported as `restDifferenceDegrees` |
+| `foot` | none: both skeletons stand on their soles at rest, and a foot's pitch there comes from its build (ankle height against foot length), so each foot keeps its own and stands flat when the source's does. The difference is reported as `restDifferenceDegrees` |
 | a hand whose `index-1` and `pinky-1` both maps place | the turn that matches the hand's direction (to `middle-1`, else the knuckles' middle) and its knuckle line, so palms that rest turned differently still match |
 | a limb landmark whose next landmark on the chain both maps place | the shortest turn from the target's rest segment (this joint to the next) to the source's |
 | any other (`toes`, a `-3` finger joint, a hand without finger landmarks) | its parent landmark's `Q`: it keeps its rest angle to its parent |

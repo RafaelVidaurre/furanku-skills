@@ -65,5 +65,5 @@ The receipt lists the animation asset ids, which the step records.
 The clip accepted at the check step with its clip report; a person signs it off.
 
 ```
-jam run record <id> delivery --file clip=<clip.glb> --file evidence=<clip-report.json>
+jam run record <id> delivery --file clip=<clip.glb> --file evidence=<clip-report.json> --tool "<the tool recorded at check>" --note "..."
 ```

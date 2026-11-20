@@ -87,8 +87,10 @@ def main():
     scene = bpy.context.scene
     scene.render.fps, scene.render.fps_base = int(round(fps)), int(round(fps)) / fps
     rig_path = s["rig"]["model"]
-    rig = the_armature(load_into_scene(rig_path), rig_path)
-    source = the_armature(load_into_scene(a.poses), a.poses) if a.poses else rig
+    rig_objects = load_into_scene(rig_path)
+    rig = the_armature(rig_objects, rig_path)
+    pose_objects = load_into_scene(a.poses) if a.poses else []
+    source = the_armature(pose_objects, a.poses) if a.poses else rig
 
     names = {b.name for b in rig.data.bones}
     if source is not rig:
@@ -147,13 +149,14 @@ def main():
 
     for act in [x for x in bpy.data.actions if x != out_action]:
         bpy.data.actions.remove(act)
-    if source is not rig:
-        for ob in [source] + list(source.children):
-            bpy.data.objects.remove(ob)
+    for ob in pose_objects:                     # whatever else the poses file held (bone shapes, props) stays out
+        bpy.data.objects.remove(ob)
     scene.frame_start, scene.frame_end = min(frames), max(frames)
     out_glb = s["keyPoses"]["file"]
     os.makedirs(os.path.dirname(os.path.abspath(out_glb)), exist_ok=True)
-    bpy.ops.object.select_all(action="SELECT")
+    bpy.ops.object.select_all(action="DESELECT")
+    for ob in rig_objects:
+        ob.select_set(True)
     bpy.ops.export_scene.gltf(filepath=os.path.abspath(out_glb), export_format="GLB", use_selection=True, export_yup=True,
                               export_animations=True, export_animation_mode="ACTIONS", export_force_sampling=False,
                               export_optimize_animation_size=False, export_apply=False)

@@ -1,7 +1,7 @@
 """Import the animations of one glTF clip onto a skeleton already in the project. Runs inside the Unreal editor.
 
 ARGS: {"source": "<project-relative glb>", "sha256": "...", "target": "<skeleton, or skeletal mesh whose skeleton to use>",
-       "joints": ["<every joint the clip's skin holds>"], "dest": "/Game/Characters/Hero/Animations", "name": "AS_HeroWalk"}
+       "joints": ["<every joint the clip's skin holds, as Unreal names its bone>"], "dest": "/Game/Characters/Hero/Animations", "name": "AS_HeroWalk"}
 
 A clip whose joints the skeleton lacks is refused before anything is imported: its animation would play on nothing.
 The clip goes through Interchange's generic pipeline with "import only animations" on the target skeleton, straight

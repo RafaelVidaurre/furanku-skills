@@ -228,6 +228,25 @@ def test_key_poses_are_written_on_the_rig_at_their_times(make):
     assert code == 1 and "no action or animation named reach" in log
 
 
+def test_key_poses_from_a_blend_keep_only_the_rig(make):
+    """A .blend of poses may hold anything else (bone shapes, props); the key-pose file holds the project rig only."""
+    folder = make("clean", "--poses")
+    make_blend = ("import bpy, os; bpy.ops.wm.read_factory_settings(use_empty=True); "
+                  "bpy.ops.import_scene.gltf(filepath='poses.glb'); "
+                  "[setattr(a, 'use_fake_user', True) for a in bpy.data.actions]; "
+                  "bpy.ops.mesh.primitive_ico_sphere_add(radius=1.0); "
+                  "bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath('poses-extra.blend'))")
+    done = subprocess.run([BLENDER, "--background", "--factory-startup", "--python-exit-code", "1", "--python-expr", make_blend],
+                          capture_output=True, text=True, cwd=folder)
+    assert done.returncode == 0 and os.path.isfile(os.path.join(folder, "poses-extra.blend")), done.stdout[-2000:] + done.stderr[-2000:]
+    write_spec(folder, "kp-blend.json", keyPoses={"file": "kp-blend/keyposes.glb", "poses": [{"name": "contact", "time": 0.0}, {"name": "passing", "time": 0.4}]})
+    code, log, out = blender("keyposes.py", "kp-blend.json", "--poses", "poses-extra.blend", cwd=folder)
+    assert code == 0, log[-2000:]
+    meshes = gltf.Gltf(os.path.join(folder, out["keyposes"])).json.get("meshes", [])
+    rig_meshes = gltf.Gltf(os.path.join(folder, "rig.glb")).json.get("meshes", [])
+    assert len(meshes) == len(rig_meshes)
+
+
 @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not on PATH")
 def test_video_through_an_outside_ffmpeg(make):
     folder = make("clean", "--poses")

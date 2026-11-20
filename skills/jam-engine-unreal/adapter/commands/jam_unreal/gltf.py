@@ -6,6 +6,14 @@ from .errors import AdapterError
 
 GLB_MAGIC = 0x46546C67
 JSON_CHUNK = 0x4E4F534A
+# Characters Unreal does not keep in an object name (INVALID_OBJECTNAME_CHARACTERS); its importers write "_" in their
+# place, so a joint "foot.l" becomes the bone "foot_l".
+UNREAL_INVALID = "\"' ,/.:|&!~\n\r\t@#(){}[]=;^%$`"
+
+
+def unreal_name(name):
+    """The bone name Unreal gives a glTF joint name."""
+    return "".join("_" if c in UNREAL_INVALID else c for c in name)
 
 
 def document(path):

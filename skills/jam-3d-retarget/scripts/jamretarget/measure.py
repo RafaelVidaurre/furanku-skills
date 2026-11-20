@@ -9,7 +9,7 @@ LATERAL = np.array([1.0, 0.0, 0.0])
 
 
 def segment_agreement(plan, src_world, tgt_world):
-    """Per body part (trunk, arms, legs, fingers): the largest and mean angle, over frames, between a source segment
+    """Per body part (trunk, arms, legs, feet, fingers): the largest and mean angle, over frames, between a source segment
     (a landmark to the next one on its chain) and the same segment on the target."""
     groups = {}
     for k in plan.shared:

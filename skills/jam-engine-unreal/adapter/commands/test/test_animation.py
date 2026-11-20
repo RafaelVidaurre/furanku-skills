@@ -90,6 +90,15 @@ def test_animation_import_sends_the_clip_joints_target_and_name_and_lists_each_s
         "source": "Art/clip.glb", "target": "/Game/Hero/SK_Hero", "joints": ["root", "hips", "spine"], "dest": "/Game/Hero/Animations", "name": "AS_HeroWave"}
 
 
+def test_joints_are_compared_under_the_names_unreal_gives_bones(tmp_path):
+    """Unreal's importers write "_" for characters an object name cannot hold: the joint foot.l is the bone foot_l."""
+    assert gltf.unreal_name("upper-arm.l") == "upper-arm_l" and gltf.unreal_name("Hips") == "Hips"
+    local = project(tmp_path, [""])
+    glb(str(tmp_path / "Art" / "dotted.glb"), {"nodes": [{"name": "hips"}, {"name": "foot.l"}], "skins": [{"joints": [0, 1]}], "animations": [{"name": "Step"}]})
+    code, _, _ = run_command(tmp_path, "--kind", "animation", "Art/dotted.glb", "--target", "/Game/Hero/SK_Hero", "--destination", "/Game/A", local=local)
+    assert code == 0 and json.loads((tmp_path / "sent.json").read_text())["joints"] == ["hips", "foot_l"]
+
+
 def test_the_folder_comes_from_the_project_and_the_name_from_the_file(tmp_path):
     local = project(tmp_path, ["Bow", "Wave"])
     (tmp_path / "jam.config.json").write_text(json.dumps({"engine": {"adapter": "unreal", "facts": {"extra": {"destinations": {"animation": "/Game/Anims"}}}}}))

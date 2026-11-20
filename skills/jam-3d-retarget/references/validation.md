@@ -33,7 +33,7 @@ Both carry the same two clips, authored once as world directions and posed on ea
 | B to A | walk | 49 at 24 fps | 1.1e-15 / 0 | 0.000° | 4e-5° | 0 | 1.8e-7 m |
 | B to A | arms | 61 at 24 fps | 7.5e-16 / 0 | 0.000° | 4e-5° | 0 | 1.9e-7 m |
 
-`restAlignment` turned the upper and lower arms 45.0° in both directions and hands inherited it; legs turned 0.2°, feet 1.8°. The trunk is not turned; its rest difference (spine 1.5°, chest 3.6°, neck 2.7°) shows as the trunk's 3.6° agreement in every run, as designed. Hips travel on the target was `k` times the source's: walk 1.406 m to 1.568 m (A to B), 1.568 m to 1.406 m (B to A); the arms clip stayed in place. B to A folded B's root travel into A's hips.
+`restAlignment` turned the upper and lower arms 45.0° in both directions and hands inherited it; legs turned 0.2°; feet keep their own rest (1.8° apart). The trunk is not turned; its rest difference (spine 1.5°, chest 3.6°, neck 2.7°) shows as the trunk's 3.6° agreement in every run, as designed. Hips travel on the target was `k` times the source's: walk 1.406 m to 1.568 m (A to B), 1.568 m to 1.406 m (B to A); the arms clip stayed in place. B to A folded B's root travel into A's hips.
 
 ### The classic failure, for comparison
 
@@ -54,11 +54,11 @@ Detected automatically (0.1 source heights per second, 3 frames). Source ankles 
 
 | Run | Clip | Ankle windows | Target slide without correction | With correction | Largest correction | Toe miss |
 | --- | --- | --- | --- | --- | --- | --- |
-| A to B | walk | 5 | 1.8 to 8.5 mm | 0 | 18.3 mm | 5.3 mm |
-| B to A | walk | 4 | 6.5 to 7.8 mm | 0 | 16.4 mm | 4.8 mm |
-| A to B | arms (standing) | 2 | 0 | 0 | 0.3 mm | 5.3 mm |
+| A to B | walk | 5 | 1.8 to 8.5 mm | 0 | 18.3 mm | 0 |
+| B to A | walk | 4 | 6.5 to 7.8 mm | 0 | 16.4 mm | 0 |
+| A to B | arms (standing) | 2 | 0 | 0 | 0.3 mm | 0 |
 
-The slide without correction comes from the rigs' different thigh-to-shin ratios and hip widths. Toes were held still too (their slide is 0); their miss is the difference between the target's foot length and `k` times the source's, since the ankle of the same foot is held exactly. With the correction the legs differ from the source's directions by up to 6.0° (A to B) and 7.4° (B to A) on the walk; arms and trunk are untouched by it (checked to 1e-9).
+The slide without correction comes from the rigs' different thigh-to-shin ratios and hip widths. Toes were held still too (slide and miss 0). While feet were turned onto the source's rest pitch, the toes missed by 4.8 to 5.3 mm; keeping each foot's own rest removed that. With the correction the legs differ from the source's directions by up to 5.8° (A to B) and 7.5° (B to A) on the walk; arms and trunk are untouched by it (checked to 1e-9).
 
 ### Looked at
 
@@ -73,15 +73,23 @@ The slide without correction comes from the rigs' different thigh-to-shin ratios
 - **Blender's glTF exporter** (rig A imported into Blender and exported again): retargeted onto rig B, both clips passed; round trip 5.7e-6 and 1.2e-5 heights, 0.007° and 0.013°. The residual comes from the file: Blender wrote a thigh scale of 1.0000234 on one axis, a shear the transfer cannot express in a rotation. Arms agreement 0.000°, no side flips, planted feet held to 0.
 - **BVH** (the arms clip written by Blender's BVH exporter, in Blender's own frame: Z up, facing −Y, centimetres): `bvh_to_glb.py` with the wrong forward axis gave a file the retarget refused (exit 2, "left joints are not on +X"); with `--up Z --forward Y --scale 0.01` it gave a 1.46 m skeleton, 76 frames at 30 fps from time 0, which retargeted onto rig B with arms agreement 0.001°, round trip 3.0e-6 heights and 0.001°, no side flips.
 
+## Generated motion, end to end
+
+On 2026-11-20 the `animation` recipe ran in a scratch project on the macOS machine, with generation on a Windows 11 laptop with an 8 GB NVIDIA laptop GPU (see `jam-3d-motionbricks`). The project rig was `jam-3d-rig`'s test humanoid bound by its `bind.py` (51 bones named by landmark, A-pose, fingers), with that skill's landmark-names map; SOMA's side used `jam-3d-motionbricks`' map.
+
+- **Onto SOMA** (a 4-frame context and 2 key poses on the project rig): round trips 1.1e-7 and 2.0e-7 heights, playback within 4.6e-7 m. The first version turned SOMA's feet onto the project rig's foot pitch, which stood SOMA's toes 3.0 cm below its own standing height; the generated step then dipped a toe 3.5 cm under the ground. Feet now keep their own rest, and the packed poses stood within 0.3 mm of SOMA's standing pose.
+- **Back onto the project rig** (34 generated frames, `k` 0.873, travel 0.917 m on SOMA to 0.800 m): round trip 0.0019 heights (2.9 mm at the head), within the default tolerance. The warning named SOMA's `Spine2`, `Neck2`, `Jaw` and eyes as not carried; the trunk's agreement was 17.1° at the neck, from `Spine2` and `Neck2`'s bend. An earlier generation's round trip was 0.00204 heights, over the default; the tolerance was raised to 0.003 as troubleshooting.md says, and recorded.
+- **Contacts:** the source's planted feet drift (8.9 cm over 0.5 s, about 0.2 m/s), faster than the default detection, which then found two toe windows only. With `--contact-speed 0.2` it found six windows and held the ankles to 0.8 to 10.6 mm of slide (toes up to 33.5 mm, where the goal lay 21.5 mm beyond the leg's reach); the clip check's slide fell from 50.8 to 29.7 mm. No side flips; Blender played the file within 8.5e-7 m; the sheet was looked at row by row.
+
 ## Tests
 
-- `python3 -m pytest scripts/test_jamretarget.py` (27 tests, Blender-free, under a second): rotations; glTF sampling in LINEAR, STEP and CUBICSPLINE; frame-rate reading; the writer keeping nodes, skins, meshes and binary data unchanged; the three map shapes; refusals (sides swapped, a missing required landmark, two bones for one landmark, a rig facing backward, lying down or leaning); the `posed` warning; rest alignment and its inverse; the hand frame (a target whose palms rest turned 90° gets fingers within 1e-6° of the source's); both directions against the authored directions and the two naive transfers above; the exact round trip; root to root (rig B onto a copy 1.2 times its size: travel on root and hips, scaled 1.2, round trip 1e-15); root folded into hips; contact detection, blend weights, held feet, an unreachable hand reported as a miss; and `retarget.py` end to end (resampling 24 to 60 fps, contacts off, a contacts file holding a hand, a landmark only the target maps, motion on an unmapped spine bone failing the round trip and named in a warning, inputs refused with exit 2 and nothing written).
+- `python3 -m pytest scripts/test_jamretarget.py` (29 tests, Blender-free, under a second): rotations; glTF sampling in LINEAR, STEP and CUBICSPLINE; frame-rate reading; the writer keeping nodes, skins, meshes and binary data unchanged; the three map shapes; refusals (sides swapped, a missing required landmark, two bones for one landmark, a rig facing backward, lying down or leaning); the `posed` warning; rest alignment and its inverse; feet keeping their own rest pitch; the hand frame (a target whose palms rest turned 90° gets fingers within 1e-6° of the source's); both directions against the authored directions and the two naive transfers above; the exact round trip; root to root (rig B onto a copy 1.2 times its size: travel on root and hips, scaled 1.2, round trip 1e-15); root folded into hips; contact detection, blend weights, held feet, an unreachable hand reported as a miss; and `retarget.py` end to end (resampling 24 to 60 fps, contacts off, a contacts file holding a hand, a landmark only the target maps, motion on an unmapped spine bone failing the round trip and named in a warning, inputs refused with exit 2 and nothing written).
 - `python3 -m pytest scripts/test_retarget_blender.py` (3 tests, about 4 seconds, skipped without Blender): the evidence script and its playback check, a Blender-exported source, and the BVH conversion including the refused facing.
 
 ## Not validated
 
-- **A real character, real mocap or generated motion.** Every clip here was authored on the generated rigs; none came from a capture, a library or a motion model. Noisy contacts, foot skate already in a source, and long clips (the longest here has 151 frames) are untried.
-- **Any engine.** No retargeted file was imported into a game engine.
+- **A real character or real mocap.** Apart from the generated clip below, every clip was authored on the generated rigs. Noisy capture contacts and long clips (the longest here has 151 frames) are untried.
+- **Engines other than the one import below.**
 - **Planted hands on real data.** The hand path ran only in unit tests, on the test rigs.
 - **Rest poses other than A and T,** such as arms forward or bent elbows at rest, and rests whose palms differ without knuckle landmarks (the hand then keeps its rest angle to the forearm, by design).
 - **Large proportion differences.** Only `k` of 0.90, 1.12 and 1.2 ran.
