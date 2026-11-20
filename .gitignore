@@ -28,3 +28,4 @@ node_modules/
 
 # Screenshots and other output of the jam toolkit tests
 skills/jam-setup/assets/toolkit/test-output/
+test-output/
