@@ -1,9 +1,10 @@
 """A minimal glTF 2.0 reader and writer: the JSON, node rest transforms, accessors, animation sampling, and adding
-animations to a .glb without touching anything else in it. Reads .glb and .gltf (external buffers beside the file, no
-data URIs); writes .glb."""
+animations to a .glb without changing its scene, meshes or skins. Reads .glb and .gltf (external buffers beside the file,
+no data URIs); writes .glb."""
 import json
 import os
 import struct
+import urllib.parse
 
 import numpy as np
 
@@ -16,6 +17,16 @@ _PATH_WIDTH = {"translation": 3, "rotation": 4, "scale": 3}
 
 class GltfError(ValueError):
     pass
+
+
+def decompose(matrix):
+    """(translation [3], rotation [4] xyzw, scale [3]) of a node's column-major `matrix`. glTF requires a node's matrix
+    to be decomposable into these, so nothing is lost; a mirroring matrix gets a negative x scale."""
+    M = np.array(matrix, dtype=np.float64).reshape(4, 4).T
+    s = np.linalg.norm(M[:3, :3], axis=0)
+    if np.linalg.det(M[:3, :3]) < 0:
+        s[0] = -s[0]
+    return M[:3, 3], mathx.mat_to_quat(M[:3, :3] / s), s
 
 
 class Gltf:
@@ -71,11 +82,7 @@ class Gltf:
         T, R, S = np.zeros((n, 3)), np.tile([0.0, 0.0, 0.0, 1.0], (n, 1)), np.ones((n, 3))
         for i, node in enumerate(self.nodes):
             if "matrix" in node:
-                M = np.array(node["matrix"], dtype=np.float64).reshape(4, 4).T
-                s = np.linalg.norm(M[:3, :3], axis=0)
-                if np.linalg.det(M[:3, :3]) < 0:
-                    s[0] = -s[0]
-                T[i], S[i], R[i] = M[:3, 3], s, mathx.mat_to_quat(M[:3, :3] / s)
+                T[i], R[i], S[i] = decompose(node["matrix"])
             else:
                 T[i] = node.get("translation", [0, 0, 0]); R[i] = node.get("rotation", [0, 0, 0, 1]); S[i] = node.get("scale", [1, 1, 1])
         return T, R, S
@@ -89,8 +96,8 @@ class Gltf:
                 self._buffers[index] = self.bin
             elif uri.startswith("data:"):
                 raise GltfError("buffers stored as data URIs are not read; pack the file as .glb")
-            else:
-                with open(os.path.join(os.path.dirname(self.path), uri), "rb") as f:
+            else:                                             # a URI reference: percent-encoded, relative to the file
+                with open(os.path.join(os.path.dirname(self.path), urllib.parse.unquote(uri)), "rb") as f:
                     self._buffers[index] = f.read()
         return self._buffers[index]
 
@@ -256,20 +263,111 @@ class Packer:
         return bytes(self.data)
 
 
+# Extensions whose data references no accessor and no buffer view, or a buffer view only under a "bufferView" key; a
+# file using any other extension keeps the dropped animations' data, since a reference to it could not be renumbered.
+_COMPACT_SAFE = ("KHR_draco_mesh_compression", "KHR_texture_transform", "KHR_texture_basisu", "EXT_texture_webp",
+                 "EXT_texture_avif", "KHR_lights_punctual", "KHR_mesh_quantization", "KHR_xmp_json_ld", "KHR_animation_pointer")
+
+
+def _accessor_refs(doc):
+    """(where, key, accessor) of every accessor reference the core spec defines; `where[key]` holds it."""
+    out = []
+    for mesh in doc.get("meshes", []):
+        for prim in mesh.get("primitives", []):
+            out += [(prim["attributes"], k, v) for k, v in prim.get("attributes", {}).items()]
+            if "indices" in prim:
+                out.append((prim, "indices", prim["indices"]))
+            for target in prim.get("targets", []):
+                out += [(target, k, v) for k, v in target.items()]
+    for skin in doc.get("skins", []):
+        if "inverseBindMatrices" in skin:
+            out.append((skin, "inverseBindMatrices", skin["inverseBindMatrices"]))
+    for anim in doc.get("animations", []):
+        for sampler in anim.get("samplers", []):
+            out += [(sampler, "input", sampler["input"]), (sampler, "output", sampler["output"])]
+    return out
+
+
+def _view_refs(value):
+    """(where, key, view) of every "bufferView" reference anywhere in the JSON (accessors, sparse data, images and
+    extensions)."""
+    out = []
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if k == "bufferView" and isinstance(v, int):
+                out.append((value, k, v))
+            elif k != "bufferViews":
+                out += _view_refs(v)
+    elif isinstance(value, list):
+        for v in value:
+            out += _view_refs(v)
+    return out
+
+
+def _compact(doc, binary, dropped_samplers):
+    """Remove the accessors only dropped animations used, the buffer views only those used, and their bytes from the
+    binary chunk; renumber every reference. Returns (binary, bytes removed) or (binary, None) when an extension the
+    file uses might reference them."""
+    used = [e for e in doc.get("extensionsUsed", []) if not e.startswith("KHR_materials_") and e not in _COMPACT_SAFE]
+    if used:
+        return binary, None
+    accessors, views = doc.get("accessors", []), doc.get("bufferViews", [])
+    kept_acc = {v for _, _, v in _accessor_refs(doc)}
+    gone_acc = {a for a in dropped_samplers if a not in kept_acc}
+    if not gone_acc:
+        return binary, 0
+    acc_map = {old: new for new, old in enumerate(i for i in range(len(accessors)) if i not in gone_acc)}
+    doc["accessors"] = [a for i, a in enumerate(accessors) if i not in gone_acc]
+    for where, key, old in _accessor_refs(doc):
+        where[key] = acc_map[old]
+    kept_view = {v for _, _, v in _view_refs(doc)}
+    gone_view = {ref[2] for a in gone_acc for ref in _view_refs(accessors[a])} - kept_view
+    view_map = {old: new for new, old in enumerate(i for i in range(len(views)) if i not in gone_view)}
+    doc["bufferViews"] = [v for i, v in enumerate(views) if i not in gone_view]
+    for where, key, old in _view_refs(doc):
+        where[key] = view_map[old]
+    # The binary chunk keeps every byte range a remaining view of buffer 0 covers, each moved by a multiple of 8 bytes
+    # so every accessor stays aligned to its component size.
+    spans = sorted((v.get("byteOffset", 0), v.get("byteOffset", 0) + v["byteLength"]) for v in doc["bufferViews"] if v["buffer"] == 0)
+    merged = []
+    for a, b in spans:
+        if merged and a <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], b)
+        else:
+            merged.append([a, b])
+    out, moves = bytearray(), []
+    for a, b in merged:
+        out += b"\x00" * ((a - len(out)) % 8)
+        moves.append((a, b, len(out) - a))
+        out += binary[a:b]
+    for v in doc["bufferViews"]:
+        if v["buffer"] == 0:
+            start = v.get("byteOffset", 0)
+            v["byteOffset"] = start + next(shift for a, b, shift in moves if a <= start < b)
+    return bytes(out), len(binary) - len(out)
+
+
 def add_animations(source_path, out_path, animations, keep_existing=False):
-    """Copy a .glb with the given animations added; nodes, meshes, skins and materials are copied unchanged.
+    """Copy a .glb with the given animations added; scenes, meshes, skins and materials are copied unchanged.
 
     animations: [{"name", "times": [F], "channels": [(node, "translation" | "rotation", values [F, w])]}]. Every channel
-    is written LINEAR on the shared times. Existing animations are dropped unless keep_existing; their data stays in the
-    binary chunk, unreferenced. Returns the names of the animations dropped."""
+    is written LINEAR on the shared times. A node that any animation of the written file drives, and that stores a
+    `matrix`, is stored as the same translation, rotation and scale instead: glTF forbids a matrix on an animated node.
+    Existing animations are dropped unless keep_existing, and the data only they used is removed from the file.
+
+    Returns {"dropped": names of the animations dropped, "removedBytes": bytes of their data removed, or None when the
+    file uses an extension that might reference that data, which then stays in the file unreferenced}."""
     model = Gltf(source_path)
     if not model.is_glb:
         raise GltfError("%s is not a .glb; write the rig as a binary glTF first" % source_path)
     doc = json.loads(json.dumps(model.json))
-    dropped = [] if keep_existing else [a.get("name", "animation%d" % k) for k, a in enumerate(doc.get("animations", []))]
-    if not keep_existing:
-        doc.pop("animations", None)
-    pack = Packer(doc, model.bin or b"")
+    binary, removed = model.bin or b"", 0
+    old = doc.get("animations", [])
+    dropped = [] if keep_existing else [a.get("name", "animation%d" % k) for k, a in enumerate(old)]
+    if not keep_existing and old:
+        doc.pop("animations")
+        binary, removed = _compact(doc, binary, {i for a in old for s in a.get("samplers", []) for i in (s["input"], s["output"])})
+    pack = Packer(doc, binary)
     for anim in animations:
         times = pack.add(np.asarray(anim["times"], dtype=np.float32).reshape(-1, 1), "SCALAR", minmax=True)
         samplers, channels = [], []
@@ -278,5 +376,10 @@ def add_animations(source_path, out_path, animations, keep_existing=False):
             samplers.append({"input": times, "output": out, "interpolation": "LINEAR"})
             channels.append({"sampler": len(samplers) - 1, "target": {"node": int(node), "path": path}})
         doc.setdefault("animations", []).append({"name": anim["name"], "samplers": samplers, "channels": channels})
+    for i in sorted({c["target"]["node"] for a in doc.get("animations", []) for c in a["channels"] if "node" in c.get("target", {})}):
+        node = doc["nodes"][i]
+        if "matrix" in node:
+            t, r, s = decompose(node.pop("matrix"))
+            node.update(translation=[float(v) for v in t], rotation=[float(v) for v in r], scale=[float(v) for v in s])
     write_glb(out_path, doc, pack.finish())
-    return dropped
+    return {"dropped": dropped, "removedBytes": removed}

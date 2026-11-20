@@ -1,6 +1,6 @@
 """The Blender side of jam-3d-retarget, run for real: Blender's glTF importer plays a retargeted file as computed, the
-evidence sheet renders, a source written by Blender's own glTF exporter retargets, and a BVH source converts and
-retargets. Skipped when Blender is absent: set JAM_BLENDER to its executable (or have `blender` on PATH) to run them."""
+evidence sheet renders, a source written by Blender's own glTF exporter retargets, and BVH and FBX sources convert and
+retarget. Skipped when Blender is absent: set JAM_BLENDER to its executable (or have `blender` on PATH) to run them."""
 import json
 import os
 import shutil
@@ -16,19 +16,20 @@ import retarget  # noqa: E402
 
 
 def find_blender():
-    for candidate in (os.environ.get("JAM_BLENDER"), shutil.which("blender"), "/Applications/Blender.app/Contents/MacOS/Blender"):
-        if candidate and os.path.isfile(candidate):
-            return candidate
-    return None
+    candidates = [os.environ.get("JAM_BLENDER"), shutil.which("blender")]
+    if sys.platform == "darwin":                                          # the application bundle's own executable
+        candidates.append("/Applications/Blender.app/Contents/MacOS/Blender")
+    return next((c for c in candidates if c and os.path.isfile(c)), None)
 
 
 BLENDER = find_blender()
 pytestmark = pytest.mark.skipif(BLENDER is None, reason="Blender not found: set JAM_BLENDER to its executable to run these tests")
 
-# Writes what other tools hand over: a source re-exported by Blender's glTF exporter, and the same motion as BVH.
+# Writes what other tools hand over: a source re-exported by Blender's glTF exporter, the same motion as BVH and as FBX
+# (one take, and every action as a take), and an FBX file holding two skeletons.
 EXPORT = '''
 import bpy, sys
-src, glb_out, bvh_out, anim = sys.argv[sys.argv.index("--") + 1:]
+src, glb_out, bvh_out, fbx_out, fbx_all, fbx_two, anim = sys.argv[sys.argv.index("--") + 1:]
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.context.scene.render.fps = 30
 bpy.ops.import_scene.gltf(filepath=src)
@@ -40,6 +41,14 @@ bpy.ops.export_scene.gltf(filepath=glb_out, export_format="GLB", export_yup=True
 bpy.ops.object.select_all(action="DESELECT"); arm.select_set(True); bpy.context.view_layer.objects.active = arm
 first, last = (int(round(v)) for v in arm.animation_data.action.frame_range)
 bpy.ops.export_anim.bvh(filepath=bvh_out, frame_start=first, frame_end=last)
+bpy.context.scene.frame_start, bpy.context.scene.frame_end = first, last
+fbx = dict(use_selection=True, object_types={"ARMATURE"}, add_leaf_bones=False, bake_anim=True, bake_anim_use_nla_strips=False)
+bpy.ops.export_scene.fbx(filepath=fbx_out, bake_anim_use_all_actions=False, **fbx)
+bpy.ops.export_scene.fbx(filepath=fbx_all, bake_anim_use_all_actions=True, **fbx)
+bpy.ops.import_scene.gltf(filepath=src)
+for o in bpy.data.objects:
+    o.select_set(o.type == "ARMATURE")
+bpy.ops.export_scene.fbx(filepath=fbx_two, bake_anim_use_all_actions=False, **fbx)
 '''
 
 
@@ -66,14 +75,26 @@ def exported(rigs, tmp_path_factory):
     folder = tmp_path_factory.mktemp("exported")
     script = folder / "export.py"
     script.write_text(EXPORT)
-    code, log = blender(str(script), rigs / "rig-a.glb", folder / "blender-a.glb", folder / "arms.bvh", "arms")
+    code, log = blender(str(script), rigs / "rig-a.glb", folder / "blender-a.glb", folder / "arms.bvh", folder / "arms.fbx",
+                        folder / "all.fbx", folder / "two.fbx", "arms")
     assert code == 0, log[-2000:]
     return folder
 
 
+# The test clips' planted feet stand exactly still, so any small speed finds them; these are the validated runs' values.
+CONTACTS = ["--contacts", "auto", "--contact-speed", "0.1", "--contact-min-frames", "3"]
+
+
 def retarget_to_b(rigs, source, out, *extra):
-    code = retarget.main([str(source), str(rigs / "rig-a.map.json"), str(rigs / "rig-b.glb"), str(rigs / "rig-b.map.json"), str(out)] + list(extra))
-    return code, read(out / "retarget-report.json")
+    code = retarget.main([str(source), str(rigs / "rig-a.map.json"), str(rigs / "rig-b.glb"), str(rigs / "rig-b.map.json"), str(out)] + CONTACTS + list(extra))
+    path = out / "retarget-report.json"
+    return code, (read(path) if path.exists() else None)
+
+
+def convert(source, out, *flags):
+    code, log = blender(os.path.join(HERE, "clip_to_glb.py"), source, out, *flags)
+    printed = next((json.loads(line) for line in log.splitlines() if line.startswith("{")), None)
+    return code, printed, log
 
 
 def test_blender_plays_the_retargeted_file_as_computed_and_the_sheet_renders(rigs, tmp_path):
@@ -100,18 +121,58 @@ def test_a_source_written_by_blenders_exporter_retargets(rigs, exported, tmp_pat
 
 
 def test_a_bvh_source_converts_and_retargets(rigs, exported, tmp_path):
-    convert = os.path.join(HERE, "bvh_to_glb.py")
     # Blender's BVH exporter writes its own frame: Z up, the character facing -Y, centimetres under this rig's armature
-    code, log = blender(convert, exported / "arms.bvh", tmp_path / "wrong.glb", "--up", "Z", "--forward=-Y", "--scale", "0.01")
+    code, printed, log = convert(exported / "arms.bvh", tmp_path / "wrong.glb", "--up", "Z", "--facing", "Y", "--scale", "0.01")
     assert code == 0, log[-2000:]
-    code = retarget.main([str(tmp_path / "wrong.glb"), str(rigs / "rig-a.map.json"), str(rigs / "rig-b.glb"), str(rigs / "rig-b.map.json"), str(tmp_path / "x")])
-    assert code == 2                                                      # facing backward is refused, not retargeted
-    code, log = blender(convert, exported / "arms.bvh", tmp_path / "arms.glb", "--up", "Z", "--forward", "Y", "--scale", "0.01", "--name", "arms")
+    code, rep = retarget_to_b(rigs, tmp_path / "wrong.glb", tmp_path / "x")
+    assert code == 2 and rep is None                                      # facing backward is refused, not retargeted
+    code, printed, log = convert(exported / "arms.bvh", tmp_path / "arms.glb", "--up", "Z", "--facing=-Y", "--scale", "0.01", "--name", "arms")
     assert code == 0, log[-2000:]
-    printed = json.loads(next(line for line in log.splitlines() if line.startswith("{")))
-    assert printed["skeletonHeightMeters"] == pytest.approx(1.46, abs=0.01) and printed["frames"] == 76
+    assert printed["skeletonHeightMeters"] == pytest.approx(1.46, abs=0.01) and printed["animations"] == [{"name": "arms", "frames": 76}]
     code, rep = retarget_to_b(rigs, tmp_path / "arms.glb", tmp_path / "out")
     assert code == 0 and rep["passed"]
     arms = rep["animations"][0]
     assert arms["name"] == "arms" and arms["startSeconds"] == 0.0 and arms["fps"] == 30.0
     assert arms["agreement"]["transfer"]["arms"]["maxDegrees"] < 0.01 and all(n == 0 for n in arms["sideFlips"].values())
+
+
+def test_axes_and_scale_must_be_given(exported, tmp_path):
+    code, _, log = convert(exported / "arms.bvh", tmp_path / "none.glb", "--up", "Z", "--facing=-Y")
+    assert code != 0 and "--scale" in log and not (tmp_path / "none.glb").exists()
+
+
+def test_an_fbx_source_converts_and_retargets(rigs, exported, tmp_path):
+    # Blender's FBX exporter declares Y up, the scene's front +Z and centimetres; the character faces +Z
+    code, printed, log = convert(exported / "arms.fbx", tmp_path / "arms.glb", "--up", "Y", "--facing", "Z", "--scale", "0.01", "--name", "arms")
+    assert code == 0, log[-2000:]
+    assert printed["declared"] == {"up": "Y", "front": "Z", "metresPerUnit": 0.01}
+    assert printed["skeletonHeightMeters"] == pytest.approx(1.46, abs=0.01) and printed["animations"] == [{"name": "arms", "frames": 76}]
+    code, rep = retarget_to_b(rigs, tmp_path / "arms.glb", tmp_path / "out")
+    assert code == 0 and rep["passed"]
+    arms = rep["animations"][0]
+    assert (arms["name"], arms["frames"], arms["fps"], arms["startSeconds"]) == ("arms", 76, 30.0, 0.0)
+    assert arms["agreement"]["transfer"]["arms"]["maxDegrees"] < 0.01 and arms["roundTrip"]["maxHeights"] < 1e-4
+    code, printed, log = convert(exported / "all.fbx", tmp_path / "all.glb", "--up", "Y", "--facing", "Z", "--scale", "0.01")
+    assert code == 0, log[-2000:]
+    assert sorted(a["frames"] for a in printed["animations"]) == [61, 76]
+    code, rep = retarget_to_b(rigs, tmp_path / "all.glb", tmp_path / "all")
+    assert code == 0 and rep["passed"] and len(rep["animations"]) == 2
+
+
+def test_an_fbx_source_is_refused_when_its_declaration_or_content_is_ambiguous(rigs, exported, tmp_path):
+    code, _, log = convert(exported / "arms.fbx", tmp_path / "metres.glb", "--up", "Y", "--facing", "Z", "--scale", "1")
+    assert code == 2 and "unit is 0.01 m, not 1" in log and not (tmp_path / "metres.glb").exists()
+    code, _, log = convert(exported / "arms.fbx", tmp_path / "z-up.glb", "--up", "Z", "--facing=-Y", "--scale", "0.01")
+    assert code == 2 and "up axis is Y, not Z" in log
+    code, printed, log = convert(exported / "arms.fbx", tmp_path / "big.glb", "--up", "Y", "--facing", "Z", "--scale", "1", "--ignore-declared")
+    assert code == 0 and printed["skeletonHeightMeters"] == pytest.approx(146, abs=1)  # the flag wins, and the height shows it
+    code, _, log = convert(exported / "arms.fbx", tmp_path / "back.glb", "--up", "Y", "--facing=-Z", "--scale", "0.01")
+    assert code == 0
+    assert retarget_to_b(rigs, tmp_path / "back.glb", tmp_path / "x")[0] == 2   # facing backward is refused by the retarget
+    code, _, log = convert(exported / "two.fbx", tmp_path / "two.glb", "--up", "Y", "--facing", "Z", "--scale", "0.01")
+    assert code == 2 and "one skeleton" in log
+    names = log.split("skeletons in the file: ")[1].split(")")[0].split(", ")
+    code, printed, log = convert(exported / "two.fbx", tmp_path / "one.glb", "--up", "Y", "--facing", "Z", "--scale", "0.01", "--armature", names[0])
+    assert code == 0, log[-2000:]
+    code, _, log = convert(rigs / "rig-a.glb", tmp_path / "glb.glb", "--up", "Y", "--facing", "Z", "--scale", "1")
+    assert code == 2 and "only .bvh and .fbx" in log
