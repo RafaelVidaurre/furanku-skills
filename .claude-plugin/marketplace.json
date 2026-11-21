@@ -25,6 +25,7 @@
       "skills": [
         "./skills/jam-setup",
         "./skills/jam-recipe",
+        "./skills/jam-providers",
         "./skills/jam-style",
         "./skills/jam-concept",
         "./skills/jam-turnaround",

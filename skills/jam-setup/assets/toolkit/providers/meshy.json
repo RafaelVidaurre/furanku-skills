@@ -14,7 +14,21 @@
     }
   },
   "transports": [
-    { "kind": "cli", "command": "meshy", "probe": ["--version"], "npmLauncher": true, "note": "Device or browser sign-in." },
+    {
+      "kind": "cli",
+      "command": "meshy",
+      "probe": ["--version"],
+      "auth": ["auth", "status", "--format", "json", "--no-update-check"],
+      "balance": {
+        "args": ["balance", "--format", "json", "--no-update-check"],
+        "remaining": "result.balance",
+        "parts": { "monthly": "result.monthly_credits", "permanent": "result.permanent_credits" },
+        "resets": "result.monthly_resets_at",
+        "resetsAs": "unix-ms"
+      },
+      "npmLauncher": true,
+      "note": "Device or browser sign-in."
+    },
     { "kind": "skill", "name": "meshy-3d-generation" }
   ],
   "pacing": { "concurrent": 1, "typicalWait": "A mesh job takes about 3 to 5 minutes; start the next when the previous finishes." },

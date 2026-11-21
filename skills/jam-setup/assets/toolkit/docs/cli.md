@@ -816,34 +816,60 @@ Providers: generation services the project can use
 
 ### provider list
 
-List the known providers: what each can serve and in which modes, which routes use it, how it is reached, and whether paid work is enabled.
+List the known providers: what each can serve and in which modes, which routes use it, how it is reached, whether paid work is enabled, and what the project's runs have committed to each (charges plus estimates still at risk).
 
 ```
-jam provider list
+jam provider list [flags]
 ```
+
+| Flag | Meaning |
+|---|---|
+| `--capability <string>` | Only providers that serve this route (image, mesh, motion, sound, voice, ...) |
 
 Example:
 
 ```
-jam provider list
+jam provider list --capability mesh
 ```
 
 ### provider probe
 
-Report, separately, whether a provider is installed, signed in and reachable. What the toolkit cannot see is reported as unknown with how to find out; it is never guessed.
+Report, separately, whether a provider is installed, signed in and reachable. What the toolkit cannot see is reported as unknown with how to find out; it is never guessed. With one id --json prints that provider's object; otherwise { providers: [...] }.
 
 ```
-jam provider probe <id>
+jam provider probe [<id...>]
 ```
 
 | Argument | Meaning |
 |---|---|
-| `id` | Provider id |
+| `id` | Provider ids (default: every provider the project knows) |
 
 Example:
 
 ```
 jam provider probe <provider>
+```
+
+### provider balance
+
+Read what is left on each provider's account through the provider's own free balance or usage call, as its descriptor declares; never a paid call. Prints the amount left in the provider's unit, the portions it reports apart and when the allowance renews; for a read only the agent's own tools can make, what to call; for a provider with no balance, why. A successful read also proves the account is signed in and the service answers.
+
+```
+jam provider balance [<id...>] [flags]
+```
+
+| Argument | Meaning |
+|---|---|
+| `id` | Provider ids (default: every provider the project knows) |
+
+| Flag | Meaning |
+|---|---|
+| `--capability <string>` | Only providers that serve this route (image, mesh, motion, sound, voice, ...) |
+
+Example:
+
+```
+jam provider balance --capability mesh
 ```
 
 ## engine

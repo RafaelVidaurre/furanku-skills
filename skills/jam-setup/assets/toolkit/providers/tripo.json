@@ -11,7 +11,19 @@
     }
   },
   "transports": [
-    { "kind": "cli", "command": "tripo", "probe": ["--version"], "npmLauncher": true },
+    {
+      "kind": "cli",
+      "command": "tripo",
+      "probe": ["--version"],
+      "auth": ["doctor", "--json"],
+      "balance": {
+        "args": ["balance", "--json"],
+        "remaining": "balance",
+        "parts": { "held by running tasks": "frozen" },
+        "note": "the API balance only; Studio credits are a separate balance seen in the browser"
+      },
+      "npmLauncher": true
+    },
     { "kind": "mcp", "server": "tripo", "note": "Official server `npx -y tripo-cli mcp`; with `--toolset full` it serves rig check, rig, animate and download." },
     { "kind": "browser", "note": "Studio. API-key sign-in does not identify the Studio account; its balance and prices are separate." }
   ],

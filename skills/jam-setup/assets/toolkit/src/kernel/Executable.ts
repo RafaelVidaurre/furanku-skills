@@ -24,6 +24,8 @@ export interface ProbeResult {
   readonly output: string | null
   /** Why it is not installed or did not run: an error code or `exit <n>`. */
   readonly error: string | null
+  /** Everything it printed on standard output, for a probe whose answer is data (empty when it did not start). */
+  readonly stdout: string
 }
 
 export class Executables extends Context.Service<Executables, {
@@ -66,20 +68,22 @@ function make(platform: NodeJS.Platform): Executables["Service"] {
       try {
         if (platform === "win32" && options.npmLauncher) {
           if (UNSAFE_COMMAND.test(command) || !args.every((arg) => SAFE_ARGUMENT.test(arg))) {
-            return done({ installed: false, output: null, error: "the executable path or its probe arguments contain characters cmd.exe would interpret" })
+            return done({ installed: false, output: null, error: "the executable path or its probe arguments contain characters cmd.exe would interpret", stdout: "" })
           }
           child = spawn("cmd.exe", ["/d", "/s", "/c", `""${command}" ${args.join(" ")}"`], { ...base, windowsVerbatimArguments: true })
         } else child = spawn(command, [...args], base)
       } catch (cause) {
-        return done({ installed: false, output: null, error: (cause as Error).message })
+        return done({ installed: false, output: null, error: (cause as Error).message, stdout: "" })
       }
       const out: Array<Buffer> = []
-      child.stdout.on("data", (chunk: Buffer) => out.push(chunk))
+      const stdout: Array<Buffer> = []
+      child.stdout.on("data", (chunk: Buffer) => void (out.push(chunk), stdout.push(chunk)))
       child.stderr.on("data", (chunk: Buffer) => out.push(chunk))
-      child.on("error", (cause) => done({ installed: false, output: null, error: (cause as { code?: string }).code ?? cause.message }))
+      child.on("error", (cause) => done({ installed: false, output: null, error: (cause as { code?: string }).code ?? cause.message, stdout: "" }))
       child.on("close", (code) => {
         const first = Buffer.concat(out).toString("utf8").split(/\r?\n/).map((line) => line.trim()).find((line) => line !== "") ?? null
-        done(code === 0 ? { installed: true, output: first, error: null } : { installed: false, output: first, error: `exit ${code ?? "by signal"}` })
+        const printed = Buffer.concat(stdout).toString("utf8")
+        done(code === 0 ? { installed: true, output: first, error: null, stdout: printed } : { installed: false, output: first, error: `exit ${code ?? "by signal"}`, stdout: printed })
       })
     })
 
