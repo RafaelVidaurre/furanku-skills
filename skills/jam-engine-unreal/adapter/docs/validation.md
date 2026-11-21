@@ -2,7 +2,7 @@
 
 Project A and project B below are two private projects used read-only for testing: UE 5.8 with 4,108 packages, and UE 5.9 with 1,198 packages.
 
-No Unreal editor was available where this adapter was assembled, except for the inventory, the previews and the animation import (below). Nothing else here was run in an editor after it was changed. Read each row as: where the code came from, what was changed, what was run since.
+No Unreal editor was available where this adapter was assembled, except for the inventory, the previews, the animation import and the stored sources of imports (below). Nothing else here was run in an editor after it was changed. Read each row as: where the code came from, what was changed, what was run since.
 
 **Jam** means: run as part of the game-jam project this adapter was extracted from (Unreal 5.9, Blender 5.1, November 2026), in the form it had there. Every script from the jam was then changed mechanically: its body wrapped in `main(ARGS)`, project literals replaced by arguments, and its result returned instead of printed or written to a fixed file.
 
@@ -22,8 +22,8 @@ No Unreal editor was available where this adapter was assembled, except for the 
 | `compare_bones_in_game.py` | Jam: during Play In Editor | Reference mesh name is an argument; fails clearly when it is not in play |
 | `export_skeleton_reference.py` | Jam: reference export, by commandlet | Assets and output folder are arguments |
 | `import_animation.py` | **New**, written for this adapter; run on 2026-11-20 (below) | |
-| `import_static.py` | **New, never run.** The jam imported static meshes by hand through the editor's static-mesh toolset ([import.md](import.md)) | Whole script. It refuses to overwrite, and reports what it could not apply under `unavailable` |
-| `inspect_asset.py` | **New, never run.** Bounds, slots, skeleton, vertex and section counts and collision shape counts use calls from the jam's checks; triangle count, LOD count, Nanite state, bone names, sound and texture facts use calls the jam did not make | Each fact is read separately; one the engine refuses is named under `unavailable` and left out of the receipt |
+| `import_static.py` | **New**, written for this adapter; run on 2026-11-21 ([below](#stored-sources-of-imports)) | |
+| `inspect_asset.py` | **New.** Run on 2026-11-21 only to read stored sources back ([below](#stored-sources-of-imports)) on a static mesh, a texture, a sound and a skinned mesh, on 5.8.4 and 5.9.0; its other facts were not compared with the files. Through a commandlet the static mesh's vertex count (the static-mesh editor subsystem has no instance there) and the sound's sample rate came back under `unavailable`. Bounds, slots, skeleton, vertex and section counts and collision shape counts use calls from the jam's checks; triangle count, LOD count, Nanite state, bone names, sound and texture facts use calls the jam did not make | Each fact is read separately; one the engine refuses is named under `unavailable` and left out of the receipt |
 
 ## The inventory (`engine_inventory.py`, `jam_unreal/packages.py`, `editor/inventory.py`)
 
@@ -40,8 +40,9 @@ Written for this adapter, not from the jam. On 2026-11-17, on a Mac:
   - **Against the engine:** every value the reader finds on those objects and their components was read with `get_editor_property` in the same engine (`dump_fields.py`, `fields.json`) and agrees; 5.8's Python cannot open an instanced struct, so those values come from its exported text there. Properties the editor's Python cannot read (protected) are listed in `fields.json` and not compared.
   - **References:** each one in the fields is one of its package's references, or an object of the same package.
 - **The property tag layout before UE5 1012** is tested on a stream built from the engine's loader (`FPropertyTag`), at 1010 and 1011: no installed engine writes such a package.
-- **Delegates, field paths and text histories** that no fixture holds (argument-data formats, currencies, dates, string tables) are tested on streams built from the engine's serializers.
-- **Real project,** project B (5.9), read-only, through a wrapper project: with every class listed, all 1,198 packages and their 3,793 components and subobjects were read with no unparsed value. 50 subobjects (Control Rig graph links and one rig hierarchy) get `fieldsError`: their classes serialize themselves without tagged properties. Before this work 73 values were unparsed (sync markers, pin types, sampling data, Slate vectors, per-platform frame rates, retarget settings, a localized text).
+- **Delegates, field paths and text histories** that no fixture holds (argument-data formats, currencies, dates, string tables, text generators: no stock engine module registers one) are tested on streams built from the engine's serializers.
+- **Control Rig links,** 2026-11-21: on a Control Rig asset each of 5.8.4 and 5.9.0 wrote (`commands/test/fixtures/rig/make_rig.py`), the reader gives each link's two pin paths as the editor's own `get_pin_path` read them (`links.json`). The rig hierarchy still gets `fieldsError`.
+- **Real project,** project B (5.9), read-only, through a wrapper project: with every class listed, all 1,198 packages and their 3,793 components and subobjects were read with no unparsed value. 50 subobjects (Control Rig graph links and one rig hierarchy) got `fieldsError`: their classes serialize themselves without tagged properties. Links are read since (above); this project was not read again. Before this work 73 values were unparsed (sync markers, pin types, sampling data, Slate vectors, per-platform frame rates, retarget settings, a localized text).
 - **Timing:** project B's full scan with `/Script/Engine.DataAsset` listed takes 2.9 s through `jam engine inventory --full`, 1.4–2.0 s when nothing changed, Node start-up and validation included.
 
 **Effective values** (`editor/fields.py`, `--engine`), 2026-11-18, through real headless editors (commandlet transport):
@@ -61,6 +62,14 @@ Written for this adapter. On 2026-11-20, on a Mac, through real headless editors
 - **A later attempt of the same run**, later on 2026-11-20 on 5.9.0 and 5.8.4: the toolkit now passes the run's id (`--run`) and each sequence keeps it in its `jam.run` metadata tag. `test_animation.py`'s editor test passed on both with the attempts: `work/walk/1/clip.glb` then `work/walk/2/clip.glb`, each with `--run walk`, landed under one id, the tag read back by a new editor process from the saved asset; the first attempt's file with `--run walk-fast`, or with no run, was then refused, naming the sequence, its file and its run. Through the toolkit in a 5.9 scratch project, a run's second attempt replaced the first attempt's 34-frame sequence with its 42-frame clip under the same id (the engine reported 41 frame intervals over 1.3667 s, the stored source in the second attempt's folder), and an import of another clip under that name outside the run was refused.
 - **Found on the way:** an import task given an Interchange pipeline as its options ignored it and built a new skeleton; the pipeline has to go to the Interchange manager as an override. A sequence moved after import resolved its stored source from its new folder, to a path outside the project; the command therefore imports in place under its final name.
 - **Not checked:** real characters, root motion that travels, curves and morph targets, non-1 scale or other axes than glTF's, a `command` transport to a running editor, Windows.
+
+## Stored sources of imports
+
+`import_static.py`, and the source each import kind leaves on its assets, on 2026-11-21 on a Mac, through real headless editors (commandlet transport, `-nullrhi`), on scratch projects holding only the fixtures of `commands/test/fixtures/import/` (made in Blender 5.1) and a generated WAV:
+- **Found:** the first version imported a model into a scratch folder and renamed the mesh, its texture and its material into the destination. On 5.8.4 and 5.9.0 each moved asset then resolved its stored source from its new folder, to a path outside the project, and the import was refused with `machine-path`.
+- **Now** the model is imported in place: the project's Interchange pipelines for the file, then a naming pipeline of the adapter's that sets each asset's name and folder before anything is created. `test_import.py`'s editor test passed on 5.8.4 and 5.9.0, and failed on the first version: two props whose own material and image names collide (`Material`, `Image`) landed as `SM_<Name>`, `Textures/T_<Name>_Image` and `Materials/MI_<Name>`, each with one convex hull from its `UCX_` shape; the same file again was refused before import, naming the three assets; textures, a sound and a skinned mesh (no `--slot`, on a skeleton already in the project) were imported. A new editor process read every asset's stored source back as the project-relative file it came from, and `check --kind sources` found no machine path.
+- **A false machine path:** on 5.9 a skinned mesh imported through Interchange stores node ids such as `Factory_\\SKMInstance\\LODContainer\...`, which the `strings` test took for a network share. It no longer does.
+- **Not checked here:** `--slot` on a skinned import; Nanite and `--collision-complexity`; a `command` transport.
 
 ## Previews
 
@@ -86,8 +95,8 @@ Written for this adapter. On 2026-11-20, on a Mac, through real headless editors
 
 ## Commands and their engine-free code
 
-`engine_import.py`, `engine_inspect.py`, `engine_references.py`, `engine_check.py`, `collision.py`, `skeleton_reference.py`, `conform_skeleton.py` and the `jam_unreal` package are new. `python3 -m pytest commands/test` covers configuration, path mapping, receipts, script composition, the three transports against a stand-in for the editor, locks against a stand-in for Git, hull geometry, the coverage rule, joint comparison, the landmark file and the machine-path scan. No transport was run against a real editor, and no lock against a real LFS server.
+`engine_import.py`, `engine_inspect.py`, `engine_references.py`, `engine_check.py`, `collision.py`, `skeleton_reference.py`, `conform_skeleton.py` and the `jam_unreal` package are new. `python3 -m pytest commands/test` covers configuration, path mapping, receipts, script composition, the three transports against a stand-in for the editor, locks against a stand-in for Git, hull geometry, the coverage rule, joint comparison, the landmark file and the machine-path scan. Only the commandlet transport was run against a real editor (the sections above), and no lock against a real LFS server.
 
 ## Before relying on it
 
-Run each command once against your editor on a throwaway asset and compare with this page: `import --kind static` and `inspect` first, since they are new. Report what differs to the adapter's source.
+Run each command once against your editor on a throwaway asset and compare with this page: `inspect` first, since it is new. Report what differs to the adapter's source.

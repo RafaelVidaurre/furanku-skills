@@ -30,6 +30,6 @@ A command the toolkit does not route yet runs directly: `node tools/jam/jam.mjs 
 
 ## What is validated
 
-Except the inventory, the previews and the animation import, nothing in the adapter was run in an Unreal editor after it was generalized. `jam engine docs validation` lists, per script, what ran in the game jam it came from, what was changed since, and the two scripts that are new and have never run (`import --kind static`, `inspect`). Treat the first run of each command in a project as its test: use a throwaway asset and compare the result with that page.
+Except the inventory, the previews, the animation import and the stored sources of imports, nothing in the adapter was run in an Unreal editor after it was generalized. `jam engine docs validation` lists, per script, what ran in the game jam it came from, what was changed since, and what was run since. Treat the first run of each command in a project as its test: use a throwaway asset and compare the result with that page.
 
 The engine-free code has unit tests: `python3 -m pytest <this skill>/adapter/commands/test`.

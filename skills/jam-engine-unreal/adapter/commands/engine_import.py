@@ -96,11 +96,13 @@ def import_static(cfg, a):
     mesh_id = paths.asset_id(dest, cfg.named("staticMesh", base))
     result, = cli.editor(cfg, "import-static", [("mesh", "import_static", {
         "source": source, "sha256": digest, "dest": dest, "name": paths.object_name(mesh_id), "base": base,
-        "prefixes": {k: cfg.prefix(k) for k in ("texture", "material", "materialInstance")},
-        "scratch": "%s/_jam_import_%s" % (dest, base), "complexity": a.collision_complexity})])
+        "prefixes": {k: cfg.prefix(k) for k in ("texture", "material", "materialInstance")}, "complexity": a.collision_complexity})])
     cli.write_details(cfg, a.details, result)
     for key, why in (result.get("unavailable") or {}).items():
         receipts.note("not applied: %s (%s)" % (key, why))
+    for asset_id, held in sorted((result.get("sources") or {}).items()):   # the textures and materials remember the file too
+        if held and asset_id != mesh_id:
+            paths.project_relative(held, result.get("projectDir"))
     assets = []
     for item in result["assets"]:
         if item["id"] == mesh_id:

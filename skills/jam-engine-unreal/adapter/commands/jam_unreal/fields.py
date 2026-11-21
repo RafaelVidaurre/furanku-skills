@@ -565,6 +565,12 @@ def _text(c, ctx):
     if history == 11:
         table = c.name()
         return {"table": table, "key": c.string()}
+    if history == 12:  # text generator: its type, then contents only that generator's code reads
+        generator = c.name()
+        if generator == "None":
+            return ""
+        c.take(_count(c, len(c.data)))
+        return {"generator": generator}
     raise _Unparsed()
 
 
@@ -757,6 +763,31 @@ def _properties(c, ctx, prefix, select=None):
                 value = {"unparsed": type_text(tag.type)}
             out[key] = value
         c.pos = end
+
+
+def _rig_vm_link(c):
+    """URigVMLink::Serialize: the source and target pin paths, nothing else."""
+    return {"SourcePinPath": c.string(), "TargetPinPath": c.string()}
+
+
+# Classes whose Serialize writes their own data and no tagged properties, by what that data holds.
+SELF_SERIALIZED = {"/Script/RigVMDeveloper.RigVMLink": _rig_vm_link}
+
+
+def read_self_serialized(data, package, cls):
+    """(fields, references) of an export whose class writes its own data in place of tagged properties; raises
+    FieldsError for a class this reader does not know, or data that does not parse as that class's."""
+    read = SELF_SERIALIZED.get(cls)
+    if read is None:
+        raise FieldsError("the object stores no tagged properties: its class serializes itself")
+    c = _Cursor(data, package.names)
+    try:
+        fields = read(c)
+    except (struct.error, UnicodeDecodeError, IndexError) as e:
+        raise FieldsError("%s data does not parse: %s" % (cls, e))
+    if c.pos != len(data):
+        raise FieldsError("%s data has %d bytes this reader does not know" % (cls, len(data) - c.pos))
+    return fields, []
 
 
 def read_fields(data, package, select=None):

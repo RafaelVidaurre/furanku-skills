@@ -337,6 +337,9 @@ def test_machine_paths_are_found_in_ascii_and_wide_text_and_engine_paths_are_not
     data = b"\x00\x01/Game/Props/home/SM_Chair\x00/Script/Engine\x00" + "C:\\Users\\ana\\Art\\chair.fbx".encode("utf-16-le") + b"\x00\x00/Users/ana/proj/Art/chair.glb\x00http://example.com/a"
     assert machine_paths.find(data) == ["/Users/ana/proj/Art/chair.glb", "C:\\Users\\ana\\Art\\chair.fbx"]
     assert machine_paths.find(b"\x00../../Art/Assets/chair/v1/model/chair.glb\x00/Game/Props/SM_Chair\x00") == []
+    # an Interchange node id stored in a skinned mesh imported by Unreal 5.9 is not a network share
+    assert machine_paths.find(b"\x00Factory_\\\\SKMInstance\\\\LODContainer\\RootNode.Rig\\RootNode.BodyFactory_RootNode.Rig\x00") == []
+    assert machine_paths.find(b"\x00\\\\server\\art\\chair.fbx\x00") == ["\\\\server\\art\\chair.fbx"]
 
 
 # ---- commands, run as the toolkit runs them
@@ -369,6 +372,18 @@ def test_import_static_prints_the_receipt_with_source_and_digest(tmp_path):
     assert receipt == {"assets": [
         {"id": "/Game/Props/Saloon/SM_SaloonChair", "kind": "static-mesh", "source": "Art/saloon-chair.glb", "sha256": paths.sha256(str(tmp_path / "Art" / "saloon-chair.glb"))},
         {"id": "/Game/Props/Saloon/Materials/MI_SaloonChair", "kind": "material-instance"}]}
+
+
+def test_import_static_sends_no_scratch_folder_and_refuses_a_texture_that_remembers_a_file_outside_the_project(tmp_path):
+    """The editor imports in place under the final names; a moved asset would resolve its source from its new folder."""
+    (tmp_path / "Game.uproject").write_text("{}")
+    (tmp_path / "Art").mkdir()
+    (tmp_path / "Art" / "crate.glb").write_bytes(b"glb")
+    local = bridge(tmp_path, """{"import-static": lambda a: {"assets": [{"id": a["dest"] + "/" + a["name"], "kind": "static-mesh"},
+        {"id": a["dest"] + "/Textures/T_crate_Image", "kind": "texture"}], "source": "Art/crate.glb", "projectDir": "/p/Game/", "unavailable": {},
+        "sources": {a["dest"] + "/" + a["name"]: "Art/crate.glb", a["dest"] + "/Textures/T_crate_Image": "/p/Art/crate.glb" if "scratch" in a else "/elsewhere/Art/crate.glb"}}}""")
+    code, receipt, _ = run_command(tmp_path, "engine_import.py", "--kind", "static", "Art/crate.glb", "--dest", "/Game/Props", local=local)
+    assert code == 1 and receipt["error"]["code"] == "machine-path" and "/elsewhere/Art/crate.glb" in receipt["error"]["message"]
 
 
 def test_import_without_a_transport_hands_the_script_off_with_exit_3(tmp_path):

@@ -9,7 +9,7 @@ import re
 _TAIL = rb"[\w .\-()]+(?:[\\/][\w .\-()]+)*"
 _PATTERNS = [
     re.compile(rb"(?<![A-Za-z0-9])[A-Za-z]:[\\/]" + _TAIL),                                        # C:\Users\..., D:/work/...
-    re.compile(rb"\\\\[\w.\-]+\\" + _TAIL),                                                        # \\host\share\...
+    re.compile(rb"(?<![\w\\])\\\\[\w.\-]+\\" + _TAIL),     # \\host\share\..., not an Interchange node id (Factory_\\SKMInstance\\...)
     re.compile(rb"(?<![\w/.\-])/(?:Users|home|Volumes|mnt|private|var|tmp|opt|root)/" + _TAIL),     # POSIX homes and mounts
 ]
 

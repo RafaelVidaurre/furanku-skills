@@ -52,7 +52,7 @@ Without an `--engine` run, an engine class's own parents are unknown: listing `/
 Encoding:
 - numbers, booleans and strings as they are;
 - names as strings;
-- texts as their source string; a string-table text as `{"table", "key"}`; a formatted text as what builds it: `{"format", "args"}`, `{"asNumber"|"asPercent"|"asCurrency"|"asDate"|"asTime"|"asDateTime": value}`, `{"transform": "ToUpper", "text"}`;
+- texts as their source string; a string-table text as `{"table", "key"}`; a formatted text as what builds it: `{"format", "args"}`, `{"asNumber"|"asPercent"|"asCurrency"|"asDate"|"asTime"|"asDateTime": value}`, `{"transform": "ToUpper", "text"}`; a text made by a registered text generator as `{"generator": "<its type>"}` (its contents are that generator's own data);
 - enums as `EEnum::Value`;
 - structs as objects, arrays and sets as lists, maps as lists of `{"key", "value"}`;
 - an instanced struct as `{"struct": "<struct>", "value": {...}}`, an unset one or an unset optional as `null`;
@@ -68,7 +68,7 @@ References:
 
 `fieldReferences` lists every reference with the property path that holds it (`Parts[0]`, `Rules.Mesh`). Its `kind` is `hard`, `soft`, or `native` for a code class. A reference can point into the same package, for example to a component.
 
-A value the reader cannot decode is `{"unparsed": "<type>"}`; the rest of the asset is still read. If the export cannot be read at all, the asset gets `fieldsError` with the reason, and keeps its class, tags and references. A component whose class serializes itself without tagged properties gets `fieldsError` the same way.
+A value the reader cannot decode is `{"unparsed": "<type>"}`; the rest of the asset is still read. If the export cannot be read at all, the asset gets `fieldsError` with the reason, and keeps its class, tags and references. A component whose class serializes itself without tagged properties gets `fieldsError` the same way, except a Control Rig graph's link (`RigVMLink`), which is read as its `SourcePinPath` and `TargetPinPath`. A rig hierarchy (`RigHierarchy`) keeps `fieldsError`: it writes its elements in its own versioned format. A delegate bound with a payload stays `{"unparsed"}`: only native code binds one, and its layout comes from the payload's schema.
 
 ### Components
 
