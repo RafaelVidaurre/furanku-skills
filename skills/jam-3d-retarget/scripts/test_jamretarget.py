@@ -620,3 +620,46 @@ def test_inputs_that_cannot_be_read_write_nothing(rigs, tmp_path):
     empty = dump(tmp_path / "empty.json", {"landmarks": {}})
     code, rep = run(rigs, tmp_path / "y", src_map=empty)
     assert code == 2 and rep is None
+
+
+def stretched_arms(rigs, path):
+    """Rig A's arms clip with its left arm stretched by translation: the elbow slides out along the upper arm to 1.3 times
+    its length and the upper arm's joint slides sideways off the collarbone's line, so the source's segments turn and
+    lengthen where no rotation does."""
+    a = skel(rigs, "a")
+    anim = next(x for x in a.model.animations() if x["name"] == "arms")
+    times = gltf.key_times(anim)
+    (T, R, S), _ = gltf.sample_locals(a.model, anim, times, a.rest)
+    grow = np.sin(np.pi * times / times[-1])[:, None]
+    elbow, shoulder = a.at["lower-arm.l"], a.at["upper-arm.l"]
+    T[:, elbow] = T[:, elbow] * (1 + 0.3 * grow)
+    side = np.cross(T[0, shoulder], [0.0, 0.0, 1.0])
+    T[:, shoulder] = T[:, shoulder] + 0.3 * grow * side
+    channels = [(i, "rotation", R[:, i]) for i in sorted(a.joints)] + [(i, "translation", T[:, i]) for i in (a.at["hips"], elbow, shoulder)]
+    gltf.add_animations(str(rigs / "rig-a.glb"), path, [{"name": "arms", "times": times, "channels": channels}])
+    return path
+
+
+def test_stretched_bones_are_named_as_lost_without_translation_and_carried_with_it(rigs, tmp_path):
+    src = stretched_arms(rigs, str(tmp_path / "stretched.glb"))
+    code, rep = run(rigs, tmp_path / "none", "a", "b", src_file=src)
+    arms = rep["animations"][0]
+    assert code == 1 and arms["agreement"]["passed"] and arms["agreement"]["transfer"]["arms"]["maxDegrees"] < 1e-4   # the maps fit
+    assert not arms["roundTrip"]["passed"] and arms["roundTrip"]["maxHeights"] > 0.01                              # the stretch is lost
+    assert set(arms["stretch"]) == {"upper-arm.l", "lower-arm.l"} and not any(v["carried"] for v in arms["stretch"].values())
+    assert arms["stretch"]["lower-arm.l"]["lengthRatio"][1] == pytest.approx(1.3, abs=1e-3) and arms["stretch"]["upper-arm.l"]["maxDegrees"] > 10
+    assert any("upper-arm.l from shoulder.l" in w and "--translation scaled" in w for w in rep["warnings"])
+    assert not any("arms point up to" in w for w in rep["warnings"])
+
+    code, rep = run(rigs, tmp_path / "scaled", "a", "b", "--translation", "scaled", src_file=src)
+    arms = rep["animations"][0]
+    assert code == 0 and rep["passed"] and rep["warnings"] == [] and arms["agreement"]["against"] == "the source"
+    assert arms["agreement"]["transfer"]["arms"]["maxDegrees"] < 1e-4 and arms["roundTrip"]["maxHeights"] < 1e-9
+    assert all(v["carried"] for v in arms["stretch"].values())
+    a, b = skel(rigs, "a"), skel(rigs, "b")
+    _, _, sw = sampled(Skeleton(src, load_map(str(rigs / "rig-a.map.json")), "source"), "arms")
+    _, _, tw = sampled(Skeleton(str(tmp_path / "scaled" / "retargeted.glb"), load_map(str(rigs / "rig-b.map.json")), "written"), "arms")
+    length = lambda s, w, k: np.linalg.norm(w[:, s.at[main_child(k)], :3, 3] - w[:, s.at[k], :3, 3], axis=1)
+    for k in ("shoulder.l", "upper-arm.l"):                          # each segment stretches by the source's own ratio
+        assert np.allclose(length(b, tw, k) / length(b, b.rest_world[None], k), length(a, sw, k) / length(a, a.rest_world[None], k), atol=1e-5)
+    assert np.allclose(length(b, tw, "upper-arm.r"), length(b, b.rest_world[None], "upper-arm.r"), atol=1e-6)   # the other arm keeps its length

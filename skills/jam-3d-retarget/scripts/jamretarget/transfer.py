@@ -11,7 +11,11 @@
    T-pose therefore point their limbs the same way at every frame; the rest difference is never applied as motion.
 3. Hips (and a root bone, when both skeletons have one above the hips) move by the source's displacement from its rest
    position times k, the target's leg length over the source's.
-4. Every other target node keeps its rest transform as stored: bones at no landmark, and landmarks only the target maps.
+4. Translation (`translation="scaled"` only). Where the source's translations and scales move a landmark away from where
+   its rotations put it (a stretched or sliding bone), that change of its offset from the previous landmark, read in
+   the previous landmark's rest frame, is turned by that landmark's Q^-1, scaled by the ratio of the two rest offsets'
+   lengths and added to the target's rest offset. With `"none"` it is not carried: rotations alone keep the target's lengths.
+5. Every other target node keeps its rest transform as stored: bones at no landmark, and landmarks only the target maps.
 """
 import numpy as np
 
@@ -19,11 +23,17 @@ from . import gltf, mathx
 from .skeleton import ALL, SIDES, TRUNK, SkeletonError, main_child, parent_of, split
 
 
+TRANSLATION = ("none", "scaled")
+SHORT = 0.01            # a rest offset shorter than this share of the height has no length to take a ratio of: k is used
+
+
 class Plan:
     """What goes where between two skeletons, and the rest alignment."""
 
-    def __init__(self, src, tgt):
-        self.src, self.tgt = src, tgt
+    def __init__(self, src, tgt, translation="none"):
+        if translation not in TRANSLATION:
+            raise ValueError("translation is one of %s" % ", ".join(TRANSLATION))
+        self.src, self.tgt, self.translation = src, tgt, translation
         self.shared = [k for k in ALL if src.has(k) and tgt.has(k)]
         self.target_only = [k for k in ALL if tgt.has(k) and not src.has(k)]
         self.source_only = [k for k in ALL if src.has(k) and not tgt.has(k)]
@@ -39,6 +49,18 @@ class Plan:
         self.align, self.how = {}, {}
         for k in self.shared:
             self.align[k], self.how[k] = self._align(k)
+        self.offsets = {}
+        for k in self.shared:
+            up = parent_of(k)
+            while up is not None and up not in self.shared:
+                up = parent_of(up)
+            if k == "hips" or up is None:
+                continue
+            v, w = src.pos(k) - src.pos(up), tgt.pos(k) - tgt.pos(up)
+            long_enough = np.linalg.norm(v) > SHORT * src.height and np.linalg.norm(w) > SHORT * tgt.height
+            below = all(_below(s.parent, s.at[k], s.at[up]) for s in (src, tgt))
+            self.offsets[k] = {"from": up, "ratio": float(np.linalg.norm(w) / np.linalg.norm(v)) if long_enough else self.k,
+                               "carriable": below}
 
     def _align(self, k):
         src, tgt = self.src, self.tgt
@@ -63,6 +85,17 @@ class Plan:
             up = parent_of(up)
         return (self.align[up].copy(), "as " + up) if up is not None else (np.eye(3), "none")
 
+    def path_nodes(self, landmarks=None):
+        """Source nodes whose translation an offset carries: from each carriable landmark (of those given, or all) up to,
+        not including, the one before it."""
+        out = set()
+        for k, o in self.offsets.items():
+            if o["carriable"] and (landmarks is None or k in landmarks):
+                i, stop = self.src.at[k], self.src.at[o["from"]]
+                while i != stop:
+                    out.add(i); i = self.src.parent[i]
+        return out
+
     def describe(self):
         """Per shared landmark: how its rest was aligned and by how many degrees the two rest poses differ there."""
         out = {}
@@ -76,13 +109,46 @@ class Plan:
         return out
 
 
+def _below(parent, node, ancestor):
+    while node >= 0:
+        node = parent[node]
+        if node == ancestor:
+            return True
+    return False
+
+
+def hold(skel, world):
+    """The pose sequence [F,N,4,4] as rotations alone carry it: every joint's local translation and scale back at rest,
+    except the hips' and the root's, which carry travel. Non-bone parents keep theirs."""
+    parent_world = np.stack([world[:, p] if p >= 0 else np.broadcast_to(np.eye(4), world[:, 0].shape) for p in skel.parent], axis=1)
+    local = np.linalg.inv(parent_world) @ world
+    for i in (set(skel.joints) | set(skel.at.values())) - {skel.at["hips"], skel.root}:
+        local[:, i, :3, :3] = mathx.rot_of(local[:, i]) * np.abs(skel.rest[2][i])[None, None, :]
+        local[:, i, :3, 3] = skel.rest_local[i, :3, 3]
+    return gltf.forward(skel.parent, skel.order, local)
+
+
+def offset_change(plan, world, held):
+    """{landmark: [F,3]} how far the source's translations and scales move each landmark from where its rotations put
+    it, relative to the landmark before it and in that landmark's rest frame (world axes at rest)."""
+    src, out = plan.src, {}
+    for k, o in plan.offsets.items():
+        b, p = src.at[k], src.at[o["from"]]
+        moved = (world[:, b, :3, 3] - world[:, p, :3, 3]) - (held[:, b, :3, 3] - held[:, p, :3, 3])
+        to_rest = mathx.rot_of(src.rest_world[p]) @ np.swapaxes(mathx.rot_of(world[:, p]), -1, -2)
+        out[k] = (to_rest @ moved[:, :, None])[:, :, 0]
+    return out
+
+
 def map_position(plan, landmark, source_positions):
     """Where a source joint's positions land on the target: its rest position plus k times the source's displacement."""
     return plan.tgt.pos(landmark) + plan.k * (source_positions - plan.src.pos(landmark))
 
 
-def desired(plan, src_world):
-    """World rotations {target node: [F,3,3]} and positions {target node: [F,3]} the transfer asks for."""
+def desired(plan, src_world, src_held=None):
+    """World rotations {target node: [F,3,3]} and positions the transfer asks for: {target node: [F,3]} in world space
+    for the hips and root, and with translation "scaled" {target node: (anchor node, [F,3])}, an offset from the anchor
+    in the anchor's own rotation frame. src_held is hold(source, src_world), needed with "scaled"."""
     src, tgt = plan.src, plan.tgt
     rot, pos = {}, {}
     for k in plan.shared:
@@ -94,6 +160,15 @@ def desired(plan, src_world):
         s, t = src.root, tgt.root
         rot[t] = mathx.rot_of(src_world[:, s]) @ (mathx.rot_of(src.rest_world[s]).T @ mathx.rot_of(tgt.rest_world[t]))
         pos[t] = tgt.rest_world[t, :3, 3] + plan.k * (src_world[:, s, :3, 3] - src.rest_world[s, :3, 3])
+    if plan.translation == "scaled":
+        for k, d in offset_change(plan, src_world, src_held).items():
+            o = plan.offsets[k]
+            if not o["carriable"]:
+                continue
+            a = tgt.at[o["from"]]
+            rest = tgt.pos(k) - tgt.pos(o["from"])
+            offset = rest + o["ratio"] * (plan.align[o["from"]].T @ d[:, :, None])[:, :, 0]
+            pos[tgt.at[k]] = (a, (mathx.rot_of(tgt.rest_world[a]).T @ offset[:, :, None])[:, :, 0])
     return rot, pos
 
 
@@ -110,7 +185,11 @@ def solve(skel, rot, pos, frames):
         if i in rot:
             local[:, i, :3, :3] = (np.swapaxes(mathx.rot_of(parent_world), -1, -2) @ rot[i]) * scale[i][None, None, :]
         if i in pos:
-            h = np.concatenate([pos[i], np.ones((frames, 1))], axis=1)
+            at = pos[i]
+            if isinstance(at, tuple):                     # an offset from an anchor already solved, in its rotation frame
+                anchor, offset = at
+                at = world[:, anchor, :3, 3] + (mathx.rot_of(world[:, anchor]) @ offset[:, :, None])[:, :, 0]
+            h = np.concatenate([at, np.ones((frames, 1))], axis=1)
             local[:, i, :3, 3] = (np.linalg.inv(parent_world) @ h[:, :, None])[:, :3, 0]
         world[:, i] = parent_world @ local[:, i]
     return local, world
@@ -118,7 +197,7 @@ def solve(skel, rot, pos, frames):
 
 def transfer(plan, src_world):
     """(local, world, rot, pos) of the target for a source pose sequence of world transforms [F,N,4,4]."""
-    rot, pos = desired(plan, src_world)
+    rot, pos = desired(plan, src_world, hold(plan.src, src_world) if plan.translation == "scaled" else None)
     local, world = solve(plan.tgt, rot, pos, len(src_world))
     return local, world, rot, pos
 

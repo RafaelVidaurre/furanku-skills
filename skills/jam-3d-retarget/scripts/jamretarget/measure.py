@@ -27,6 +27,26 @@ def segment_agreement(plan, src_world, tgt_world):
     return out
 
 
+def stretch(plan, world, held, tolerance=1e-3):
+    """Per shared landmark whose offset from the landmark before it the source's translations and scales change by more
+    than `tolerance` of the source's height: that landmark, the largest change (metres), the largest angle the change
+    turns the offset by, the offset's length over its length as rotations alone carry it, and whether the run carries it."""
+    src, out = plan.src, {}
+    for k, o in plan.offsets.items():
+        b, p = src.at[k], src.at[o["from"]]
+        full = world[:, b, :3, 3] - world[:, p, :3, 3]
+        rotated = held[:, b, :3, 3] - held[:, p, :3, 3]
+        moved = np.linalg.norm(full - rotated, axis=1)
+        if moved.max() <= tolerance * src.height:
+            continue
+        ratio = np.linalg.norm(full, axis=1) / np.linalg.norm(rotated, axis=1)
+        out[k] = {"from": o["from"], "maxMeters": round(float(moved.max()), 5),
+                  "maxDegrees": round(float(mathx.angle_between(full, rotated).max()), 3),
+                  "lengthRatio": [round(float(ratio.min()), 4), round(float(ratio.max()), 4)],
+                  "carried": plan.translation == "scaled" and o["carriable"]}
+    return out
+
+
 def lateral_offsets(skel, world, landmark):
     """Signed distance, in heights, of a joint from the body's midplane (through the hips, across the hips' left axis)."""
     hips = skel.at["hips"]
