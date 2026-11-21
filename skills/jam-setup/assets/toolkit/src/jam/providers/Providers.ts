@@ -11,6 +11,7 @@ import { ProjectFiles } from "../../kernel/ProjectFiles.ts"
 import { Config } from "../config/Config.ts"
 import { PROVIDERS_DIR } from "../layout.ts"
 import { Toolkit } from "../Toolkit.ts"
+import { type Balance, parseBalance, readFailure, reportedError } from "./balance.ts"
 import { Descriptor, type Transport } from "./schema.ts"
 
 export interface ProviderEntry {
@@ -57,6 +58,8 @@ export class Providers extends Context.Service<Providers, {
   readonly list: Effect.Effect<ReadonlyArray<ProviderEntry>, ToolError>
   get(id: string): Effect.Effect<Descriptor, ToolError>
   probe(id: string): Effect.Effect<ProviderProbe, ToolError>
+  /** What is left on the provider's account, by its own free read; never a paid call. Fails only for an unknown id. */
+  balance(id: string): Effect.Effect<Balance, ToolError>
 }>()("jam/Providers") {
   static readonly layerNoDeps: Layer.Layer<Providers, never, ProjectFiles | Toolkit | Config | Executables> = Layer.effect(
     Providers,
@@ -139,7 +142,7 @@ export class Providers extends Context.Service<Providers, {
                 : args === undefined
                 ? Effect.succeed(unknown(absent))
                 : Effect.map(executables.probe(command, args, { ...options, timeoutMs: 30_000 }), (result): Finding =>
-                  result.installed ? { state: "yes", detail: `${yes} (${command} ${args.join(" ")})` } : { state: "no", detail: `${no} (${command} ${args.join(" ")}: ${result.output ?? result.error ?? "failed"})` })
+                  result.installed ? { state: "yes", detail: `${yes} (${command} ${args.join(" ")})` } : { state: "no", detail: `${no} (${command} ${args.join(" ")}: ${reportedError(result.stdout) ?? result.output ?? result.error ?? "failed"})` })
             return {
               kind: "cli",
               target: command,
@@ -174,9 +177,72 @@ export class Providers extends Context.Service<Providers, {
           return { kind: transport.kind, target, installed: unknown(`used through ${target}`), authenticated: unknown(SESSION), reachable: unknown(SESSION) }
         })
 
+      const versionOf = (command: string, transport: Transport, options: { npmLauncher: boolean | undefined; cwd: string }): Effect.Effect<string> =>
+        Effect.map(executables.probe(command, transport.probe ?? ["--version"], options), (version) => (version.installed ? `version ${version.output ?? "unknown"}` : "its version did not print"))
+
+      const balance = (id: string): Effect.Effect<Balance, ToolError> =>
+        Effect.gen(function*() {
+          const descriptor = yield* get(id)
+          const base = { id, label: descriptor.label, unit: descriptor.unit, remaining: null, used: null, limit: null, parts: {}, resets: null, failure: null }
+          const reads = descriptor.transports.filter((transport) => transport.balance !== undefined)
+          if (reads.length === 0) {
+            return {
+              ...base,
+              state: "none",
+              via: null,
+              detail: descriptor.unit.paid
+                ? `no balance read: the descriptor names none; read it with the provider's own tool${descriptor.docs === undefined ? "" : ` (${descriptor.docs})`}`
+                : `no balance: not billed per job (${descriptor.unit.label})`
+            } satisfies Balance
+          }
+          const found: Array<Balance> = []
+          for (const transport of reads) {
+            const read = transport.balance!
+            if (transport.kind === "mcp") {
+              const tools = typeof read.tool === "string" ? [read.tool] : read.tool ?? []
+              const via = `${tools.join(" or ")} on MCP server ${transport.server}`
+              const call = tools.length === 1 ? `call ${via}` : `call the first of ${tools.join(", ")} that this session lists for MCP server ${transport.server}`
+              found.push({ ...base, state: "session", via, detail: `read in the agent session: ${call}${read.note === undefined ? "" : `; ${read.note}`}` })
+              continue
+            }
+            const command = yield* configs.providerCommand(id, transport.command ?? id)
+            const args = read.args ?? []
+            const via = `${command} ${args.join(" ")}`
+            const options = { npmLauncher: transport.npmLauncher, cwd: files.root }
+            const result = yield* executables.probe(command, args, { ...options, timeoutMs: 30_000 })
+            if (!result.installed) {
+              const { failure, said } = readFailure(result)
+              const answer = said === null ? "" : `: ${said}`
+              const detail = failure === "not installed"
+                ? `unread: ${command} is not installed (${result.error === "exit 127" || result.error === "exit 9009" ? `${result.error}, command not found` : result.error ?? "did not run"})`
+                : failure === "outdated"
+                ? `unread: ${via} is not a read this ${command} knows (${yield* versionOf(command, transport, options)}${answer}); it may be older than this read needs: update it`
+                : failure === "not signed in"
+                ? `unread: ${via} ${result.error}, not signed in${answer}`
+                : `unread: ${via} ${result.error}${answer}; the program did not say why, so the service may not have answered`
+              found.push({ ...base, state: "failed", via, failure, detail })
+              continue
+            }
+            const parsed = parseBalance(read, result.stdout)
+            if ("problem" in parsed) {
+              // A program that exits 0 with an error in its answer still says why.
+              const said = reportedError(result.stdout)
+              const failure = said === null ? "unreadable" : readFailure({ ...result, error: "exit 0" }).failure
+              found.push({ ...base, state: "failed", via, failure, detail: `unread: ${via} ran, but ${parsed.problem}${said === null ? "" : ` (it reported ${said})`}` })
+              continue
+            }
+            return { ...base, ...parsed, state: "read", via, detail: `read now with ${via}, a free call that also proves the account is signed in and the service answers${read.note === undefined ? "" : `; ${read.note}`}` } satisfies Balance
+          }
+          // Nothing was read here: the agent's own read when there is one, with every failure beside it.
+          const chosen = found.find((entry) => entry.state === "session") ?? found[0]!
+          const others = found.filter((entry) => entry !== chosen).map((entry) => entry.detail)
+          return others.length === 0 ? chosen : { ...chosen, detail: [chosen.detail, ...others].join("; ") }
+        })
+
       return {
         list,
         get,
+        balance,
         probe: (id) =>
           Effect.gen(function*() {
             const descriptor = yield* get(id)

@@ -3,7 +3,8 @@
 ARGS: {"dest": "/Game/.../Textures",
        "textures": [{"source": "<project-relative png>", "sha256": "...", "name": "T_Hero_Body_Normal", "role": "color|normal|masks"}],
        "flipGreen": true}     flip the green channel of normal maps (their source convention differs from the engine's)
-Returns the textures by name with id, size, compression, sRGB and stored source. Saves the folder.
+Returns the textures by name with id, size, compression, sRGB and stored source. Saves the folder, unless a texture
+remembers a source outside the project: then nothing is saved, the textures it created are deleted, and it refuses.
 Normal maps get TC_NORMALMAP without sRGB; mask maps (packed occlusion, roughness, metallic) get TC_MASKS without sRGB.
 """
 # jam: include editor_shared
@@ -16,6 +17,7 @@ def main(ARGS):
     dest = ARGS["dest"]
     out = {}
     tasks = []
+    existed = {"%s/%s" % (dest, item["name"]) for item in ARGS["textures"] if eal.does_asset_exist("%s/%s" % (dest, item["name"]))}
     for item in ARGS["textures"]:
         t = unreal.AssetImportTask()
         t.filename = jam_source(item["source"], item.get("sha256"))
@@ -38,6 +40,7 @@ def main(ARGS):
         textures[item["name"]] = {"id": path, "size": [a.blueprint_get_size_x(), a.blueprint_get_size_y()],
                                   "compression": str(a.get_editor_property("compression_settings")), "srgb": bool(a.get_editor_property("srgb")),
                                   "source": jam_stored_source(a)}
+    jam_refuse_outside_project({t["id"]: t["source"] for t in textures.values()}, [t["id"] for t in textures.values()], existed)
     out["textures"] = textures
     out["projectDir"] = jam_project_dir()
     out["dirtyPackages"] = jam_dirty_packages()

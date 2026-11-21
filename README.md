@@ -276,7 +276,7 @@ First use walks you through approving which model tools may run on your machine.
 
 | Role | Skills |
 | --- | --- |
-| Entry | `jam-setup` installs, upgrades and configures. `jam-recipe` follows a recipe from brief to delivery and writes or changes recipes |
+| Entry | `jam-setup` installs, upgrades and configures. `jam-recipe` follows a recipe from brief to delivery and writes or changes recipes. `jam-providers` shows which providers the project can use, what each makes, whether each is callable and what is left on each account |
 | Operations | `jam-style`, `jam-concept`, `jam-turnaround`, `jam-3d-model`, `jam-3d-retopo`, `jam-3d-uv`, `jam-3d-texture`, `jam-3d-rig`: one operation each, usable inside a recipe or alone |
 | Animation | `jam-3d-animate` defines a clip with you, makes it by the route your setup allows and checks it on your rig. `jam-3d-retarget` moves animation between humanoid skeletons. `jam-3d-motionbricks` generates in-between motion with NVIDIA MotionBricks on a machine that meets its requirements |
 | Engine | `jam-engine` chooses, uses and writes engine adapters. `jam-engine-unreal` is the Unreal Engine adapter |
@@ -284,7 +284,7 @@ First use walks you through approving which model tools may run on your machine.
 | Audio | `jam-sfx` for sound effects, `jam-voice` for voiced dialogue |
 
 ```bash
-npx skills add rafaelvidaurre/furanku-skills --skill jam-setup jam-recipe jam-style jam-concept jam-turnaround jam-3d-model jam-3d-retopo jam-3d-uv jam-3d-texture jam-3d-rig jam-3d-animate jam-3d-retarget jam-3d-motionbricks jam-engine jam-engine-unreal jam-catalog jam-sfx jam-voice
+npx skills add rafaelvidaurre/furanku-skills --skill jam-setup jam-recipe jam-providers jam-style jam-concept jam-turnaround jam-3d-model jam-3d-retopo jam-3d-uv jam-3d-texture jam-3d-rig jam-3d-animate jam-3d-retarget jam-3d-motionbricks jam-engine jam-engine-unreal jam-catalog jam-sfx jam-voice
 ```
 
 ```text

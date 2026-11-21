@@ -477,14 +477,42 @@ def test_texts_built_by_formatting_keep_their_format_and_arguments():
                     + bytes([0]) + struct.pack("<iiii", 1, 9, 0, 2) + w.string("de"))
     date = text(w, 7, struct.pack("<q", 638700000000000000) + bytes([2]) + w.string("UTC") + w.string(""))
     table = text(w, 11, w.name("ST_Items") + w.string("Sword"))
-    generated = text(w, 12, w.name("Gen") + struct.pack("<i", 0))
+    generated = text(w, 12, w.name("Gen") + struct.pack("<i", 3) + b"abc")   # FTextHistory_TextGenerator: its contents are the generator's own
+    blank = text(w, 12, w.name("None"))
     values, _ = read_new(w, [new_tag(w, n, ("TextProperty", []), v) for n, v in
-                             (("Owed", argument_data), ("Price", currency), ("Day", date), ("Name", table), ("Made", generated))], custom)
+                             (("Owed", argument_data), ("Price", currency), ("Day", date), ("Name", table), ("Made", generated), ("Blank", blank))], custom)
     assert values["Owed"] == {"format": "{who} owes {n}", "args": {"who": "you", "n": 5}}
     assert values["Price"] == {"asCurrency": 2.5, "currency": "EUR", "culture": "de"}
     assert values["Day"] == {"asDate": "2024-12-17T02:40:00"}
     assert values["Name"] == {"table": "ST_Items", "key": "Sword"}
-    assert values["Made"] == {"unparsed": "TextProperty"}
+    assert values["Made"] == {"generator": "Gen"} and values["Blank"] == ""
+
+
+@pytest.mark.parametrize("version", ["5.8", "5.9"])
+def test_control_rig_links_are_read_as_the_pin_paths_the_editor_reads(version):
+    """A Control Rig graph's links serialize two pin paths and no tagged properties (fixtures/rig/make_rig.py wrote the
+    package and links.json in that engine). Its rig hierarchy serializes its own element format, which stays unread."""
+    folder = os.path.join(os.path.dirname(FIXTURES), "rig", version)
+    with open(os.path.join(folder, "links.json"), encoding="utf-8") as f:
+        engine = json.load(f)["links"]
+    rig = read_package(os.path.join(folder, "CR_Fixture.uasset"), "/Game/Rig/CR_Fixture", {"/Script/ControlRigDeveloper.ControlRigBlueprint": None})["assets"][0]
+    by_class = {}
+    for component in rig["components"]:
+        by_class.setdefault(component["class"], []).append(component)
+    assert [(c["path"], c["fields"]) for c in by_class["/Script/RigVMDeveloper.RigVMLink"]] == [
+        (link["path"], {"SourcePinPath": link["source"], "TargetPinPath": link["target"]}) for link in engine]
+    assert [c["fieldsError"] for c in by_class["/Script/ControlRig.RigHierarchy"]] == ["the object stores no tagged properties: its class serializes itself"]
+
+
+def test_self_serialized_data_that_does_not_parse_is_a_fields_error():
+    package = Package("/Game/A", 1012, [], [], [], [])
+    link = "/Script/RigVMDeveloper.RigVMLink"
+    two = struct.pack("<i", 2) + b"A\x00" + struct.pack("<i", 2) + b"B\x00"
+    assert fields.read_self_serialized(two, package, link) == ({"SourcePinPath": "A", "TargetPinPath": "B"}, [])
+    for data, cls, message in ((two + b"x", link, "1 bytes this reader does not know"), (two[:6], link, "read past the end"),
+                               (two, "/Script/ControlRig.RigHierarchy", "its class serializes itself")):
+        with pytest.raises(fields.FieldsError, match=message):
+            fields.read_self_serialized(data, package, cls)
 
 
 # ---- what the reader cannot read

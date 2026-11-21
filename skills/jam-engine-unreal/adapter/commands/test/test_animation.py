@@ -130,6 +130,13 @@ class _EditorAssetLibrary:
     def remove_metadata_tag(asset, tag):
         asset.tags.pop(tag, None)
 
+    deleted = []
+
+    @classmethod
+    def delete_asset(cls, asset_id):
+        cls.deleted.append(asset_id)
+        return True
+
 
 @pytest.fixture
 def editor_shared(monkeypatch):
@@ -158,6 +165,18 @@ def test_a_sequence_is_replaced_only_by_a_clip_from_its_own_source_file_or_its_o
     ):
         with pytest.raises(RuntimeError, match="AS_walk exists, " + message.replace(".", "[.]")):
             refuse("/Game/A/AS_walk", asset, source, run, project_dir)
+
+
+def test_an_import_whose_asset_remembers_a_file_outside_the_project_deletes_what_it_created_and_refuses(editor_shared):
+    """Checked before anything is saved: a refused import leaves no saved asset to block the next attempt."""
+    del _EditorAssetLibrary.deleted[:]
+    editor_shared.jam_refuse_outside_project({"/Game/T/T_A": "Art/a.png", "/Game/T/T_B": None}, ["/Game/T/T_A", "/Game/T/T_B"])
+    with pytest.raises(editor_shared.JamRefusal) as raised:
+        editor_shared.jam_refuse_outside_project({"/Game/T/T_A": "Art/a.png", "/Game/T/T_B": "/elsewhere/b.png"}, ["/Game/T/T_A", "/Game/T/T_B"], ["/Game/T/T_A"])
+    assert raised.value.jam_code == "machine-path" and str(raised.value) == "/Game/T/T_B stores a source outside the project: /elsewhere/b.png"
+    assert _EditorAssetLibrary.deleted == ["/Game/T/T_B"]
+    assert "the editor deleted the assets this import created (/Game/T/T_B)" in raised.value.jam_fix
+    assert "/Game/T/T_A, imported before, was reimported and left unsaved" in raised.value.jam_fix
 
 
 def test_an_import_records_its_run_on_the_sequence_and_one_outside_a_run_clears_it(editor_shared):

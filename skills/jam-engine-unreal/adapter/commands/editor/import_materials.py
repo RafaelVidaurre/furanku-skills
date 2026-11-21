@@ -6,7 +6,10 @@ ARGS: {"parent": "/Game/.../Materials/M_Hero",
                       "twoSided": false}]}
 The parent samples BaseColor into base colour, Normal into the normal, and the ORM map's red, green and blue into
 ambient occlusion, roughness and metallic. An instance set two-sided is for an open shell seen from inside.
-Nothing is saved here: the mesh import that follows saves the whole destination folder.
+Saves the parent it built and every instance: on a commandlet each step is its own editor process, and what it leaves
+unsaved is gone when that process exits. Returns `saved` (every one saved) and `compileErrors`, or `notCompiled` when
+this editor has no renderer: since 5.9 `recompile_material` then raises after the graph has reached the material and
+its instances, and the shaders compile where the material is next rendered.
 """
 # jam: include editor_shared
 import unreal
@@ -44,7 +47,12 @@ def main(ARGS):
               mel.connect_material_property(orm, "R", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION),
               mel.connect_material_property(orm, "G", unreal.MaterialProperty.MP_ROUGHNESS),
               mel.connect_material_property(orm, "B", unreal.MaterialProperty.MP_METALLIC)]
-        mel.recompile_material(mat)
+        try:
+            out["compileErrors"] = [str(e) for e in mel.recompile_material(mat) or []]
+        except Exception as e:
+            if "no renderer" not in str(e):
+                raise
+            out["notCompiled"] = str(e)
         out["materialConnections"] = ok
     else:
         mat = eal.load_asset(mpath)
@@ -65,5 +73,6 @@ def main(ARGS):
         made.append(inst["id"])
     out["parent"] = mpath
     out["instances"] = made
+    out["saved"] = all([eal.save_asset(p, only_if_is_dirty=False) for p in ([mpath] if ARGS.get("buildParent", True) else []) + made])
     out["dirtyPackages"] = jam_dirty_packages()
     return out

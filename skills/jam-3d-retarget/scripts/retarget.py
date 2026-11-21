@@ -4,6 +4,7 @@
     python retarget.py <source.glb> <source-map.json> <target.glb> <target-map.json> <out-dir>
                        --contacts auto|none|<contacts.json> [--contact-speed <source heights per second>]
                        [--contact-min-frames 1] [--contact-blend 3] [--animation <name>]... [--fps <n>]
+                       [--translation none|scaled]
                        [--facing-degrees 10] [--agreement-degrees 1.0] [--side-flip-frames 0]
                        [--round-trip-tolerance 0.002] [--round-trip-degrees 1.0] [--keep-target-animations]
                        [--name retargeted]
@@ -18,12 +19,15 @@ frame rate, or at --fps. Contacts: `auto` finds windows where a source ankle or 
 than --contact-speed (required with auto) for at least --contact-min-frames frames and holds the target's joint in place
 there with two-bone IK, blended in and out over --contact-blend frames; a contacts file names the windows instead (feet,
 toes or hands); `none` turns the correction off. references/method.md, Contacts, gives the rules and the speed's unit.
+Translations and scales of source bones other than the hips and root are not carried unless --translation scaled
+(references/method.md, Translation).
 
-Three checks decide `passed`, per animation: the transfer's arm and leg segments point where the source's do, within
---agreement-degrees (a correct map gives 0 to rounding); no hand or foot is on the other side of the body than the
-source's on more than --side-flip-frames frames; and the round trip, the plain transfer retargeted back onto the source,
-returns within --round-trip-tolerance source heights and --round-trip-degrees (the transfer is invertible, so it fails
-only when the source moves bones the maps do not carry). Writes <name>.glb (the target with the retargeted animations;
+Three checks decide `passed`, per animation: the transfer's arm and leg segments point where the source's do as the
+transfer carries it, within --agreement-degrees (a correct map gives 0 to rounding); no hand or foot is on the other
+side of the body than the source's on more than --side-flip-frames frames; and the round trip, the plain transfer
+retargeted back onto the source as the transfer carries it, returns within --round-trip-tolerance source heights and
+--round-trip-degrees (the transfer is invertible, so it fails only when the source moves bones the maps do not carry;
+with --translation none the source's stretches are held at rest for both checks and reported under `stretch`). Writes <name>.glb (the target with the retargeted animations;
 its scenes, meshes and skin copied unchanged, and buffers or images it keeps in other files embedded) and
 retarget-report.json to <out-dir>. Exits 1, with both written, when a check fails; exits 2, writing nothing, when the
 inputs cannot be read as two humanoids or an option is missing. Plain Python with numpy.
@@ -43,6 +47,9 @@ from jamretarget.skeleton import FACING_DEGREES, Skeleton, SkeletonError, load_m
 CONTACT_JOINTS = ("foot.l", "foot.r", "toes.l", "toes.r", "hand.l", "hand.r")
 # Body parts whose segments a correct transfer matches exactly; the trunk and the feet keep their rests' own difference.
 JUDGED = ("arms", "legs")
+# What agreement and the round trip compare with, per --translation.
+AGAINST = {"scaled": "the source",
+           "none": "the source with its joints' translations and scales at rest, but the hips' and root's"}
 
 
 def parse(argv):
@@ -51,6 +58,8 @@ def parse(argv):
         p.add_argument(name)
     p.add_argument("--animation", action="append", default=[])
     p.add_argument("--fps", type=float)
+    p.add_argument("--translation", choices=transfer.TRANSLATION, default="none",
+                   help="carry bone translations other than the hips' and root's, scaled by bone length (references/method.md, Translation)")
     p.add_argument("--contacts", required=True, help="auto, none, or a contacts file")
     p.add_argument("--contact-speed", type=float, help="speed over the ground in source heights per second; required with --contacts auto")
     p.add_argument("--contact-min-frames", type=int, default=1)
@@ -116,6 +125,8 @@ def not_carried(src, plan, anim, local_trs):
     """Joints whose motion the transfer leaves behind, by kind."""
     carried_rot = {src.at[k] for k in plan.shared} | ({src.root} if src.root is not None else set())
     carried_pos = {src.at["hips"]} | ({src.root} if src.root is not None else set())
+    if plan.translation == "scaled":
+        carried_pos |= plan.path_nodes()
     T, R, S = local_trs
     T0, R0, S0 = src.rest
     out = {"rotation": [], "translation": [], "scale": []}
@@ -157,26 +168,46 @@ def retarget_one(args, src, tgt, plan, back, anim, listed, warnings):
     times, fps, source_fps, source_duration = frame_times(anim, args.fps)
     local_trs, _ = gltf.sample_locals(src.model, anim, times, src.rest)
     src_world = transfer.world_of(src, local_trs)
+    src_held = transfer.hold(src, src_world)
     F = len(times)
-    rot, pos = transfer.desired(plan, src_world)
+    rot, pos = transfer.desired(plan, src_world, src_held)
     local, world = transfer.solve(tgt, rot, pos, F)
     plain_world = world
     windows, contact_source = contact_windows(args, src, plan, src_world, times, fps, anim["name"], listed)
     details = []
     if windows:
         local, world, rot, details = transfer.plant(plan, src_world, rot, pos, windows, F, args.contact_blend)
+    # What the transfer carries of the source: with --translation none, its stretches are held at rest (`stretch` reports
+    # them), so agreement and the round trip measure only the maps.
+    against = src_world if plan.translation == "scaled" else src_held
     # round trip: the plain transfer, back onto the source
-    back_rot, back_pos = transfer.desired(back, plain_world)
+    back_rot, back_pos = transfer.desired(back, plain_world, transfer.hold(tgt, plain_world))
     _, round_world = transfer.solve(src, back_rot, back_pos, F)
-    rt = measure.pose_error(src, plan.shared, src_world, round_world)
+    rt = measure.pose_error(src, plan.shared, against, round_world)
     rt_passed = rt["maxHeights"] <= args.round_trip_tolerance and rt["maxDegrees"] <= args.round_trip_degrees
     missing = not_carried(src, plan, anim, local_trs)
+    stretch = measure.stretch(plan, src_world, src_held)
+    lost = {k: v for k, v in stretch.items() if not v["carried"]}
+    named = {src.model.name(i) for i in plan.path_nodes(lost)}
     for kind, names in missing.items():
-        warnings.append("%s: the source animates the %s of %s; that motion is not carried (only rotations of landmarks both "
-                        "maps place, and the hips' and root's translation, are)" % (anim["name"], kind, ", ".join(names)))
-    agreement = {"transfer": measure.segment_agreement(plan, src_world, plain_world),
-                 "final": measure.segment_agreement(plan, src_world, world), "judged": list(JUDGED),
-                 "toleranceDegrees": args.agreement_degrees}
+        names = [n for n in names if kind != "translation" or n not in named]       # those the stretch warning names
+        if names:
+            warnings.append("%s: the source animates the %s of %s; that motion is not carried (only rotations of landmarks both "
+                            "maps place, and the hips' and root's translation, are)" % (anim["name"], kind, ", ".join(names)))
+    if lost:
+        worst = sorted(lost, key=lambda k: (-(lost[k]["maxDegrees"] if lost[k]["maxDegrees"] is not None else 180), -lost[k]["maxMeters"]))
+        offsets = ", ".join("%s from %s %.0f mm and %s" % (
+            k, lost[k]["from"], 1000 * lost[k]["maxMeters"], "no rest length to compare" if lost[k]["lengthRatio"] is None else
+            "%.1f degrees (length x%.2f to %.2f)" % (lost[k]["maxDegrees"], *lost[k]["lengthRatio"])) for k in worst[:5])
+        more = " and %d more" % (len(worst) - 5) if len(worst) > 5 else ""
+        why = ("rotations alone keep the target's own bone lengths, so the target's segments differ from the source's by up to "
+               "those angles; --translation scaled carries it" if plan.translation == "none" else
+               "these landmarks' bones are not below the previous landmark's on both skeletons, so their offset cannot be carried")
+        warnings.append("%s: the source's translations or scales move landmarks off where its rotations put them (a stretched or "
+                        "sliding bone): %s%s; not carried: %s" % (anim["name"], offsets, more, why))
+    agreement = {"transfer": measure.segment_agreement(plan, against, plain_world),
+                 "final": measure.segment_agreement(plan, against, world), "judged": list(JUDGED),
+                 "against": AGAINST[plan.translation], "toleranceDegrees": args.agreement_degrees}
     off = {g: v["maxDegrees"] for g, v in agreement["transfer"].items() if g in JUDGED and v["maxDegrees"] > args.agreement_degrees}
     agreement["passed"] = not off
     flips = measure.side_flips(plan, src_world, world)
@@ -190,16 +221,16 @@ def retarget_one(args, src, tgt, plan, back, anim, listed, warnings):
              "sideFlips": flips, "sideFlipsAllowedFrames": args.side_flip_frames, "sideFlipsPassed": flips_passed,
              "contactSource": contact_source,
              "contacts": [dict(d, seconds=[round(float(times[d["frames"][0]]), 4), round(float(times[d["frames"][1]]), 4)]) for d in details],
-             "roundTrip": {"maxMeters": sig(rt["maxMeters"]), "meanMeters": sig(rt["meanMeters"]),
+             "roundTrip": {"against": AGAINST[plan.translation], "maxMeters": sig(rt["maxMeters"]), "meanMeters": sig(rt["meanMeters"]),
                            "maxHeights": sig(rt["maxHeights"]), "maxDegrees": sig(rt["maxDegrees"]), "worst": rt["worst"],
                            "toleranceHeights": args.round_trip_tolerance, "toleranceDegrees": args.round_trip_degrees, "passed": rt_passed},
-             "notCarried": missing, "passed": bool(agreement["passed"] and flips_passed and rt_passed)}
+             "stretch": stretch, "notCarried": missing, "passed": bool(agreement["passed"] and flips_passed and rt_passed)}
     if abs(entry["durationSeconds"] - source_duration) > 0.5 / fps:
         warnings.append("%s: %.4f s at %g fps is not a whole number of frames; the clip ends at %.4f s"
                         % (anim["name"], source_duration, fps, entry["durationSeconds"]))
     for g, deg in off.items():
         warnings.append("%s: the target's %s point up to %.1f degrees away from the source's (worst %s; tolerance %g): a map "
-                        "places a landmark on a bone that does not stand at it, or bones between two landmarks move"
+                        "places a landmark on a bone that does not stand at it, or bones between two landmarks turn"
                         % (anim["name"], g, deg, agreement["transfer"][g]["worst"], args.agreement_degrees))
     crossed = {k: n for k, n in flips.items() if n}
     if crossed:
@@ -228,7 +259,7 @@ def main(argv=None):
         listed = None if args.contacts in ("auto", "none") else read_contacts(args.contacts)
         if args.contacts == "auto" and args.contact_speed is None:
             raise SkeletonError(speed_needed(src, tgt))
-        plan, back = transfer.Plan(src, tgt), transfer.Plan(tgt, src)
+        plan, back = transfer.Plan(src, tgt, args.translation), transfer.Plan(tgt, src, args.translation)
     except (SkeletonError, gltf.GltfError, OSError) as e:
         print("error: %s" % e, file=sys.stderr)
         return 2
@@ -269,9 +300,11 @@ def main(argv=None):
            "landmarks": {"transferred": plan.shared, "targetOnlyKeptAtRest": plan.target_only, "sourceOnlyNotCarried": plan.source_only},
            "restAlignment": plan.describe(),
            "hipsScale": {"factor": round(plan.k, 6), "rule": "target leg length / source leg length (hip to knee to ankle, both sides averaged)"},
+           "translation": {"mode": args.translation, "ratios": {k: {"from": o["from"], "ratio": round(o["ratio"], 6), "carriable": o["carriable"]}
+                                                                for k, o in plan.offsets.items()}},
            "root": {"source": src.describe()["root"], "target": tgt.describe()["root"],
                     "travelOn": "root and hips" if plan.with_root else "hips"},
-           "options": {"fps": args.fps, "contacts": args.contacts, "contactSpeedHeightsPerSecond": args.contact_speed,
+           "options": {"fps": args.fps, "translation": args.translation, "contacts": args.contacts, "contactSpeedHeightsPerSecond": args.contact_speed,
                        "contactMinFrames": args.contact_min_frames, "contactBlendFrames": args.contact_blend,
                        "facingDegrees": args.facing_degrees, "agreementDegrees": args.agreement_degrees, "sideFlipFrames": args.side_flip_frames,
                        "roundTripTolerance": args.round_trip_tolerance, "roundTripDegrees": args.round_trip_degrees,
