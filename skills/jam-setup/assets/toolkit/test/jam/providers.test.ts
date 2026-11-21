@@ -4,7 +4,7 @@ import { chmodSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 import { Executables } from "../../src/kernel/Executable.ts"
-import { balanceText } from "../../src/jam/providers/balance.ts"
+import { balanceText, readFailure } from "../../src/jam/providers/balance.ts"
 import { Providers } from "../../src/jam/providers/Providers.ts"
 import { openJob } from "../../src/jam/runs/jobs.ts"
 import { capProblem, committed, spendState } from "../../src/jam/providers/spend.ts"
@@ -131,7 +131,15 @@ describe("balances", () => {
   }
   const [what] = process.argv.slice(2)
   if (what === "signedout") { console.error("error: no credentials found"); process.exit(3) }
-  if (what === "text") console.log("Balance: 12")
+  // Programs that print their error as JSON on standard output only, over several lines.
+  const fail = (error, code) => { console.log(JSON.stringify({ ok: false, error }, null, 2)); process.exit(code) }
+  if (what === "jsonsignedout") fail({ code: "auth", message: "Invalid API key k3yAbCdEfGhIjKlMnOpQrStUv12345" }, 3)
+  if (what === "unknowncmd") fail({ code: 400, reason: "validationError", message: "unrecognized subcommand 'credits'" }, 2)
+  if (what === "busy") fail({ code: "server", message: "upstream timed out" }, 1)
+  if (what === "notfound") process.exit(127)
+  if (what === "okerror") { console.log(JSON.stringify({ error: { code: 401, message: "Access denied" } })); process.exit(0) }
+  if (what === "--version") console.log("stub 0.1.0")
+  else if (what === "text") console.log("Balance: 12")
   else console.log(JSON.stringify(answers[what]))`
   const cliRead = (args: Array<string>, read: Record<string, unknown> = { remaining: "result.balance" }) => ({ kind: "cli", command: NODE, balance: { args: ["stub.mjs", ...args], ...read } })
 
@@ -146,6 +154,7 @@ describe("balances", () => {
         "jam/providers/nofigure.json": descriptor("nofigure", { transports: [cliRead(["nofigure"])] }),
         "jam/providers/absent.json": descriptor("absent", { transports: [{ kind: "cli", command: "bin/not-there", balance: { args: ["balance"], remaining: "balance" } }] }),
         "jam/providers/session.json": descriptor("session", { transports: [cliRead(["signedout"]), { kind: "mcp", server: "acme", balance: { tool: "usage_get", note: "consumption only" } }] }),
+        "jam/providers/either.json": descriptor("either", { transports: [{ kind: "mcp", server: "acme", balance: { tool: ["limit_get", "usage_get"] } }] }),
         "jam/providers/unread.json": descriptor("unread", { docs: "docs/acme.md" }),
         "jam/providers/included.json": descriptor("included", { unit: { id: "plan", label: "a plan the person pays for", paid: false } })
       }
@@ -159,13 +168,17 @@ describe("balances", () => {
     assert.equal(balanceText(plan), "700 tokens left of 1000, renews 2026-12-25")
     const signedOut = await balance(root, "signedout")
     assert.equal(signedOut.state, "failed")
-    assert.match(signedOut.detail, /stub\.mjs signedout exit 3 \(error: no credentials found\); not signed in, or the service did not answer/)
+    assert.deepEqual([signedOut.failure, credits.failure], ["not signed in", null])
+    assert.match(signedOut.detail, /stub\.mjs signedout exit 3, not signed in: error: no credentials found$/)
     assert.match((await balance(root, "text")).detail, /ran, but it did not print JSON \(Balance: 12\)/)
     assert.match((await balance(root, "nofigure")).detail, /no number at result\.balance/)
     assert.match((await balance(root, "absent")).detail, /is not installed \(ENOENT\)/)
     const session = await balance(root, "session")
     assert.deepEqual([session.state, session.via], ["session", "usage_get on MCP server acme"])
     assert.match(session.detail, /^read in the agent session: call usage_get on MCP server acme; consumption only; unread: .*signedout exit 3/)
+    const either = await balance(root, "either")
+    assert.deepEqual([either.state, either.via], ["session", "limit_get or usage_get on MCP server acme"])
+    assert.match(either.detail, /call the first of limit_get, usage_get that this session lists for MCP server acme/)
     assert.match((await balance(root, "unread")).detail, /^no balance read: the descriptor names none; .*\(docs\/acme\.md\)/)
     assert.deepEqual([(await balance(root, "included")).state, (await balance(root, "included")).detail], ["none", "no balance: not billed per job (a plan the person pays for)"])
 
@@ -173,6 +186,27 @@ describe("balances", () => {
     assert.deepEqual(shown.map((row) => [row.id, row.state]), [["credits", "read"], ["included", "none"]])
     assert.match(cli(root, "provider", "balance", "credits").stdout, /credits {2,}test tokens {2,}12 tokens left \(monthly 10, permanent 2\), renews 2026-12-25 {2,}.*stub\.mjs credits/)
     assert.match(cli(root, "provider", "balance", "ghost").stderr, /provider ghost is not known/)
+  })
+
+  it("a failed read says why from the program's own answer: its JSON error, a command it does not know, a launcher that is missing; never a key", async () => {
+    const reads = ["jsonsignedout", "unknowncmd", "busy", "notfound", "okerror"]
+    const root = jamProject({
+      files: {
+        "stub.mjs": STUB,
+        ...Object.fromEntries(reads.map((what) => [`jam/providers/${what}.json`, descriptor(what, { transports: [{ ...cliRead([what]), probe: ["stub.mjs", "--version"] }] })]))
+      }
+    })
+    const read = Object.fromEntries(await Promise.all(reads.map(async (what) => [what, await balance(root, what)] as const)))
+    assert.deepEqual(reads.map((what) => read[what]!.failure), ["not signed in", "outdated", "unanswered", "not installed", "not signed in"])
+    assert.match(read["jsonsignedout"]!.detail, /exit 3, not signed in: auth: Invalid API key \[redacted\]$/)
+    assert.doesNotMatch(JSON.stringify(read), /k3yAbCdEf/)
+    assert.match(read["unknowncmd"]!.detail, /is not a read this .* knows \(version stub 0\.1\.0: 400: validationError: unrecognized subcommand 'credits'\); it may be older than this read needs: update it/)
+    assert.match(read["busy"]!.detail, /exit 1: server: upstream timed out; the program did not say why, so the service may not have answered/)
+    assert.match(read["notfound"]!.detail, /is not installed \(exit 127, command not found\)/)
+    assert.match(read["okerror"]!.detail, /ran, but its answer has no number at result\.balance.* \(it reported 401: Access denied\)/)
+    // cmd.exe's exit for a command it cannot find, as a Windows npm launcher gives it.
+    assert.equal(readFailure({ error: "exit 9009", output: "'meshy' is not recognized as an internal or external command", stdout: "" }).failure, "not installed")
+    assert.equal(readFailure({ error: "ENOENT", output: null, stdout: "" }).failure, "not installed")
   })
 
   it("a descriptor's balance read is checked: a program's read names its arguments and a figure, a server's names its tool", async () => {
@@ -194,7 +228,7 @@ describe("balances", () => {
       files: {
         "bin/meshy": program("balance --format json --no-update-check", { ok: true, result: { balance: 812, monthly_credits: 800, permanent_credits: 12, monthly_resets_at: 1798156800000 } }),
         "bin/tripo": program("balance --json", { balance: 40, frozen: 5 }),
-        "bin/elevenlabs": program("user subscription get", { tier: "creator", character_count: 4000, character_limit: 30000, next_character_count_reset_unix: 1798156800 }),
+        "bin/elevenlabs": program("user subscription get --format json", { tier: "creator", character_count: 4000, character_limit: 30000, next_character_count_reset_unix: 1798156800 }),
         "jam.local.json": JSON.stringify({ providers: { meshy: "bin/meshy", tripo: "bin/tripo", elevenlabs: "bin/elevenlabs" } })
       }
     })
@@ -204,7 +238,7 @@ describe("balances", () => {
     assert.deepEqual([byId["meshy"]!.remaining, byId["meshy"]!.parts, byId["meshy"]!.resets], [812, { monthly: 800, permanent: 12 }, "2026-12-25T00:00:00.000Z"])
     assert.deepEqual([byId["tripo"]!.remaining, byId["tripo"]!.parts], [40, { "held by running tasks": 5 }])
     assert.deepEqual([byId["elevenlabs"]!.remaining, byId["elevenlabs"]!.resets], [26000, "2026-12-25T00:00:00.000Z"])
-    assert.equal(byId["scenario"]!.state, "session")
+    assert.deepEqual([byId["scenario"]!.state, (byId["scenario"] as unknown as { via: string }).via], ["session", "consumption_limit_get or usage on MCP server scenario"])
     for (const id of ["agent-image", "codex", "motionbricks"]) assert.match(byId[id]!.detail, /^no balance: not billed per job \(/, id)
     const mesh = cli(root, "provider", "balance", "--capability", "mesh", "--json").json<{ providers: Array<{ id: string }> }>().providers
     assert.deepEqual(mesh.map((row) => row.id), ["meshy", "scenario", "tripo"])
@@ -225,10 +259,13 @@ describe("listing for a capability", () => {
     assert.match(refused.stderr, /no provider serves teleport\n.*fix: capabilities the known providers serve: image, mesh, motion, sound, voice/)
   })
 
-  it("probes several providers at once; one id keeps its own object", () => {
+  it("probes several providers at once; one id keeps its own object unless --each asks for the list", () => {
     const root = jamProject()
     const many = cli(root, "provider", "probe", "agent-image", "motionbricks", "--json").json<{ providers: Array<{ id: string }> }>().providers
     assert.deepEqual(many.map((row) => row.id), ["agent-image", "motionbricks"])
     assert.equal(cli(root, "provider", "probe", "agent-image", "--json").json<{ id: string }>().id, "agent-image")
+    for (const ids of [["agent-image"], ["agent-image", "motionbricks"]]) {
+      assert.deepEqual(cli(root, "provider", "probe", "--each", ...ids, "--json").json<{ providers: Array<{ id: string }> }>().providers.map((row) => row.id), ids)
+    }
   })
 })

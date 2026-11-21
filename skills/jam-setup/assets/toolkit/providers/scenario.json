@@ -15,7 +15,7 @@
     {
       "kind": "mcp",
       "server": "scenario",
-      "balance": { "tool": "usage", "note": "it reports Compute Units consumed, which is not always what is left: docs/providers/scenario.md, Balance" },
+      "balance": { "tool": ["consumption_limit_get", "usage"], "note": "what each reports, and why consumption is not what is left: docs/providers/scenario.md, Balance" },
       "note": "Native HTTP MCP endpoint with OAuth."
     }
   ],

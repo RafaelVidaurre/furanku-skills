@@ -68,6 +68,6 @@ Scenario hosts other vendors' rigging and motion models and runs them like any m
 
 ## Balance
 
-The server's free `usage` tool reads the Compute Units consumed, for a project or the team (`scope: "team"`). The Scenario skill (read 2026-11-21) says it reports consumption, not what is left: report consumption as consumption, and what is left as unknown unless the answer also gives the allowance. Skills v0.62 named `consumption_limit_get` for the limits and the Compute Units left; call whichever of the two the server lists. A 429 that names a quota carries `actionLimit` (the period's allowance) and `actionValue` (what is consumed). Not yet exercised by the toolkit on a signed-in account.
+The server's free `usage` tool reads the Compute Units consumed, for a project or the team (`scope: "team"`). The Scenario skill (read 2026-11-21) says it reports consumption, not what is left: report consumption as consumption, and what is left as unknown unless the answer also gives the allowance. Skills v0.62 named `consumption_limit_get` for the limits and the Compute Units left. The descriptor lists both, `consumption_limit_get` first since it gives what is left; `jam provider balance scenario` names them. A 429 that names a quota carries `actionLimit` (the period's allowance) and `actionValue` (what is consumed). Not yet exercised by the toolkit on a signed-in account.
 
 Researched 2026-11-10 from the guide and skills above, rechecked against skills v0.62 on 2026-11-20; the pacing facts were observed during a game jam in November 2026.
