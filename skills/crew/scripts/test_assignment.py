@@ -525,6 +525,28 @@ class PacketTest(unittest.TestCase):
                 self.assertEqual(available, json.loads(fields["isolation_available"]))
                 self.assertNotIn("isolation", fields)
 
+    def test_orca_packet_names_the_tab_and_selects_the_workspace(self):
+        cases = [
+            ("worker", "captain", None, "current"),
+            ("captain", "commander", "new-child", "new-child"),
+            ("worker", "commander", "identity:existing", "identity:existing"),
+            ("captain", "user", "new-top-level", "new-top-level"),
+        ]
+        for role, principal, requested, expected in cases:
+            with self.subTest(role=role, placement=expected):
+                args = packet_args(SELECTED)
+                args[args.index(json.dumps(ORCA_MANIFEST))] = "orca"
+                args[args.index("--role") + 1] = role
+                args[args.index("--reports-to") + 1] = principal
+                if requested:
+                    args += ["--orca-worktree", requested]
+                result = run(*args)
+                self.assertEqual(0, result.returncode, result.stderr)
+                packet = json.loads(result.stdout)
+                title = f"{role.title()} - Deliver shell palette"
+                self.assertEqual({"session_title": title, "worktree": expected}, packet["orca_launch"])
+                self.assertIn(json.dumps(title), packet["spec"])
+
     def test_builtin_orca_grok_packet_carries_custom_launch_mapping(self):
         args = packet_args(GROK_SELECTED)
         args[args.index(json.dumps(ORCA_MANIFEST))] = "orca"
