@@ -1,6 +1,6 @@
 # Orca
 
-Read when Orca launches, connects, or retires a Crew assignment. Orca's version-matched guide owns Orca mechanics: launching workers, waking the coordinator, mail, steering, recovery, remote placement, and cleanup. This file adds only Crew's role, routing, account, and resource rules on top of it.
+Read when a session takes a Crew role in Orca or Orca launches, connects, or retires an owner. Orca's version-matched guide owns Orca mechanics: launching workers, waking the coordinator, mail, steering, recovery, remote placement, and cleanup. This file adds only Crew's role, routing, account, and resource rules on top of it.
 
 Before the first Orca command in a session, resolve the executable as the `orca-cli`/`orchestration` skills direct (`ORCA_CLI_COMMAND`, then `orca-dev` in an Orca dev checkout, `orca-ide` on Linux outside Orca, otherwise `orca`), then load the guide:
 
@@ -12,13 +12,30 @@ Load a guide reference when its situation applies, such as `references/recovery-
 
 **Complete when:** the guide for the resolved executable has been loaded in this session.
 
+## Name the session
+
+On direct role adoption, name your own tab `<Role> - <work summary>`, for example `Commander - payments rollout`. On launch or handoff, the launching owner applies the packet's `orca_launch.session_title` to the actual tab as soon as the surface is known. Use its exact handle or chat session ID from the launch, even when several owners share one worktree.
+
+- **Chat.** Run `orca chat rename --session <sessionId> --name "<session title>" --json`. Inside your own chat, omit `--session`.
+- **Terminal.** Set the title with `terminal create --title` at creation or `orca terminal rename --terminal <handle> --title "<session title>" --json` on an existing tab. Inside your own terminal, use `ORCA_TERMINAL_HANDLE` when set.
+
+`--task-title` labels the orchestration Task. For a remote worker, delegate the tab rename to the owner on the executing host.
+
+## Place the owner
+
+Apply **Choose execution and placement** in `SKILL.md` before building the packet. `orca_launch.worktree` defaults to `current`. Override with `packet --orca-worktree <placement>` for an exact existing workspace, a needed `new-child`, or the permitted parentless case (`new-top-level`). For a Captain launching a Worker, the parent is the Captain's workspace.
+
+- With `worker-start --agent` (including readiness-only preparation), pass the packet placement directly. For a new worktree or a remote host, load the guide's placement reference and pass `--base-branch <launcher branch>` when the work must start there.
+- `agent launch` and `terminal create` take an existing workspace. With `current` or an existing selector, use it directly. When these surfaces require a new child, create it once with `orca worktree create --name <name> --parent-worktree <launcher selector> --json`, adding the chosen base when required. For an authorized top-level creation use `--no-parent`. Prepare and attach in the exact workspace returned. After any start that creates a worktree, use the returned selector for attachment and recovery.
+- For reuse on another host, pass an exact remote selector. If the host reports a lineage warning, record the placement it returned.
+
 ## Launch a supervised owner
 
-Apply **Choose execution and placement** in `SKILL.md` to choose the placement, and let `worker-start` create any new workspace. Orca records lineage, so map placement as: an existing checkout → `--worktree current` or its exact selector; a new workspace → `--worktree new-child`, which nests it under this coordinator's workspace, plus `--base-branch <launcher branch>` when the new owner must start from the launcher's branch; `new-top-level` only for the parentless case `SKILL.md` allows. Orca's guide prefers `current` unless sharing would conflict; Crew's placement rules decide when a new workspace is needed. Build the packet with `--spec-out <private file>`, then start the owner with the packet's routed tuple:
+Build the packet with `--spec-out <private file>`, then start the owner with the packet's routed tuple:
 
 ```sh
-orca orchestration worker-start --spec-file <spec file> --task-title "<Role> - <summary>" \
-  --worktree <placement> --agent <routing.agent> --model <routing.model> --effort <routing.effort> \
+orca orchestration worker-start --spec-file <spec file> --task-title "<orca_launch.session_title>" \
+  --worktree <orca_launch.worktree> --agent <routing.agent> --model <routing.model> --effort <routing.effort> \
   [--run <runId>] --json
 ```
 
@@ -37,7 +54,7 @@ Follow the emitted `launch_method`. For `command`, use the packet's exact `launc
 For an explicit `orca-native` policy, only the current host selection is eligible because the public native launcher has no Claude/Codex account selector. This is either the exact registered account ID or an explicit `discovery.selection: system-default` binding whose default home, email and organization match public discovery with no managed host account selected. The configured row name for a system-default binding is not a managed account ID. An inactive duplicate cannot supply the active account's quota evidence, even when the email or organization matches. Native preparation proceeds as follows:
 
 1. Build the packet immediately before preparation. Crew reads the binding's exact Orca executable's `agent-context --json` registry and emits `prepare_surface`; missing discovery or tuple/attachment capabilities refuse before launch. Use that same executable and inspect its launcher help if the host rejects a valid discovered invocation. Reuse a prepared, assignment-owned process only after confirming it is live and matches the decision.
-2. Run `prepare_command` with the exact existing `--worktree <selector>`, `--json`, and, for `readiness-worker`, `--run <runId>` when this front already has a Run. For `agent-launch`, this is native preparation without a prompt; Crew adds `--surface terminal` when the launcher advertises it. For `readiness-worker`, the command contains a fixed readiness-only `--spec` that performs no project work and reports `worker_done`, plus `--keep-open` when advertised so Orca's automatic release does not close the prepared terminal; keep that spec unchanged. The actual assignment remains undispatched. Record its Task, Dispatch, terminal, workspace, and resource effects as preparation owned by this assignment, not a second work contract. A ready start receipt alone does not settle the readiness Task: wait for its `worker_done` wake, and resolve an escalation or missing report through the guide's recovery reference.
+2. Run `prepare_command` with `--worktree` from **Place the owner**, `--json`, and, for `readiness-worker`, `--run <runId>` when this front already has a Run. For `agent-launch`, this is native preparation without a prompt; Crew adds `--surface terminal` when the launcher advertises it. For `readiness-worker`, the command contains a fixed readiness-only `--spec` that performs no project work and reports `worker_done`, plus `--keep-open` when advertised so Orca's automatic release does not close the prepared terminal; keep that spec unchanged. The actual assignment remains undispatched. Record its Task, Dispatch, terminal, workspace, and resource effects as preparation owned by this assignment, not a second work contract. A ready start receipt alone does not settle the readiness Task: wait for its `worker_done` wake, and resolve an escalation or missing report through the guide's recovery reference.
 3. Read the receipt's actual surface. For a terminal, wait for `tui-idle`, then verify the live process's profile environment equals `account_binding.env`, every name in `unset_env` is absent, and the native account status and actual model/effort match the decision. For a `native_default_profile` binding, verify the process home resolves to that native default directory with `CLAUDE_CONFIG_DIR` absent; an empty override map alone is insufficient. Inspect only the needed nonsecret routing paths and presence booleans, never credential values. Recheck `account list --json` against the exact selected registered account ID and native identity. For `system-default`, require the host selection to remain null and recheck the bound default home, email and organization instead; duplicate registered accounts are not interchangeable. Recheck quota if the binding expired and compare the new binding with this same process. A workspace trust or sign-in prompt is a readiness gap: preserve it and report it without approving trust, copying credentials, or changing permission flags.
 4. After the readiness Task succeeds (when present) and binding proof passes, attach the unchanged packet spec with `worker-start --spec-file <spec file> --terminal <same-handle> --worktree <same selector>`, adding `--run <runId>` when the front already has a recorded Run, and record the Run its receipt names. Omit `--agent`, `--model`, and `--effort` on attachment. Record the terminal ownership transfer from preparation to the real assignment; do not release it between these steps. If the receipt returned a chat, continue only through a documented attachment surface with equivalent identity proof. Missing proof or attachment leaves the real assignment blocked: settle or recover preparation and release its resources, or explicitly retain a pending readiness gap with its owner and next action. Never launch another process to evade that refusal.
 
@@ -52,14 +69,14 @@ When the guide reports confirmed quota exhaustion, preserve work and settle the 
 Use this path for a `command` launch method, or when a launch note says `worker-start` cannot set the routed tuple for that agent. Confirm the installed guide supports terminal creation, readiness wait, and attachment, and resolve any `launch_warning` first. Create one terminal in the selected workspace with the packet's exact `launch_command` and wait for readiness:
 
 ```sh
-orca terminal create --worktree <selector> --title "<Role> - <summary>" --command '<exact launch_command>' --json
+orca terminal create --worktree <selector> --title "<orca_launch.session_title>" --command '<exact launch_command>' --json
 orca terminal wait --terminal <handle> --for tui-idle --timeout-ms 60000 --json
 ```
 
 Proceed only on `wait.satisfied: true`. For an account-bound packet, verify the process profile/home, absence of credential overrides, model/effort and freshness as in step 3 above; the selected account need not be Orca's active account. Match its native authentication identity to `account_binding.quota_identity` (refresh routing if that identity is missing). Recheck Orca account metadata only when `account_binding.discovery.source` is `orca`; a configured-only profile has no Orca registration to prove. Resolve trust or sign-in prompts as readiness gaps. Then attach the unchanged assignment:
 
 ```sh
-orca orchestration worker-start --spec-file <spec file> --task-title "<Role> - <summary>" --worktree <selector> --terminal <handle> [--run <runId>] --json
+orca orchestration worker-start --spec-file <spec file> --task-title "<orca_launch.session_title>" --worktree <selector> --terminal <handle> [--run <runId>] --json
 ```
 
 `--terminal` cannot combine with `--model`/`--effort`; retain the actual command and tuple acceptance as evidence. The assignment's creator owns this terminal.
@@ -70,9 +87,9 @@ An available profile excluded by a native-only policy is a launch-surface mismat
 
 ## Full handoff
 
-A full handoff transfers the assignment and its resource ownership to the named principal; it creates no Run or Task. For a packet without `account_binding`, use the guide's nothing-back recipe with the packet's tuple: `orca worktree create --name <name> --no-parent --agent <agent> --model <model> --effort <effort> --prompt "<packet spec>" --json` for a new workspace, or `orca agent launch --agent <agent> --worktree <selector> --model <model> --effort <effort> --prompt "<packet spec>" --json` for an existing one. An account-bound packet never sends its spec with the launch: prepare and verify the process first (steps 1–3 above for `orca-native`, settling any readiness Task; **Custom model arguments** for `command`), then deliver the spec to that same verified terminal with `orca terminal send --terminal <handle> --text "<packet spec>" --enter --json`. Without that proof, the handoff stays blocked.
+A full handoff transfers the assignment and its resource ownership to the named principal; it creates no Run or Task. For a packet without `account_binding`, use `orca agent launch --agent <agent> --worktree <selector> --model <model> --effort <effort> --prompt "<packet spec>" --json` for the default current workspace or another existing one. Only for a planned new workspace, use `worktree create` with the parent or top-level flag from **Place the owner** and the same agent, tuple, and prompt. An account-bound packet never sends its spec with the launch: prepare and verify the process first (steps 1–3 above for `orca-native`, settling any readiness Task; **Custom model arguments** for `command`), then deliver the spec to that same verified terminal with `orca terminal send --terminal <handle> --text "<packet spec>" --enter --json`. Without that proof, the handoff stays blocked.
 
-Report the exact workspace and agent session from the receipt, transfer cleanup responsibility, and stop supervising. A supervised assignment keeps its `reports_to`; do not turn it into a handoff for a launcher's convenience.
+Apply **Name the session** and transfer the exact workspace, agent session, and cleanup responsibility to the principal. A supervised assignment keeps its `reports_to`; do not turn it into a handoff for a launcher's convenience.
 
 **Complete when:** the receipt shows the agent started with the packet's tuple and prompt, and the new owner, principal, and resource responsibility are recorded.
 

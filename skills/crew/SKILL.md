@@ -38,7 +38,9 @@ Apply the precedence order in Seams to the output, then hold the session's mecha
 
 When the user gives the current session a role, adopt it immediately with `reports_to: user`. The current request is its initial contract. Do not create a work record, run a routing check, or create coordination state solely to establish the role.
 
-**Complete when:** the current session has acknowledged its role, principal, and immediate outcome, and carries any session naming the mechanism's Seams entry requires.
+In an Orca chat or terminal, [name the session](references/orca.md#name-the-session) as soon as you take the role, including Commander. This also applies when the session delegates through a different mechanism.
+
+**Complete when:** the session has acknowledged its role, principal, and immediate outcome and set its Orca title where applicable.
 
 ## Choose execution and placement
 
@@ -48,13 +50,13 @@ Before a launch, record its outcome, why delegation helps, and placement in the 
 
 Choose placement independently of role, model, and custom launch arguments:
 
-- Use an existing checkout for read-only work and sequential edits with one active writer.
-- Use separate worktrees for concurrent changes that need independent Git state, conflicting writes, or an independent delivery branch. Account for generated files and shared build state, not just source-file overlap.
+- Default to the launching owner's current checkout. A read-only review or a Worker taking over as sole writer can use a fresh session there. Reuse an exact existing checkout when it already holds the required work.
+- Create a worktree when the principal requests one or the assignment needs isolation. Record the specific conflict or branch requirement first, including concurrent writes to generated files or shared build state.
 - Share a checkout among concurrent writers only with explicit disjoint write ownership and one owner of index, branch, and integration operations. A worktree does not isolate ports, devices, databases, or other external resources; coordinate those separately.
 - When the mechanism records workspace lineage, nest every new workspace under the launching owner's workspace—a Captain's under Commander's, a Worker's under its Captain's—so the workspace tree mirrors ownership, even when the delegated front is independent of the launcher's own edits. Create a parentless workspace only when the principal asks for one or the work leaves the Crew with nothing reported back.
 - Lineage does not choose the Git starting point. When the result integrates into the launcher's branch or depends on its unintegrated work, commit that work and start the new worktree from the launcher's branch; otherwise start from the repository's default base.
 
-Record created versus reused resources under **Retire an owner** below.
+For an Orca launch, [pass the selected placement into the packet](references/orca.md#place-the-owner). Record created versus reused resources under **Retire an owner** below.
 
 **Complete when:** direct execution or delegation has a concrete benefit, every outcome has one owner, and each launch has a placement and resource owner without duplicating the work contract.
 

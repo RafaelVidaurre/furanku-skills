@@ -902,6 +902,11 @@ def build_packet(args):
     needs_seams = args.manifest is None or (args.request and not args.work_record)
     seams = resolve_seams(args.repo) if needs_seams else None
     manifest = load_manifest(args.manifest, args.repo, seams)
+    if args.orca_worktree is not None:
+        if manifest["mechanism"] != "orca":
+            raise Error("--orca-worktree requires the Orca mechanism")
+        if not args.orca_worktree.strip():
+            raise Error("--orca-worktree requires a placement or an existing worktree selector")
     if args.reports_to not in manifest.get("principals", PRINCIPALS):
         raise Error(f"mechanism {manifest['mechanism']!r} cannot report to {args.reports_to!r}")
     decision = route_decision(args, manifest)
@@ -948,6 +953,9 @@ def build_packet(args):
     ]
     if launch_note:
         lines.append("launch_note: " + json.dumps(launch_note, ensure_ascii=False))
+    if manifest["mechanism"] == "orca":
+        session_title = f"{args.role.title()} - {' '.join(title.split())}"
+        lines.append("Orca tab title: " + json.dumps(session_title, ensure_ascii=False))
     if args.reports_to != "user" and manifest.get("supervised_protocol"):
         lines.append(
             "supervised_protocol: "
@@ -1027,6 +1035,8 @@ def build_packet(args):
         "spec": "\n".join(lines) + "\n",
         "routing_decision": decision,
     }
+    if manifest["mechanism"] == "orca":
+        packet["orca_launch"] = {"session_title": session_title, "worktree": args.orca_worktree or "current"}
     if launch_note:
         packet["launch_note"] = launch_note
     binding = decision.get('account_binding')
@@ -1053,7 +1063,7 @@ def build_packet(args):
         packet['prepare_argv'] = argv
         packet['prepare_command'] = shlex.join(argv)
         packet['delivery_gate'] = (
-            "Preparation only: add the exact --worktree selector and --json; "
+            "Preparation only: pass --worktree per the selected placement in references/orca.md and add --json; "
             "for readiness-worker also add --run <runId> when this front already has a Run. "
             "Follow references/orca.md to verify the actual account/profile, credential "
             "overrides, model and effort against this fresh binding before task delivery. "
@@ -1070,7 +1080,7 @@ def build_packet(args):
             packet['prepare_surface'] = surface
             packet['delivery_gate'] = (
                 "Verify the installed Orca guide supports terminal create, wait, and worker-start --terminal attachment. "
-                "Use this exact launch_command through Orca terminal create in the assigned workspace. "
+                "Use this exact launch_command in the selected workspace with the Crew tab title. "
                 "Follow references/orca.md to verify the actual account/profile, credential overrides, "
                 "model and effort against this fresh binding before task delivery. "
                 "A configured-only profile uses native authentication matched to quota_identity; "
@@ -1119,6 +1129,7 @@ def main(argv=None):
 
     packet = commands.add_parser("packet", help="build an assignment packet")
     packet.add_argument("--title", required=True)
+    packet.add_argument("--orca-worktree", help="Orca placement: current (default), an existing selector, new-child, or new-top-level")
     packet.add_argument("--role", required=True, choices=ROLES)
     packet.add_argument(
         "--reports-to", required=True, choices=PRINCIPALS
