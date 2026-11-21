@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import { Output } from "../../kernel/cli.ts"
 import { fail, type ToolError } from "../../kernel/errors.ts"
-import { described, text } from "../cliSupport.ts"
+import { described, flag, text } from "../cliSupport.ts"
 import { Config } from "../config/Config.ts"
 import { distinctRuns } from "../runs/jobs.ts"
 import { Runs } from "../runs/Runs.ts"
@@ -76,7 +76,7 @@ const list = Command.make("list", { capability: capabilityFlag }, ({ capability 
     "jam provider list --capability mesh"
   ))
 
-const probe = Command.make("probe", { ids: idsArg }, ({ ids }) =>
+const probe = Command.make("probe", { ids: idsArg, each: flag("each", "With --json, print { providers: [...] } for any number of ids, as list and balance do") }, ({ each, ids }) =>
   Effect.gen(function*() {
     const providers = yield* Providers
     const results = []
@@ -94,10 +94,10 @@ const probe = Command.make("probe", { ids: idsArg }, ({ ids }) =>
         )
       })
     }
-    yield* (yield* Output).emit(ids.length === 1 ? results[0]!.json : { providers: results.map((result) => result.json) }, results.map((result) => result.text).join("\n\n"))
+    yield* (yield* Output).emit(ids.length === 1 && !each ? results[0]!.json : { providers: results.map((result) => result.json) }, results.map((result) => result.text).join("\n\n"))
   })).pipe(described(
-    "Report, separately, whether a provider is installed, signed in and reachable. What the toolkit cannot see is reported as unknown with how to find out; it is never guessed. With one id --json prints that provider's object; otherwise { providers: [...] }.",
-    "jam provider probe <provider>"
+    "Report, separately, whether a provider is installed, signed in and reachable. What the toolkit cannot see is reported as unknown with how to find out; it is never guessed. With --json: { providers: [...] } with --each or any number of ids but one; one id alone prints that provider's object.",
+    "jam provider probe --each <provider> --json"
   ))
 
 const balance = Command.make("balance", { ids: idsArg, capability: capabilityFlag }, ({ capability, ids }) =>

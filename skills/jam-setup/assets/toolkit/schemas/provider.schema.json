@@ -250,9 +250,27 @@
                     "description": "cli: arguments of a free call that prints the account's balance as JSON and exits 0 only when it could read it. It creates no job and charges nothing."
                   },
                   "tool": {
-                    "type": "string",
-                    "pattern": "\\S",
-                    "description": "mcp: the server's tool that reads the balance or usage for free; the agent calls it in its session"
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "\\S"
+                      },
+                      {
+                        "type": "array",
+                        "prefixItems": [
+                          {
+                            "type": "string",
+                            "pattern": "\\S"
+                          }
+                        ],
+                        "minItems": 1,
+                        "items": {
+                          "type": "string",
+                          "pattern": "\\S"
+                        }
+                      }
+                    ],
+                    "description": "mcp: the server's tool that reads the balance or usage for free, or several in order of preference; the agent calls the first its session lists"
                   },
                   "remaining": {
                     "type": "string",

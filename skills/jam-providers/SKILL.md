@@ -1,6 +1,6 @@
 ---
 name: jam-providers
-description: Show the generation providers a game project can use with the jam toolkit — what each can make, whether it can be called now, and what is left on each account — as one table per capability. Use when the person asks which providers or tools are available, what a provider can make, or how many credits remain.
+description: Show the generation providers a game project can use with the jam toolkit — what each can make, whether it can be called now, and what is left on each account — as one table per capability. Use when the person asks which providers can generate game content (images, meshes, motion, sound, voice), what a generation provider can make, or how many credits remain on a generation provider's account.
 ---
 
 # Providers and balances
@@ -27,7 +27,7 @@ Done when you hold, for each provider, its capabilities with their modes, `route
 
 ## 2. Probe
 
-`jam provider probe <id>... --json`, with the ids from step 1.
+`jam provider probe --each <id>... --json`, with the ids from step 1; `--each` keeps the answer `{ "providers": [...] }` for one id too.
 
 Done when each provider has `installed`, `authenticated` and `reachable`, each `yes`, `no` or `unknown` with its detail.
 
@@ -40,8 +40,8 @@ Skip this step when the person asked without balances.
 | State | What to do |
 | --- | --- |
 | `read` | The figures are live: `remaining` in the provider's unit, `limit` when it reports an allowance, `parts` it reports apart, `resets` when the allowance renews. The read was an authenticated call that succeeded, so the provider is signed in and reachable. |
-| `session` | `detail` names a free tool of the agent session (a server's tool). Call it when it is in this session's tool list and report its answer in its own terms: consumption stays consumption. When it is absent, the balance is unknown and `detail` says where it would come from. |
-| `failed` | Report `detail`: not installed, not signed in, or an answer the toolkit could not read. |
+| `session` | `detail` names the free tools of the agent session that read it (a server's tools, in the descriptor's order). Call the first that is in this session's tool list and report its answer in its own terms: consumption stays consumption. When none is listed, the balance is unknown and `detail` says where it would come from. |
+| `failed` | Report `detail`. `failure` says why: `not installed`, `outdated` (the program is older than the read: it needs an update), `not signed in`, `unanswered` (the program did not say why), or `unreadable` (an answer the toolkit could not read). |
 | `none` | Report `detail`: why there is no balance (included in a plan, not billed per job, local compute), or that no read is declared. |
 
 Done when every provider has a balance cell: live figures, a session tool's answer, or the stated reason there is none.
@@ -55,12 +55,12 @@ One table per capability asked for, a row for each provider that serves it:
 | Provider | id and label |
 | Modes | the capability's modes, `-` when it lists none |
 | Preferred | `yes` when the provider's `routes` include this capability |
-| Callable | `yes` when a free call succeeded in this session: a balance read, a session tool's answer, or for the agent's own tool its presence in this session's tool list. Otherwise the first missing fact (`not installed`, `not signed in`, `not reachable`), or `unknown` with the call that would settle it. |
+| Callable | `yes` when the route is callable by the rule in `tools/jam/docs/providers.md` (Routes). Otherwise the first missing fact, from the probe or a balance `failure` (`not installed`, `outdated`, `not signed in`, `not reachable`), or `unknown` with what is known and the free call that would settle it. Without balances, a provider the probe finds signed in but cannot see reach shows `unknown (signed in; not reached: balances not read)`. |
 | Unit | the unit's label, with `not billed per job` when it is not paid |
 | Balance | what is left, with the portions shown apart and the renewal date; or the reason from step 3; `not read` when balances were skipped |
 | Spend | `spend.summary`, and `<used> committed` for a paid provider |
 
-Under the tables, one line per provider that is not callable: what it needs (a sign-in, an install, a spending limit only the person sets). Give the time of the balance reads.
+Under the tables, one line per provider that is not callable: what it needs (a sign-in, an install or update, a spending limit only the person sets). Give the time of the balance reads.
 
 Done when every capability asked for has its table and every cell holds a value or a stated reason.
 

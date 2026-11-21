@@ -25,9 +25,9 @@ Translations and scales of source bones other than the hips and root are not car
 Three checks decide `passed`, per animation: the transfer's arm and leg segments point where the source's do as the
 transfer carries it, within --agreement-degrees (a correct map gives 0 to rounding); no hand or foot is on the other
 side of the body than the source's on more than --side-flip-frames frames; and the round trip, the plain transfer
-retargeted back onto the source, returns within --round-trip-tolerance source heights and --round-trip-degrees (the
-transfer is invertible, so it fails only when the source moves bones the maps do not carry, or stretches bones by
-translation that --translation none does not carry). Writes <name>.glb (the target with the retargeted animations;
+retargeted back onto the source as the transfer carries it, returns within --round-trip-tolerance source heights and
+--round-trip-degrees (the transfer is invertible, so it fails only when the source moves bones the maps do not carry;
+with --translation none the source's stretches are held at rest for both checks and reported under `stretch`). Writes <name>.glb (the target with the retargeted animations;
 its scenes, meshes and skin copied unchanged, and buffers or images it keeps in other files embedded) and
 retarget-report.json to <out-dir>. Exits 1, with both written, when a check fails; exits 2, writing nothing, when the
 inputs cannot be read as two humanoids or an option is missing. Plain Python with numpy.
@@ -47,6 +47,9 @@ from jamretarget.skeleton import FACING_DEGREES, Skeleton, SkeletonError, load_m
 CONTACT_JOINTS = ("foot.l", "foot.r", "toes.l", "toes.r", "hand.l", "hand.r")
 # Body parts whose segments a correct transfer matches exactly; the trunk and the feet keep their rests' own difference.
 JUDGED = ("arms", "legs")
+# What agreement and the round trip compare with, per --translation.
+AGAINST = {"scaled": "the source",
+           "none": "the source with its joints' translations and scales at rest, but the hips' and root's"}
 
 
 def parse(argv):
@@ -174,10 +177,13 @@ def retarget_one(args, src, tgt, plan, back, anim, listed, warnings):
     details = []
     if windows:
         local, world, rot, details = transfer.plant(plan, src_world, rot, pos, windows, F, args.contact_blend)
+    # What the transfer carries of the source: with --translation none, its stretches are held at rest (`stretch` reports
+    # them), so agreement and the round trip measure only the maps.
+    against = src_world if plan.translation == "scaled" else src_held
     # round trip: the plain transfer, back onto the source
     back_rot, back_pos = transfer.desired(back, plain_world, transfer.hold(tgt, plain_world))
     _, round_world = transfer.solve(src, back_rot, back_pos, F)
-    rt = measure.pose_error(src, plan.shared, src_world, round_world)
+    rt = measure.pose_error(src, plan.shared, against, round_world)
     rt_passed = rt["maxHeights"] <= args.round_trip_tolerance and rt["maxDegrees"] <= args.round_trip_degrees
     missing = not_carried(src, plan, anim, local_trs)
     stretch = measure.stretch(plan, src_world, src_held)
@@ -189,20 +195,19 @@ def retarget_one(args, src, tgt, plan, back, anim, listed, warnings):
             warnings.append("%s: the source animates the %s of %s; that motion is not carried (only rotations of landmarks both "
                             "maps place, and the hips' and root's translation, are)" % (anim["name"], kind, ", ".join(names)))
     if lost:
-        worst = sorted(lost, key=lambda k: -lost[k]["maxDegrees"])
-        offsets = ", ".join("%s from %s %.0f mm and %.1f degrees (length x%.2f to %.2f)" % (
-            k, lost[k]["from"], 1000 * lost[k]["maxMeters"], lost[k]["maxDegrees"], *lost[k]["lengthRatio"]) for k in worst[:5])
+        worst = sorted(lost, key=lambda k: (-(lost[k]["maxDegrees"] if lost[k]["maxDegrees"] is not None else 180), -lost[k]["maxMeters"]))
+        offsets = ", ".join("%s from %s %.0f mm and %s" % (
+            k, lost[k]["from"], 1000 * lost[k]["maxMeters"], "no rest length to compare" if lost[k]["lengthRatio"] is None else
+            "%.1f degrees (length x%.2f to %.2f)" % (lost[k]["maxDegrees"], *lost[k]["lengthRatio"])) for k in worst[:5])
         more = " and %d more" % (len(worst) - 5) if len(worst) > 5 else ""
         why = ("rotations alone keep the target's own bone lengths, so the target's segments differ from the source's by up to "
                "those angles; --translation scaled carries it" if plan.translation == "none" else
                "these landmarks' bones are not below the previous landmark's on both skeletons, so their offset cannot be carried")
         warnings.append("%s: the source's translations or scales move landmarks off where its rotations put them (a stretched or "
                         "sliding bone): %s%s; not carried: %s" % (anim["name"], offsets, more, why))
-    against = src_world if plan.translation == "scaled" else src_held
     agreement = {"transfer": measure.segment_agreement(plan, against, plain_world),
                  "final": measure.segment_agreement(plan, against, world), "judged": list(JUDGED),
-                 "against": "the source" if plan.translation == "scaled" else "the source with its joints' translations and scales at rest, but the hips' and root's",
-                 "toleranceDegrees": args.agreement_degrees}
+                 "against": AGAINST[plan.translation], "toleranceDegrees": args.agreement_degrees}
     off = {g: v["maxDegrees"] for g, v in agreement["transfer"].items() if g in JUDGED and v["maxDegrees"] > args.agreement_degrees}
     agreement["passed"] = not off
     flips = measure.side_flips(plan, src_world, world)
@@ -216,7 +221,7 @@ def retarget_one(args, src, tgt, plan, back, anim, listed, warnings):
              "sideFlips": flips, "sideFlipsAllowedFrames": args.side_flip_frames, "sideFlipsPassed": flips_passed,
              "contactSource": contact_source,
              "contacts": [dict(d, seconds=[round(float(times[d["frames"][0]]), 4), round(float(times[d["frames"][1]]), 4)]) for d in details],
-             "roundTrip": {"maxMeters": sig(rt["maxMeters"]), "meanMeters": sig(rt["meanMeters"]),
+             "roundTrip": {"against": AGAINST[plan.translation], "maxMeters": sig(rt["maxMeters"]), "meanMeters": sig(rt["meanMeters"]),
                            "maxHeights": sig(rt["maxHeights"]), "maxDegrees": sig(rt["maxDegrees"]), "worst": rt["worst"],
                            "toleranceHeights": args.round_trip_tolerance, "toleranceDegrees": args.round_trip_degrees, "passed": rt_passed},
              "stretch": stretch, "notCarried": missing, "passed": bool(agreement["passed"] and flips_passed and rt_passed)}

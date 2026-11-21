@@ -9,7 +9,7 @@ const opt = Schema.optionalKey
 /** Where a provider's own free balance or usage read puts each figure: dotted paths into its JSON output. */
 export const BalanceRead = Schema.Struct({
   args: opt(Schema.Array(Schema.String).pipe(Schema.annotate({ description: "cli: arguments of a free call that prints the account's balance as JSON and exits 0 only when it could read it. It creates no job and charges nothing." }))),
-  tool: opt(Text.pipe(Schema.annotate({ description: "mcp: the server's tool that reads the balance or usage for free; the agent calls it in its session" }))),
+  tool: opt(Schema.Union([Text, Schema.NonEmptyArray(Text)]).pipe(Schema.annotate({ description: "mcp: the server's tool that reads the balance or usage for free, or several in order of preference; the agent calls the first its session lists" }))),
   remaining: opt(Text.pipe(Schema.annotate({ description: "Path of what is left to spend, in the provider's unit" }))),
   used: opt(Text.pipe(Schema.annotate({ description: "Path of what the period has used, when the provider reports that instead of what is left" }))),
   limit: opt(Text.pipe(Schema.annotate({ description: "Path of the period's allowance; what is left is limit minus used" }))),

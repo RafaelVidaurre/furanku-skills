@@ -834,20 +834,24 @@ jam provider list --capability mesh
 
 ### provider probe
 
-Report, separately, whether a provider is installed, signed in and reachable. What the toolkit cannot see is reported as unknown with how to find out; it is never guessed. With one id --json prints that provider's object; otherwise { providers: [...] }.
+Report, separately, whether a provider is installed, signed in and reachable. What the toolkit cannot see is reported as unknown with how to find out; it is never guessed. With --json: { providers: [...] } with --each or any number of ids but one; one id alone prints that provider's object.
 
 ```
-jam provider probe [<id...>]
+jam provider probe [<id...>] [flags]
 ```
 
 | Argument | Meaning |
 |---|---|
 | `id` | Provider ids (default: every provider the project knows) |
 
+| Flag | Meaning |
+|---|---|
+| `--each` | With --json, print { providers: [...] } for any number of ids, as list and balance do |
+
 Example:
 
 ```
-jam provider probe <provider>
+jam provider probe --each <provider> --json
 ```
 
 ### provider balance
