@@ -1,0 +1,15 @@
+{
+ "engine": "5.8.4-58902052+++UE5+Release-5.8",
+ "links": [
+  {
+   "path": "/Game/Rig/CR_Fixture.CR_Fixture:RigVMModel.RigVMLink_0",
+   "source": "Add.Result",
+   "target": "Mul.A"
+  },
+  {
+   "path": "/Game/Rig/CR_Fixture.CR_Fixture:RigVMModel.RigVMLink_1",
+   "source": "Add.Result",
+   "target": "Mul.B"
+  }
+ ]
+}

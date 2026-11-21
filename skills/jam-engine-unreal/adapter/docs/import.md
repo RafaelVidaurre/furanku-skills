@@ -8,12 +8,9 @@ Where things go: pass `--destination /Game/<folder>`, or set the project's folde
 
 `--kind static <model.glb> --destination /Game/Props/<Setting> --name <Name>` gives `<dest>/SM_<Name>`, `<dest>/Materials/MI_<Name>` and `<dest>/Textures/T_<Name>_<image>`.
 
-The steps, which are also the recipe by hand (the jam did them through the editor's static-mesh toolset):
+The file goes through Interchange with the project's own pipelines for it, and then a naming step of the adapter's that gives each asset its final name and folder before anything is created: the importer's own names (`Material_0`, `Image_0`) would collide between props. Nothing is renamed afterwards, because an asset moved after import looks for its stored source from its new folder, outside the project. A file holding more than one mesh, or any of those names that exists already, is refused before anything is created. `--collision-complexity simple-and-complex` sets the trace flag `CTF_UseSimpleAndComplex`: physics uses the simple hulls, complex traces use the render mesh ([collision.md](collision.md)).
 
-1. Import the file into a scratch folder with its meshes combined. The importer names materials and textures after the file's own (`Material_0`, `Image_0`), which collide between props.
-2. Rename each asset into the destination under the names above.
-3. Turn Nanite off unless the project wants it, set collision ([collision.md](collision.md)) and the trace flag `CTF_UseSimpleAndComplex` (`--collision-complexity simple-and-complex`): physics uses the simple hulls, complex traces use the render mesh.
-4. Delete the scratch folder and save only the new assets.
+By hand: import the file straight into its destination folder, and rename nothing afterwards.
 
 Done when `jam engine inspect <id>` shows the bounds you expect in metres, one material slot per material, and the collision you intended.
 

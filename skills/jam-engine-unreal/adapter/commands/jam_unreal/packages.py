@@ -12,7 +12,7 @@ FObjectImport, FObjectExport and FPackageReader.
 import os
 import struct
 
-from .fields import FieldsError, Package, read_fields, read_soft_object_path
+from .fields import FieldsError, Package, read_fields, read_self_serialized, read_soft_object_path
 
 PACKAGE_TAG = 0x9E2A83C1
 LEGACY_VERSIONS = (-8, -9)          # UE5 summaries; -9 adds a contract on early exits, not a layout change
@@ -383,7 +383,8 @@ class _Exports:
             if not 0 <= start <= end <= export["size"] or export["offset"] + export["size"] > self.size:
                 raise FieldsError("the export's data is outside the file")
             if start == end and self.s["ue5"] >= SCRIPT_SERIALIZATION_OFFSET:
-                raise FieldsError("the object stores no tagged properties: its class serializes itself")
+                self.f.seek(export["offset"])
+                return read_self_serialized(self.f.read(export["size"]), self.context, self.classes.get(i, ""))
             self.f.seek(export["offset"] + start)
             return read_fields(self.f.read(end - start), self.context, select)
         except (Unreadable, struct.error, UnicodeDecodeError) as e:
