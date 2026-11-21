@@ -76,6 +76,36 @@ def jam_refuse_other_source(asset_id, asset, source, run=None, project_dir=None)
                           source, " by run %s" % run if run else ""))
 
 
+class JamRefusal(RuntimeError):
+    """A refusal with the adapter's error code and fix; the command reports it as given instead of as an editor error."""
+
+    def __init__(self, code, message, fix=None):
+        RuntimeError.__init__(self, message)
+        self.jam_code = code
+        self.jam_fix = fix
+
+
+def jam_refuse_outside_project(sources, made, existed=()):
+    """Call before saving. When an asset of this import remembers a source outside the project (`sources`: asset id ->
+    jam_stored_source, which leaves such a path absolute), delete the assets in `made` that this import created, leave
+    those it reimported (`existed`) unsaved, and refuse with machine-path."""
+    outside = {i: s for i, s in sorted(sources.items()) if s and os.path.isabs(s)}
+    if not outside:
+        return
+    import unreal
+    deleted = [i for i in made if i not in existed and unreal.EditorAssetLibrary.delete_asset(i)]
+    kept = [i for i in made if i in existed]
+    fix = "nothing was saved"
+    if deleted:
+        fix += "; the editor deleted the assets this import created (%s)" % ", ".join(deleted)
+    if kept:
+        fix += "; %s, imported before, %s reimported and left unsaved: in a running editor do not save %s (restart it to drop the change)" % (
+            ", ".join(kept), "was" if len(kept) == 1 else "were", "it" if len(kept) == 1 else "them")
+    raise JamRefusal("machine-path", "%s store%s a source outside the project: %s" % (
+        ", ".join(outside), "s" if len(outside) == 1 else "", ", ".join(sorted(set(outside.values())))),
+        fix=fix + ". Import from a file inside the project checkout, so the stored path is relative to it")
+
+
 def jam_dirty_packages():
     import unreal
     return sorted(p.get_name() for p in unreal.EditorLoadingAndSavingUtils.get_dirty_content_packages())

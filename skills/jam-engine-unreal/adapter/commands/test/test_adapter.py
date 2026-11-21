@@ -187,6 +187,18 @@ def test_an_editor_error_and_a_failed_bridge_are_reported_as_errors(tmp_path):
         transport.run_steps(cfg, "import", [step_file(tmp_path)], lambda *a: (2, "", "connection refused"))
 
 
+def test_a_refusal_raised_in_the_editor_is_reported_with_its_own_code_and_fix(tmp_path):
+    with open(os.path.join(COMMANDS, "jam_unreal", "editor_shared.py"), encoding="utf-8") as f:
+        shared = f.read()
+    script = shared + "\ndef main(ARGS):\n    raise JamRefusal('machine-path', '/Game/T_A stores a source outside the project: /elsewhere/a.png', fix='nothing was saved')\n"
+    namespace = {}
+    exec(transport.compose(script, {}), namespace)
+    cfg = project(tmp_path, local={"transport": {"kind": "command", "run": ["bridge"]}})
+    with pytest.raises(AdapterError) as raised:
+        transport.run_steps(cfg, "import", [step_file(tmp_path)], lambda *a: (0, namespace["_jam_text"], ""))
+    assert (raised.value.code, raised.value.message, raised.value.fix) == ("machine-path", "echo: /Game/T_A stores a source outside the project: /elsewhere/a.png", "nothing was saved")
+
+
 def test_scripts_that_wait_across_frames_are_refused_where_nothing_can_wait(tmp_path):
     waiting = step_file(tmp_path, "async def main(ARGS):\n    return {}\n")
     commandlet = project(tmp_path, local={"transport": {"kind": "commandlet", "editor": "UnrealEditor-Cmd"}})
@@ -342,6 +354,35 @@ def test_machine_paths_are_found_in_ascii_and_wide_text_and_engine_paths_are_not
     assert machine_paths.find(b"\x00\\\\server\\art\\chair.fbx\x00") == ["\\\\server\\art\\chair.fbx"]
 
 
+@pytest.mark.parametrize("stored", [
+    "\\\\server\\art\\chair.fbx", "x\\\\server\\art\\chair.fbx", "\\\\\\server\\art\\chair.fbx",   # a share after a word character or a backslash
+    "//fileserver/art/chair.fbx", "\\\\?\\UNC\\server\\art\\chair.fbx", "\\\\?\\C:\\art\\chair.fbx",
+    "/media/ana/art/chair.fbx", "/run/media/ana/art/chair.fbx", "/srv/art/chair.fbx", "/workspace/art/chair.fbx", "C:/Users/ana/chair.fbx",
+    "../../../../media/ana/art/chair.fbx"])
+def test_every_kind_of_machine_path_is_found_in_a_stored_source(stored):
+    data = b'\x00[{ "RelativeFilename" : "' + stored.encode() + b'", "Timestamp" : "0" }]\x00'
+    found = machine_paths.find(data, depth=2)
+    assert found and stored.endswith(found[0].split("\\")[-1].split("/")[-1]) and all(f in stored for f in found)
+    assert machine_paths.find(b"\x00\xfe\xff\xff\xff" + stored.encode("utf-16-le") + b"\x00\x00", depth=2)
+
+
+def test_engine_paths_urls_interchange_ids_and_sources_inside_the_project_are_not_machine_paths():
+    for text in ("../../Art/chair.glb", "/Game/Props/SM_Chair", "/Script/Engine.StaticMesh", "/Engine/BasicShapes/Cube", "https://example.com/media/a.png",
+                 "Factory_\\\\SKMInstance\\\\LODContainer\\RootNode.Rig\\RootNode.BodyFactory_RootNode.Rig", "/Game/data/run/home/T_Rock"):
+        assert machine_paths.find(b"\x00" + text.encode() + b"\x00", depth=2) == [], text
+    assert machine_paths.find(b"\x00../../../Art/chair.glb\x00", depth=3) == []
+    assert machine_paths.find(b"\x00../../../Art/chair.glb\x00") == []   # no depth: relative sources are not judged
+
+
+def test_the_sources_check_judges_a_relative_source_from_the_assets_own_folder(tmp_path):
+    (tmp_path / "Game.uproject").write_text("{}")
+    content(tmp_path, "Content/Props/SM_Inside.uasset")
+    (tmp_path / "Content" / "Props" / "SM_Inside.uasset").write_bytes(b'"RelativeFilename" : "../../Art/chair.glb"')
+    (tmp_path / "Content" / "Props" / "SM_Outside.uasset").write_bytes(b'"RelativeFilename" : "../../../../media/ana/chair.glb"')
+    code, receipt, _ = run_command(tmp_path, "engine_check.py", "--kind", "sources", "/Game/Props/SM_Inside", "/Game/Props/SM_Outside")
+    assert code == 0 and [p["message"] for p in receipt["problems"]] == ["Content/Props/SM_Outside.uasset stores machine paths: ../../../../media/ana/chair.glb"]
+
+
 # ---- commands, run as the toolkit runs them
 def run_command(tmp_path, script, *args, local=None):
     env = dict(os.environ, JAM_PROJECT_ROOT=str(tmp_path), JAM_ENGINE_SETTINGS=json.dumps(local or {}))
@@ -366,7 +407,7 @@ def test_import_static_prints_the_receipt_with_source_and_digest(tmp_path):
     (tmp_path / "Art").mkdir()
     (tmp_path / "Art" / "saloon-chair.glb").write_bytes(b"glb")
     local = bridge(tmp_path, """{"import-static": lambda a: {"assets": [{"id": a["dest"] + "/" + a["name"], "kind": "static-mesh"},
-        {"id": a["dest"] + "/Materials/MI_" + a["base"], "kind": "material-instance"}], "source": "Art/saloon-chair.glb", "projectDir": "/x", "unavailable": {}}}""")
+        {"id": a["dest"] + "/Materials/MI_" + a["base"], "kind": "material-instance"}], "source": "Art/saloon-chair.glb", "projectDir": "/x", "unavailable": {}, "saved": True}}""")
     code, receipt, _ = run_command(tmp_path, "engine_import.py", "--kind", "static", "Art/saloon-chair.glb", "--dest", "/Game/Props/Saloon", "--name", "SaloonChair", local=local)
     assert code == 0
     assert receipt == {"assets": [
@@ -380,7 +421,7 @@ def test_import_static_sends_no_scratch_folder_and_refuses_a_texture_that_rememb
     (tmp_path / "Art").mkdir()
     (tmp_path / "Art" / "crate.glb").write_bytes(b"glb")
     local = bridge(tmp_path, """{"import-static": lambda a: {"assets": [{"id": a["dest"] + "/" + a["name"], "kind": "static-mesh"},
-        {"id": a["dest"] + "/Textures/T_crate_Image", "kind": "texture"}], "source": "Art/crate.glb", "projectDir": "/p/Game/", "unavailable": {},
+        {"id": a["dest"] + "/Textures/T_crate_Image", "kind": "texture"}], "source": "Art/crate.glb", "projectDir": "/p/Game/", "unavailable": {}, "saved": True,
         "sources": {a["dest"] + "/" + a["name"]: "Art/crate.glb", a["dest"] + "/Textures/T_crate_Image": "/p/Art/crate.glb" if "scratch" in a else "/elsewhere/Art/crate.glb"}}}""")
     code, receipt, _ = run_command(tmp_path, "engine_import.py", "--kind", "static", "Art/crate.glb", "--dest", "/Game/Props", local=local)
     assert code == 1 and receipt["error"]["code"] == "machine-path" and "/elsewhere/Art/crate.glb" in receipt["error"]["message"]
@@ -432,7 +473,7 @@ def test_the_toolkits_bare_call_takes_name_folder_and_skeleton_from_the_file_its
     (tmp_path / "SK_Hero.fbx").write_bytes(b"fbx")
     (tmp_path / "SK_Hero.import.json").write_text(json.dumps({"skeleton": "mannequin"}))
     local = bridge(tmp_path, """{"import-skinned-mesh": lambda a: {"id": a["dest"] + "/" + a["name"], "skeleton": a["skeleton"], "source": a["source"], "projectDir": "/x", "slots": a["slots"], "saved": True},
-      "import-textures": lambda a: {"textures": {t["name"]: {"id": a["dest"] + "/" + t["name"], "role": t["role"]} for t in a["textures"]}, "projectDir": "/x"}}""")
+      "import-textures": lambda a: {"textures": {t["name"]: {"id": a["dest"] + "/" + t["name"], "role": t["role"]} for t in a["textures"]}, "projectDir": "/x", "saved": True}}""")
     code, receipt, _ = run_command(tmp_path, "engine_import.py", "--kind", "skinned", "SK_Hero.fbx", local=local)
     assert code == 0 and [a["id"] for a in receipt["assets"]] == ["/Game/Characters/Hero/Meshes/SK_Hero"]
     for name in ("T_Hero_BaseColor.png", "T_Hero_Normal.png", "T_Hero_ORM.png"):

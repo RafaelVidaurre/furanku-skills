@@ -10,7 +10,8 @@ jam run made it (each sequence records its run in the `jam.run` metadata tag). T
 generic pipeline with "import only animations" on the target skeleton, straight into `dest` under `name`: one
 animation becomes `<dest>/<name>`, several become `<dest>/<name><animation name>` (the importer's own rule). Importing
 the same file again replaces its sequences in place. Nothing is renamed afterwards: a moved asset resolves its stored
-source from its new folder and loses it.
+source from its new folder and loses it. A sequence that remembers a source outside the project is not saved (deleted
+when this import created it) and the import is refused.
 """
 # jam: include editor_shared
 import unreal
@@ -35,6 +36,7 @@ def main(ARGS):
             raise RuntimeError("%s exists and is not an animation sequence: import the clip under another name" % planned)
         jam_refuse_other_source(planned, existing, ARGS["source"], ARGS.get("run"))
 
+    existed = [p for p in ARGS.get("planned") or [] if eal.does_asset_exist(p)]
     pipeline = unreal.InterchangeGenericAssetsPipeline()
     common = pipeline.get_editor_property("common_skeletal_meshes_and_animations_properties")
     common.set_editor_property("import_only_animations", True)
@@ -67,6 +69,7 @@ def main(ARGS):
             entry["unavailable"] = repr(e)
         out["assets"].append(entry)
     if not out["assets"]: raise RuntimeError("no animation was imported from %s (made: %s)" % (ARGS["source"], out["other"]))
+    jam_refuse_outside_project({a["id"]: a["source"] for a in out["assets"]}, [a["id"] for a in out["assets"]], existed)
     out["saved"] = all([eal.save_asset(a["id"], only_if_is_dirty=False) for a in out["assets"]])
     out["projectDir"] = jam_project_dir()
     out["dirtyContent"] = jam_dirty_packages()

@@ -6,7 +6,8 @@ ARGS: {"source": "<project-relative fbx>", "sha256": "...", "dest": "/Game/.../M
 When `slots` is not empty, every material slot of the imported mesh must be named in it; when it is empty the mesh
 keeps the materials it imported with. Returns the skeleton the mesh ended up on (compare
 it with the one asked for: Interchange may ignore FBX factory options), its slots, half extent, stored source, and
-whether the mesh was saved (the steps before it save their own textures and materials).
+whether the mesh was saved (the steps before it save their own textures and materials). A mesh that remembers a
+source outside the project is not saved (deleted when this import created it) and the import is refused.
 It uses the legacy FBX factory options, which store a source path relative to the project.
 """
 # jam: include editor_shared
@@ -25,6 +26,7 @@ def main(ARGS):
     if skel is None: raise RuntimeError("skeleton not found: " + ARGS["skeleton"])
     physics = eal.load_asset(ARGS["physicsAsset"]) if ARGS.get("physicsAsset") else None
     if ARGS.get("physicsAsset") and physics is None: raise RuntimeError("physics asset not found: " + ARGS["physicsAsset"])
+    existed = eal.does_asset_exist(dest + "/" + name)
     task = unreal.AssetImportTask()
     task.filename = jam_source(ARGS["source"], ARGS.get("sha256")); task.destination_path = dest; task.destination_name = name
     task.automated = True; task.replace_existing = True; task.save = False
@@ -48,8 +50,9 @@ def main(ARGS):
     out = {"id": dest + "/" + name, "skeleton": sk.get_path_name().split(".")[0] if sk else None,
            "slots": [(str(m.get_editor_property("material_slot_name")), (lambda mi: mi.get_name() if mi else None)(m.get_editor_property("material_interface"))) for m in mesh.get_editor_property("materials")],
            "extentCm": [round(b.box_extent.x, 1), round(b.box_extent.y, 1), round(b.box_extent.z, 1)], "physicsAsset": pa.get_name() if pa else None}
-    out["saved"] = eal.save_asset(dest + "/" + name, only_if_is_dirty=False)
     out["source"] = jam_stored_source(mesh)
+    jam_refuse_outside_project({out["id"]: out["source"]}, [out["id"]], [out["id"]] if existed else [])
+    out["saved"] = eal.save_asset(dest + "/" + name, only_if_is_dirty=False)
     out["projectDir"] = jam_project_dir()
     out["dirtyContent"] = jam_dirty_packages()
     return out

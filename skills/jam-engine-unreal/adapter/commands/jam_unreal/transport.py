@@ -36,6 +36,8 @@ try:
 except Exception as _jam_error:
     import traceback as _jam_traceback
     JAM_RESULT = {"error": repr(_jam_error), "traceback": _jam_traceback.format_exc()[-3000:]}
+    if getattr(_jam_error, "jam_code", None):   # a refusal the script raised on purpose (editor_shared.JamRefusal)
+        JAM_RESULT.update(refusal={"code": _jam_error.jam_code, "message": str(_jam_error), "fix": _jam_error.jam_fix})
 _jam_text = json.dumps(JAM_RESULT)
 if ARGS.get("_resultFile"):
     import os as _jam_os
@@ -158,6 +160,9 @@ def _read_result(path):
 
 
 def _checked(step, result):
+    refusal = result.get("refusal")
+    if refusal:
+        raise AdapterError(refusal["code"], "%s: %s" % (step["name"], refusal["message"]), fix=refusal.get("fix"))
     if "error" in result:
         raise AdapterError("editor-error", "%s failed in the editor: %s" % (step["name"], result["error"]), details={"traceback": result.get("traceback")})
     return result

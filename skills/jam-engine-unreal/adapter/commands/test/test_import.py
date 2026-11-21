@@ -87,6 +87,18 @@ def test_every_import_kind_leaves_its_assets_remembering_the_project_file(tmp_pa
             ("/Game/Props/Textures/T_%s_Image" % prop, "texture"), ("/Game/Props/Materials/MI_" + prop, "material-instance")]
     code, receipt, _ = run_command(tmp_path, "engine_import.py", "--kind", "static", "Art/Crate.glb")
     assert code == 1 and "/Game/Props/SM_Crate, /Game/Props/Textures/T_Crate_Image, /Game/Props/Materials/MI_Crate exist" in receipt["error"]["message"]
+    # images named "Wood <Normal>" and "wood.diffuse" land under the names the engine cleans them to, and those are the names checked
+    plank = ["/Game/Props/SM_Plank", "/Game/Props/Textures/T_Plank_Wood__Normal_", "/Game/Props/Textures/T_Plank_wood_diffuse", "/Game/Props/Materials/MI_Plank"]
+    code, receipt, err = run_command(tmp_path, "engine_import.py", "--kind", "static", "Art/Plank.glb")
+    assert code == 0, err
+    assert [a["id"] for a in receipt["assets"]] == plank
+    code, receipt, _ = run_command(tmp_path, "engine_import.py", "--kind", "static", "Art/Plank.glb")
+    assert code == 1 and ", ".join(plank) + " exist" in receipt["error"]["message"]
+    # a file the importer cannot read is refused, and an existing mesh of the name asked for is left alone
+    (tmp_path / "Art" / "Broken.glb").write_bytes(b"glTF\x02\x00\x00\x00" + bytes(range(256)) * 4)
+    for name in ("Broken", "Crate"):
+        code, receipt, _ = run_command(tmp_path, "engine_import.py", "--kind", "static", "Art/Broken.glb", "--name", name)
+        assert code == 1 and "no static mesh could be read from Art/Broken.glb" in receipt["error"]["message"], receipt
     code, _, err = run_command(tmp_path, "engine_import.py", "--kind", "textures", "Art/T_Rock_Color.png", "Art/T_Rock_Normal.png", "Art/T_Rock_ORM.png")
     assert code == 0, err
     code, _, err = run_command(tmp_path, "engine_import.py", "--kind", "audio", "Art/Knock.wav")
@@ -99,6 +111,7 @@ def test_every_import_kind_leaves_its_assets_remembering_the_project_file(tmp_pa
     stored = json.loads((tmp_path / "stored.json").read_text())
     expected = {"/Game/Props/SM_Crate": ["Art/Crate.glb"], "/Game/Props/Textures/T_Crate_Image": ["Art/Crate.glb"], "/Game/Props/Materials/MI_Crate": ["Art/Crate.glb"],
                 "/Game/Props/SM_Stool": ["Art/Stool.glb"], "/Game/Props/Textures/T_Stool_Image": ["Art/Stool.glb"], "/Game/Props/Materials/MI_Stool": ["Art/Stool.glb"],
+                **{asset: ["Art/Plank.glb"] for asset in plank},
                 "/Game/Textures/T_Rock_Color": ["Art/T_Rock_Color.png"], "/Game/Textures/T_Rock_Normal": ["Art/T_Rock_Normal.png"], "/Game/Textures/T_Rock_ORM": ["Art/T_Rock_ORM.png"],
                 "/Game/Audio/Knock": ["Art/Knock.wav"], "/Game/Characters/Hero/Meshes/SK_Hero": ["Art/Hero.fbx"]}
     assert {k: stored.get(k) for k in expected} == expected

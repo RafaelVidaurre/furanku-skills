@@ -8,18 +8,27 @@ ARGS: {"source": "<project-relative glb or fbx>", "sha256": "...", "dest": "/Gam
 The file goes through Interchange with the project's own pipeline stack for it, followed by a naming pipeline that
 gives every asset its final name and folder before anything is created: the mesh `<dest>/<name>`, textures
 `<dest>/Textures/<T_><base>_<its own name>`, materials `<dest>/Materials/<MI_><base>` (numbered when there are
-several). The importer's own names (`Material_0`, `Image_0`) would collide between props. Nothing is renamed or moved
-afterwards: a moved asset resolves its stored source from its new folder, to a path outside the project. Collision
+several). The importer's own names (`Material_0`, `Image_0`) would collide between props; each name is cleaned here as the
+engine would clean it (an image named `Wood <Normal>` gives `..._Wood__Normal_`), so the names checked and reported
+are the names made. Nothing is renamed or moved afterwards: a moved asset resolves its stored source from its new folder, to a path outside the project. Collision
 shapes named for the mesh in the file (the engine's collision prefix) are imported as the mesh's simple collision.
 
 It refuses, before creating anything, a file that holds more than one mesh, and any asset name that exists already:
 the engine cannot replace a loaded asset this way and leaves the old one in place without an error (docs/import.md,
-"Replacing a mesh").
+"Replacing a mesh"). A file the importer cannot read is refused, and so, before anything is saved, is an import whose
+assets remember a source outside the project; the assets it created are then deleted.
 """
 # jam: include editor_shared
 import unreal
 
 JAM_STATIC = {}   # what main asks of the naming pipeline, and what the pipeline found
+# The characters the engine replaces with "_" in an imported asset's name (its object name, object path and package
+# name rules, UObject/NameTypes.h, the same in 5.8 and 5.9). A project's own sanitize hooks are not applied.
+JAM_INVALID_NAME_CHARACTERS = "\"' ,/.:|&!~\n\r\t@#(){}[]=;^%$`\\*?<>"
+
+
+def jam_engine_name(text):
+    return "".join("_" if c in JAM_INVALID_NAME_CHARACTERS else c for c in text) or "Null"
 
 
 @unreal.uclass()
@@ -40,7 +49,7 @@ class JamStaticNames(unreal.InterchangePythonPipelineBase):
             node.set_asset_name(plan["name"]); node.set_custom_sub_path("")
             planned.append((node, "static-mesh"))
         for _, node in enabled(unreal.InterchangeTextureFactoryNode):
-            node.set_asset_name("%s%s_%s" % (prefixes["texture"], plan["base"], node.get_asset_name())); node.set_custom_sub_path("Textures")
+            node.set_asset_name(jam_engine_name("%s%s_%s" % (prefixes["texture"], plan["base"], node.get_asset_name()))); node.set_custom_sub_path("Textures")
             planned.append((node, "texture"))
         for i, (_, node) in enumerate(materials):
             instance = isinstance(node, unreal.InterchangeMaterialInstanceFactoryNode)
@@ -49,7 +58,9 @@ class JamStaticNames(unreal.InterchangePythonPipelineBase):
             planned.append((node, "material-instance" if instance else "material"))
         JAM_STATIC["planned"] = [{"id": "/".join(p for p in (plan["dest"], node.get_custom_sub_path(), node.get_asset_name()) if p), "kind": kind} for node, kind in planned]
         refusal = None
-        if len(meshes) != 1:
+        if not meshes:
+            refusal = "no static mesh could be read from %s (a file the importer cannot read gives none): export it again" % plan["source"]
+        elif len(meshes) > 1:
             refusal = "expected one static mesh from %s, got %d (combine the meshes on export, or import the parts as separate files)" % (plan["source"], len(meshes))
         else:
             taken = [p["id"] for p in JAM_STATIC["planned"] if unreal.EditorAssetLibrary.does_asset_exist(p["id"])]
@@ -79,10 +90,12 @@ def main(ARGS):
     if JAM_STATIC.get("refusal"):
         raise RuntimeError(JAM_STATIC["refusal"])
     made = sorted({obj.get_path_name().split(".")[0] for obj in made or []})
-    planned = JAM_STATIC.get("planned") or []
+    if "planned" not in JAM_STATIC:   # the pipelines never ran
+        raise RuntimeError("no static mesh could be read from %s (the importer ran no pipeline; see the editor's log): export it again" % ARGS["source"])
+    planned = JAM_STATIC["planned"]
     missing = [p["id"] for p in planned if p["id"] not in made]
-    if missing:
-        raise RuntimeError("the import of %s did not make %s (made: %s)" % (ARGS["source"], ", ".join(missing), ", ".join(made) or "nothing"))
+    if missing or target not in made:
+        raise RuntimeError("the import of %s did not make %s (made: %s)" % (ARGS["source"], ", ".join(missing or [target]), ", ".join(made) or "nothing"))
     mesh = eal.load_asset(target)
     out = {"assets": planned, "unplaced": [m for m in made if m not in {p["id"] for p in planned}], "unavailable": {}}
     if ARGS.get("complexity") == "simple-and-complex":
@@ -96,9 +109,10 @@ def main(ARGS):
         out["unavailable"]["nanite"] = repr(e)
     geom = mesh.get_editor_property("body_setup").get_editor_property("agg_geom")
     out["collision"] = {k: len(geom.get_editor_property(k)) for k in ("box_elems", "sphere_elems", "sphyl_elems", "convex_elems")}
-    out["saved"] = all([eal.save_asset(p["id"], only_if_is_dirty=False) for p in planned])
-    out["source"] = jam_stored_source(mesh)
     out["sources"] = {p["id"]: jam_stored_source(eal.load_asset(p["id"])) for p in planned}
+    jam_refuse_outside_project(out["sources"], made)
+    out["source"] = out["sources"][target]
+    out["saved"] = all([eal.save_asset(p["id"], only_if_is_dirty=False) for p in planned])
     out["projectDir"] = jam_project_dir()
     out["dirtyContent"] = jam_dirty_packages()
     return out
