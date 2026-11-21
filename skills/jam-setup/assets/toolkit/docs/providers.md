@@ -9,7 +9,7 @@ A **route** is one way to get a capability served: `image`, `mesh`, `motion`, `s
 Before the first offer of a session, find out which routes can actually be called:
 
 1. `jam provider list`, then `jam provider probe <id>` for each candidate. It reports **installed**, **authenticated** and **reachable** separately, and says `unknown` for what the toolkit cannot see.
-2. Settle each `unknown` yourself with a free call through the provider's own tool (its status or balance read, a model listing; the provider's page names it). A route is callable only when such a call succeeded in this session. A tool the agent itself holds has no account to read: it is callable when it is in this session's tool list.
+2. Settle each `unknown` yourself with a free call through the provider's own tool. `jam provider balance <id>` makes the free balance read a descriptor declares (`transports[].balance`) and reports what is left in the provider's unit; a read it cannot make itself it names for you to call (a server's tool). Otherwise use the status call or model listing the provider's page names. A route is callable only when such a call succeeded in this session. A tool the agent itself holds has no account to read: it is callable when it is in this session's tool list.
 3. Include the routes that cost nothing extra: a provider whose unit is marked not billed per job (an image tool included in a plan the person already pays for, the agent's own image tool). Offer those beside the paid ones, with what each costs in words.
 
 Report the three facts separately when one is missing ("installed, not signed in"). A route that is installed is not thereby working.
@@ -69,4 +69,4 @@ A DCC step (retopology, unwrapping, baking, conversion) done on this machine is 
 
 ## Adding a provider
 
-Write `jam/providers/<id>.json` against `schemas/provider.schema.json`: label, unit (and whether it is paid), capabilities, how it is reached, pacing, how to quote, how to recover a lost job, and a `docs` page for the vendor's specifics. `jam provider list` shows it once the file is valid.
+Write `jam/providers/<id>.json` against `schemas/provider.schema.json`: label, unit (and whether it is paid), capabilities, how it is reached (with the free balance read each transport offers, if any), pacing, how to quote, how to recover a lost job, and a `docs` page for the vendor's specifics. `jam provider list` shows it once the file is valid.

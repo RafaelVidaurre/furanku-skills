@@ -239,6 +239,64 @@
                 },
                 "description": "cli: arguments of a free call that exits 0 only when the service answers"
               },
+              "balance": {
+                "type": "object",
+                "properties": {
+                  "args": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "cli: arguments of a free call that prints the account's balance as JSON and exits 0 only when it could read it. It creates no job and charges nothing."
+                  },
+                  "tool": {
+                    "type": "string",
+                    "pattern": "\\S",
+                    "description": "mcp: the server's tool that reads the balance or usage for free; the agent calls it in its session"
+                  },
+                  "remaining": {
+                    "type": "string",
+                    "pattern": "\\S",
+                    "description": "Path of what is left to spend, in the provider's unit"
+                  },
+                  "used": {
+                    "type": "string",
+                    "pattern": "\\S",
+                    "description": "Path of what the period has used, when the provider reports that instead of what is left"
+                  },
+                  "limit": {
+                    "type": "string",
+                    "pattern": "\\S",
+                    "description": "Path of the period's allowance; what is left is limit minus used"
+                  },
+                  "parts": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    },
+                    "description": "Named portions reported apart, by path (monthly, permanent, held by running jobs, ...)"
+                  },
+                  "resets": {
+                    "type": "string",
+                    "pattern": "\\S",
+                    "description": "Path of when the period's allowance renews"
+                  },
+                  "resetsAs": {
+                    "type": "string",
+                    "enum": [
+                      "unix-ms",
+                      "unix-s",
+                      "iso"
+                    ],
+                    "description": "How resets is written (default iso)"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
               "npmLauncher": {
                 "type": "boolean",
                 "description": "cli: installed through npm (a .cmd shim on Windows)"

@@ -6,6 +6,24 @@ import { Landmark } from "../rig/landmarks.ts"
 
 const opt = Schema.optionalKey
 
+/** Where a provider's own free balance or usage read puts each figure: dotted paths into its JSON output. */
+export const BalanceRead = Schema.Struct({
+  args: opt(Schema.Array(Schema.String).pipe(Schema.annotate({ description: "cli: arguments of a free call that prints the account's balance as JSON and exits 0 only when it could read it. It creates no job and charges nothing." }))),
+  tool: opt(Text.pipe(Schema.annotate({ description: "mcp: the server's tool that reads the balance or usage for free; the agent calls it in its session" }))),
+  remaining: opt(Text.pipe(Schema.annotate({ description: "Path of what is left to spend, in the provider's unit" }))),
+  used: opt(Text.pipe(Schema.annotate({ description: "Path of what the period has used, when the provider reports that instead of what is left" }))),
+  limit: opt(Text.pipe(Schema.annotate({ description: "Path of the period's allowance; what is left is limit minus used" }))),
+  parts: opt(Schema.Record(Schema.String, Text).pipe(Schema.annotate({ description: "Named portions reported apart, by path (monthly, permanent, held by running jobs, ...)" }))),
+  resets: opt(Text.pipe(Schema.annotate({ description: "Path of when the period's allowance renews" }))),
+  resetsAs: opt(Schema.Literals(["unix-ms", "unix-s", "iso"]).pipe(Schema.annotate({ description: "How resets is written (default iso)" }))),
+  note: opt(Schema.String)
+}).pipe(Schema.check(Schema.makeFilter((read) =>
+  read.remaining === undefined && (read.used === undefined || read.limit === undefined) && read.args !== undefined
+    ? "a balance read names remaining, or used and limit"
+    : undefined
+)))
+export type BalanceRead = typeof BalanceRead.Type
+
 export const Transport = Schema.Struct({
   kind: Schema.Literals(["cli", "mcp", "skill", "browser", "agent"]).pipe(Schema.annotate({
     description: "cli: a program on this machine. mcp: a server in the agent harness. skill: an installed skill. browser: the provider's site. agent: a tool the agent already has."
@@ -14,6 +32,7 @@ export const Transport = Schema.Struct({
   probe: opt(Schema.Array(Schema.String).pipe(Schema.annotate({ description: "cli: arguments that print a version and exit 0 (default --version)" }))),
   auth: opt(Schema.Array(Schema.String).pipe(Schema.annotate({ description: "cli: arguments that exit 0 only when signed in" }))),
   reach: opt(Schema.Array(Schema.String).pipe(Schema.annotate({ description: "cli: arguments of a free call that exits 0 only when the service answers" }))),
+  balance: opt(BalanceRead.pipe(Schema.annotate({ description: "The provider's own free balance or usage read through this transport" }))),
   npmLauncher: opt(Schema.Boolean.pipe(Schema.annotate({ description: "cli: installed through npm (a .cmd shim on Windows)" }))),
   server: opt(Text.pipe(Schema.annotate({ description: "mcp: the server's name in the harness configuration" }))),
   name: opt(Text.pipe(Schema.annotate({ description: "skill: the skill's name" }))),
@@ -25,6 +44,12 @@ export const Transport = Schema.Struct({
     ? "an mcp transport needs server"
     : transport.kind === "skill" && transport.name === undefined
     ? "a skill transport needs name"
+    : transport.balance !== undefined && transport.kind === "cli" && transport.balance.args === undefined
+    ? "a cli balance read needs args"
+    : transport.balance !== undefined && transport.kind === "mcp" && transport.balance.tool === undefined
+    ? "an mcp balance read needs tool"
+    : transport.balance !== undefined && transport.kind !== "cli" && transport.kind !== "mcp"
+    ? "a balance read is reached through a cli or mcp transport"
     : undefined
 )))
 export type Transport = typeof Transport.Type

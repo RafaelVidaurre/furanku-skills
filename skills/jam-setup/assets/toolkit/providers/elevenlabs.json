@@ -22,6 +22,14 @@
       "probe": [
         "--version"
       ],
+      "balance": {
+        "args": ["user", "subscription", "get"],
+        "used": "character_count",
+        "limit": "character_limit",
+        "resets": "next_character_count_reset_unix",
+        "resetsAs": "unix-s",
+        "note": "the plan's credits for this period: its allowance minus what the period has used"
+      },
       "npmLauncher": true,
       "note": "Driven by jam audio; sign in with `elevenlabs auth login`"
     }

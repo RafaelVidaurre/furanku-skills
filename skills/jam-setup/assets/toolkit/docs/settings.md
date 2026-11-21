@@ -13,7 +13,7 @@ A value is text, a number, `true`/`false`, `none` (stored as `null`) or JSON for
 
 ## Spending
 
-Each provider has its own balance in its own unit. There is no conversion between them, so each provider is asked about and capped separately. `jam provider list` shows every provider and whether paid work is on for it; `jam provider probe <id>` adds how it prices a job. A provider billed through another service is capped as that service.
+Each provider has its own balance in its own unit. There is no conversion between them, so each provider is asked about and capped separately. `jam provider list` shows every provider, whether paid work is on for it and what the project's runs have committed to it; `jam provider probe <id>` adds how it prices a job; `jam provider balance` reads what is left on each account. A provider billed through another service is capped as that service.
 
 | Field | Meaning |
 | --- | --- |

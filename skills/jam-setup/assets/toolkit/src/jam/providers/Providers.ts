@@ -11,6 +11,7 @@ import { ProjectFiles } from "../../kernel/ProjectFiles.ts"
 import { Config } from "../config/Config.ts"
 import { PROVIDERS_DIR } from "../layout.ts"
 import { Toolkit } from "../Toolkit.ts"
+import { type Balance, parseBalance } from "./balance.ts"
 import { Descriptor, type Transport } from "./schema.ts"
 
 export interface ProviderEntry {
@@ -57,6 +58,8 @@ export class Providers extends Context.Service<Providers, {
   readonly list: Effect.Effect<ReadonlyArray<ProviderEntry>, ToolError>
   get(id: string): Effect.Effect<Descriptor, ToolError>
   probe(id: string): Effect.Effect<ProviderProbe, ToolError>
+  /** What is left on the provider's account, by its own free read; never a paid call. Fails only for an unknown id. */
+  balance(id: string): Effect.Effect<Balance, ToolError>
 }>()("jam/Providers") {
   static readonly layerNoDeps: Layer.Layer<Providers, never, ProjectFiles | Toolkit | Config | Executables> = Layer.effect(
     Providers,
@@ -174,9 +177,55 @@ export class Providers extends Context.Service<Providers, {
           return { kind: transport.kind, target, installed: unknown(`used through ${target}`), authenticated: unknown(SESSION), reachable: unknown(SESSION) }
         })
 
+      const balance = (id: string): Effect.Effect<Balance, ToolError> =>
+        Effect.gen(function*() {
+          const descriptor = yield* get(id)
+          const base = { id, label: descriptor.label, unit: descriptor.unit, remaining: null, used: null, limit: null, parts: {}, resets: null }
+          const reads = descriptor.transports.filter((transport) => transport.balance !== undefined)
+          if (reads.length === 0) {
+            return {
+              ...base,
+              state: "none",
+              via: null,
+              detail: descriptor.unit.paid
+                ? `no balance read: the descriptor names none; read it with the provider's own tool${descriptor.docs === undefined ? "" : ` (${descriptor.docs})`}`
+                : `no balance: not billed per job (${descriptor.unit.label})`
+            } satisfies Balance
+          }
+          const found: Array<Balance> = []
+          for (const transport of reads) {
+            const read = transport.balance!
+            if (transport.kind === "mcp") {
+              const via = `${read.tool} on MCP server ${transport.server}`
+              found.push({ ...base, state: "session", via, detail: `read in the agent session: call ${via}${read.note === undefined ? "" : `; ${read.note}`}` })
+              continue
+            }
+            const command = yield* configs.providerCommand(id, transport.command ?? id)
+            const args = read.args ?? []
+            const via = `${command} ${args.join(" ")}`
+            const result = yield* executables.probe(command, args, { npmLauncher: transport.npmLauncher, cwd: files.root, timeoutMs: 30_000 })
+            if (!result.installed) {
+              const ran = result.error?.startsWith("exit ") === true
+              found.push({ ...base, state: "failed", via, detail: ran ? `unread: ${via} ${result.error} (${(result.output ?? "no output").slice(0, 160)}); not signed in, or the service did not answer` : `unread: ${command} is not installed (${result.error ?? "did not run"})` })
+              continue
+            }
+            const parsed = parseBalance(read, result.stdout)
+            if ("problem" in parsed) {
+              found.push({ ...base, state: "failed", via, detail: `unread: ${via} ran, but ${parsed.problem}` })
+              continue
+            }
+            return { ...base, ...parsed, state: "read", via, detail: `read now with ${via}, a free call that also proves the account is signed in and the service answers${read.note === undefined ? "" : `; ${read.note}`}` } satisfies Balance
+          }
+          // Nothing was read here: the agent's own read when there is one, with every failure beside it.
+          const chosen = found.find((entry) => entry.state === "session") ?? found[0]!
+          const others = found.filter((entry) => entry !== chosen).map((entry) => entry.detail)
+          return others.length === 0 ? chosen : { ...chosen, detail: [chosen.detail, ...others].join("; ") }
+        })
+
       return {
         list,
         get,
+        balance,
         probe: (id) =>
           Effect.gen(function*() {
             const descriptor = yield* get(id)

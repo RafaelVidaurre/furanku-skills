@@ -31,7 +31,7 @@ export interface OpenJobInput {
 }
 
 /** One run per attempt: the delivered copy of a run repeats its jobs and must not count twice. */
-const distinctRuns = (refs: ReadonlyArray<RunRef>): ReadonlyArray<RunRef> => {
+export const distinctRuns = (refs: ReadonlyArray<RunRef>): ReadonlyArray<RunRef> => {
   const byKey = new Map<string, RunRef>()
   for (const ref of refs) {
     const key = runKey(ref.run)
