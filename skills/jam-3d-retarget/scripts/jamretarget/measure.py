@@ -4,6 +4,7 @@ import numpy as np
 
 from . import mathx
 from .skeleton import main_child, group_of
+from .transfer import SHORT
 
 LATERAL = np.array([1.0, 0.0, 0.0])
 
@@ -30,7 +31,9 @@ def segment_agreement(plan, src_world, tgt_world):
 def stretch(plan, world, held, tolerance=1e-3):
     """Per shared landmark whose offset from the landmark before it the source's translations and scales change by more
     than `tolerance` of the source's height: that landmark, the largest change (metres), the largest angle the change
-    turns the offset by, the offset's length over its length as rotations alone carry it, and whether the run carries it."""
+    turns the offset by, the offset's length over its length as rotations alone carry it, and whether the run carries it.
+    A landmark whose rest offset is shorter than SHORT of the height has no length or direction to compare: its angle
+    and ratio are None."""
     src, out = plan.src, {}
     for k, o in plan.offsets.items():
         b, p = src.at[k], src.at[o["from"]]
@@ -39,10 +42,12 @@ def stretch(plan, world, held, tolerance=1e-3):
         moved = np.linalg.norm(full - rotated, axis=1)
         if moved.max() <= tolerance * src.height:
             continue
-        ratio = np.linalg.norm(full, axis=1) / np.linalg.norm(rotated, axis=1)
+        length = np.linalg.norm(rotated, axis=1)
+        measurable = length.min() > SHORT * src.height
+        ratio = np.linalg.norm(full, axis=1) / length if measurable else None
         out[k] = {"from": o["from"], "maxMeters": round(float(moved.max()), 5),
-                  "maxDegrees": round(float(mathx.angle_between(full, rotated).max()), 3),
-                  "lengthRatio": [round(float(ratio.min()), 4), round(float(ratio.max()), 4)],
+                  "maxDegrees": round(float(mathx.angle_between(full, rotated).max()), 3) if measurable else None,
+                  "lengthRatio": [round(float(ratio.min()), 4), round(float(ratio.max()), 4)] if measurable else None,
                   "carried": plan.translation == "scaled" and o["carriable"]}
     return out
 

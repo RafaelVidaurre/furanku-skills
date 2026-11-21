@@ -7,6 +7,7 @@ import json
 import os
 import re
 import sys
+import types
 
 import numpy as np
 import pytest
@@ -566,7 +567,10 @@ def test_a_landmark_only_the_target_maps_keeps_its_rest(rigs, tmp_path):
     assert "Collar.l" not in {model.name(c[0]) for c in model.animations()[1]["channels"]}
 
 
-def test_motion_on_a_bone_no_map_places_fails_the_round_trip_and_is_named(rigs, tmp_path):
+@pytest.mark.parametrize("stretched", [False, True])
+def test_motion_on_a_bone_no_map_places_fails_the_round_trip_and_is_named(rigs, tmp_path, stretched):
+    """An unmapped spine joint bends; with --translation none a stretched elbow beside it is held out of the round trip
+    and reported apart, and the spine's lost motion still fails it."""
     b = skel(rigs, "b")
     anim = next(a for a in b.model.animations() if a["name"] == "arms")
     times = gltf.key_times(anim)
@@ -574,14 +578,17 @@ def test_motion_on_a_bone_no_map_places_fails_the_round_trip_and_is_named(rigs, 
     mid = b.model.json["nodes"].index(next(n for n in b.model.json["nodes"] if n["name"] == "SpineMid"))
     bend = mathx.axis_angle([1.0, 0, 0], np.radians(25) * np.sin(np.pi * times / times[-1]))
     R[:, mid] = mathx.mat_to_quat(mathx.quat_to_mat(R[:, mid]) @ bend)
-    channels = [(i, "rotation", R[:, i]) for i in sorted(b.joints)] + [(b.root, "translation", T[:, b.root]), (b.at["hips"], "translation", T[:, b.at["hips"]])]
+    elbow = b.at["lower-arm.l"]
+    T[:, elbow] = T[:, elbow] * (1 + (0.3 if stretched else 0.0) * np.sin(np.pi * times / times[-1])[:, None])
+    channels = [(i, "rotation", R[:, i]) for i in sorted(b.joints)] + [(i, "translation", T[:, i]) for i in (b.root, b.at["hips"], elbow)]
     bent = str(tmp_path / "bent.glb")
     gltf.add_animations(str(rigs / "rig-b.glb"), bent, [{"name": "arms", "times": times, "channels": channels}])
-    code, rep = run(rigs, tmp_path / "out", "b", "a", src_file=bent)
+    code, rep = run(rigs, tmp_path / "out", "b", "a", "--translation", "none", src_file=bent)
     assert code == 1 and rep["passed"] is False
     rt = rep["animations"][0]["roundTrip"]
-    assert not rt["passed"] and rt["maxHeights"] > 0.002
+    assert not rt["passed"] and rt["maxHeights"] > 0.002 and rt["against"].startswith("the source with its joints' translations")
     assert any("SpineMid" in w and "not carried" in w for w in rep["warnings"])
+    assert ("lower-arm.l" in rep["animations"][0]["stretch"]) == stretched
     assert os.path.isfile(str(tmp_path / "out" / "retargeted.glb"))
 
 
@@ -644,12 +651,12 @@ def test_stretched_bones_are_named_as_lost_without_translation_and_carried_with_
     src = stretched_arms(rigs, str(tmp_path / "stretched.glb"))
     code, rep = run(rigs, tmp_path / "none", "a", "b", src_file=src)
     arms = rep["animations"][0]
-    assert code == 1 and arms["agreement"]["passed"] and arms["agreement"]["transfer"]["arms"]["maxDegrees"] < 1e-4   # the maps fit
-    assert not arms["roundTrip"]["passed"] and arms["roundTrip"]["maxHeights"] > 0.01                              # the stretch is lost
+    assert code == 0 and rep["passed"] and arms["agreement"]["transfer"]["arms"]["maxDegrees"] < 1e-4               # the maps fit
+    assert arms["roundTrip"]["passed"] and arms["roundTrip"]["maxHeights"] < 1e-9                                   # against what is carried
     assert set(arms["stretch"]) == {"upper-arm.l", "lower-arm.l"} and not any(v["carried"] for v in arms["stretch"].values())
     assert arms["stretch"]["lower-arm.l"]["lengthRatio"][1] == pytest.approx(1.3, abs=1e-3) and arms["stretch"]["upper-arm.l"]["maxDegrees"] > 10
-    assert any("upper-arm.l from shoulder.l" in w and "--translation scaled" in w for w in rep["warnings"])
-    assert not any("arms point up to" in w for w in rep["warnings"])
+    assert any("upper-arm.l from shoulder.l" in w and "--translation scaled" in w for w in rep["warnings"])           # the loss, named
+    assert not any("arms point up to" in w or "round trip" in w for w in rep["warnings"])
 
     code, rep = run(rigs, tmp_path / "scaled", "a", "b", "--translation", "scaled", src_file=src)
     arms = rep["animations"][0]
@@ -663,3 +670,16 @@ def test_stretched_bones_are_named_as_lost_without_translation_and_carried_with_
     for k in ("shoulder.l", "upper-arm.l"):                          # each segment stretches by the source's own ratio
         assert np.allclose(length(b, tw, k) / length(b, b.rest_world[None], k), length(a, sw, k) / length(a, a.rest_world[None], k), atol=1e-5)
     assert np.allclose(length(b, tw, "upper-arm.r"), length(b, b.rest_world[None], "upper-arm.r"), atol=1e-6)   # the other arm keeps its length
+
+
+def test_a_stretch_of_a_landmark_resting_on_the_one_before_it_has_no_ratio_or_angle():
+    """A landmark coincident at rest with the previous one has no rest length or direction: the entry keeps how far it
+    moved and leaves the ratio and angle out, so the report stays valid JSON."""
+    def poses(child):
+        w = np.tile(np.eye(4), (3, 2, 1, 1)); w[:, 1, :3, 3] = child
+        return w
+    plan = types.SimpleNamespace(src=types.SimpleNamespace(at={"hand.l": 0, "index-1.l": 1}, height=1.0), translation="none",
+                                 offsets={"index-1.l": {"from": "hand.l", "carriable": True}})
+    out = measure.stretch(plan, poses([[0, 0, 0], [0.05, 0, 0], [0.1, 0, 0]]), poses(np.zeros((3, 3))))
+    assert out == {"index-1.l": {"from": "hand.l", "maxMeters": 0.1, "maxDegrees": None, "lengthRatio": None, "carried": False}}
+    json.dumps(out, allow_nan=False)
