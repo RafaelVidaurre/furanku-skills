@@ -181,10 +181,16 @@ def import_skinned(cfg, a):
         steps.append(("textures", "import_textures", {"dest": dest + "/Textures", "textures": textures, "flipGreen": flip_green(cfg, normal_green)}))
         steps.append(("materials", "import_materials", {"parent": parent, "buildParent": not a.parent_material, "instances": instances}))
     steps.append(("mesh", "import_skinned", {"source": source, "sha256": digest, "dest": dest + "/Meshes", "name": paths.object_name(mesh_id),
-                                             "skeleton": skeleton["skeleton"], "physicsAsset": physics, "slots": slots, "saveFolder": dest}))
+                                             "skeleton": skeleton["skeleton"], "physicsAsset": physics, "slots": slots}))
     lock(cfg, [mesh_id] + [i["id"] for i in instances] + [paths.asset_id(dest + "/Textures", t["name"]) for t in textures] + ([] if a.parent_material or not textures else [parent]))
     results = cli.editor(cfg, "import-skinned", steps)
     cli.write_details(cfg, a.details, dict(zip([s[0] for s in steps], results)))
+    unsaved = [step[0] for step, result in zip(steps, results) if result.get("saved") is not True]
+    if unsaved:
+        raise AdapterError("save-failed", "the editor did not save every asset of the %s step%s for %s" % (" and ".join(unsaved), "s" if len(unsaved) > 1 else "", mesh_id),
+                           fix="look at the editor's log for the save error (a read-only or locked file), fix it, and import again")
+    if textures and results[1].get("notCompiled"):
+        receipts.note("%s was saved without compiling its shaders: this editor has no renderer; they compile where it is next rendered" % parent)
     mesh = results[-1]
     if paths.package_of(mesh.get("skeleton") or "") != paths.package_of(skeleton["skeleton"]):
         raise AdapterError("wrong-skeleton", "%s was imported on %s, not on %s" % (mesh_id, mesh.get("skeleton"), skeleton["skeleton"]),

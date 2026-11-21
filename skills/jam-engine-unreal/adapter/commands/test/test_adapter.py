@@ -408,19 +408,22 @@ def test_skinned_import_orders_its_steps_and_checks_the_skeleton_it_landed_on(tm
     for name in ("hero.fbx", "c.png", "n.png", "m.png"):
         (tmp_path / name).write_bytes(name.encode())
     results = """{
-      "import-skinned-textures": lambda a: {"textures": {t["name"]: {"id": a["dest"] + "/" + t["name"], "source": t["source"]} for t in a["textures"]}, "projectDir": "/x"},
-      "import-skinned-materials": lambda a: {"parent": a["parent"], "instances": [i["id"] for i in a["instances"]]},
-      "import-skinned-mesh": lambda a: {"id": a["dest"] + "/" + a["name"], "skeleton": %s, "source": a["source"], "projectDir": "/x"}}"""
+      "import-skinned-textures": lambda a: {"textures": {t["name"]: {"id": a["dest"] + "/" + t["name"], "source": t["source"]} for t in a["textures"]}, "projectDir": "/x", "saved": True},
+      "import-skinned-materials": lambda a: {"parent": a["parent"], "instances": [i["id"] for i in a["instances"]], "saved": %s},
+      "import-skinned-mesh": lambda a: {"id": a["dest"] + "/" + a["name"], "skeleton": %s, "source": a["source"], "projectDir": "/x", "saved": True}}"""
     args = ("--kind", "skinned", "hero.fbx", "--name", "Hero", "--skeleton", "mannequin", "--dest", "/Game/Characters/Hero",
             "--slot", "M_Hero_Body=c.png,n.png,m.png", "--two-sided", "M_Hero_Body")
-    code, receipt, _ = run_command(tmp_path, "engine_import.py", *args, local=bridge(tmp_path, results % 'a["skeleton"]'))
+    code, receipt, _ = run_command(tmp_path, "engine_import.py", *args, local=bridge(tmp_path, results % ("True", 'a["skeleton"]')))
     assert code == 0
     assert [(a["id"], a["kind"]) for a in receipt["assets"]] == [
         ("/Game/Characters/Hero/Meshes/SK_Hero", "skeletal-mesh"), ("/Game/Characters/Hero/Textures/T_c", "texture"),
         ("/Game/Characters/Hero/Textures/T_n", "texture"), ("/Game/Characters/Hero/Textures/T_m", "texture"),
         ("/Game/Characters/Hero/Materials/M_Hero", "material"), ("/Game/Characters/Hero/Materials/MI_Hero_Body", "material-instance")]
-    code, receipt, _ = run_command(tmp_path, "engine_import.py", *args, local=bridge(tmp_path, results % '"/Game/Other/SK_Other"'))
+    code, receipt, _ = run_command(tmp_path, "engine_import.py", *args, local=bridge(tmp_path, results % ("True", '"/Game/Other/SK_Other"')))
     assert code == 1 and receipt["error"]["code"] == "wrong-skeleton"
+    # each step is its own editor process on a commandlet: materials it did not save would be gone before the mesh step
+    code, receipt, _ = run_command(tmp_path, "engine_import.py", *args, local=bridge(tmp_path, results % ("False", 'a["skeleton"]')))
+    assert code == 1 and receipt["error"]["code"] == "save-failed" and "materials step" in receipt["error"]["message"]
 
 
 def test_the_toolkits_bare_call_takes_name_folder_and_skeleton_from_the_file_its_sidecar_and_the_project(tmp_path):
@@ -428,7 +431,7 @@ def test_the_toolkits_bare_call_takes_name_folder_and_skeleton_from_the_file_its
     (tmp_path / "jam.config.json").write_text(json.dumps({"engine": {"adapter": "unreal", "facts": {"extra": {"destinations": {"skinned": "/Game/Characters", "textures": "/Game/Tex"}}}}}))
     (tmp_path / "SK_Hero.fbx").write_bytes(b"fbx")
     (tmp_path / "SK_Hero.import.json").write_text(json.dumps({"skeleton": "mannequin"}))
-    local = bridge(tmp_path, """{"import-skinned-mesh": lambda a: {"id": a["dest"] + "/" + a["name"], "skeleton": a["skeleton"], "source": a["source"], "projectDir": "/x", "slots": a["slots"]},
+    local = bridge(tmp_path, """{"import-skinned-mesh": lambda a: {"id": a["dest"] + "/" + a["name"], "skeleton": a["skeleton"], "source": a["source"], "projectDir": "/x", "slots": a["slots"], "saved": True},
       "import-textures": lambda a: {"textures": {t["name"]: {"id": a["dest"] + "/" + t["name"], "role": t["role"]} for t in a["textures"]}, "projectDir": "/x"}}""")
     code, receipt, _ = run_command(tmp_path, "engine_import.py", "--kind", "skinned", "SK_Hero.fbx", local=local)
     assert code == 0 and [a["id"] for a in receipt["assets"]] == ["/Game/Characters/Hero/Meshes/SK_Hero"]

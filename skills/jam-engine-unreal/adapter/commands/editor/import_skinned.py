@@ -2,11 +2,11 @@
 
 ARGS: {"source": "<project-relative fbx>", "sha256": "...", "dest": "/Game/.../Meshes", "name": "SK_Hero",
        "skeleton": "<skeleton asset id>", "physicsAsset": "<physics asset id>" or null,
-       "slots": {"<material slot name>": "<material or instance id>"},
-       "saveFolder": "/Game/..."}     the folder holding the mesh, its materials and its textures
+       "slots": {"<material slot name>": "<material or instance id>"}}
 When `slots` is not empty, every material slot of the imported mesh must be named in it; when it is empty the mesh
 keeps the materials it imported with. Returns the skeleton the mesh ended up on (compare
-it with the one asked for: Interchange may ignore FBX factory options), its slots, half extent, stored source.
+it with the one asked for: Interchange may ignore FBX factory options), its slots, half extent, stored source, and
+whether the mesh was saved (the steps before it save their own textures and materials).
 It uses the legacy FBX factory options, which store a source path relative to the project.
 """
 # jam: include editor_shared
@@ -48,9 +48,8 @@ def main(ARGS):
     out = {"id": dest + "/" + name, "skeleton": sk.get_path_name().split(".")[0] if sk else None,
            "slots": [(str(m.get_editor_property("material_slot_name")), (lambda mi: mi.get_name() if mi else None)(m.get_editor_property("material_interface"))) for m in mesh.get_editor_property("materials")],
            "extentCm": [round(b.box_extent.x, 1), round(b.box_extent.y, 1), round(b.box_extent.z, 1)], "physicsAsset": pa.get_name() if pa else None}
-    out["saved"] = eal.save_directory(ARGS["saveFolder"], only_if_is_dirty=False, recursive=True)
+    out["saved"] = eal.save_asset(dest + "/" + name, only_if_is_dirty=False)
     out["source"] = jam_stored_source(mesh)
     out["projectDir"] = jam_project_dir()
-    out["assets"] = sorted(str(p) for p in eal.list_assets(ARGS["saveFolder"], recursive=True))
     out["dirtyContent"] = jam_dirty_packages()
     return out
