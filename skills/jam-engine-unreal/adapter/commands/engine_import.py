@@ -68,6 +68,12 @@ def stored(result_source, project_dir, given):
     return paths.project_relative(result_source, project_dir)
 
 
+def require_saved(saved, what):
+    if saved is not True:
+        raise AdapterError("save-failed", "the editor did not save %s" % what,
+                           fix="look at the editor's log for the save error (a read-only or locked file), fix it, and import again")
+
+
 def lock(cfg, ids):
     taken = locks.ensure(cfg.project, [paths.asset_file(i, cfg.facts) for i in ids], cfg.locks)
     for path in taken:
@@ -98,6 +104,7 @@ def import_static(cfg, a):
         "source": source, "sha256": digest, "dest": dest, "name": paths.object_name(mesh_id), "base": base,
         "prefixes": {k: cfg.prefix(k) for k in ("texture", "material", "materialInstance")}, "complexity": a.collision_complexity})])
     cli.write_details(cfg, a.details, result)
+    require_saved(result.get("saved"), "every asset imported from %s" % source)
     for key, why in (result.get("unavailable") or {}).items():
         receipts.note("not applied: %s (%s)" % (key, why))
     for asset_id, held in sorted((result.get("sources") or {}).items()):   # the textures and materials remember the file too
@@ -126,6 +133,7 @@ def import_textures(cfg, a):
     lock(cfg, [paths.asset_id(dest, i["name"]) for i in items])
     result, = cli.editor(cfg, "import-textures", [("textures", "import_textures", {"dest": dest, "textures": items, "flipGreen": flip_green(cfg, a.normal_green or "up")})])
     cli.write_details(cfg, a.details, result)
+    require_saved(result.get("saved"), "the textures in %s" % dest)
     return receipts.import_receipt([
         receipts.asset(result["textures"][i["name"]]["id"], "texture", stored(result["textures"][i["name"]].get("source"), result.get("projectDir"), i["source"]), i["sha256"])
         for i in items])
@@ -181,10 +189,15 @@ def import_skinned(cfg, a):
         steps.append(("textures", "import_textures", {"dest": dest + "/Textures", "textures": textures, "flipGreen": flip_green(cfg, normal_green)}))
         steps.append(("materials", "import_materials", {"parent": parent, "buildParent": not a.parent_material, "instances": instances}))
     steps.append(("mesh", "import_skinned", {"source": source, "sha256": digest, "dest": dest + "/Meshes", "name": paths.object_name(mesh_id),
-                                             "skeleton": skeleton["skeleton"], "physicsAsset": physics, "slots": slots, "saveFolder": dest}))
+                                             "skeleton": skeleton["skeleton"], "physicsAsset": physics, "slots": slots}))
     lock(cfg, [mesh_id] + [i["id"] for i in instances] + [paths.asset_id(dest + "/Textures", t["name"]) for t in textures] + ([] if a.parent_material or not textures else [parent]))
     results = cli.editor(cfg, "import-skinned", steps)
     cli.write_details(cfg, a.details, dict(zip([s[0] for s in steps], results)))
+    unsaved = [step[0] for step, result in zip(steps, results) if result.get("saved") is not True]
+    if unsaved:
+        require_saved(False, "every asset of the %s step%s for %s" % (" and ".join(unsaved), "s" if len(unsaved) > 1 else "", mesh_id))
+    if textures and results[1].get("notCompiled"):
+        receipts.note("%s was saved without compiling its shaders: this editor has no renderer; they compile where it is next rendered" % parent)
     mesh = results[-1]
     if paths.package_of(mesh.get("skeleton") or "") != paths.package_of(skeleton["skeleton"]):
         raise AdapterError("wrong-skeleton", "%s was imported on %s, not on %s" % (mesh_id, mesh.get("skeleton"), skeleton["skeleton"]),
@@ -222,9 +235,7 @@ def import_animation(cfg, a):
         "source": source, "sha256": digest, "target": paths.package_of(a.target), "joints": [gltf.unreal_name(j) for j in facts["joints"]], "dest": dest, "name": name,
         "planned": planned, "run": a.run})])
     cli.write_details(cfg, a.details, result)
-    if result.get("saved") is not True:
-        raise AdapterError("save-failed", "the editor imported %s but did not save every sequence (%s)" % (source, ", ".join(item["id"] for item in result.get("assets") or [])),
-                           fix="look at the editor's log for the save error (a read-only or locked file), fix it, and import again")
+    require_saved(result.get("saved"), "every sequence imported from %s (%s)" % (source, ", ".join(item["id"] for item in result.get("assets") or [])))
     for path in result.get("other") or []:
         receipts.note("the import also made %s, which is not an animation" % path)
     return receipts.import_receipt([
@@ -246,6 +257,7 @@ def import_audio(cfg, a):
     lock(cfg, [i["asset"] for i in items])
     result, = cli.editor(cfg, "import-audio", [("audio", "import_audio", {"items": items})])
     cli.write_details(cfg, a.details, result)
+    require_saved(result.get("saved"), "every sound (%s)" % ", ".join(s["id"] for s in result["sounds"] if not s.get("saved")))
     by_id = {s["id"]: s for s in result["sounds"]}
     return receipts.import_receipt([
         receipts.asset(i["asset"], "sound-wave", stored(by_id[i["asset"]].get("source"), result.get("projectDir"), i["source"]), i["sha256"]) for i in items])

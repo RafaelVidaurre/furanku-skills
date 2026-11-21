@@ -2,7 +2,8 @@
 """Checks an imported asset must pass in this engine. The adapter's `check` command.
 
     engine_check.py --kind sources /Game/<asset> ...
-        no listed asset's file stores an absolute machine path (the `strings` test, read from the files in this checkout)
+        no listed asset's file stores a machine path: absolute, a network share, or relative and leaving the project
+        (the `strings` test, read from the files in this checkout)
     engine_check.py --kind skinned --source <mesh.fbx> --name <Name> --skeleton <profile id> [--dcc-joints <folder>] [--tolerance <cm>]
         the FBX imports as a skeletal mesh on the profile's skeleton, its root bone has scale 1, and (with --dcc-joints,
         a folder of <animation label>.json written by dcc/joint_positions.py) animated joints sit where the DCC tool put them
@@ -32,7 +33,7 @@ def check_sources(cfg, a):
         full = os.path.join(cfg.project, *relative.split("/"))
         if not os.path.isfile(full):
             raise AdapterError("missing-asset", "%s is not in this checkout (%s)" % (asset, relative), fix="pull or sync the engine binaries first")
-        found = machine_paths.find_in_file(full)
+        found = machine_paths.find_in_file(full, os.path.dirname(cfg.uproject()))
         report[relative] = found
         if found:
             problems.append({"message": "%s stores machine paths: %s" % (relative, ", ".join(found[:3])),

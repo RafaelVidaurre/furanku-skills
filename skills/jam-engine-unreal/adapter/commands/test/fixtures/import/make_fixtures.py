@@ -4,6 +4,8 @@
 
     Crate.glb, Stool.glb   a box with one textured material named "Material" (its image named "Image") and a UCX_ hull
                            named for the box: two props whose own material and image names collide
+    Plank.glb              a box whose material's images are named "wood.diffuse" and "Wood <Normal>": names the engine
+                           cleans on import
     Hero.fbx               a column skinned to root, hips and spine, with material slots Skin and Cloth
     T_Rock_Color.png, T_Rock_Normal.png, T_Rock_ORM.png   8x8 texture maps
 """
@@ -48,6 +50,26 @@ for prop in ("Crate", "Stool"):
     bpy.ops.mesh.primitive_cube_add(size=1.02, location=(0, 0, 0.5))
     bpy.context.active_object.name = "UCX_" + prop
     bpy.ops.export_scene.gltf(filepath=os.path.join(out, prop + ".glb"), export_format="GLB")
+
+reset()
+bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.5))
+mesh = bpy.context.active_object
+mesh.name = "Plank"
+material = bpy.data.materials.new("Wood")
+material.use_nodes = True
+nodes, links = material.node_tree.nodes, material.node_tree.links
+diffuse, normal = (nodes.new("ShaderNodeTexImage") for _ in range(2))
+diffuse.image = image("wood.diffuse.png", (0.6, 0.4, 0.2, 1))   # the exporter drops the last suffix: glTF names it wood.diffuse
+normal.image = image("Wood <Normal>", (0.5, 0.5, 1, 1))
+for img in (diffuse.image, normal.image):
+    img.pack()
+normal.image.colorspace_settings.name = "Non-Color"
+bump = nodes.new("ShaderNodeNormalMap")
+links.new(diffuse.outputs["Color"], nodes["Principled BSDF"].inputs["Base Color"])
+links.new(normal.outputs["Color"], bump.inputs["Color"])
+links.new(bump.outputs["Normal"], nodes["Principled BSDF"].inputs["Normal"])
+mesh.data.materials.append(material)
+bpy.ops.export_scene.gltf(filepath=os.path.join(out, "Plank.glb"), export_format="GLB")
 
 reset()
 bpy.ops.mesh.primitive_cylinder_add(vertices=8, radius=0.15, depth=1.8, location=(0, 0, 0.9))
