@@ -32,6 +32,8 @@ Use `--require-original` when the principal requires the original model/effort. 
    ```
 
    `phase` is `before_start` or `interrupted`. Other supported causes (`rate_limited`, `auth_required`, `start_failed`, `unknown`) return `inspect`; use the mechanism's bounded backoff or readiness path. Include `resets_at` only when the provider reported it. `replacement_count` comes from the existing assignment's replacement history, not a counter reset for each invocation.
+
+   Set `"quota_scope": "model:fable"` when provider evidence identifies the Fable weekly cap as the exhausted window. Recovery excludes all Fable versions on the affected billing account and checks other Claude models against the fresh shared windows. Omit the field for shared allowance exhaustion or when the provider gives no scope.
 4. Run `router.py recover --repo <root> --event-file <observation.json> --codexbar`, optionally with a judged `--alternative` and `--equivalence-reason`. The original launch and feature requirements are carried forward. Recovery gates the saved tuple even if its named route has changed; replacements retain their originating role/route policy context. The command forces fresh quota and invalidates the exhausted binding and matching account aliases. If it reports `refresh_required`, use `--refresh-quota` on subsequent checks until invalidation succeeds. Account identity remains checked independently of quota freshness.
 
 **Complete when:** the observation identifies the attempt, cause and evidence, and the returned next action is held by the assignment's existing owner. Exit 2 means a recovery action is available, not a launched replacement.

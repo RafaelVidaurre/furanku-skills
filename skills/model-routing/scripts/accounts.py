@@ -25,6 +25,13 @@ DEFAULT_RESERVE_PERCENT = 5
 DEFAULT_MAX_AGE_SECONDS = 1800
 QUOTA_CACHE_CONTRACT = 1
 QUOTA_CACHE_MAX_BYTES = 128 * 1024
+FABLE_SCOPE = 'model:fable'
+FABLE_QUOTA_GUIDANCE = (
+    'Included Fable usage draws down the shared Claude weekly allowance faster than other Claude models. '
+    'The Fable weekly cap limits Fable to 50% of that same allowance. Each percentage uses its own cap '
+    'as the denominator. Both weekly windows and any session limit must have headroom.'
+)
+FABLE_UNVERIFIED_DETAIL = 'Fable eligibility requires readings for the shared Claude week and the Fable weekly cap'
 
 ACCOUNT_ENVIRONMENT_PATH = Path(__file__).resolve().parent.parent / 'references/account-environment.json'
 ACCOUNT_ENVIRONMENT_BYTES = ACCOUNT_ENVIRONMENT_PATH.read_bytes()
@@ -433,15 +440,43 @@ def inventory(policy, dependency, now=None, *, refresh=False, providers=None, na
     return {'captured_at': now.isoformat(), 'accounts': measured}
 
 
-def remaining(row, model=''):
-    measurement = row['measurement']
-    families = {model.split('[')[0], *[f for f in ('fable', 'opus', 'sonnet', 'haiku') if f in model.split('-')]}
-    values = [w.get('percentRemaining') for w in measurement['windows']
-              if w.get('scope', 'all_models') == 'all_models'
-              or w.get('scope', '').removeprefix('model:') in families]
+def model_scopes(model):
+    name = model.split('[', 1)[0]
+    families = set(name.split('-')) & {'fable', 'opus', 'sonnet', 'haiku'}
+    return {'model:' + name, *('model:' + family for family in families)}
+
+
+def shared_weekly(window):
+    return window.get('scope', 'all_models') == 'all_models' and (
+        window.get('id') == 'secondary' or window.get('windowSeconds') == 604800)
+
+
+def window_label(window, provider):
+    if provider == 'claude':
+        if window.get('scope') == FABLE_SCOPE:
+            return 'Fable weekly cap'
+        if shared_weekly(window):
+            return 'Shared Claude week'
+    return window.get('label') or window.get('id', 'window')
+
+
+def quota_headroom(row, model=''):
+    provider = row.get('provider')
+    scopes = model_scopes(model) | {'all_models'}
+    windows = [w for w in row['measurement']['windows'] if w.get('scope', 'all_models') in scopes]
+    values = [w.get('percentRemaining') for w in windows]
     if not values or any(isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x) or not 0 <= x <= 100 for x in values):
-        return None
-    return min(values)
+        return None, []
+    left = min(values)
+    if left > 0 and provider == 'claude' and FABLE_SCOPE in scopes:
+        if not any(shared_weekly(w) for w in windows) or not any(w.get('scope') == FABLE_SCOPE for w in windows):
+            return None, []
+    bound = dict.fromkeys(window_label(w, provider) for w in windows if w['percentRemaining'] == left)
+    return left, list(bound)
+
+
+def remaining(row, model=''):
+    return quota_headroom(row, model)[0]
 
 
 def failure_category(measurement):
@@ -460,6 +495,18 @@ def failure_category(measurement):
         if any(token in detail for token in tokens):
             return label
     return 'source reading unavailable' if measurement.get('status') != 'known' else 'reserve or launch eligibility'
+
+
+def account_diagnostic(row, model):
+    measurement = row['measurement']
+    category = failure_category(measurement)
+    if measurement['status'] == 'known':
+        left, bounded_by = quota_headroom(row, model)
+        if left == 0:
+            category = 'exhausted ' + '/'.join(bounded_by)
+        elif left is None and row['provider'] == 'claude' and FABLE_SCOPE in model_scopes(model):
+            category = FABLE_UNVERIFIED_DETAIL
+    return f"{row['key']} ({measurement['status']}; source={measurement.get('source', 'unknown')}; {category})"
 
 
 def choose(report, provider, model, *, native_only=False):
@@ -514,7 +561,7 @@ def render(report):
         for window in m['windows']:
             value = window.get('percentRemaining')
             left = f'{value:g}%' if isinstance(value, (int, float)) else 'Unknown'
-            label = window.get('label') or window['id']
+            label = window_label(window, row['provider'])
             if window.get('windowSeconds') == 18000:
                 label = '5h'
             label = cell(label)
@@ -534,6 +581,7 @@ def render(report):
             detail = m.get('detail') or 'The source did not return a usable quota reading'
             notes.append(f"- **{cell(row['provider'].title())} {identity}** ({cell(m.get('source'))}): {cell(detail)}.")
     template = (Path(__file__).resolve().parent.parent / 'references/accounts-template.md').read_text()
+    fable_note = FABLE_QUOTA_GUIDANCE if any(r['provider'] == 'claude' for r in report['accounts']) else ''
     return Template(template).substitute(captured_at=timestamp(report['captured_at']),
                                         rows='\n'.join(lines) or '| — | No accounts configured or discovered | — | — | — | — |',
-                                        notes='\n'.join(notes))
+                                        notes='\n\n'.join(filter(None, ('\n'.join(notes), fable_note))))

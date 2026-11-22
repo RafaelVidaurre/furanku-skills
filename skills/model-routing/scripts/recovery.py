@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 
+import accounts
 import policy
 import router
 
@@ -43,6 +44,8 @@ def validate_event(event):
             raise ValueError(f'Recovery observation requires {key}')
     if event.get('cause') not in {'quota_exhausted', 'rate_limited', 'auth_required', 'start_failed', 'unknown'}:
         raise ValueError('Unsupported recovery cause')
+    if 'quota_scope' in event and (event['cause'] != 'quota_exhausted' or event['quota_scope'] != accounts.FABLE_SCOPE):
+        raise ValueError('Unsupported recovery quota scope')
     if event.get('phase') not in {'before_start', 'interrupted'}:
         raise ValueError('Recovery phase must be before_start or interrupted')
     if type(event.get('settled')) is not bool:
@@ -96,7 +99,6 @@ def prepare(args, event):
 
 def invalidate(event, dependency):
     if event['cause'] == 'quota_exhausted':
-        import accounts
         binding = event['decision'].get('account_binding')
         if binding:
             return accounts.invalidate_quota_cache(binding, dependency)
@@ -163,7 +165,6 @@ def reserve_alternative(compiled, args, runtime, decision):
         return decision
     quota = decision.get('quota', {})
     left = quota.get('effective_percent_remaining')
-    import accounts
     reserve = quota.get('reserve_percent', accounts.DEFAULT_RESERVE_PERCENT)
     if not isinstance(left, (int, float)) or left <= 0 or left > reserve:
         return decision
@@ -186,6 +187,9 @@ def blocked_runtime(compiled, event, runtime):
     candidate = compiled['candidates'].get(candidate_id)
     if not candidate:
         raise ValueError('Original candidate is no longer in the effective catalog')
+    scope = event.get('quota_scope')
+    if scope and not router.claude_fable_candidate(candidate):
+        raise ValueError('Fable cap exhaustion requires an original Claude-billed Fable candidate')
     if binding.get('key') and result.get('account_inventory') is not None:
         # Older saved bindings may lack identity. Recover it from this inventory
         # before mutating measurements, then exclude every alias of that pool.
@@ -195,7 +199,12 @@ def blocked_runtime(compiled, event, runtime):
             binding['quota_identity'] = source.get('measurement', {}).get('identity') or source.get('expected_identity', {})
         for row in result['account_inventory']['accounts']:
             if same_allowance(binding, row):
-                row['measurement'] = {'status': 'exhausted', 'windows': []}
+                if scope:
+                    row['measurement']['windows'].append({'scope': scope, 'percentRemaining': 0})
+                else:
+                    row['measurement'] = {'status': 'exhausted', 'windows': []}
+    elif scope:
+        result.setdefault('blocked_quota_scopes', {}).setdefault('claude', []).append(scope)
     else:
         # Without account-specific evidence, avoid aliases of the exhausted pool.
         provider = router.billing_provider(candidate)

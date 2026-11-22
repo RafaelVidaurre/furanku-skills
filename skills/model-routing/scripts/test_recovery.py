@@ -224,3 +224,38 @@ def test_exhausted_account_aliases_cannot_be_retried(case):
     result = plan(case)
     assert result['action'] == 'resume'
     assert result['decision']['account_binding']['key'] == 'codex:alias'
+
+
+@pytest.mark.parametrize('bound', [True, False])
+def test_fable_cap_observation_preserves_other_claude_models(case, bound):
+    compiled, args, runtime, event = case
+    fable = 'claude/claude-fable-test/medium'
+    sonnet = 'claude/claude-sonnet-test/medium'
+    for candidate_id, key in [(fable, ORIGINAL), (sonnet, ALTERNATIVE)]:
+        candidate = deepcopy(compiled['candidates'][key])
+        agent, model, effort = candidate_id.split('/')
+        candidate['launch'] = {'agent': agent, 'model': model, 'effort': effort}
+        compiled['candidates'][candidate_id] = candidate
+    args.candidate = fable
+    args.alternative = sonnet
+    args.launchable_via = ['claude']
+    runtime = {'harnesses': {'claude': {'quota': {'status': 'known', 'effective_percent_remaining': 80}}}}
+    if bound:
+        runtime['account_inventory'] = {'accounts': [
+            {'key': 'claude:personal', 'provider': 'claude', 'id': 'personal', 'label': 'Personal',
+             'profile': '/synthetic/claude', 'runtime': 'host', 'min_remaining_percent': 5, 'priority': 0,
+             'measurement': {'status': 'known', 'refreshed_at': NOW.isoformat(), 'windows': [
+                 {'id': 'secondary', 'percentRemaining': 80},
+                 {'id': 'fable', 'scope': 'model:fable', 'percentRemaining': 60},
+             ]}},
+        ]}
+    event['decision'] = router.check(compiled, args, runtime)
+    assert event['decision']['status'] == 'selected'
+    event['quota_scope'] = 'model:fable'
+    result = plan((compiled, args, runtime, event))
+    assert result['action'] == 'resume'
+    assert result['decision']['selected']['id'] == sonnet
+    assert result['decision']['quota']['effective_percent_remaining'] == 80
+
+    del event['quota_scope']
+    assert plan((compiled, args, runtime, event))['action'] == 'ask'
