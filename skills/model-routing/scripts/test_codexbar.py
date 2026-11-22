@@ -74,18 +74,33 @@ def test_weekly_only_is_reported_without_invented_session_or_account_id():
     assert 'accountId' not in reading['identity']
 
 
-def test_general_week_exhaustion_cannot_be_overridden_by_model_headroom():
-    raw = payload('claude', 100)
-    raw[0]['usage'].update(primary={'usedPercent': 0, 'windowMinutes': 300},
-        extraRateWindows=[{'id': 'claude-weekly-scoped-fable', 'title': 'Fable only',
-                           'window': {'usedPercent': 0, 'windowMinutes': 10080}}])
-    m = codexbar.measurement(raw, 'claude')
-    assert accounts.remaining({'measurement': m}, 'claude-fable-5') == 0
-    raw[0]['usage']['secondary']['usedPercent'] = 20
-    raw[0]['usage']['extraRateWindows'][0]['window']['usedPercent'] = 100
-    m = codexbar.measurement(raw, 'claude')
-    assert accounts.remaining({'measurement': m}, 'claude-fable-5') == 0
-    assert accounts.remaining({'measurement': m}, 'claude-sonnet-5-5') == 80
+@pytest.mark.parametrize('shared_used,fable_used,fable_status,fable_left,binding_window,sonnet_left', [
+    (100, 0, 'exhausted', 0, 'Shared Claude week', 0),
+    (20, 100, 'exhausted', 0, 'Fable weekly cap', 80),
+    (20, 65, 'known', 35, 'Fable weekly cap', 80),
+    (95, 65, 'known', 5, 'Shared Claude week', 5),
+    (20, None, 'unknown', None, None, 80),
+    (None, 65, 'unknown', None, None, 90),
+])
+def test_claude_fable_uses_shared_and_scoped_limits(shared_used, fable_used, fable_status, fable_left, binding_window, sonnet_left):
+    raw = payload('claude', shared_used)
+    usage = raw[0]['usage']
+    usage['primary'] = {'usedPercent': 10, 'windowMinutes': 300}
+    if shared_used is None:
+        usage['secondary'] = None
+    if fable_used is not None:
+        usage['extraRateWindows'] = [{'id': 'claude-weekly-scoped-fable', 'title': 'Fable only',
+                                      'window': {'usedPercent': fable_used, 'windowMinutes': 10080}}]
+    measurement = codexbar.measurement(raw, 'claude')
+    candidates = {key: {'launch': {'agent': 'claude', 'model': model, 'effort': 'high'}}
+                  for key, model in [('fable', 'claude-fable-5[1m]'), ('sonnet', 'claude-sonnet-5')]}
+    runtime = router.codexbar_runtime({'claude': measurement}, candidates)
+    fable = router.quota_summary(router.runtime_for(runtime, 'fable', candidates['fable']))
+    sonnet = router.quota_summary(router.runtime_for(runtime, 'sonnet', candidates['sonnet']))
+    assert fable['status'] == fable_status
+    assert fable.get('effective_percent_remaining') == fable_left
+    assert fable.get('bounded_by', []) == ([binding_window] if binding_window else [])
+    assert sonnet['effective_percent_remaining'] == sonnet_left
 
 
 @pytest.mark.parametrize('value', [None, True, '20', -1, 101, float('nan'), float('inf')])

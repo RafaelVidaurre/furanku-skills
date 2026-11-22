@@ -386,8 +386,15 @@ def runtime_for(runtime, candidate_id, candidate):
     """
     runtime = runtime or {}
     agent = candidate["launch"]["agent"]
-    if billing_provider(candidate) in runtime.get('blocked_quota_pools', []):
+    provider = billing_provider(candidate)
+    model = candidate['launch']['model']
+    if provider in runtime.get('blocked_quota_pools', []):
         return {'quota': {'status': 'exhausted', 'detail': 'Confirmed usage-limit observation for this billing pool'}}
+    blocked_scopes = runtime.get('blocked_quota_scopes', {}).get(provider, [])
+    if blocked_scopes:
+        import accounts as account_routing
+        if account_routing.model_scopes(model).intersection(blocked_scopes):
+            return {'quota': {'status': 'exhausted', 'detail': 'Confirmed usage-limit observation for this model cap'}}
     harnesses = runtime.get("harnesses", {})
     if not isinstance(harnesses, dict):
         raise Error("runtime harnesses must be an object")
@@ -398,18 +405,20 @@ def runtime_for(runtime, candidate_id, candidate):
         return {"quota": {"status": "unavailable", "detail": "Native account selection requires Orca launch identity and CodexBar quota evidence."}}
     if runtime.get("account_inventory") is not None and agent in {"claude", "codex"} and not any(candidate.get(k) for k in ("quota_pool", "quota_provider", "quota_account")):
         import accounts as account_routing
-        row = account_routing.choose(runtime["account_inventory"], agent, candidate["launch"]["model"],
+        row = account_routing.choose(runtime["account_inventory"], agent, model,
                                      native_only=agent in runtime.get("native_account_only", []))
         if row is None:
             if (agent in runtime.get('native_account_only', []) and
-                    account_routing.choose(runtime['account_inventory'], agent, candidate['launch']['model']) is not None):
+                    account_routing.choose(runtime['account_inventory'], agent, model) is not None):
                 return {'quota': {'status': 'unavailable', 'cause': 'native_account_mismatch',
                                   'detail': 'A verified profile has positive allowance, but this native-only launch cannot bind it. '
                                             'Preserve any explicit native-only requirement; otherwise use a profile-capable mechanism. '
                                             'This is a launch-surface mismatch, not quota exhaustion.'}}
-            considered = ', '.join(r['key'] + ' (' + r['measurement']['status'] + '; source=' + r['measurement'].get('source', 'unknown') + '; ' + account_routing.failure_category(r['measurement']) + ')' for r in runtime['account_inventory']['accounts'] if r['provider'] == agent)
+            considered = ', '.join(account_routing.account_diagnostic(r, model)
+                                   for r in runtime['account_inventory']['accounts'] if r['provider'] == agent)
             return {"quota": {"status": "unavailable", "detail": f"No measured account is fresh, launch-bound, and has positive allowance. Considered: {considered or 'none'}. Restore the configured account source or native sign-in/profile readiness, then re-check this same decision once. After a failed CodexBar read, wait for a readiness change; repeating the full accounts report does not repair the source. Unknown quota cannot establish an account binding."}}
-        state = {"quota": {"status": "known", "effective_percent_remaining": account_routing.remaining(row, candidate["launch"]["model"]),
+        left, bounded_by = account_routing.quota_headroom(row, model)
+        state = {"quota": {"status": "known", "effective_percent_remaining": left, "bounded_by": bounded_by,
                            "account": {"provider": agent, "email": row.get('expected_identity', {}).get('email') or row['measurement'].get('identity', {}).get('email'),
                                        "label": row['label'], "account_id": row['id'], "routing_account": row['key']}}}
         for source in (harnesses.get(agent, {}), candidate_states.get(candidate_id, {})):
@@ -510,6 +519,13 @@ def billing_provider(candidate):
             or HARNESS_TO_PROVIDER.get(candidate['launch']['agent'], candidate['launch']['agent']))
 
 
+def claude_fable_candidate(candidate):
+    if billing_provider(candidate) != 'claude':
+        return False
+    import accounts
+    return accounts.FABLE_SCOPE in accounts.model_scopes(candidate['launch']['model'])
+
+
 def account_report(compiled, dependency, *, source=None):
     """Account for every catalog billing provider, including unsupported readers."""
     import accounts
@@ -557,11 +573,15 @@ def codexbar_runtime(measurements, candidates):
             status = measurement['status']
             if status == 'known' and not accounts.fresh(measurement.get('refreshed_at'), accounts.DEFAULT_MAX_AGE_SECONDS, datetime.now(timezone.utc)):
                 status = 'stale'
-            left = accounts.remaining({'measurement': measurement}, model)
+            row = {'provider': provider, 'measurement': measurement}
+            left, bounded_by = accounts.quota_headroom(row, model)
             quota = {'status': status, 'refreshed_at': measurement.get('refreshed_at')}
             if status == 'known':
                 quota['status'] = 'unknown' if left is None else 'exhausted' if left == 0 else 'known'
                 quota['effective_percent_remaining'] = left
+                quota['bounded_by'] = bounded_by
+                if left is None and provider == 'claude' and accounts.FABLE_SCOPE in accounts.model_scopes(model):
+                    quota['detail'] = accounts.FABLE_UNVERIFIED_DETAIL
             if measurement.get('detail'):
                 quota['detail'] = measurement['detail']
             return attach_account({'quota': quota}, identity)
@@ -1201,6 +1221,8 @@ def quota_cell(state):
     summary = quota_summary(state)
     status = summary["status"]
     remaining = summary.get("effective_percent_remaining")
+    if status == 'exhausted' and summary.get('bounded_by'):
+        return 'exhausted: ' + '/'.join(summary['bounded_by'])
     if status == "known" and remaining is not None:
         window = "/".join(summary.get("bounded_by", [])) or "window"
         pressure = summary.get("pressure")
@@ -1274,7 +1296,7 @@ def brief_markdown(compiled, runtime, repo_root, allowed_launchers=None):
         import accounts as account_routing
         lines += ['', '## Account selection', '',
                   'Account priority applies within each model. A successful check binds the chosen profile into the launch; refresh before dispatch.', '',
-                  '| Account | ID | Priority | Reserve | Status | Remaining |',
+                  '| Account | ID | Priority | Reserve | Status | Shared remaining |',
                   '| --- | --- | ---: | ---: | --- | ---: |']
         for row in runtime['account_inventory']['accounts']:
             left = account_routing.remaining(row)
@@ -1315,17 +1337,18 @@ def brief_markdown(compiled, runtime, repo_root, allowed_launchers=None):
         "Capability cells show the conservative research estimate with "
         "confidence (h/m/l); `?` means no public evidence. Cost is the "
         "benchmark cost of one task only when the source names the exact model "
-        "and effort; effort proxies stay `?`. Quota is provider-local: "
-        "remaining share of that provider's own window plus its pace "
-        "deficit — never compare raw percentages across providers; "
-        "quota-lighter means less pace pressure and more runway within "
-        "the candidate's own provider. Candidates sharing an agent and model "
+        "and effort; effort proxies stay `?`. Quota shows headroom and pace "
+        "within each provider's own limits. Use consumption evidence to judge "
+        "how fast a model spends that headroom. Candidates sharing an agent and model "
         "are ordered from lower to higher effort.",
         "",
         MAX_EFFORT_POLICY,
         "",
     ]
     candidates = brief_candidates(compiled, allowed_launchers)
+    if any(claude_fable_candidate(candidate) for candidate in candidates.values()):
+        from accounts import FABLE_QUOTA_GUIDANCE
+        lines += [FABLE_QUOTA_GUIDANCE, '']
     mixed = mixed_scales(candidates.values())
     if mixed:
         lines += [
@@ -1430,6 +1453,10 @@ def brief_markdown(compiled, runtime, repo_root, allowed_launchers=None):
 
 def brief_json(compiled, runtime, repo_root, allowed_launchers=None):
     candidates = brief_candidates(compiled, allowed_launchers)
+    quota_policy = {}
+    if any(claude_fable_candidate(candidate) for candidate in candidates.values()):
+        from accounts import FABLE_QUOTA_GUIDANCE
+        quota_policy['claude_fable_quota'] = FABLE_QUOTA_GUIDANCE
     return {
         "repo": str(repo_root),
         "launchable_agents": (
@@ -1448,6 +1475,7 @@ def brief_json(compiled, runtime, repo_root, allowed_launchers=None):
         },
         "malformed_candidates": compiled.get("malformed_candidates") or {},
         "candidate_policy": {
+            **quota_policy,
             "maximum_effort": MAX_EFFORT_POLICY,
             "explicit": "An explicit-only candidate may be checked only with --explicit-basis recording the principal's request for its model and effort. Ordinary selectors exclude it.",
         },
