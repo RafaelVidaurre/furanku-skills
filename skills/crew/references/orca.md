@@ -23,11 +23,11 @@ On direct role adoption, name your own tab `<Role> - <work summary>`, for exampl
 
 ## Place the owner
 
-Apply **Choose execution and placement** in `SKILL.md` before building the packet. `orca_launch.worktree` defaults to `current`. Override with `packet --orca-worktree <placement>` for an exact existing workspace, a needed `new-child`, or the permitted parentless case (`new-top-level`). For a Captain launching a Worker, the parent is the Captain's workspace.
+Apply **Choose execution and placement** in `SKILL.md`. The packet defaults to `current`. Use `packet --orca-worktree <placement>` for another workspace.
 
-- With `worker-start --agent` (including readiness-only preparation), pass the packet placement directly. For a new worktree or a remote host, load the guide's placement reference and pass `--base-branch <launcher branch>` when the work must start there.
-- `agent launch` and `terminal create` take an existing workspace. With `current` or an existing selector, use it directly. When these surfaces require a new child, create it once with `orca worktree create --name <name> --parent-worktree <launcher selector> --json`, adding the chosen base when required. For an authorized top-level creation use `--no-parent`. Prepare and attach in the exact workspace returned. After any start that creates a worktree, use the returned selector for attachment and recovery.
-- For reuse on another host, pass an exact remote selector. If the host reports a lineage warning, record the placement it returned.
+- With `worker-start --agent` (including readiness-only preparation), use `new-child` when the caller's workspace is the intended parent, or `new-top-level` for an independent workspace. On creation, pass `--base-branch <ref>` when the chosen Git base differs from the repository default.
+- For a different parent, create the child first with `orca worktree create --name <name> --parent-worktree <chosen parent selector> --base-branch <ref> --json`, then pass its returned selector in the packet. Use the same creation step when `agent launch` or `terminal create` needs a new workspace, substituting `--no-parent` for `--parent-worktree <selector>` for top-level work. Record the created resources and use the exact selector for launch, attachment, and recovery.
+- For a new worktree or a remote host, follow the guide's placement reference. For reuse on another host, pass an exact remote selector. If the host reports a lineage warning, record the placement it returned.
 
 ## Launch a supervised owner
 

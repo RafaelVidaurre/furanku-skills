@@ -53,8 +53,8 @@ Choose placement independently of role, model, and custom launch arguments:
 - Default to the launching owner's current checkout. A read-only review or a Worker taking over as sole writer can use a fresh session there. Reuse an exact existing checkout when it already holds the required work.
 - Create a worktree when the principal requests one or the assignment needs isolation. Record the specific conflict or branch requirement first, including concurrent writes to generated files or shared build state.
 - Share a checkout among concurrent writers only with explicit disjoint write ownership and one owner of index, branch, and integration operations. A worktree does not isolate ports, devices, databases, or other external resources; coordinate those separately.
-- When the mechanism records workspace lineage, nest every new workspace under the launching owner's workspace—a Captain's under Commander's, a Worker's under its Captain's—so the workspace tree mirrors ownership, even when the delegated front is independent of the launcher's own edits. Create a parentless workspace only when the principal asks for one or the work leaves the Crew with nothing reported back.
-- Lineage does not choose the Git starting point. When the result integrates into the launcher's branch or depends on its unintegrated work, commit that work and start the new worktree from the launcher's branch; otherwise start from the repository's default base.
+- When the mechanism supports nesting, choose the hierarchy that makes the work easiest to manage. For example, three changes landing on one feature branch can use sibling worktrees under the feature worktree, whoever launches them. A separate feature can start at the top level.
+- Choose the Git starting ref for the commits the work needs, and identify where the result will land. In the sibling example, branch from the feature branch and land shared changes there so dependent siblings can pick them up before the feature reaches trunk.
 
 For an Orca launch, [pass the selected placement into the packet](references/orca.md#place-the-owner). Record created versus reused resources under **Retire an owner** below.
 
