@@ -53,14 +53,18 @@ export const collectionParts = (
 
 /** A capture part: externally rendered evidence frozen with one submission item. */
 export const CAPTURE_PART = /^capture:[1-9][0-9]*$/
-/** The one part of a work item that has text and no captures. */
+/** The part an item is decided as when nothing more specific is named. */
 export const ITEM_PART = "item"
+/** A part decided on its own merits rather than as content: `item`, or `item:<id>` from `decide`. */
+export const WORK_PART = /^item(:[a-z0-9][a-z0-9-]{0,39})?$/
+/** A decide entry's id as a part id. */
+export const workPartId = (id: string): string => `${ITEM_PART}:${id}`
 
 /**
- * Parts that belong to one submission item and to no content: captures and a work item's
- * text. They have no current version, so they never count as content that changed.
+ * Parts that belong to one submission item and to no content: captures and the parts an item is
+ * decided as (`item`, `item:<id>`). They have no current version, so they never count as content that changed.
  */
-export const isItemEvidence = (partId: string): boolean => CAPTURE_PART.test(partId) || partId === ITEM_PART
+export const isItemEvidence = (partId: string): boolean => CAPTURE_PART.test(partId) || WORK_PART.test(partId)
 
 /** The role a part belongs to, for deciding whether it is reference material. */
 export const partRole = (part: { readonly id: string; readonly role?: string | null | undefined }): string =>

@@ -276,6 +276,7 @@ test("Queue counts distinguish waiting, approved, changes and rejected", async (
   assert.deepEqual([rv.brief, rv.checkout.branch], ["Four units for the **first pass**.", "main"])
   assert.equal(read(dir, `.catalog/reviews/${rv.id}/submission.json`).brief, "Four units for the **first pass**.")
   await rejects(run("review.submit", { note: "old name", items: [{ target: unit("armor/helm") }] }), "invalid")
+  assert.deepEqual([rv.ask, rv.changes, rv.limits], [null, null, null], "a brief alone leaves the other submission fields empty")
   await run("review.decide", { submission: rv.id, item: rv.items[0].id, whole: "approved" })
   await run("review.decide", { submission: rv.id, item: rv.items[1].id, whole: "rejected" })
   await run("review.decide", { submission: rv.id, item: rv.items[2].id, whole: "changes" })
@@ -291,6 +292,19 @@ test("Queue counts distinguish waiting, approved, changes and rejected", async (
   assert.deepEqual(listed.counts, { all: 1, waiting: 1, changes: 1, rejected: 1, approved: 0 })
   // The metadata-only unit has an attributes part only.
   assert.deepEqual(v.items[3].parts.map((p: Any) => p.id), ["attributes"])
+  cleanup(dir)
+})
+
+test("A submission says once, for every item, what is asked, what changed and its known limits", async () => {
+  const dir = await standardProject()
+  const app = await open(dir)
+  const run = W(app)
+  const framed = await run("review.submit", { title: "Helm pass", ask: "Is the helm ready to rig?", changes: "Visor **narrowed**.", limits: "No LODs yet.", items: [{ target: unit("armor/helm") }] })
+  assert.deepEqual([framed.submission.ask, framed.submission.changes, framed.submission.limits], ["Is the helm ready to rig?", "Visor **narrowed**.", "No LODs yet."])
+  assert.equal(read(dir, `.catalog/reviews/${framed.submission.id}/submission.json`).ask, "Is the helm ready to rig?")
+  // The ask is one sentence; background belongs in the brief.
+  await rejects(run("review.submit", { ask: "Is it ready?\nIt was made from the old rig.", items: [{ target: unit("armor/helm") }] }), "invalid")
+  await rejects(run("review.submit", { ask: "x".repeat(301), items: [{ target: unit("armor/helm") }] }), "invalid")
   cleanup(dir)
 })
 

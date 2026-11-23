@@ -86,7 +86,37 @@
             }
           ]
         },
+        "ask": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "brief": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "changes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limits": {
           "anyOf": [
             {
               "type": "string"
@@ -167,6 +197,16 @@
                         "label": {
                           "type": "string"
                         },
+                        "shows": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "evidence": {}
                       },
                       "required": [
@@ -186,6 +226,16 @@
                       },
                       "label": {
                         "type": "string"
+                      },
+                      "shows": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "evidence": {}
                     },
@@ -303,6 +353,16 @@
                       "label": {
                         "type": "string"
                       },
+                      "shows": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
                       "evidence": {}
                     },
                     "required": [
@@ -322,6 +382,16 @@
                     },
                     "label": {
                       "type": "string"
+                    },
+                    "shows": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "evidence": {}
                   },

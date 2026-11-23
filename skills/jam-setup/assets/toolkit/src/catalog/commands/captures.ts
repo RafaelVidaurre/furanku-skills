@@ -1,8 +1,9 @@
 // Captures: evidence rendered outside the catalog (a game engine's screenshot, a recorded clip, a
 // model as it was at a commit), frozen with one submission item. A capture is a file in the
 // checkout, a before/after pair of files, or a file at a commit; its bytes say what media it is.
-// Each capture is its own part of the item (`capture:<n>`) and never content of the catalog: it
-// has no current version, so nothing about it can change after it is submitted.
+// A capture is a way of showing the item (an angle, a comparison, a sheet), never something to
+// decide: it is stored as `capture:<n>` and names the part it `shows`, or null for the whole item.
+// It is never content of the catalog: it has no current version, so it cannot change after submission.
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { optional, Text } from "../action.ts"
@@ -33,6 +34,7 @@ export const CaptureInput = Schema.Struct({
   label: Schema.String.annotate({ description: "What the capture shows (at most 300 characters)" }),
   caption: optional(Schema.String).annotate({ description: "Caption of its view (default: the label)" }),
   renderer: optional(Schema.String).annotate({ description: "Who rendered it, shown as a badge (for example a game engine)" }),
+  shows: optional(Schema.String).annotate({ description: "The part this capture shows: a part id of the item's target, or the id of one of the item's decide entries. Default: the item's only part, or the whole item when it has several" }),
   file: optional(CaptureFile),
   before: optional(CaptureFile),
   after: optional(CaptureFile),
@@ -58,6 +60,8 @@ export interface PlannedCapture {
   readonly label: string
   readonly caption: string | null
   readonly renderer: string | null
+  /** The part named by the request, resolved against the item's parts when the item is planned. */
+  readonly shows: string | null
   readonly file?: CaptureSource
   readonly pair?: { readonly before: CaptureSource; readonly after: CaptureSource; readonly labels: readonly [string, string] }
 }
@@ -125,7 +129,7 @@ export const planCaptures = (env: FreezeEnv, specs: ReadonlyArray<CaptureSpec> |
         const what = `capture ${index + 1}`
         const label = yield* text(spec.label, 300, `${what} label`)
         if (label === null) return yield* fail("invalid", `${what} needs a label`)
-        const base = { id: `capture:${index + 1}`, label, caption: yield* text(spec.caption, 300, `${what} caption`), renderer: yield* text(spec.renderer, 100, `${what} renderer`) }
+        const base = { id: `capture:${index + 1}`, label, caption: yield* text(spec.caption, 300, `${what} caption`), renderer: yield* text(spec.renderer, 100, `${what} renderer`), shows: yield* text(spec.shows, 600, `${what} shows`) }
         const paired = spec.before != null || spec.after != null
         if ((spec.file != null) === paired) return yield* fail("invalid", `${what}: give either file, or before and after`)
         if (spec.file != null) {
@@ -153,7 +157,7 @@ export const captureKind = (capture: PlannedCapture, leaf: string | null | undef
   capture.file ? capture.file.kind : leaf === "before" || leaf === "after" ? capture.pair![leaf].kind : null
 
 /** Freeze a planned capture: committed files by their blob, everything else by its bytes. */
-export const freezeCapture = (env: FreezeEnv, capture: PlannedCapture): Effect.Effect<FrozenPart, ToolError, Evidence> =>
+export const freezeCapture = (env: FreezeEnv, capture: PlannedCapture, shows: string | null): Effect.Effect<FrozenPart, ToolError, Evidence> =>
   Effect.gen(function*() {
     const evidence = yield* Evidence
     const renderer = capture.renderer === null ? {} : { renderer: capture.renderer }
@@ -167,8 +171,8 @@ export const freezeCapture = (env: FreezeEnv, capture: PlannedCapture): Effect.E
         }
         return { kind: source.kind, digest: source.sha256, sha256: source.sha256, size: source.bytes.length, mime: source.mime, asset, path: source.committed?.git.path ?? source.checkout!.path, ref, ...renderer }
       })
-    if (capture.file) return { id: capture.id, label: capture.label, ...renderer, evidence: yield* leaf(capture.file, capture.id) }
+    if (capture.file) return { id: capture.id, label: capture.label, shows, ...renderer, evidence: yield* leaf(capture.file, capture.id) }
     const { after, before, labels } = capture.pair!
     const pair = { before: yield* leaf(before, `${capture.id}/before`), after: yield* leaf(after, `${capture.id}/after`) }
-    return { id: capture.id, label: capture.label, ...renderer, evidence: { digest: digest({ before: before.sha256, after: after.sha256 }), pair, labels, ...renderer } }
+    return { id: capture.id, label: capture.label, shows, ...renderer, evidence: { digest: digest({ before: before.sha256, after: after.sha256 }), pair, labels, ...renderer } }
   })

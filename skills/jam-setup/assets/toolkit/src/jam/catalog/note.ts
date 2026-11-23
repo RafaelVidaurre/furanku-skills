@@ -6,6 +6,7 @@ import type { ResolvedStep } from "../recipes/schema.ts"
 import type { Run, StepRecord } from "../runs/schema.ts"
 
 const NOTE_MAX = 5000
+const ASK_MAX = 300
 const BRIEF_MAX = 600
 
 /** An id as a label: `three-quarter` reads "Three quarter". */
@@ -59,7 +60,8 @@ export interface NoteInput {
   readonly evidence: ReadonlyArray<string>
 }
 
-export const reviewNote = (input: NoteInput): string => {
+/** The question a reviewer answers and the brief beside it. */
+export const reviewNote = (input: NoteInput): { readonly ask: string; readonly brief: string } => {
   const { record, run, step } = input
   const brief = input.brief?.trim() ?? ""
   const asked = brief === "" ? [] : ["**Asked for**", "", ...(brief.length > BRIEF_MAX ? `${brief.slice(0, BRIEF_MAX).trimEnd()}…` : brief).split("\n").map((line) => `> ${line}`), ""]
@@ -73,8 +75,11 @@ export const reviewNote = (input: NoteInput): string => {
     record.note.trim(),
     "",
     ...facts.map((line) => `- ${line}`),
-    ...(facts.length > 0 ? [""] : []),
-    `**To decide:** ${input.parts.join(", ")}.${input.evidence.length > 0 ? ` Supporting evidence: ${input.evidence.join(", ")}.` : ""}`
-  ].join("\n")
-  return note.length > NOTE_MAX ? `${note.slice(0, NOTE_MAX - 1)}…` : note
+    ...(input.evidence.length > 0 ? ["", `**Supporting evidence:** ${input.evidence.join(", ")}.`] : [])
+  ].join("\n").trimEnd()
+  const ask = `Accept, change or reject: ${input.parts.join(", ")}.`
+  return {
+    ask: ask.length > ASK_MAX ? `${ask.slice(0, ASK_MAX - 2)}….` : ask,
+    brief: note.length > NOTE_MAX ? `${note.slice(0, NOTE_MAX - 1)}…` : note
+  }
 }

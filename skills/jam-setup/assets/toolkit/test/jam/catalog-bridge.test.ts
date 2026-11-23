@@ -72,8 +72,9 @@ describe("asking a person", () => {
       "- Made with image model 2.",
       "- 2 images at 64 × 32 px.",
       "",
-      "**To decide:** Concept · a, Concept · b. Supporting evidence: Side by side."
+      "**Supporting evidence:** Side by side."
     ].join("\n"))
+    assert.equal(submission.ask, "Accept, change or reject: Concept · a, Concept · b.")
     assert.ok(!/rec_|sha256|\.scratch/.test(submission.brief), "no record ids, hashes or paths")
 
     // Asking again is the same request: one submission, in the run and in the catalog.
@@ -134,9 +135,12 @@ describe("asking a person", () => {
   it("changes return the step with the reviewer's comment and part comments; a rejection rejects it; a new record is a new request", async () => {
     const { dir, root } = await waitingConcept()
     const first = await ask(root)
+    // A note on one view travels back with the decision, naming the view.
+    const view = first.submission.items[0].views.find((candidate: Any) => candidate.part === "concept:2")
+    await first.app.run("note.create", { target: { kind: "submission", id: first.review.submission, item: first.review.item, view: view.id }, body: "knot sits too low" }, { actor: human })
     await decide(first.app, first.review, { whole: "approved", exceptions: { "concept:2": "changes" }, comment: "Hoops yes.", partComments: { "concept:2": "the rope reads as a belt" } })
     let step = await bridgedStep(root, "barrel", "concept")
-    assert.deepEqual([step.state, step.reason, step.decided], ["revise", "Hoops yes. Concept · b: the rope reads as a belt", { decision: "revise", actor: "human", via: "catalog", by: "Rae Tester" }])
+    assert.deepEqual([step.state, step.reason, step.decided], ["revise", `Hoops yes. Concept · b: the rope reads as a belt ${view.caption}: knot sits too low`, { decision: "revise", actor: "human", via: "catalog", by: "Rae Tester" }])
     assert.equal((await bridgeFailure(root, requestReview({ run: "barrel", step: "concept" }))).code, "conflict", "a returned step is reworked, not asked about again")
 
     write(root, `${dir}/b.png`, png(64, 32, [200, 200, 40]))
@@ -154,7 +158,8 @@ describe("asking a person", () => {
     write(root, "catalog.config.json", JSON.stringify({ version: 3, plugins: ["jam"], review: { referenceRoles: ["evidence"] } }))
     const { app, review, submission } = await ask(root)
     assert.deepEqual(submission.items[0].parts.map((part: Any) => part.id), ["concept:1", "concept:2"])
-    assert.match(submission.brief, /\*\*To decide:\*\* Concept · a, Concept · b\.$/)
+    assert.equal(submission.ask, "Accept, change or reject: Concept · a, Concept · b.")
+    assert.doesNotMatch(submission.brief, /Supporting evidence/)
     await decide(app, review, { whole: "approved" })
     assert.equal((await bridgedStep(root, "barrel", "concept")).state, "accepted")
   })
@@ -233,7 +238,7 @@ describe("what is never submitted", () => {
 })
 
 describe("what the subject's unit cannot show", () => {
-  it("work the catalog does not list (an exploration) is reviewed as work, its files and evidence as captures", async () => {
+  it("work the catalog does not list (an exploration) decides each of its files, shown by its capture; its evidence only shows", async () => {
     const root = catalogProject()
     await start(root, "image", "moodboard")
     write(root, "work/.scratch/moodboard/1/a.png", png(8, 8, [10, 20, 30]))
@@ -245,9 +250,10 @@ describe("what the subject's unit cannot show", () => {
     const submission = await app.run("review.get", { submission: asked.submission })
     const item = submission.items[0]
     assert.deepEqual([item.target, item.title], [null, "moodboard · Concept image"])
-    assert.deepEqual(item.parts.map((part: Any) => [part.id, part.label]), [["capture:1", "Concept · a"], ["capture:2", "Board"]])
-    assert.deepEqual(item.views.map((view: Any) => view.caption), ["Concept image: Concept · a", "Evidence: Board"])
-    assert.match(submission.brief, /\*\*To decide:\*\* Concept · a\. Supporting evidence: Board\.$/)
+    assert.deepEqual(item.parts.map((part: Any) => [part.id, part.label, part.reviewable]), [["capture:1", "Concept · a", false], ["capture:2", "Board", false], ["item:file-1", "Concept · a", true]])
+    assert.deepEqual(item.views.map((view: Any) => [view.caption, view.shows]), [["Concept image: Concept · a", "item:file-1"], ["Evidence: Board", "item:file-1"]])
+    assert.equal(submission.ask, "Accept, change or reject: Concept · a.")
+    assert.match(submission.brief, /\*\*Supporting evidence:\*\* Board\.$/)
     // A person decides there, and the run reads it like any other review.
     await app.run("review.decide", { submission: asked.submission, item: item.id, whole: "approved" }, { actor: human })
     assert.equal((await bridgedStep(root, "moodboard", "concept")).state, "accepted")

@@ -191,6 +191,8 @@ export interface RequestBinding {
 export interface NoteTarget extends Target {
   readonly item?: string
   readonly part?: string
+  /** A view of a submission item: the way of showing that makes the point. */
+  readonly view?: string
 }
 
 export interface NoteRecord {
@@ -283,6 +285,11 @@ export interface FrozenPart {
   readonly member?: string
   /** Who rendered a capture part. */
   readonly renderer?: string
+  /**
+   * On a capture: the part it shows, or null for the whole item. A capture with this key is a way
+   * of showing, never decided; captures recorded before it existed were decided as parts.
+   */
+  readonly shows?: string | null
   readonly evidence: PartEvidence
 }
 
@@ -325,7 +332,14 @@ export interface SubmissionRecord {
   readonly at: string
   readonly checkout: { readonly branch: string | null; readonly head: string | null; readonly dirty: number }
   readonly supersedes: string | null
+  /** The one question the person answers, in a sentence. */
+  readonly ask?: string | null
+  /** Markdown for every item: how the work was made and how to read the views. */
   readonly brief: string | null
+  /** Markdown: what changed since the person last looked, and why. */
+  readonly changes?: string | null
+  /** Markdown: known defects and what is not done. */
+  readonly limits?: string | null
   readonly items: ReadonlyArray<SubmissionItem>
   readonly requestId?: string
   readonly requestBinding?: RequestBinding

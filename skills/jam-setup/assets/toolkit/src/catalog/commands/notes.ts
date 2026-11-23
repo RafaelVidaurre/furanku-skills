@@ -24,7 +24,7 @@ export const targetExists = (p: Projection, target: { readonly kind: string; rea
     ? p.records.submission.some((submission) => submission.id === target.id)
     : false
 
-const NoteTargetInput = refOf(["unit", "collection", "asset", "submission"], { item: true, part: true })
+const NoteTargetInput = refOf(["unit", "collection", "asset", "submission"], { item: true, part: true, view: true })
 
 const checkPart = (p: Projection, target: typeof NoteTargetInput.Type): Effect.Effect<void, ToolError> =>
   Effect.gen(function*() {
@@ -32,8 +32,10 @@ const checkPart = (p: Projection, target: typeof NoteTargetInput.Type): Effect.E
       const item = p.records.submission.find((submission) => submission.id === target.id)?.items.find((candidate) => candidate.id === target.item)
       if (!item) return yield* fail("not_found", "item not in submission")
       if (target.part && !item.parts.some((part) => part.id === target.part)) return yield* fail("not_found", "part not in item")
+      if (target.view && !item.views.some((view) => view.id === target.view)) return yield* fail("not_found", `view ${target.view} not in item`)
       return
     }
+    if (target.view) return yield* fail("invalid", "a view belongs to a submission item: give kind submission with its item")
     if (!target.part) return
     const unit = target.kind === "unit" ? p.snapshot.unitsById.get(target.id) : undefined
     const known = (target.kind === "unit" || target.kind === "collection") && partsOf(p, { kind: target.kind, id: target.id }).some((part) => part.id === target.part)
@@ -85,7 +87,7 @@ export const noteActions = [
         yield* checkPart(p, target)
         const prior = yield* priorRequest(p, "note", env.requestId, env.requestBinding)
         if (prior) return { note: prior, replayed: true }
-        const noteTarget: NoteTarget = { kind: target.kind, id: target.id, ...(target.item != null ? { item: target.item } : {}), ...(target.part != null ? { part: target.part } : {}) }
+        const noteTarget: NoteTarget = { kind: target.kind, id: target.id, ...(target.item != null ? { item: target.item } : {}), ...(target.part != null ? { part: target.part } : {}), ...(target.view != null ? { view: target.view } : {}) }
         const note: NoteRecord = { id: yield* (yield* Ids).next("nt"), target: noteTarget, body: input.body.trim(), by: env.actor, at: yield* nowIso, revision: 1, ...requestFields(env) }
         const [created] = yield* (yield* Records).apply([{ type: "create", kind: "note", record: note }])
         return { note: created }

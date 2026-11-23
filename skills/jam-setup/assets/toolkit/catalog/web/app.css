@@ -442,6 +442,14 @@ model-thumb.failed { background: repeating-linear-gradient(-45deg, #1a1212 0 4px
 .sub-items { border-right: 1px solid var(--line); padding: 10px 6px; display: flex; flex-direction: column; gap: 8px; }
 .sub-head { padding: 0 8px 8px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
 .sub-head h1 { font-size: 16px; }
+.sub-ask { margin: 0; color: var(--text); font-size: 12.5px; line-height: 1.4; }
+.overview-row .row-name { font-weight: 600; }
+.overview-body { padding: 16px; max-width: 760px; min-width: 0; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.overview-body > .submission-note { align-self: stretch; min-width: 0; }
+.overview-ask { margin: 0; font-size: 15px; line-height: 1.4; color: var(--text); }
+.brief-section + .brief-section { margin-top: 12px; }
+.brief-section h3 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 4px; }
+.item-text .md { margin-top: 0; }
 /* Rendered Markdown (web/markdown.js): compact, sized for the review sidebar. */
 .md { color: #c9ced5; font-size: 12.5px; line-height: 1.5; overflow-wrap: anywhere; margin-top: 4px; }
 .md > :first-child { margin-top: 0; } .md > :last-child { margin-bottom: 0; }
@@ -702,7 +710,7 @@ audio-thumb canvas { width: 100%; height: 100%; object-fit: fill; }
 .thumb.pixel img, .pixel-art .viewer-2d img, .pixel-art .slider img, .pixel-art .frame img { image-rendering: pixelated; }
 
 /* Review items: text above the evidence, and who rendered a capture. */
-.item-text { margin: 0; white-space: pre-wrap; line-height: 1.5; }
+.item-text { margin: 0; line-height: 1.5; }
 .renderer-badge { font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 
 /* Inspectors (in the media strip) and panels (in the sidebar), mounted from plugin modules. */
@@ -808,3 +816,7 @@ audio-thumb canvas { width: 100%; height: 100%; object-fit: fill; }
   .frame:not([style*="aspect-ratio"]), .slider:not([style*="aspect-ratio"]) { height: 46vh; }
   .cmp-side .viewer { height: 40vh; }
 }
+.note-on-view { margin-left: 4px; }
+.shows-chip { margin-left: 4px; }
+.note-view-pick { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; }
+.view-chip { text-decoration: none; }
