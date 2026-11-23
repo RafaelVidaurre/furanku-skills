@@ -160,6 +160,7 @@ const SubmissionFields = {
   brief: Nullable(Str),
   changes: Nullable(Str),
   limits: Nullable(Str),
+  replacedBy: Nullable(Str).annotate({ description: "The submission that replaces this one; a replaced submission waits on nobody" }),
   counts: Schema.Struct({ items: Num, waiting: Num, approved: Num, changes: Num, rejected: Num })
 }
 /** A submission with each item's state and counts, without evidence. */

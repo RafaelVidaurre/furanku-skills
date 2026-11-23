@@ -308,6 +308,23 @@ test("A submission says once, for every item, what is asked, what changed and it
   cleanup(dir)
 })
 
+test("A replaced submission waits on nobody: it leaves the waiting queue, the inbox and the unit's open items, and stays readable", async () => {
+  const dir = await standardProject()
+  const app = await open(dir)
+  const run = W(app)
+  const first = (await run("review.submit", { items: [{ target: unit("armor/helm") }] })).submission
+  const second = (await run("review.submit", { supersedes: first.id, items: [{ target: unit("armor/helm") }] })).submission
+  const third = (await run("review.submit", { supersedes: second.id, items: [{ target: unit("armor/helm") }] })).submission
+  const waiting = await app.run("review.list", { state: "waiting" })
+  assert.deepEqual(waiting.submissions.map((s: Any) => s.id), [third.id])
+  assert.equal(waiting.counts.waiting, 1)
+  assert.deepEqual((await app.run("inbox", {})).waiting.map((entry: Any) => entry.submission), [third.id])
+  assert.deepEqual((await app.run("unit.get", { id: "armor/helm" })).waiting.map((entry: Any) => entry.submission), [third.id])
+  const old = await app.run("review.get", { submission: first.id })
+  assert.deepEqual([old.replacedBy, old.counts.waiting, (await app.run("review.list", { state: "all" })).total], [second.id, 0, 3])
+  cleanup(dir)
+})
+
 test("Part comments stay with their decided part through recording, reload, history and retries; comments on undecided or unknown parts are refused", async () => {
   const dir = await standardProject()
   const app = await open(dir)

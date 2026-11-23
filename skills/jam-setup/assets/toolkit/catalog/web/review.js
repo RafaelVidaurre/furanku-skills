@@ -152,7 +152,7 @@ export function ReviewsView({ route }) {
     <${ErrorLine} error=${error} onRetry=${reload} />
     <div class="feed">${data?.submissions.map((s) => html`<a class="sub-row" key=${s.id} href=${href({ section: 'reviews', kind: 's', id: s.id, query: new URLSearchParams(route.query) })}>
       <span class="sub-main"><span class="row-name">${s.title}</span><span class="row-sub"><span class="mono">${s.ref}</span> · <${Person} by=${s.by} /> · ${ago(s.at)}${s.checkout.dirty ? ' · uncommitted work' : ''}</span></span>
-      <span class="sub-counts">${s.counts.waiting ? html`<span class="cnt wait">${s.counts.waiting} waiting</span>` : ''}${s.counts.changes ? html`<span class="cnt changes">${s.counts.changes} changes</span>` : ''}${s.counts.rejected ? html`<span class="cnt rejected">${s.counts.rejected} rejected</span>` : ''}<span class="cnt">${s.counts.approved}/${s.counts.items}</span></span>
+      <span class="sub-counts">${s.replacedBy ? html`<span class="cnt" title="A newer submission replaces this one">Replaced</span>` : ''}${s.counts.waiting ? html`<span class="cnt wait">${s.counts.waiting} waiting</span>` : ''}${s.counts.changes ? html`<span class="cnt changes">${s.counts.changes} changes</span>` : ''}${s.counts.rejected ? html`<span class="cnt rejected">${s.counts.rejected} rejected</span>` : ''}<span class="cnt">${s.counts.approved}/${s.counts.items}</span></span>
     </a>`)}</div>
   </div>`;
 }

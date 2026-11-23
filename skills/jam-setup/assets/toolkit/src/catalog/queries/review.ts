@@ -177,8 +177,9 @@ export const itemState = (
   return { parts, summary: summarize(parts.filter((part) => part.reviewable)) }
 }
 
-/** Submission items targeting this entity that still have undecided parts. */
+/** Submission items targeting this entity that still have undecided parts, in submissions nothing replaced. */
 export const openItemsFor = (p: Projection, target: Target) =>
   (p.itemsByTarget.get(targetKey(target)) ?? [])
+    .filter(({ submission }: ItemRef) => !p.records.submission.some((other) => other.supersedes === submission.id))
     .map(({ item, submission }: ItemRef) => ({ submission: submission.id, ref: shortRef(submission.id), title: submission.title, item: item.id, state: itemState(p, submission, item).summary }))
     .filter((entry) => entry.state.undecided > 0)

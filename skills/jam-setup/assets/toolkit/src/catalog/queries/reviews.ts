@@ -65,7 +65,20 @@ const itemHeader = (p: Projection, submission: SubmissionRecord, item: Submissio
 
 type ItemView = ReturnType<typeof itemHeader>["view"]
 
-const frame = <I extends ItemView>(submission: SubmissionRecord, items: ReadonlyArray<I>) => ({
+// Which submission replaced each one (`supersedes`), read once per set of records.
+const replacements = new WeakMap<ReadonlyArray<SubmissionRecord>, ReadonlyMap<string, string>>()
+/** The submission that replaces this one, or null. A replaced submission waits on nobody. */
+export const replacedBy = (p: Projection, id: string): string | null => {
+  const all = p.records.submission
+  let map = replacements.get(all)
+  if (!map) {
+    map = new Map(all.flatMap((other) => (other.supersedes ? [[other.supersedes, other.id] as const] : [])))
+    replacements.set(all, map)
+  }
+  return map.get(id) ?? null
+}
+
+const frame = <I extends ItemView>(p: Projection, submission: SubmissionRecord, items: ReadonlyArray<I>) => ({
   id: submission.id,
   ref: shortRef(submission.id),
   route: reviewRoute(submission.id),
@@ -74,13 +87,14 @@ const frame = <I extends ItemView>(submission: SubmissionRecord, items: Readonly
   at: submission.at,
   checkout: submission.checkout,
   supersedes: submission.supersedes ?? null,
+  replacedBy: replacedBy(p, submission.id),
   ask: submission.ask ?? null,
   brief: submission.brief ?? null,
   changes: submission.changes ?? null,
   limits: submission.limits ?? null,
   counts: {
     items: items.length,
-    waiting: items.filter((item) => item.summary.undecided > 0).length,
+    waiting: replacedBy(p, submission.id) === null ? items.filter((item) => item.summary.undecided > 0).length : 0,
     approved: items.filter((item) => item.state === "approved").length,
     changes: items.filter((item) => ["changes", "mixed"].includes(item.state) && item.summary.changes).length,
     rejected: items.filter((item) => item.summary.rejected).length
@@ -90,7 +104,7 @@ const frame = <I extends ItemView>(submission: SubmissionRecord, items: Readonly
 
 /** A submission with each item's state and counts, without evidence. */
 export const submissionView = (p: Projection, submission: SubmissionRecord) =>
-  frame(submission, submission.items.map((item) => itemHeader(p, submission, item).view))
+  frame(p, submission, submission.items.map((item) => itemHeader(p, submission, item).view))
 export type SubmissionView = ReturnType<typeof submissionView>
 
 const pick = (part: FrozenPart) => ({
@@ -123,7 +137,7 @@ const submissionDetail = (p: Projection, evidence: Evidence["Service"], submissi
         const views = yield* Effect.forEach(item.views, (frozen) => Effect.map(viewOf(evidence, submission.id, item.id, frozen), (view) => ({ ...view, shows: showsOf(frozen.part) })))
         return { ...view, parts, views, attributes: item.attributes ?? null, kind: item.kind, preview: framePreview(p, item) }
       })),
-    (items) => frame(submission, items)
+    (items) => frame(p, submission, items)
   )
 
 export interface ReviewListInput {
