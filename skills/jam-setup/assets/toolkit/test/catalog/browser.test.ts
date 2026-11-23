@@ -195,7 +195,7 @@ describe("viewers, agent control and capture", () => {
 })
 
 describe("comparison", () => {
-  it("T16 image compare: unaligned defaults to side by side; divider drag vs tap; toggle by Space keeps framing; fullscreen focus and return", async (t) => {
+  it("T16 image compare: unaligned defaults to side by side; divider drag vs tap; toggle by clicking the image or Space keeps framing; fullscreen focus and return", async (t) => {
     if ("skip" in found) return t.skip(found.skip)
     const subs = await app.run("review.list", { state: "all" })
     const rv = await app.run("review.get", { submission: subs.submissions[0].id })
@@ -222,10 +222,12 @@ describe("comparison", () => {
     await p.click('.cmp-tools button:has-text("Toggle")')
     const shown = await p.getAttribute(".frame img", "alt")
     const frameBox = await p.locator(".frame").boundingBox()
-    await p.focus(".toggle-btn")
-    await p.keyboard.press("Space")
-    assert.notEqual(await p.getAttribute(".frame img", "alt"), shown)
+    await p.click(".frame")
+    assert.notEqual(await p.getAttribute(".frame img", "alt"), shown, "clicking the image shows the other side")
     assert.deepEqual(await p.locator(".frame").boundingBox(), frameBox, "framing stays stable")
+    await p.focus(".frame")
+    await p.keyboard.press("Space")
+    assert.equal(await p.getAttribute(".frame img", "alt"), shown, "Space on the image flips it back")
     await p.click('.cmp-tools button:has-text("Full screen")')
     await p.waitForSelector(".dialog.full")
     await p.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Close full screen", null, { timeout: 2000 })
@@ -338,7 +340,7 @@ describe("keyboard, layout and resources", () => {
     await done(p)
   })
 
-  it("T14 submission → item → view navigation: view cycling replaces history, item changes push it, Back returns", async (t) => {
+  it("T14 submission → item → view navigation: view cycling replaces history, item changes push it, Back returns; next and previous review", async (t) => {
     if ("skip" in found) return t.skip(found.skip)
     const sub1 = (await app.run("review.list", { state: "all" })).submissions.find((x: Any) => x.title === "Helm and boots")
     const rv = await app.run("review.get", { submission: sub1.id })
@@ -362,6 +364,23 @@ describe("keyboard, layout and resources", () => {
     await p.goBack()
     await p.waitForSelector(".feed")
     await shot(p, "reviews-queue")
+    // Stepping between waiting submissions records nothing.
+    const queue = (await app.run("review.list", { state: "waiting" })).submissions
+    assert.ok(queue.length >= 2, "the fixture has two waiting submissions")
+    const decided = async () => (await Promise.all(queue.map((x: Any) => app.run("review.get", { submission: x.id })))).reduce((n: number, x: Any) => n + x.decisions.length, 0)
+    const before = await decided()
+    await p.goto(`${base}#/reviews/s/${queue[0].id}`)
+    await settled(p)
+    await p.waitForSelector(".review-pager")
+    assert.equal(await p.isDisabled('.review-pager [aria-label="Previous review"]'), true)
+    await p.keyboard.press("Shift+BracketRight")
+    await p.waitForFunction((id) => location.hash.includes(id), queue[1].id, { timeout: 3000 })
+    await settled(p)
+    await p.click('.review-pager [aria-label="Previous review"]')
+    await p.waitForFunction((id) => location.hash.includes(id), queue[0].id, { timeout: 3000 })
+    await p.click('.review-pager button:has-text("Next review")')
+    await p.waitForFunction((id) => location.hash.includes(id), queue[1].id, { timeout: 3000 })
+    assert.equal(await decided(), before, "moving between reviews decides nothing")
     await done(p)
   })
 

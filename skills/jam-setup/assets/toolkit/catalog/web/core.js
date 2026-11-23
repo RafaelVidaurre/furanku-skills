@@ -270,7 +270,8 @@ export function Popover({ trigger, children, align = 'left', label }) {
     const off = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
     const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); setOpen(false); btn.current?.querySelector('button')?.focus(); } };
     document.addEventListener('pointerdown', off); document.addEventListener('keydown', key, true);
-    requestAnimationFrame(() => ref.current?.querySelector('.pop input, .pop button, .pop [tabindex]')?.focus());
+    // Touch screens keep focus where it is, so opening a menu does not raise the on-screen keyboard.
+    if (!matchMedia('(pointer: coarse)').matches) requestAnimationFrame(() => ref.current?.querySelector('.pop input, .pop button, .pop [tabindex]')?.focus());
     return () => { document.removeEventListener('pointerdown', off); document.removeEventListener('keydown', key, true); };
   }, [open]);
   const close = () => { setOpen(false); btn.current?.querySelector('button')?.focus(); };
