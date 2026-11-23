@@ -59,7 +59,7 @@ export const KINDS: { readonly [K in RecordKind]: KindLayout<Extract<AnyRecord, 
   decision: {
     file: (r) => { const d = r as unknown as DecisionRecord; return `reviews/${d.submission}/decisions/${d.id}.json` },
     match: /^reviews\/[^/]+\/decisions\/[^/]+\.json$/,
-    mutable: false,
+    mutable: true,
     key: (r) => (r as unknown as DecisionRecord).id
   }
 }

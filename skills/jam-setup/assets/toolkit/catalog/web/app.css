@@ -216,6 +216,12 @@ kbd { font: 10.5px var(--mono); color: var(--faint); border: 1px solid var(--lin
 .ritem { padding: 8px 0; border-top: 1px solid var(--line); }
 .ritem-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ritem-target { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.ritem-actions { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; opacity: 0; }
+.ritem:hover .ritem-actions, .ritem-actions:focus-within, .ritem-actions:has(.danger) { opacity: 1; }
+.ritem.editing { box-shadow: inset 3px 0 0 var(--accent); padding-left: 8px; }
+.block.editing { border-color: #86a8ff66; }
+.editing-line { display: flex; align-items: center; gap: 6px; margin: -2px 0 8px; padding: 6px 8px; border-radius: 6px; background: var(--accent-bg); color: var(--accent); font-size: 12px; }
+.editing-line .person { color: var(--text); }
 .scope { font-size: 11px; color: var(--muted); border: 1px solid var(--line2); border-radius: 3px; padding: 0 4px; }
 .pvs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
 .pv { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; padding: 1px 6px; border-radius: 4px; background: var(--raised); }
@@ -730,7 +736,7 @@ audio-thumb canvas { width: 100%; height: 100%; object-fit: fill; }
   .seg-b { padding: 7px 11px; }
   .tool { padding: 5px 10px; }
   .cmp-modes button { width: 34px; height: 34px; }
-  .note-actions, .member-ops, .member-x, .org-row .icon-btn { opacity: 1; }
+  .note-actions, .member-ops, .member-x, .org-row .icon-btn, .ritem-actions { opacity: 1; }
   .tag-x { display: inline-grid; }
 }
 

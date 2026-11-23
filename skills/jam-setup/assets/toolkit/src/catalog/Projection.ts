@@ -28,6 +28,10 @@ export interface DecisionSummary {
   readonly partComments: Readonly<Record<string, string>>
   /** Recorded by an agent from a person's words given elsewhere. */
   readonly relay?: { readonly by: string; readonly channel: string; readonly words: string }
+  /** What review.decision.edit and review.decision.delete take as expectedRevision. */
+  readonly revision: number
+  readonly editedAt?: string
+  readonly editedBy?: DecisionRecord["by"]
 }
 
 export interface PartReview {

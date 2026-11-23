@@ -111,7 +111,10 @@ export const DecisionSummary = Schema.Struct({
   verdicts: Schema.Record(Str, Str),
   comment: Str,
   partComments: Schema.Record(Str, Str),
-  relay: opt(Relay)
+  relay: opt(Relay),
+  revision: Num.annotate({ description: "Pass as expectedRevision to review.decision.edit or review.decision.delete" }),
+  editedAt: opt(Str),
+  editedBy: opt(Actor)
 })
 /** A content part with its current verdict and the decision that gave it. */
 export const PartReview = Schema.Struct({

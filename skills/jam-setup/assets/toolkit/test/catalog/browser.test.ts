@@ -387,6 +387,33 @@ describe("keyboard, layout and resources", () => {
     await done(p)
   })
 
+  it("a recorded verdict is edited in the decision panel and deleted after a confirmation", async (t) => {
+    if ("skip" in found) return t.skip(found.skip)
+    const s = await W(app, human)("review.submit", { title: "Verdict edit", items: [{ target: unit("armor/boots") }] })
+    const rv = await app.run("review.get", { submission: s.submission.id })
+    const item = rv.items[0]
+    const recorded = (await W(app, human)("review.decide", { submission: rv.id, item: item.id, whole: "approved", comment: "Looks right" })).decision
+    const p = await page()
+    await p.goto(`${base}#/reviews/s/${rv.id}/${item.id}`)
+    await settled(p)
+    await p.click('[aria-label="Verdicts"] [aria-label="Edit verdict"]')
+    assert.equal(await p.inputValue('[aria-label="Decision"] textarea.comp-comment'), "Looks right", "the verdict opens in the decision panel")
+    await p.click('[aria-label="Decision"] .comp-all button:has-text("Request changes")')
+    await p.click('[aria-label="Decision"] button:has-text("Save changes")')
+    await p.waitForFunction(() => !document.querySelector(".editing-line"), null, { timeout: 3000 })
+    const after = await app.run("review.get", { submission: rv.id })
+    assert.equal(after.decisions.length, 1, "editing records no new decision")
+    assert.equal(after.decisions[0].id, recorded.id)
+    assert.ok(Object.values(after.decisions[0].verdicts).every((v) => v === "changes"))
+    assert.equal(after.decisions[0].revision, 2)
+    await p.click('[aria-label="Verdicts"] [aria-label="Delete verdict"]')
+    assert.equal((await app.run("review.get", { submission: rv.id })).decisions.length, 1, "nothing is deleted before confirming")
+    await p.click('[aria-label="Verdicts"] .ritem-actions button:has-text("Delete")')
+    await p.waitForFunction(() => !document.querySelector('[aria-label="Verdicts"] .ritem'), null, { timeout: 3000 })
+    assert.equal((await app.run("review.get", { submission: rv.id })).decisions.length, 0)
+    await done(p)
+  })
+
   it("T19 narrow touch viewport: no horizontal overflow with long names and failed assets; reduced motion stops autoplay", async (t) => {
     if ("skip" in found) return t.skip(found.skip)
     const p = await page({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, reducedMotion: "reduce" })
