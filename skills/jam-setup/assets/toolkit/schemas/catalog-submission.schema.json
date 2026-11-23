@@ -197,6 +197,16 @@
                         "label": {
                           "type": "string"
                         },
+                        "shows": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "evidence": {}
                       },
                       "required": [
@@ -216,6 +226,16 @@
                       },
                       "label": {
                         "type": "string"
+                      },
+                      "shows": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "evidence": {}
                     },
@@ -333,6 +353,16 @@
                       "label": {
                         "type": "string"
                       },
+                      "shows": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
                       "evidence": {}
                     },
                     "required": [
@@ -352,6 +382,16 @@
                     },
                     "label": {
                       "type": "string"
+                    },
+                    "shows": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "evidence": {}
                   },

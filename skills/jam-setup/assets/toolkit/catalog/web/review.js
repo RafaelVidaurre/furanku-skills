@@ -168,7 +168,7 @@ export function SubmissionView({ route }) {
   const itemId = onOverview ? null : route.member ?? sub?.items[0]?.id;
   const item = sub?.items.find((i) => i.id === itemId);
   const viewId = route.query.get('view');
-  const view = item && (viewId ? item.views.find((v) => v.id === viewId) : item.views.find(v => item.parts.some(p => p.id === v.part && p.reviewable !== false)) ?? item.views[0]);
+  const view = item && (viewId ? item.views.find((v) => v.id === viewId) : item.views.find((v) => item.parts.some((p) => p.id === v.part && (p.reviewable !== false || p.shows !== undefined))) ?? item.views[0]);
   const unavailable = sub && !item && !onOverview ? `Item ${route.member} is not in this submission` : item && viewId && !view ? `View ${viewId} is not in this item` : null;
   const goItem = (id, push = true) => { const r = { section: 'reviews', kind: 's', id: subId, member: id, query: new URLSearchParams([...route.query].filter(([k]) => ['state', 'q'].includes(k))) }; push ? (location.hash = href(r).slice(1)) : replace(r); };
   const setView = (id) => replace(withQuery(route, { view: id }));
@@ -297,7 +297,8 @@ function EvidenceStage({ sub, item, view, viewError }) {
   if (isPair(item, view)) {
     const [before, after] = p.leaves;
     const row = { key: view.id, label: view.caption, a: before, b: after, identical: false };
-    return html`<div class="stage-cmp capture-pair"><${CompareRows} key=${view.id} rows=${[row]} labels=${p.pairLabels} viewerId="stage" shows=${src} /></div>`;
+    // A view of a pair frames both sides alike: a model pair opens at the view's camera and state.
+    return html`<div class="stage-cmp capture-pair"><${CompareRows} key=${view.id} rows=${[row]} labels=${p.pairLabels} viewerId="stage" shows=${src} camera=${view.camera} state=${view.state} /></div>`;
   }
   const l = view.leaf ? p.leaves.find((x) => x.key === view.leaf) : (p.leaves.find((x) => x.url) ?? p.leaves[0]);
   if (!l) return html`<${UnavailableViewer} viewerId="stage" shows=${src} message=${`Preview ${view.leaf ?? ''} is not recorded for this view`} />`;

@@ -64,12 +64,22 @@ test("captures and work items in the review page; pixel art keeps hard texels an
     // The renderer's own pixels: never nearest-neighbour, even in a pixel-art project.
     assert.deepEqual(await page.locator(".capture-pair img").evaluateAll((images) => [...new Set(images.map((image) => getComputedStyle(image).imageRendering))]), ["auto"])
     await page.screenshot({ path: `${OUT}/pair-1440.png` })
+    // The capture is a way of showing the work, not something to decide: the work is the one part.
+    assert.deepEqual(await page.locator(".comp-row .part-select").allInnerTexts(), ["Torchlight in the lower crypt"])
+    assert.deepEqual(await page.locator(".view-tile").allInnerTexts(), ["Whole frame"])
+    // A note about what this view shows names the view, and links back to it.
+    await page.locator(".note-on-view").click()
+    assert.match(await page.locator(".note-view-pick").innerText(), /On view: Whole frame/)
+    await page.locator(".note-new textarea").fill("The stair landing is still too dark")
+    await page.getByRole("button", { name: "Add", exact: true }).click()
+    await page.locator('.note .view-chip:has-text("Whole frame")').waitFor()
+    await page.screenshot({ path: `${OUT}/view-note-1440.png` })
 
     // A text-only item is one decision.
     await page.goto(`${s.url}#/reviews/s/${submission.id}/${text.id}`)
     await page.locator(".item-text").waitFor()
     assert.equal(await page.locator(".item-view .stage").count(), 0)
-    assert.match(await page.locator('section[aria-label="Decision"]').innerText(), /Decision/)
+    assert.deepEqual(await page.locator(".comp-row .part-select").allInnerTexts(), ["Torches flicker less?"], "decided as one part, named after the item")
     await page.screenshot({ path: `${OUT}/decision-1440.png` })
 
     // A unit item: its capture first, then its content, which follows the pixel-art policy.

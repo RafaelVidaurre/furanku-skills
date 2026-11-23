@@ -56,7 +56,16 @@ Done when `unit.get` shows the category and memberships, and you have told the p
 
 A step of a run is put in front of a person with `jam run request-review` (the `jam-recipe` skill); its verdict flows back into the run. Content outside a run is submitted here with `review.submit`. It is one review system either way: the person decides in the browser, on the link.
 
-Look before you submit: capture each part the person will judge and open the images. Something visibly wrong (missing geometry, a blank texture, the wrong file) is fixed or reported, not sent for approval. Give the submission one view per thing to judge, each with a caption naming what it shows.
+Look before you submit: capture each part the person will judge and open the images. Something visibly wrong (missing geometry, a blank texture, the wrong file) is fixed or reported, not sent for approval.
+
+An item separates what is decided from how it is shown:
+
+- **Parts** are what the person gives a verdict on: a unit's content parts (`parts`), or for anything else the entries of `decide` (`[{ "id": "design", "label": "Design" }]`). An item with none of either is decided as one part, `item`.
+- **Views** are ways of showing: camera angles, an old/new comparison, a concept sheet, an engine screenshot. Each has a caption naming what it shows, and is never decided. A person can leave a note on one view when the point is visible there.
+
+Several angles of one thing are views of one part, never several parts.
+
+Show media in the catalog's own viewer whenever it can be. A model is shown as its GLB, where the person can orbit, zoom, play its clips and switch to clay or wireframe: a unit's model part, or a capture of the file. Old against new is a capture pair of the two GLBs (`{ "revision", "path" }` for the old one when it is only in Git), shown side by side with linked cameras or as an overlay. An angle worth pointing out is a view of that same capture with a `camera` (`{ "position": [x, y, z], "target": [x, y, z] }`; check the framing with `jam catalog capture`), not a rendered still. Renders and screenshots are views only for what the viewer cannot show (in-engine lighting, the game camera with its post-processing), placed after the model.
 
 Each thing the person reads goes in its own field, written for them:
 
@@ -72,11 +81,11 @@ Each thing the person reads goes in its own field, written for them:
 
 `brief`, `changes` and `limits` appear once, on the review's overview; leave a field out when it has nothing to say. Every item is something the person decides: a note to read first goes in `brief`, never in an item. A line that would repeat in every item's `text` belongs in `brief` too. Leave out what the page already shows (author, branch, commit) and what they will not open (hashes, request ids, tool logs). When a change is easiest to judge against what came before, give a view a `before` (an earlier file, or earlier frozen evidence) so the page offers a side-by-side.
 
-What the catalog cannot render itself (an engine screenshot or clip, a file as it was at a commit) goes in an item's `captures`, each `{ "label", "file" }` or a pair `{ "label", "before", "after", "labels": [..] }`, with `"renderer"` naming what drew it; a file is a checkout path or `{ "revision", "path" }`. Work that is not catalog content (lighting, tooling, a proposal) is an item without `target`: a `title` with captures, `text`, or both. An item with only `text` is a proposal the person approves or rejects. Captures are decided like parts but never count as the unit's own.
+What the catalog cannot render itself (an engine screenshot or clip, a file as it was at a commit) goes in an item's `captures`, each `{ "label", "file" }` or a pair `{ "label", "before", "after", "labels": [..] }`, with `"renderer"` naming what drew it and `"shows"` naming the part it shows (default: the item's only part, else the whole item); a file is a checkout path or `{ "revision", "path" }`. Each capture becomes a view. Work that is not catalog content (lighting, tooling, a proposal) is an item without `target`: a `title` with captures, `text`, or both. An item with only `text` is a proposal the person approves or rejects.
 
 A verdict is the person's. They give it in the browser. When they told you their decision instead, relay it with `review.decide` as yourself (`--actor-kind agent`) and add `"relay": {"by": "<the name they go by in the project>", "channel": "<where they said it>", "words": "<what they said, verbatim>"}`, with `whole` (or `verdicts` per part) set to one of `review.verdicts` in `catalog.config.json` (by default `approved`, `changes`, `rejected`). The record then shows it came through you, and a run's human gate accepts it as a relay. Their words set what the decision covers: "the crate is fine" decides the model, not attributes they did not look at; ask when it is unclear. Never record your own judgement as a person's.
 
-Notes have no replies. Mark one dealt with (`note.resolve`) only when what it says was actually handled.
+Read open notes on a review with `review.get` (`observations`); a note's `viewLabel` names the view it is about. Notes have no replies. Mark one dealt with (`note.resolve`) only when what it says was actually handled.
 
 Done when `review.get` shows the submission or decision, and the person has its `url`.
 

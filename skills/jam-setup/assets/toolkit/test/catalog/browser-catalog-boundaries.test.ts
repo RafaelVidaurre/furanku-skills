@@ -83,7 +83,7 @@ test("browse and detail stay separate; review references remain viewable but can
     await p.waitForFunction(() => window.catalogViewer?.state().selection?.part === "evidence")
     await p.goto(`${server.url}#/reviews/s/${referenceViewsOnly.submission.id}`)
     await p.waitForFunction(() => window.catalogViewer?.state().viewer?.status === "ready")
-    assert.equal(await p.locator(".caption-bar").textContent(), "Helmet detail", "a historical submission with only supporting views still opens a useful preview")
+    assert.equal(await p.locator(".caption-bar .caption").textContent(), "Helmet detail", "a historical submission with only supporting views still opens a useful preview")
     assert.equal(await p.locator(".comp-row").count(), 1, "supporting views never add decision targets")
     assert.deepEqual(p.errors, [])
   } finally {

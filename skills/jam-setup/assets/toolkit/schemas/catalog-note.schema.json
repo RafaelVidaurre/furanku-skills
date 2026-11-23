@@ -44,6 +44,16 @@
                   "type": "null"
                 }
               ]
+            },
+            "view": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
