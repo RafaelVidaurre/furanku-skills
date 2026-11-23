@@ -250,10 +250,17 @@ export const DecisionRecord = Schema.Struct({
   // An agent recording what a person decided elsewhere. The agent stays the actor; the person's
   // words are kept verbatim, so nobody mistakes the record for the person's own click.
   relay: Schema.optionalKey(Schema.Struct({ by: text(200), channel: text(300), words: text(PART_COMMENT_MAX) })),
+  // A decision changed after it was recorded: its revision, and who changed it when. It keeps its
+  // place in the order (`at`), so an edited verdict still yields to later ones.
+  revision: Schema.optionalKey(Revision),
+  editedAt: Schema.optionalKey(Iso),
+  editedBy: Schema.optionalKey(Actor),
   requestId: nullable(text(300)),
-  requestBinding: nullable(Binding)
+  requestBinding: nullable(Binding),
+  lastRequestId: nullable(text(300)),
+  lastRequestBinding: nullable(Binding)
 }).check(Schema.makeFilter((decision) => {
-  if (!requestPair(decision.requestId, decision.requestBinding)) return "request binding is invalid"
+  if (!requestPair(decision.requestId, decision.requestBinding) || !requestPair(decision.lastRequestId, decision.lastRequestBinding)) return "request binding is invalid"
   if (decision.relay !== undefined && decision.by.kind !== "agent") return "only an agent relays a person's verdict"
   const parts: ReadonlyArray<string> = decision.covers.parts
   let decided = parts

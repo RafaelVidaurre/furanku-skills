@@ -346,11 +346,12 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
   const save = async (decision = dec, comment = d.comment, requestId = d.requestId, partComments = commentsFor(decision, d.comments, parts.map((p) => p.id))) => {
     if (!decision || saving.current) return;
     saving.current = true; setBusy(true); setErr(null);
-    const firstVerdict = item.summary.undecided === item.summary.total;
+    const firstVerdict = !d.editing && item.summary.undecided === item.summary.total;
     try {
-      await write('review.decide', { submission: sub.id, item: item.id, ...decision, comment: comment || undefined, partComments }, requestId);
+      if (d.editing) await write('review.decision.edit', { id: d.editing.id, expectedRevision: d.editing.revision, ...decision, comment: comment || undefined, partComments }, requestId);
+      else await write('review.decide', { submission: sub.id, item: item.id, ...decision, comment: comment || undefined, partComments }, requestId);
       setDraft(null);
-      toast(effectLine(decision, parts, item.title));
+      toast(d.editing ? `Verdict changed: ${effectLine(decision, parts, item.title)}` : effectLine(decision, parts, item.title));
       const next = firstVerdict && nextWaiting();
       if (next) goItem(next.id);
     } catch (e) { setErr(e); } finally { saving.current = false; setBusy(false); }
@@ -371,6 +372,23 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
     };
     addEventListener('keydown', key); return () => removeEventListener('keydown', key);
   });
+  // A recorded verdict opens in the decision editor; saving replaces what it says.
+  const decisionRef = useRef(null);
+  const [confirming, setConfirming] = useState(null);
+  const editDecision = (e) => {
+    const own = (m) => Object.fromEntries(Object.entries(m ?? {}).filter(([id]) => parts.some((p) => p.id === id)));
+    setDraft({ verdicts: own(e.verdicts), comments: own(e.partComments), comment: e.comment ?? '', requestId: newRequestId(), editing: { id: e.id, revision: e.revision ?? 1, at: e.at, by: e.by } });
+    setErr(null);
+    requestAnimationFrame(() => decisionRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  };
+  const deleteDecision = async (e) => {
+    try {
+      await write('review.decision.delete', { id: e.id, expectedRevision: e.revision ?? 1 });
+      if (d.editing?.id === e.id) setDraft(null);
+      setConfirming(null);
+      toast('Verdict deleted');
+    } catch (x) { setConfirming(null); toast(x.message, 'err'); }
+  };
   const targetHref = !item.target ? null : item.target.kind === 'unit' ? entityHref('unit', item.target.id) : entityHref('collection', item.target.id);
   // Views are ways of showing the item: of a decided part, or of a capture (which shows a part or
   // the whole item). Views of reference material are listed apart, as supporting views.
@@ -424,19 +442,23 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
         ${attrPart && html`<details ref=${attributesRef} tabindex="-1" class="disclosure"><summary>Properties</summary><${FrozenAttributes} part=${attrPart} /></details>`}
       </div>
       <div class="d-side">
-        <section class="block" aria-label="Decision">
+        <section class=${`block${d.editing ? ' editing' : ''}`} aria-label="Decision" ref=${decisionRef}>
           <header class="block-h"><h3>Decision</h3><${VerdictBar} parts=${parts} /><span class="muted small">${STATE_LABEL[item.state]}</span></header>
+          ${d.editing && html`<div class="editing-line"><${Icon} name="edit" size=${12} /><span>Editing the verdict</span>${d.editing.by && html`<${Person} by=${d.editing.by} />`}<span class="muted">${ago(d.editing.at)}</span></div>`}
           <${AllParts} parts=${parts} onChange=${(v) => update({ verdicts: v })} />
           <${PartVerdicts} onSelect=${selectPart} parts=${parts} verdicts=${d.verdicts} onChange=${(v) => update({ verdicts: v })} comments=${d.comments ?? {}} onComments=${(n) => update({ comments: n })} />
           <textarea class="comp-comment" placeholder="Comment on the whole review" aria-label="Comment" rows="2" value=${d.comment} onInput=${(e) => update({ comment: e.target.value })}></textarea>
           <${ErrorLine} error=${err} onRetry=${err && err.code !== 'checkout_changed' ? () => save() : null} />
           <div class="decide-f"><span class="scope-line">${effectLine(dec, parts, item.title)}</span>
-            ${draft && html`<button class="btn ghost sm" onClick=${() => setDraft(null)}>Discard</button>`}
-            <button class="btn primary sm" disabled=${!dec || busy} onClick=${() => save()}>Save</button></div>
+            ${draft && html`<button class="btn ghost sm" onClick=${() => setDraft(null)}>${d.editing ? 'Cancel' : 'Discard'}</button>`}
+            <button class="btn primary sm" disabled=${!dec || busy} onClick=${() => save()}>${d.editing ? 'Save changes' : 'Save'}</button></div>
         </section>
         <section class="block" aria-label="Verdicts">
           <header class="block-h"><h3>Verdicts</h3><span class="badge">${sub.decisions.filter((e) => e.item === item.id).length}</span></header>
-          ${sub.decisions.filter(e => e.item === item.id && Object.keys(e.verdicts).some(id => parts.some(p => p.id === id))).map((e) => html`<div class="ritem" key=${e.id}><div class="ritem-h"><${Person} by=${e.by} /><span class="muted small">${ago(e.at)}</span><span class="scope">${e.covers === 'whole' ? 'Whole' : 'Parts'}</span></div>
+          ${sub.decisions.filter(e => e.item === item.id && Object.keys(e.verdicts).some(id => parts.some(p => p.id === id))).map((e) => html`<div class=${`ritem${d.editing?.id === e.id ? ' editing' : ''}`} key=${e.id}><div class="ritem-h"><${Person} by=${e.by} /><span class="muted small">${ago(e.at)}${e.editedAt ? ` · edited ${ago(e.editedAt)}` : ''}</span><span class="scope">${e.covers === 'whole' ? 'Whole' : 'Parts'}</span>
+              <span class="ritem-actions">${confirming === e.id
+                ? html`<span class="small">Delete this verdict?</span><button class="btn xs danger" onClick=${() => deleteDecision(e)}>Delete</button><button class="btn xs ghost" onClick=${() => setConfirming(null)}>Keep</button>`
+                : html`<button class="icon-btn sm" aria-label="Edit verdict" title="Edit verdict" onClick=${() => editDecision(e)}><${Icon} name="edit" size=${12} /></button><button class="icon-btn sm" aria-label="Delete verdict" title="Delete verdict" onClick=${() => setConfirming(e.id)}><${Icon} name="trash" size=${12} /></button>`}</span></div>
             <div class="pvs">${Object.entries(e.verdicts).filter(([pid]) => parts.some(p => p.id === pid)).map(([pid, v]) => html`<span class=${`pv ${v}`}><${Icon} name=${v === 'approved' ? 'check' : v === 'changes' ? 'x' : 'stop'} size=${11} />${parts.find((x) => x.id === pid)?.label ?? pid}</span>`)}</div>
             <${PartComments} e=${{ ...e, verdicts: Object.fromEntries(Object.entries(e.verdicts).filter(([id]) => parts.some(p => p.id === id))) }} label=${(pid) => parts.find((x) => x.id === pid)?.label ?? pid} />${e.comment && html`<p class="ritem-c">${e.comment}</p>`}</div>`)}
         </section>

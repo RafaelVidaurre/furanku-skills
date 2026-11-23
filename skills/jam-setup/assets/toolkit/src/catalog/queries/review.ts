@@ -126,7 +126,10 @@ export const decisionSummary = (decision: DecisionRecord, submission: Submission
   verdicts: decisionVerdicts(decision),
   comment: decision.comment ?? "",
   partComments: decision.partComments ?? {},
-  ...(decision.relay === undefined ? {} : { relay: decision.relay })
+  ...(decision.relay === undefined ? {} : { relay: decision.relay }),
+  revision: decision.revision ?? 1,
+  ...(decision.editedAt === undefined ? {} : { editedAt: decision.editedAt }),
+  ...(decision.editedBy === undefined ? {} : { editedBy: decision.editedBy })
 })
 export const summaryOf = (p: Projection, decision: DecisionRecord): DecisionSummary => decisionSummary(decision, p.items.get(decision.item)?.submission)
 

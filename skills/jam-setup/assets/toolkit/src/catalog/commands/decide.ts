@@ -1,13 +1,14 @@
-// Recording decisions. A decision is immutable: `whole` covers every reviewable part of an item
-// with one verdict plus explicit exceptions, `parts` covers only the parts it names.
+// Recording decisions: `whole` covers every reviewable part of an item with one verdict plus
+// explicit exceptions, `parts` covers only the parts it names. A recorded decision can be edited
+// or deleted; an agent changes only decisions it recorded itself, never a person's.
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import { type ActionServices, optional, priorRequest, refOf, requestFields, Text, write, type WriteEnv } from "../action.ts"
+import { type ActionServices, ExpectedRevision, optional, priorRequest, refOf, requestFields, Text, write, type WriteEnv } from "../action.ts"
 import { fail, type ToolError } from "../../kernel/errors.ts"
 import { isNonEmpty } from "../../kernel/hash.ts"
 import { ensureHashed, targetAssets } from "../hashes.ts"
 import { Ids, nowIso, shortRef } from "../../kernel/Ids.ts"
-import type { SubmissionItem, SubmissionRecord, DecisionRecord } from "../model/types.ts"
+import type { Actor, SubmissionItem, SubmissionRecord, DecisionRecord } from "../model/types.ts"
 import { decisionVerdicts } from "../model/verdicts.ts"
 import { type Projection, targetKey } from "../Projection.ts"
 import { findItem } from "../queries/evidence.ts"
@@ -34,6 +35,9 @@ const Decision = {
 }
 export const DecideInput = Schema.Struct({ submission: Text, item: Text, ...Decision })
 export const DecideCurrentInput = Schema.Struct({ target: refOf(["unit", "collection"]), ...Decision })
+const DecisionId = Text.annotate({ description: "The decision's id (dc_…), as review.get lists it under decisions" })
+export const DecisionEditInput = Schema.Struct({ id: DecisionId, ...Decision, expectedRevision: ExpectedRevision })
+export const DecisionDeleteInput = Schema.Struct({ id: DecisionId, expectedRevision: ExpectedRevision })
 const Decided = {
   decision: DecisionSummary,
   item: Schema.optional(Rollup).annotate({ description: "The item's state after this decision (absent when a request is repeated)" }),
@@ -44,6 +48,9 @@ export const DecideCurrentOutput = Linked({
   ...Written(Decided).fields,
   submission: Schema.Struct({ id: Schema.String, ref: Schema.String }),
   createdSubmission: Schema.Boolean
+})
+export const DecisionDeleteOutput = Linked({
+  ...Written({ deleted: Schema.String, item: Rollup.annotate({ description: "The item's state without this decision" }), ...Route }).fields
 })
 type DecisionInput = Pick<typeof DecideInput.Type, keyof typeof Decision>
 type Covered = Pick<DecisionRecord, "covers" | "verdict" | "exceptions" | "verdicts" | "partComments">
@@ -111,6 +118,23 @@ const decideOn = (env: WriteEnv, submission: SubmissionRecord, item: SubmissionI
     return { decision: decisionSummary(record, submission), item: itemState(p, submission, item, [...(p.decisionsByItem.get(item.id) ?? []), record]).summary, route: reviewRoute(submission.id, item.id) }
   })
 
+const getDecision = (p: Projection, id: string): Effect.Effect<DecisionRecord, ToolError> => {
+  const found = p.records.decision.find((candidate) => candidate.id === id)
+  return found ? Effect.succeed(found) : fail("not_found", `decision ${id} not found`, { fix: "list an item's decisions with review.get" })
+}
+
+/** A person may change any decision; an agent only one it recorded itself. */
+const mayChange = (actor: Actor, decision: DecisionRecord): Effect.Effect<void, ToolError> =>
+  actor.kind === "human" || (decision.by.kind === "agent" && decision.by.name === actor.name)
+    ? Effect.void
+    : fail("forbidden", `decision ${decision.id} was recorded by ${decision.by.name}; an agent changes only decisions it recorded`, {
+      fix: "the person changes it in the catalog, or relay what they said as a new decision with review.decide"
+    })
+
+/** The decisions an item holds once `id` is replaced by `next` (or removed when next is null). */
+const without = (p: Projection, decision: DecisionRecord, next: DecisionRecord | null): Array<DecisionRecord> =>
+  (p.decisionsByItem.get(decision.item) ?? []).flatMap((d) => (d.id === decision.id ? (next ? [next] : []) : [d]))
+
 export const decideActions = [
   write(
     "review.decide",
@@ -124,6 +148,56 @@ export const decideActions = [
         if (prior) return { decision: summaryOf(env.projection, prior), replayed: true, route: reviewRoute(prior.submission, prior.item) }
         const { item, submission } = yield* findItem(env.projection, input.submission, input.item)
         return yield* decideOn(env, submission, item, input)
+      })
+  ),
+  write(
+    "review.decision.edit",
+    "Change a recorded decision: its verdicts (whole + exceptions, or specific parts), comment and part comments replace what it held; it keeps its place in the order",
+    DecisionEditInput,
+    DecideOutput,
+    "reviews",
+    (input, env) =>
+      Effect.gen(function*() {
+        const p = env.projection
+        const current = yield* getDecision(p, input.id)
+        if (yield* priorRequest(p, "decision", env.requestId, env.requestBinding, "lastRequestId")) return { decision: summaryOf(p, current), replayed: true, route: reviewRoute(current.submission, current.item) }
+        yield* mayChange(env.actor, current)
+        if (input.relay != null && env.actor.kind !== "agent") return yield* fail("invalid", "relay is for an agent recording a person's decision; a person editing leaves it out")
+        const { item, submission } = yield* findItem(p, current.submission, current.item)
+        const covered = yield* decision(p, reviewableIds(p, item), input)
+        // Everything the decision says is replaced; who recorded it, when, and why it exists stay.
+        const { verdict: _v, exceptions: _e, verdicts: _vs, partComments: _pc, comment: _c, relay: _r, lastRequestId: _l, lastRequestBinding: _lb, ...kept } = current
+        const relay = input.relay != null
+          ? { relay: { by: input.relay.by.trim(), channel: input.relay.channel.trim(), words: input.relay.words.trim() } }
+          : current.relay && env.actor.kind === "agent" ? { relay: current.relay } : {}
+        const next: DecisionRecord = {
+          ...kept,
+          ...covered,
+          ...(isNonEmpty(input.comment) ? { comment: input.comment.trim() } : {}),
+          ...relay,
+          editedAt: yield* nowIso,
+          editedBy: env.actor,
+          ...(env.requestId !== null && env.requestBinding ? { lastRequestId: env.requestId, lastRequestBinding: env.requestBinding } : {})
+        }
+        const [updated] = yield* (yield* Records).apply([{ type: "update", kind: "decision", record: next, expectedRevision: input.expectedRevision }])
+        const saved = updated as DecisionRecord
+        return { decision: decisionSummary(saved, submission), item: itemState(p, submission, item, without(p, current, saved)).summary, route: reviewRoute(submission.id, item.id) }
+      })
+  ),
+  write(
+    "review.decision.delete",
+    "Delete a recorded decision; the item's parts fall back to the decisions that remain",
+    DecisionDeleteInput,
+    DecisionDeleteOutput,
+    "reviews",
+    (input, env) =>
+      Effect.gen(function*() {
+        const p = env.projection
+        const current = yield* getDecision(p, input.id)
+        yield* mayChange(env.actor, current)
+        const { item, submission } = yield* findItem(p, current.submission, current.item)
+        yield* (yield* Records).apply([{ type: "remove", kind: "decision", record: current, expectedRevision: input.expectedRevision }])
+        return { deleted: current.id, item: itemState(p, submission, item, without(p, current, null)).summary, route: reviewRoute(submission.id, item.id) }
       })
   ),
   // Catalog "Review": record on a still-waiting item whose frozen evidence equals current

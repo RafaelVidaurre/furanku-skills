@@ -252,10 +252,11 @@ export class Records extends Context.Service<Records, {
               planned.push({ path, data: serialize(op.record), record: op.record })
               continue
             }
-            // Immutable records are never changed; retiring one (review.remove) is the only other operation.
+            // Immutable records (submissions) are never changed; retiring one (review.remove) is the only other operation.
             if (!layout.mutable && op.type !== "remove") return yield* fail("forbidden", `${op.kind} records are immutable`)
             if (!fresh) return yield* fail("not_found", `${op.kind} ${key} no longer exists`)
-            const revision = (fresh as { revision?: number }).revision
+            // A record from before it could change (a decision) carries no revision: it is at its first.
+            const revision = (fresh as { revision?: number }).revision ?? 1
             if (op.expectedRevision !== undefined && op.expectedRevision !== null && revision !== op.expectedRevision) {
               return yield* fail("conflict", `${op.kind} changed since it was read (revision ${revision}, expected ${op.expectedRevision})`, {
                 details: { current: fresh },
@@ -266,7 +267,7 @@ export class Records extends Context.Service<Records, {
               planned.push({ path, data: null, record: fresh })
               continue
             }
-            const next = { ...op.record, revision: (revision ?? 0) + 1 } as AnyRecord
+            const next = { ...op.record, revision: revision + 1 } as AnyRecord
             const invalid = yield* validate(op.kind, next)
             if (invalid !== null) return yield* fail("invalid", `${key}: ${invalid}`)
             planned.push({ path, data: serialize(next), record: next })

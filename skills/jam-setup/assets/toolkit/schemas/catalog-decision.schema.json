@@ -143,6 +143,34 @@
           ],
           "additionalProperties": true
         },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "editedAt": {
+          "type": "string"
+        },
+        "editedBy": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "human",
+                "agent"
+              ]
+            }
+          },
+          "required": [
+            "name",
+            "kind"
+          ],
+          "additionalProperties": true
+        },
         "requestId": {
           "anyOf": [
             {
@@ -154,6 +182,44 @@
           ]
         },
         "requestBinding": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string"
+                },
+                "digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "checkout": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "action",
+                "digest",
+                "checkout"
+              ],
+              "additionalProperties": true
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lastRequestId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lastRequestBinding": {
           "anyOf": [
             {
               "type": "object",

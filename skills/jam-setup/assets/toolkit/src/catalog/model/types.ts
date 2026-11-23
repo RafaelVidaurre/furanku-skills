@@ -362,6 +362,12 @@ export interface DecisionRecord {
   readonly partComments?: Readonly<Record<string, string>>
   /** An agent recording a person's decision given outside the catalog, in their words. */
   readonly relay?: { readonly by: string; readonly channel: string; readonly words: string }
+  /** Set once the decision is edited: its revision, and who changed it when. */
+  readonly revision?: number
+  readonly editedAt?: string
+  readonly editedBy?: Actor
+  readonly lastRequestId?: string
+  readonly lastRequestBinding?: RequestBinding
 }
 
 export interface RecordsByKind {

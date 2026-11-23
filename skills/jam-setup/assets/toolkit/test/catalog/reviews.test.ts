@@ -542,3 +542,53 @@ test("review.decideCurrent takes a unit or a collection; another kind is invalid
   await rejects(run("review.decideCurrent", { target: { kind: "asset", id: "art/helm.png" }, whole: "approved" }), "invalid")
   cleanup(dir)
 })
+
+test("a recorded decision can be edited in place or deleted; an agent changes only decisions it recorded", async () => {
+  const dir = await standardProject()
+  const app = await open(dir)
+  const person = W(app, human)
+  const bot = W(app, agent)
+  const s = await person("review.submit", { items: [{ target: unit("armor/helm") }] })
+  const rv = await app.run("review.get", { submission: s.submission.id })
+  const item = rv.items[0].id
+  const decisionFiles = () => files(dir, `.catalog/reviews/${rv.id}/decisions`)
+  const verdictOf = async (part: string) => (await app.run("unit.get", { id: "armor/helm" })).review.parts.find((p: Any) => p.id === part).verdict
+
+  const first = (await person("review.decide", { submission: rv.id, item, whole: "approved", comment: "Fine" })).decision
+  assert.equal(first.revision, 1)
+  const later = (await person("review.decide", { submission: rv.id, item, verdicts: { icon: "changes" } })).decision
+
+  // Editing replaces what the decision says, keeps its id, author and place in the order.
+  const edited = await person("review.decision.edit", { id: first.id, expectedRevision: 1, whole: "rejected", exceptions: { model: "changes" }, partComments: { model: "Silhouette" } }, "edit-1")
+  assert.equal(edited.decision.id, first.id)
+  assert.equal(edited.decision.revision, 2)
+  assert.deepEqual(edited.decision.by, human)
+  assert.equal(edited.decision.at, first.at)
+  assert.deepEqual(edited.decision.editedBy, human)
+  assert.equal(edited.decision.comment, "", "a comment left out of the edit is cleared")
+  assert.equal(await verdictOf("model"), "changes")
+  assert.equal(await verdictOf("icon"), "changes", "the later decision still wins its part")
+  assert.equal(decisionFiles().length, 2, "an edit writes no new decision")
+  // A retry of the same edit is one change; a stale revision is a conflict.
+  assert.equal((await person("review.decision.edit", { id: first.id, expectedRevision: 1, whole: "rejected", exceptions: { model: "changes" }, partComments: { model: "Silhouette" } }, "edit-1")).replayed, true)
+  await rejects(person("review.decision.edit", { id: first.id, expectedRevision: 1, whole: "approved" }), "conflict")
+  await rejects(person("review.decision.edit", { id: first.id, whole: "maybe" }), "invalid")
+
+  // An agent may not change a person's decision, but may change its own.
+  await rejects(bot("review.decision.edit", { id: first.id, whole: "approved" }), "forbidden")
+  await rejects(bot("review.decision.delete", { id: later.id }), "forbidden")
+  const own = (await bot("review.decide", { submission: rv.id, item, verdicts: { attributes: "approved" } })).decision
+  assert.equal((await bot("review.decision.edit", { id: own.id, verdicts: { attributes: "changes" } })).decision.verdicts.attributes, "changes")
+
+  // Deleting a decision returns its parts to what the remaining decisions say.
+  const gone = await person("review.decision.delete", { id: later.id, expectedRevision: 1 })
+  assert.equal(gone.deleted, later.id)
+  assert.equal(await verdictOf("icon"), "rejected", "icon falls back to the edited whole decision")
+  await person("review.decision.delete", { id: own.id })
+  await person("review.decision.delete", { id: first.id })
+  assert.equal(decisionFiles().length, 0)
+  assert.equal((await app.run("review.get", { submission: rv.id })).items[0].summary.undecided > 0, true)
+  await rejects(person("review.decision.delete", { id: first.id }), "not_found")
+  assert.equal((await (await open(dir)).run("problems", {})).problems.length, 0)
+  cleanup(dir)
+})
