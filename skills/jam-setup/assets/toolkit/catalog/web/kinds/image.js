@@ -66,6 +66,9 @@ export function ImageViewer({ src, label, view: extView, onView, viewerId, shows
 }
 
 // Image comparison: side by side (linked zoom), divider, or toggle; fullscreen keeps the mode.
+// The mode and full-screen buttons sit over the bottom-left corner of the (first) image, clear of the
+// viewers' own tools (top right), the toggle's side tag (top left) and the divider's handle (middle).
+const MODES = [['side', 'Side by side', 'sideBySide'], ['divider', 'Divider', 'split'], ['toggle', 'Toggle', 'swap']];
 export function ImageCompare({ a, b, labels, mark, control }) {
   const [dims, setDims] = useState({});
   const [mode, setModeState] = useState(null);
@@ -87,18 +90,21 @@ export function ImageCompare({ a, b, labels, mark, control }) {
   // screen; full screen fills the window instead.
   const ratio = aligned ? `${dims.a[0]} / ${dims.a[1]}` : null;
   useEffect(() => { for (const k of ['a', 'b']) { const s = k === 'a' ? a : b; if (s.status !== 'ok') mark(k)('error'); else if (dims[k] === 'error') mark(k)('error'); else if (dims[k]) mark(k)('ready'); else mark(k)('loading'); } }, [dims.a, dims.b]);
+  const modes = (inFull) => html`<div class="cmp-modes">
+    <span role="radiogroup" aria-label="Comparison mode">${MODES.map(([k, l, icon]) => html`<button role="radio" aria-checked=${m === k} aria-label=${l} data-tip=${l} class=${m === k ? 'on' : ''} disabled=${k !== 'side' && !both} onClick=${() => setMode(k)}><${Icon} name=${icon} size=${15} /></button>`)}</span>
+    <button class="full-btn" onClick=${() => setFull(!inFull)} aria-label=${inFull ? 'Exit full screen' : 'Full screen'} data-tip=${inFull ? 'Exit full screen' : 'Full screen'}><${Icon} name=${inFull ? 'collapse' : 'expand'} size=${15} /></button>
+  </div>`;
   const body = (inFull) => html`<div class=${`cmp${inFull ? ' full' : ''}`}>
-    <div class="cmp-tools">
-      <span class="seg" role="radiogroup" aria-label="Comparison mode">${[['side', 'Side by side'], ['divider', 'Divider'], ['toggle', 'Toggle']].map(([k, l]) => html`<button role="radio" aria-checked=${m === k} class=${`seg-b${m === k ? ' on' : ''}`} disabled=${k !== 'side' && !both} onClick=${() => setMode(k)}>${l}</button>`)}</span>
-      ${both && !aligned && Array.isArray(dims.a) && Array.isArray(dims.b) && html`<span class="muted small">${dims.a.join('×')} vs ${dims.b.join('×')}</span>`}
-      <button class="btn sm push full-btn" onClick=${() => setFull(!inFull)} aria-label=${inFull ? 'Exit full screen' : 'Full screen'} title=${inFull ? 'Exit full screen' : 'Full screen'}><${Icon} name="expand" size=${12} /><span>${inFull ? 'Exit' : 'Full screen'}</span></button>
-    </div>
+    ${both && !aligned && Array.isArray(dims.a) && Array.isArray(dims.b) && html`<div class="muted small cmp-dims">${dims.a.join('×')} vs ${dims.b.join('×')}</div>`}
+    <div class="cmp-stage">
     ${m === 'side' && html`<div class="cmp-side">
-      <div>${sideLabel(a, labels[0])}${a.status === 'ok' ? html`<${ImageViewer} src=${a.url} view=${view} onView=${setView} />` : html`<${SideError} side=${a} />`}</div>
+      <div class="cmp-stage">${sideLabel(a, labels[0])}${a.status === 'ok' ? html`<${ImageViewer} src=${a.url} view=${view} onView=${setView} />` : html`<${SideError} side=${a} />`}${modes(inFull)}</div>
       <div>${sideLabel(b, labels[1])}${b.status === 'ok' ? html`<${ImageViewer} src=${b.url} view=${view} onView=${setView} />` : html`<${SideError} side=${b} />`}</div>
     </div>`}
     ${m === 'divider' && html`<${Divider} a=${a} b=${b} labels=${labels} value=${divider} onChange=${setDivider} ratio=${inFull ? null : ratio} />`}
     ${m === 'toggle' && html`<${Toggle} a=${a} b=${b} labels=${labels} showB=${showB} onFlip=${() => setShowB(!showB)} ratio=${inFull ? null : ratio} />`}
+    ${m !== 'side' && modes(inFull)}
+    </div>
   </div>`;
   return html`${body(false)}${full && html`<${FullScreen} onClose=${() => setFull(false)}>${body(true)}<//>`}`;
 }
