@@ -54,6 +54,7 @@ const ItemInput = Schema.Struct({
     id: Schema.String.annotate({ description: "Lowercase letters, digits and hyphens; becomes part item:<id>" }),
     label: Schema.String
   }))).annotate({ description: "What the person decides beyond content parts, for example [{id: \"design\", label: \"Design\"}]. An item with nothing to decide otherwise is decided as one part, item" }),
+  choose: optional(Schema.Literal("one")).annotate({ description: "\"one\": the item's parts are options and the person picks one of them, or none of them. Needs at least two parts to decide" }),
   captures: optional(Schema.Array(CaptureInput)).annotate({
     description: "Ways of showing the item, rendered outside the catalog: {label, file} or {label, before, after, labels?}, where a file is a checkout path or {revision, path}. Each is shown as a view and names the part it shows; it is never decided itself. renderer names who rendered it"
   }),
@@ -132,6 +133,12 @@ const workParts = (spec: ItemSpec, content: ReadonlyArray<Part>, name: string, c
     return parts.length > 0 || content.length > 0 ? parts : [{ id: ITEM_PART, label: name }]
   })
 
+/** An item that chooses one option needs at least two options. */
+const checkChoice = (spec: ItemSpec, decided: ReadonlyArray<Part>): Effect.Effect<void, ToolError> =>
+  spec.choose === "one" && decided.length < 2
+    ? fail("invalid", `an item that chooses one needs at least two options; it has ${decided.length}`, { fix: "name the options with decide, or select at least two parts" })
+    : Effect.void
+
 /** What each capture shows: the part it names, else the item's only part, else the whole item. */
 const resolveShows = (captures: ReadonlyArray<PlannedCapture>, decided: ReadonlyArray<Part>): Effect.Effect<ReadonlyArray<string | null>, ToolError> =>
   Effect.forEach(captures, (capture) => {
@@ -166,7 +173,7 @@ const planItem = (env: FreezeEnv, spec: ItemSpec): Freezing<Plan> =>
       if (spec.parts != null) return yield* fail("invalid", "parts select content parts, and this item has no target; name what is decided with decide")
       const work = yield* workParts(spec, [], spec.title.trim(), captures.length)
       yield* checkViews(spec.views, captures.map(capturePart), withCaptures(() => [""]))
-      return { spec, chosen: [], work, captures, shows: yield* resolveShows(captures, work), befores: yield* planBefores(env, spec.views, shownWithCaptures(() => null)) }
+      return { spec, chosen: [], work, captures, shows: yield* checkChoice(spec, work).pipe(Effect.andThen(resolveShows(captures, work))), befores: yield* planBefores(env, spec.views, shownWithCaptures(() => null)) }
     }
     const kindOf = (asset: string | undefined): string | null => (asset === undefined ? null : factsOf(p, asset).kind ?? null)
     const available = (asset: string, what: string): Effect.Effect<void, ToolError> => {
@@ -181,7 +188,7 @@ const planItem = (env: FreezeEnv, spec: ItemSpec): Freezing<Plan> =>
       yield* checkViews(spec.views, [...captures.map(capturePart), ...chosen], withCaptures(() => [""]))
       for (const part of chosen) if (part.asset !== undefined) yield* available(part.asset, `${unit.name} · ${part.label}`)
       const befores = yield* planBefores(env, spec.views, shownWithCaptures((view) => kindOf(chosen.find((part) => part.id === view.part)?.asset)))
-      return { spec, chosen, work, captures, shows: yield* resolveShows(captures, [...chosen, ...work]), befores, unit }
+      return { spec, chosen, work, captures, shows: yield* checkChoice(spec, [...chosen, ...work]).pipe(Effect.andThen(resolveShows(captures, [...chosen, ...work]))), befores, unit }
     }
     const collection = p.collectionsById.get(spec.target.id)
     if (!collection) return yield* fail("not_found", `collection ${spec.target.id} is not in this checkout`)
@@ -219,7 +226,7 @@ const planItem = (env: FreezeEnv, spec: ItemSpec): Freezing<Plan> =>
       const cut = view.leaf.lastIndexOf("/")
       return kindOf(partsOfUnit(view.leaf.slice(0, cut)).find((part) => part.id === view.leaf!.slice(cut + 1))?.asset)
     }
-    return { spec, chosen, work, captures, shows: yield* resolveShows(captures, [...chosen, ...work]), befores: yield* planBefores(env, spec.views, shownWithCaptures(shownKind)), collection, preview }
+    return { spec, chosen, work, captures, shows: yield* checkChoice(spec, [...chosen, ...work]).pipe(Effect.andThen(resolveShows(captures, [...chosen, ...work]))), befores: yield* planBefores(env, spec.views, shownWithCaptures(shownKind)), collection, preview }
   })
 
 interface ViewSeed {
@@ -246,6 +253,7 @@ const freezeItem = (env: FreezeEnv, plan: Plan): Freezing<SubmissionItem> =>
     const evidence = yield* Evidence
     const titled = (fallback: string): string => (isNonEmpty(spec.title) ? spec.title.trim() : fallback)
     const text = isNonEmpty(spec.text) ? { text: spec.text.trim() } : {}
+    const choose = spec.choose === "one" ? { choose: "one" as const } : {}
     // Captures come first: they are what the item was submitted to show.
     const captured = yield* Effect.forEach(plan.captures, (capture, index) => freezeCapture(env, capture, plan.shows[index] ?? null))
     // Work parts hold what was asked; the item part of a text-only item keeps its text as before.
@@ -272,14 +280,14 @@ const freezeItem = (env: FreezeEnv, plan: Plan): Freezing<SubmissionItem> =>
         captures: plan.captures.map((capture, index) => ({ part: capture.id, label: capture.label, caption: capture.caption, renderer: capture.renderer, shows: plan.shows[index] ?? null }))
       })
       const views = yield* buildViews(spec.views, parts, captionOf((part) => part.label), viewsOf(() => []))
-      return { id, target: null, title, ...text, kind: "work", definition, parts, views: yield* freezeBefores(env, views, plan.befores) }
+      return { id, target: null, title, ...text, kind: "work", definition, parts, views: yield* freezeBefores(env, views, plan.befores), ...choose }
     }
     if (plan.unit) {
       const unit = plan.unit
       const frozen = yield* freezeUnitParts(env, unit, plan.chosen.map((part) => part.id))
       const parts = [...captured, ...plan.chosen.map((part): FrozenPart => ({ id: part.id, label: part.label, role: part.role ?? null, asset: part.asset ?? null, evidence: frozen[part.id]! })), ...work]
       const views = yield* buildViews(spec.views, parts, captionOf((part) => `${unit.name} · ${part.label}`), viewsOf((part) => (part.asset ? [{ part: part.id, caption: `${unit.name} · ${part.label}` }] : [])))
-      return { id, target: { kind: "unit", id: unit.id }, title: titled(unit.name), ...text, kind: "unit", definition: yield* freezeDefinition(env, unit), parts, views: yield* freezeBefores(env, views, plan.befores) }
+      return { id, target: { kind: "unit", id: unit.id }, title: titled(unit.name), ...text, kind: "unit", definition: yield* freezeDefinition(env, unit), parts, views: yield* freezeBefores(env, views, plan.befores), ...choose }
     }
     const collection = plan.collection!
     const preview = plan.preview ?? null
@@ -333,7 +341,8 @@ const freezeItem = (env: FreezeEnv, plan: Plan): Freezing<SubmissionItem> =>
       definition,
       parts,
       views: yield* freezeBefores(env, views, plan.befores),
-      preview: preview ? { module: preview.module, label: preview.label, represents: preview.represents } : null
+      preview: preview ? { module: preview.module, label: preview.label, represents: preview.represents } : null,
+      ...choose
     }
   })
 

@@ -112,6 +112,7 @@ export const DecisionSummary = Schema.Struct({
   comment: Str,
   partComments: Schema.Record(Str, Str),
   relay: opt(Relay),
+  pick: opt(Schema.Struct({ option: Nullable(Str) })).annotate({ description: "On an item that chooses one option: the option picked, or null for none" }),
   revision: Num.annotate({ description: "Pass as expectedRevision to review.decision.edit or review.decision.delete" }),
   editedAt: opt(Str),
   editedBy: opt(Actor)
@@ -144,6 +145,7 @@ const ItemHeaderFields = {
   title: Str,
   text: Nullable(Str),
   targetExists: Nullable(Bool),
+  choose: opt(Schema.Literal("one")),
   state: ReviewState,
   summary: Rollup
 }
@@ -161,6 +163,8 @@ const SubmissionFields = {
   changes: Nullable(Str),
   limits: Nullable(Str),
   replacedBy: Nullable(Str).annotate({ description: "The submission that replaces this one; a replaced submission waits on nobody" }),
+  withdrawn: Nullable(Schema.Struct({ by: Actor, at: Str, reason: Str })).annotate({ description: "Who withdrew it, when and why; a withdrawn submission waits on nobody" }),
+  revision: Num.annotate({ description: "Pass as expectedRevision to review.update or review.withdraw" }),
   counts: Schema.Struct({ items: Num, waiting: Num, approved: Num, changes: Num, rejected: Num })
 }
 /** A submission with each item's state and counts, without evidence. */

@@ -53,7 +53,8 @@ export const KINDS: { readonly [K in RecordKind]: KindLayout<Extract<AnyRecord, 
   submission: {
     file: (r) => `reviews/${(r as unknown as SubmissionRecord).id}/submission.json`,
     match: /^reviews\/[^/]+\/submission\.json$/,
-    mutable: false,
+    // Its words and framing can be corrected and it can be withdrawn; frozen evidence never changes.
+    mutable: true,
     key: (r) => (r as unknown as SubmissionRecord).id
   },
   decision: {

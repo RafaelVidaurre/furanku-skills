@@ -127,6 +127,7 @@ export const decisionSummary = (decision: DecisionRecord, submission: Submission
   comment: decision.comment ?? "",
   partComments: decision.partComments ?? {},
   ...(decision.relay === undefined ? {} : { relay: decision.relay }),
+  ...(decision.pick === undefined ? {} : { pick: decision.pick }),
   revision: decision.revision ?? 1,
   ...(decision.editedAt === undefined ? {} : { editedAt: decision.editedAt }),
   ...(decision.editedBy === undefined ? {} : { editedBy: decision.editedBy })
@@ -174,12 +175,26 @@ export const itemState = (
     const hit = resolved[part.id]
     return { id: part.id, label: part.label, reviewable: p.policy.reviewable(part), verdict: hit?.verdict ?? null, decision: hit ? decisionSummary(hit.decision, submission) : null }
   })
-  return { parts, summary: summarize(parts.filter((part) => part.reviewable)) }
+  const decided = parts.filter((part) => part.reviewable)
+  return { parts, summary: item.choose === "one" ? choiceSummary(decided) : summarize(decided) }
 }
 
-/** Submission items targeting this entity that still have undecided parts, in submissions nothing replaced. */
+/**
+ * An item that chooses one option reads as one decision: the option taken (approved, or approved
+ * with changes), none of them (rejected), or not yet decided. Verdicts that do not read as one
+ * pick (several reviewers under another resolver) fall back to the per-part rollup.
+ */
+const choiceSummary = (options: ReadonlyArray<ItemPartState>): Rollup => {
+  if (options.every((option) => option.verdict === null)) return summarize([{ verdict: null }])
+  const taken = options.filter((option) => option.verdict === "approved" || option.verdict === "changes")
+  const rest = options.filter((option) => !taken.includes(option))
+  if (taken.length <= 1 && rest.every((option) => option.verdict === "rejected")) return summarize([{ verdict: taken[0]?.verdict ?? "rejected" }])
+  return summarize(options)
+}
+
+/** Submission items targeting this entity that still have undecided parts, in submissions neither replaced nor withdrawn. */
 export const openItemsFor = (p: Projection, target: Target) =>
   (p.itemsByTarget.get(targetKey(target)) ?? [])
-    .filter(({ submission }: ItemRef) => !p.records.submission.some((other) => other.supersedes === submission.id))
+    .filter(({ submission }: ItemRef) => !submission.withdrawn && !p.records.submission.some((other) => other.supersedes === submission.id))
     .map(({ item, submission }: ItemRef) => ({ submission: submission.id, ref: shortRef(submission.id), title: submission.title, item: item.id, state: itemState(p, submission, item).summary }))
     .filter((entry) => entry.state.undecided > 0)
