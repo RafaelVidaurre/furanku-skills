@@ -192,9 +192,9 @@ const choiceSummary = (options: ReadonlyArray<ItemPartState>): Rollup => {
   return summarize(options)
 }
 
-/** Submission items targeting this entity that still have undecided parts, in submissions nothing replaced. */
+/** Submission items targeting this entity that still have undecided parts, in submissions neither replaced nor withdrawn. */
 export const openItemsFor = (p: Projection, target: Target) =>
   (p.itemsByTarget.get(targetKey(target)) ?? [])
-    .filter(({ submission }: ItemRef) => !p.records.submission.some((other) => other.supersedes === submission.id))
+    .filter(({ submission }: ItemRef) => !submission.withdrawn && !p.records.submission.some((other) => other.supersedes === submission.id))
     .map(({ item, submission }: ItemRef) => ({ submission: submission.id, ref: shortRef(submission.id), title: submission.title, item: item.id, state: itemState(p, submission, item).summary }))
     .filter((entry) => entry.state.undecided > 0)

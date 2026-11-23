@@ -836,3 +836,7 @@ audio-thumb canvas { width: 100%; height: 100%; object-fit: fill; }
 .choice-dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--muted, #888); flex: none; }
 .choice-opt.on .choice-dot { border-color: var(--accent); background: radial-gradient(var(--accent) 45%, transparent 50%); }
 .choice-take { align-self: flex-start; margin-top: 2px; }
+
+.withdrawn-line { display: flex; gap: 6px; align-items: baseline; font-size: 12px; color: var(--text); background: var(--raised); border-radius: 6px; padding: 6px 8px; }
+.withdraw-btn { align-self: flex-start; }
+.withdraw-form { display: flex; flex-direction: column; gap: 6px; }

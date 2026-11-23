@@ -163,6 +163,8 @@ const SubmissionFields = {
   changes: Nullable(Str),
   limits: Nullable(Str),
   replacedBy: Nullable(Str).annotate({ description: "The submission that replaces this one; a replaced submission waits on nobody" }),
+  withdrawn: Nullable(Schema.Struct({ by: Actor, at: Str, reason: Str })).annotate({ description: "Who withdrew it, when and why; a withdrawn submission waits on nobody" }),
+  revision: Num.annotate({ description: "Pass as expectedRevision to review.update or review.withdraw" }),
   counts: Schema.Struct({ items: Num, waiting: Num, approved: Num, changes: Num, rejected: Num })
 }
 /** A submission with each item's state and counts, without evidence. */

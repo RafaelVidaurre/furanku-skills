@@ -164,7 +164,7 @@ export function ReviewsView({ route }) {
     <${ErrorLine} error=${error} onRetry=${reload} />
     <div class="feed">${data?.submissions.map((s) => html`<a class="sub-row" key=${s.id} href=${href({ section: 'reviews', kind: 's', id: s.id, query: new URLSearchParams(route.query) })}>
       <span class="sub-main"><span class="row-name">${s.title}</span><span class="row-sub"><span class="mono">${s.ref}</span> · <${Person} by=${s.by} /> · ${ago(s.at)}${s.checkout.dirty ? ' · uncommitted work' : ''}</span></span>
-      <span class="sub-counts">${s.replacedBy ? html`<span class="cnt" title="A newer submission replaces this one">Replaced</span>` : ''}${s.counts.waiting ? html`<span class="cnt wait">${s.counts.waiting} waiting</span>` : ''}${s.counts.changes ? html`<span class="cnt changes">${s.counts.changes} changes</span>` : ''}${s.counts.rejected ? html`<span class="cnt rejected">${s.counts.rejected} rejected</span>` : ''}<span class="cnt">${s.counts.approved}/${s.counts.items}</span></span>
+      <span class="sub-counts">${s.withdrawn ? html`<span class="cnt" title=${s.withdrawn.reason}>Withdrawn</span>` : s.replacedBy ? html`<span class="cnt" title="A newer submission replaces this one">Replaced</span>` : ''}${s.counts.waiting ? html`<span class="cnt wait">${s.counts.waiting} waiting</span>` : ''}${s.counts.changes ? html`<span class="cnt changes">${s.counts.changes} changes</span>` : ''}${s.counts.rejected ? html`<span class="cnt rejected">${s.counts.rejected} rejected</span>` : ''}<span class="cnt">${s.counts.approved}/${s.counts.items}</span></span>
     </a>`)}</div>
   </div>`;
 }
@@ -210,6 +210,7 @@ export function SubmissionView({ route }) {
         <div class="row-sub">${sub.checkout.branch ?? 'detached'} @ <span class="mono">${shortHash(sub.checkout.head)}</span>${sub.checkout.dirty ? ` · ${sub.checkout.dirty} uncommitted` : ''}</div>
         ${sub.supersedes && html`<div class="row-sub">Replaces <a href=${href({ section: 'reviews', kind: 's', id: sub.supersedes })}>${sub.supersedes.slice(-6).toUpperCase()}</a></div>`}
         ${sub.supersededBy.length > 0 && html`<div class="row-sub">Replaced by ${sub.supersededBy.map((x) => html`<a href=${href({ section: 'reviews', kind: 's', id: x.id })}>${x.ref}</a> `)}</div>`}
+        ${sub.withdrawn ? html`<div class="withdrawn-line" role="status"><${Icon} name="stop" size=${12} /><span>Withdrawn by <${Person} by=${sub.withdrawn.by} /> ${ago(sub.withdrawn.at)}: ${sub.withdrawn.reason}</span></div>` : html`<${Withdraw} sub=${sub} />`}
         <div class="sub-counts">${sub.counts.waiting ? html`<span class="cnt wait">${sub.counts.waiting} waiting</span>` : ''}<span class="cnt">${sub.counts.approved}/${sub.counts.items} approved</span></div>
         <${ReviewPager} subId=${subId} route=${route} />
       </div>
@@ -220,6 +221,24 @@ export function SubmissionView({ route }) {
     ${item && html`<${ItemView} key=${item.id} sub=${sub} item=${item} view=${view} viewError=${unavailable} setView=${setView} idx=${idx} goItem=${goItem} />`}
     ${onOverview && html`<${Overview} sub=${sub} goItem=${goItem} />`}
     ${!item && !onOverview && html`<div class="item-view"><div class="errline" role="alert"><${Icon} name="warn" size=${13} /><span>${unavailable}</span></div></div>`}
+  </div>`;
+}
+
+// Taking a submission back: it leaves every queue and stays readable with its verdicts.
+function Withdraw({ sub }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [err, setErr] = useState(null);
+  const go = async () => {
+    if (!reason.trim()) return;
+    try { await write('review.withdraw', { submission: sub.id, reason: reason.trim(), expectedRevision: sub.revision }, newRequestId()); setOpen(false); toast('Review withdrawn'); }
+    catch (e) { setErr(e); }
+  };
+  if (!open) return html`<button class="btn xs ghost withdraw-btn" onClick=${() => setOpen(true)}>Withdraw review</button>`;
+  return html`<div class="withdraw-form">
+    <input value=${reason} placeholder="Why withdraw it?" aria-label="Why withdraw it" autofocus onInput=${(e) => setReason(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') go(); if (e.key === 'Escape') setOpen(false); }} />
+    <${ErrorLine} error=${err} />
+    <div class="note-new-f"><button class="btn ghost sm push" onClick=${() => setOpen(false)}>Cancel</button><button class="btn danger sm" disabled=${!reason.trim()} onClick=${go}>Withdraw</button></div>
   </div>`;
 }
 
@@ -464,7 +483,7 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
           <header class="block-h"><h3>Decision</h3><${VerdictBar} parts=${parts} /><span class="muted small">${STATE_LABEL[item.state]}</span></header>
           ${d.editing && html`<div class="editing-line"><${Icon} name="edit" size=${12} /><span>Editing the verdict</span>${d.editing.by && html`<${Person} by=${d.editing.by} />`}<span class="muted">${ago(d.editing.at)}</span></div>`}
           ${chooses
-            ? html`<${ChoiceDecision} parts=${parts} pick=${d.pick} pickVerdict=${d.pickVerdict} onPick=${(pick) => update({ pick, pickVerdict: 'approved' })} onPickVerdict=${(pickVerdict) => update({ pickVerdict })} onSelect=${selectPart} />`
+            ? html`<${ChoiceDecision} parts=${parts} pick=${d.pick} pickVerdict=${d.pickVerdict} onPick=${(pick) => { update({ pick, pickVerdict: 'approved' }); if (pick && pick !== 'none' && item.views.some((v) => v.shows === pick)) setView(item.views.find((v) => v.shows === pick).id); }} onPickVerdict=${(pickVerdict) => update({ pickVerdict })} onSelect=${selectPart} />`
             : html`<${AllParts} parts=${parts} onChange=${(v) => update({ verdicts: v })} />
           <${PartVerdicts} onSelect=${selectPart} parts=${parts} verdicts=${d.verdicts} onChange=${(v) => update({ verdicts: v })} comments=${d.comments ?? {}} onComments=${(n) => update({ comments: n })} />`}
           <textarea class="comp-comment" placeholder=${dec?.pick === 'none' ? 'What would work instead? (needed)' : dec?.pickVerdict === 'changes' ? 'What should change? (needed)' : 'Comment on the whole review'} aria-label="Comment" rows="2" value=${d.comment} onInput=${(e) => update({ comment: e.target.value })}></textarea>
