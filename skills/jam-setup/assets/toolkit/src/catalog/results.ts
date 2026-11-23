@@ -153,7 +153,10 @@ const SubmissionFields = {
   at: Str,
   checkout: Schema.Struct({ branch: opt(Nullable(Str)), head: opt(Nullable(Str)), dirty: opt(Nullable(Num)) }),
   supersedes: Nullable(Str),
+  ask: Nullable(Str),
   brief: Nullable(Str),
+  changes: Nullable(Str),
+  limits: Nullable(Str),
   counts: Schema.Struct({ items: Num, waiting: Num, approved: Num, changes: Num, rejected: Num })
 }
 /** A submission with each item's state and counts, without evidence. */
@@ -169,6 +172,7 @@ const ItemPart = Schema.Struct({
   member: opt(Str),
   asset: opt(Str),
   renderer: opt(Str),
+  shows: opt(Nullable(Str)),
   pairLabels: opt(Strings),
   evidence: Schema.Struct({
     digest: Str,
@@ -198,7 +202,7 @@ export const SubmissionDetailFields = {
 
 // ---- Notes, summaries, organization
 
-export const NoteView = OpenRecord({ ...NoteRecord.fields, targetName: Str, targetExists: Bool, partLabel: Nullable(Str), thumb: Nullable(AssetRef), ...RouteOrNull })
+export const NoteView = OpenRecord({ ...NoteRecord.fields, targetName: Str, targetExists: Bool, partLabel: Nullable(Str), viewLabel: Nullable(Str), thumb: Nullable(AssetRef), ...RouteOrNull })
 
 export const Organization = Schema.Struct({
   category: Nullable(Str),

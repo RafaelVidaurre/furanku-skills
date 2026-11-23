@@ -74,9 +74,12 @@ export const catalogDesk = (agent: string): Layer.Layer<ReviewDesk, never, Catal
           // Whatever the unit does not show is shown as a capture of the item, never left out.
           // Evidence the unit links is its part (or reference material the project leaves out of reviews).
           const linked = new Set((detail?.links ?? []).map((link) => link.asset.path))
-          const capture = (label: string, shownAs: string, file: string) => ({ label: label.slice(0, LABEL_MAX), caption: caption(shownAs), file })
-          // Work's own files are what is decided; evidence beside them supports the decision.
-          const made = detail === null ? record.files.filter((file) => capturable(file.path)).map((file) => capture(`${words(file.role)} · ${stem(file.path)}`, `${step.title}: ${words(file.role)} · ${stem(file.path)}`, file.path)) : []
+          const capture = (label: string, shownAs: string, file: string, shows?: string) => ({ label: label.slice(0, LABEL_MAX), caption: caption(shownAs), file, ...(shows === undefined ? {} : { shows }) })
+          // Work's own files are what is decided, each shown by its capture; evidence beside them
+          // shows the work and is never decided itself.
+          const made = detail === null
+            ? record.files.filter((file) => capturable(file.path)).map((file, index) => capture(`${words(file.role)} · ${stem(file.path)}`, `${step.title}: ${words(file.role)} · ${stem(file.path)}`, file.path, `file-${index + 1}`))
+            : []
           const supporting = record.evidence.filter((entry) => capturable(entry.path) && !linked.has(entry.path)).map((entry) => capture(evidenceLabel(entry), `Evidence: ${evidenceLabel(entry)}`, entry.path))
           const captures = [...made, ...supporting].slice(0, VIEW_MAX)
           if (produced.length + evidence.length + captures.length === 0) {
@@ -91,25 +94,28 @@ export const catalogDesk = (agent: string): Layer.Layer<ReviewDesk, never, Catal
           ].slice(0, VIEW_MAX)
           const brief = TEXT.has(extensionOf(run.brief.path)) ? yield* files.readText(run.brief.path).pipe(Effect.catch(() => Effect.succeed(null))) : null
           const budget = budgetOf(context)
+          const title = `${run.id} · ${step.title}`
           const decided = [...produced.map((part) => part.label), ...made.map((file) => file.label)]
           const labels = [...evidence.map((entry) => entry.label), ...supporting.map((entry) => entry.label)]
-          const note = reviewNote({
+          // Work with no files of its own is decided as a whole; a unit decides its linked evidence.
+          const asked = decided.length > 0 ? decided : detail === null ? [title] : evidence.map((entry) => entry.label)
+          const { ask, brief: note } = reviewNote({
             run,
             recipeTitle: context.recipe.title,
             step,
             record,
             budget: budget.name === null || budget.budget === null ? null : { name: budget.name, budget: budget.budget },
             brief,
-            parts: decided.length > 0 ? decided : labels,
-            evidence: decided.length > 0 ? labels : []
+            parts: asked,
+            evidence: labels.filter((label) => !asked.includes(label))
           })
-          const title = `${run.id} · ${step.title}`
+          const decide = made.map((file) => ({ id: file.shows!, label: file.label }))
           const item = detail === null
-            ? { title, captures, views }
+            ? { title, ...(decide.length > 0 ? { decide } : {}), captures, views }
             : { target: { kind: "unit" as const, id: run.id }, parts: [...produced, ...evidence.map((entry) => entry.part)].map((part) => part.id), ...(captures.length > 0 ? { captures } : {}), views }
           const result = yield* catalog.run(
             "review.submit",
-            { title, brief: note, items: [item] },
+            { title, ask, brief: note, items: [item] },
             // The record's id is the request: submitting it again returns the first submission.
             { actor, requestId: requestIdOf(record) }
           )
@@ -131,12 +137,16 @@ export const catalogDesk = (agent: string): Layer.Layer<ReviewDesk, never, Catal
         const back = human.filter((part) => part.verdict === "changes" || part.verdict === "rejected")
         if (back.length > 0) {
           const decisions = unique(back.map((part) => part.decision.id)).map((id) => back.find((part) => part.decision.id === id)!.decision)
+          // Open notes on the items travel back too: a note on a view names the view it is about.
+          const items = new Set(review.items.map((item) => item.id))
+          const noted = review.observations.filter((note) => !note.resolved && note.target.item != null && items.has(note.target.item))
           const said = [
             ...unique(decisions.map((decision) => decision.comment.trim()).filter((comment) => comment !== "")),
             ...back.flatMap((part) => {
               const comment = part.decision.partComments[part.id]?.trim() ?? ""
               return comment === "" ? [] : [`${part.label}: ${comment}`]
-            })
+            }),
+            ...noted.map((note) => `${note.viewLabel ?? note.partLabel ?? "Note"}: ${note.body.trim()}`)
           ]
           return {
             state: "returned",

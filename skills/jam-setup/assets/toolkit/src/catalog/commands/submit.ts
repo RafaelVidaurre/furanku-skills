@@ -11,12 +11,13 @@ import { digest, isNonEmpty } from "../../kernel/hash.ts"
 import { Ids, nowIso } from "../../kernel/Ids.ts"
 import { ProjectFiles } from "../../kernel/ProjectFiles.ts"
 import { Evidence } from "../Evidence.ts"
-import { collectionParts, ITEM_PART, unitParts } from "../model/parts.ts"
+import { collectionParts, ITEM_PART, unitParts, workPartId } from "../model/parts.ts"
 import type { Collection, FrozenPart, FrozenView, LeafEvidence, Part, SubmissionItem, SubmissionRecord, Unit } from "../model/types.ts"
 import { factsOf, typeOf } from "../Projection.ts"
 import { type PreviewSpec, previewDigest, previewSpec } from "../queries/review.ts"
 import { submissionView } from "../queries/reviews.ts"
 import { Records } from "../Records.ts"
+import { SUBMISSION_TEXT } from "../records/schemas.ts"
 import { Linked, SubmissionView, Written } from "../results.ts"
 import { type BeforePlan, freezeBefores, planBefore } from "./before.ts"
 import { CaptureInput, captureKind, captureLeaves, freezeCapture, type PlannedCapture, planCaptures } from "./captures.ts"
@@ -47,16 +48,23 @@ const ViewInput = Schema.Struct({
 const ItemInput = Schema.Struct({
   target: optional(refOf(["unit", "collection"])).annotate({ description: "A unit or collection. Leave it out for work that is not catalog content; the item then needs a title and captures or text" }),
   title: optional(Schema.String),
-  text: optional(Schema.String).annotate({ description: "Shown above the item's evidence (at most 4000 characters). Work with text and no captures is decided as one part, item" }),
-  parts: optional(Schema.Array(Schema.String)).annotate({ description: "Content part ids to submit (default: every reviewable part; [] for captures only)" }),
+  text: optional(Schema.String).annotate({ description: "Markdown shown above this item's evidence: only what differs for this item (at most 4000 characters). Work with text and no captures is a proposal, decided as one part, item" }),
+  parts: optional(Schema.Array(Schema.String)).annotate({ description: "Content part ids to decide (default: every reviewable part; [] for none)" }),
+  decide: optional(Schema.Array(Schema.Struct({
+    id: Schema.String.annotate({ description: "Lowercase letters, digits and hyphens; becomes part item:<id>" }),
+    label: Schema.String
+  }))).annotate({ description: "What the person decides beyond content parts, for example [{id: \"design\", label: \"Design\"}]. An item with nothing to decide otherwise is decided as one part, item" }),
   captures: optional(Schema.Array(CaptureInput)).annotate({
-    description: "Evidence rendered outside the catalog: {label, file} or {label, before, after, labels?}, where a file is a checkout path or {revision, path}. Each is its own part capture:<n>; renderer names who rendered it"
+    description: "Ways of showing the item, rendered outside the catalog: {label, file} or {label, before, after, labels?}, where a file is a checkout path or {revision, path}. Each is shown as a view and names the part it shows; it is never decided itself. renderer names who rendered it"
   }),
   views: optional(Schema.Array(ViewInput))
 })
 export const SubmitInput = Schema.Struct({
-  title: optional(Schema.String),
-  brief: optional(Schema.String).annotate({ description: "Markdown shown to the reviewer beside the items" }),
+  title: optional(Schema.String).annotate({ description: "What the submission holds, as a name (\"Creature remakes, 14 designs\"); the request goes in ask" }),
+  ask: optional(Schema.String).annotate({ description: "The one question the person answers, in a sentence (at most 300 characters)" }),
+  brief: optional(Schema.String).annotate({ description: "Markdown for every item: how the work was made, how to read the views (at most 5000 characters)" }),
+  changes: optional(Schema.String).annotate({ description: "Markdown: what changed since the person last looked, and why (at most 2000 characters)" }),
+  limits: optional(Schema.String).annotate({ description: "Markdown: known defects and what is not done (at most 2000 characters)" }),
   items: Schema.Array(ItemInput),
   supersedes: optional(Schema.String).annotate({ description: "The submission this one replaces" })
 })
@@ -68,6 +76,10 @@ interface Plan {
   /** Content parts (none for work). */
   readonly chosen: ReadonlyArray<Part>
   readonly captures: ReadonlyArray<PlannedCapture>
+  /** What each capture shows, in capture order: a part id, or null for the whole item. */
+  readonly shows: ReadonlyArray<string | null>
+  /** Parts decided on their own merits (`item`, `item:<id>`). */
+  readonly work: ReadonlyArray<Part>
   readonly befores: ReadonlyArray<BeforePlan | null> | undefined
   readonly unit?: Unit
   readonly collection?: Collection
@@ -93,15 +105,41 @@ const planBefores = (env: FreezeEnv, views: ItemSpec["views"], shownKind: (view:
     ? Effect.succeed(undefined)
     : Effect.forEach(views, (view) => (view.before != null ? planBefore(env, { part: view.part, before: view.before, afterLabel: view.afterLabel }, shownKind(view)) : Effect.succeed(null)))
 
-/** The content parts to submit. An item with captures may submit none (`parts: []`). */
-const choose = (name: string, all: ReadonlyArray<Part>, wanted: ItemSpec["parts"], captures: number): Effect.Effect<ReadonlyArray<Part>, ToolError> =>
+/** The content parts to decide. `parts: []` decides none of them. */
+const choose = (name: string, all: ReadonlyArray<Part>, wanted: ItemSpec["parts"]): Effect.Effect<ReadonlyArray<Part>, ToolError> =>
   Effect.gen(function*() {
     for (const id of wanted ?? []) if (!all.some((part) => part.id === id)) return yield* fail("invalid", `${name} has no part ${id}`)
     const chosen = wanted ? all.filter((part) => wanted.includes(part.id)) : all
-    return chosen.length > 0 || (captures > 0 && wanted?.length === 0) ? chosen : yield* fail("invalid", `no reviewable parts selected for ${name}`)
+    return chosen.length > 0 || wanted?.length === 0 ? chosen : yield* fail("invalid", `no reviewable parts selected for ${name}`)
   })
 
-const itemPart: Part = { id: ITEM_PART, label: "Decision" }
+const WORK_ID = /^[a-z0-9][a-z0-9-]{0,39}$/
+/**
+ * The decide entries as parts. With nothing else to decide, the item is decided as one part `item`,
+ * named after it, as long as it shows or says something.
+ */
+const workParts = (spec: ItemSpec, content: ReadonlyArray<Part>, name: string, captures: number): Effect.Effect<ReadonlyArray<Part>, ToolError> =>
+  Effect.gen(function*() {
+    const declared = spec.decide ?? []
+    if (declared.length === 0 && content.length === 0 && captures === 0 && !isNonEmpty(spec.text)) return yield* fail("invalid", `nothing to decide or show for ${name}`, { fix: "choose parts, add captures, or name what is decided with decide" })
+    if (declared.length > 50) return yield* fail("invalid", "decide lists at most 50 parts")
+    for (const entry of declared) {
+      if (!WORK_ID.test(entry.id)) return yield* fail("invalid", `decide id ${JSON.stringify(entry.id)} must be lowercase letters, digits and hyphens (at most 40)`)
+      if (!isNonEmpty(entry.label) || entry.label.length > 300) return yield* fail("invalid", `decide ${entry.id} needs a label of at most 300 characters`)
+    }
+    if (new Set(declared.map((entry) => entry.id)).size !== declared.length) return yield* fail("invalid", "a decide id appears twice")
+    const parts = declared.map((entry): Part => ({ id: workPartId(entry.id), label: entry.label.trim() }))
+    return parts.length > 0 || content.length > 0 ? parts : [{ id: ITEM_PART, label: name }]
+  })
+
+/** What each capture shows: the part it names, else the item's only part, else the whole item. */
+const resolveShows = (captures: ReadonlyArray<PlannedCapture>, decided: ReadonlyArray<Part>): Effect.Effect<ReadonlyArray<string | null>, ToolError> =>
+  Effect.forEach(captures, (capture) => {
+    if (capture.shows === null) return Effect.succeed(decided.length === 1 ? decided[0]!.id : null)
+    const part = decided.find((candidate) => candidate.id === capture.shows || candidate.id === workPartId(capture.shows!))
+    return part ? Effect.succeed(part.id) : fail("invalid", `${capture.id} (${capture.label}) shows ${capture.shows}, which is not a part this item decides`, { fix: `use one of: ${decided.map((candidate) => candidate.id).join(", ")}` })
+  })
+
 const capturePart = (capture: PlannedCapture): Part => ({ id: capture.id, label: capture.label })
 
 /** Validate one item request completely, without any effect on the project. */
@@ -125,9 +163,10 @@ const planItem = (env: FreezeEnv, spec: ItemSpec): Freezing<Plan> =>
     if (spec.target == null) {
       if (!isNonEmpty(spec.title)) return yield* fail("invalid", "an item without a target needs a title")
       if (captures.length === 0 && !isNonEmpty(spec.text)) return yield* fail("invalid", "an item without a target needs captures or text")
-      if (spec.parts != null) return yield* fail("invalid", "parts select content parts, and this item has no target")
-      yield* checkViews(spec.views, captures.length > 0 ? captures.map(capturePart) : [itemPart], withCaptures(() => [""]))
-      return { spec, chosen: [], captures, befores: yield* planBefores(env, spec.views, shownWithCaptures(() => null)) }
+      if (spec.parts != null) return yield* fail("invalid", "parts select content parts, and this item has no target; name what is decided with decide")
+      const work = yield* workParts(spec, [], spec.title.trim(), captures.length)
+      yield* checkViews(spec.views, captures.map(capturePart), withCaptures(() => [""]))
+      return { spec, chosen: [], work, captures, shows: yield* resolveShows(captures, work), befores: yield* planBefores(env, spec.views, shownWithCaptures(() => null)) }
     }
     const kindOf = (asset: string | undefined): string | null => (asset === undefined ? null : factsOf(p, asset).kind ?? null)
     const available = (asset: string, what: string): Effect.Effect<void, ToolError> => {
@@ -137,15 +176,17 @@ const planItem = (env: FreezeEnv, spec: ItemSpec): Freezing<Plan> =>
     if (spec.target.kind === "unit") {
       const unit = unitsById.get(spec.target.id)
       if (!unit) return yield* fail("not_found", `unit ${spec.target.id} is not in this checkout`)
-      const chosen = yield* choose(unit.name, unitParts(unit, typeOf(p, unit)).filter(p.policy.reviewable), spec.parts, captures.length)
+      const chosen = yield* choose(unit.name, unitParts(unit, typeOf(p, unit)).filter(p.policy.reviewable), spec.parts)
+      const work = yield* workParts(spec, chosen, isNonEmpty(spec.title) ? spec.title.trim() : unit.name, captures.length)
       yield* checkViews(spec.views, [...captures.map(capturePart), ...chosen], withCaptures(() => [""]))
       for (const part of chosen) if (part.asset !== undefined) yield* available(part.asset, `${unit.name} · ${part.label}`)
       const befores = yield* planBefores(env, spec.views, shownWithCaptures((view) => kindOf(chosen.find((part) => part.id === view.part)?.asset)))
-      return { spec, chosen, captures, befores, unit }
+      return { spec, chosen, work, captures, shows: yield* resolveShows(captures, [...chosen, ...work]), befores, unit }
     }
     const collection = p.collectionsById.get(spec.target.id)
     if (!collection) return yield* fail("not_found", `collection ${spec.target.id} is not in this checkout`)
-    const chosen = yield* choose(collection.name, collectionParts(collection, unitsById, p.snapshot.schema), spec.parts, captures.length)
+    const chosen = yield* choose(collection.name, collectionParts(collection, unitsById, p.snapshot.schema), spec.parts)
+    const work = yield* workParts(spec, chosen, isNonEmpty(spec.title) ? spec.title.trim() : collection.name, captures.length)
     const preview = chosen.some((part) => part.id === "preview") ? previewSpec(p, collection) : null
     const partsOfUnit = (unitId: string): ReadonlyArray<Part> => {
       const unit = unitsById.get(unitId)
@@ -178,7 +219,7 @@ const planItem = (env: FreezeEnv, spec: ItemSpec): Freezing<Plan> =>
       const cut = view.leaf.lastIndexOf("/")
       return kindOf(partsOfUnit(view.leaf.slice(0, cut)).find((part) => part.id === view.leaf!.slice(cut + 1))?.asset)
     }
-    return { spec, chosen, captures, befores: yield* planBefores(env, spec.views, shownWithCaptures(shownKind)), collection, preview }
+    return { spec, chosen, work, captures, shows: yield* resolveShows(captures, [...chosen, ...work]), befores: yield* planBefores(env, spec.views, shownWithCaptures(shownKind)), collection, preview }
   })
 
 interface ViewSeed {
@@ -206,7 +247,12 @@ const freezeItem = (env: FreezeEnv, plan: Plan): Freezing<SubmissionItem> =>
     const titled = (fallback: string): string => (isNonEmpty(spec.title) ? spec.title.trim() : fallback)
     const text = isNonEmpty(spec.text) ? { text: spec.text.trim() } : {}
     // Captures come first: they are what the item was submitted to show.
-    const captured = yield* Effect.forEach(plan.captures, (capture) => freezeCapture(env, capture))
+    const captured = yield* Effect.forEach(plan.captures, (capture, index) => freezeCapture(env, capture, plan.shows[index] ?? null))
+    // Work parts hold what was asked; the item part of a text-only item keeps its text as before.
+    const work = plan.work.map((part): FrozenPart => {
+      const attrs = part.id === ITEM_PART && isNonEmpty(spec.text) ? { text: spec.text.trim() } : { label: part.label }
+      return { id: part.id, label: part.label, evidence: { kind: "attributes", attrs, digest: digest(attrs) } }
+    })
     const captureOf = (part: FrozenPart): PlannedCapture | undefined => plan.captures.find((capture) => capture.id === part.id)
     const captionOf = (fallback: (part: FrozenPart) => string) => (part: FrozenPart): string => {
       const capture = captureOf(part)
@@ -218,17 +264,20 @@ const freezeItem = (env: FreezeEnv, plan: Plan): Freezing<SubmissionItem> =>
     }
     if (spec.target == null) {
       const title = titled("")
-      const parts: Array<FrozenPart> = captured.length > 0
-        ? captured
-        : [{ id: ITEM_PART, label: itemPart.label, evidence: { kind: "attributes", attrs: { text: spec.text!.trim() }, digest: digest({ text: spec.text!.trim() }) } }]
-      const definition = yield* evidence.freezeJson({ title, ...text, captures: plan.captures.map((capture) => ({ part: capture.id, label: capture.label, caption: capture.caption, renderer: capture.renderer })) })
+      const parts: Array<FrozenPart> = [...captured, ...work]
+      const definition = yield* evidence.freezeJson({
+        title,
+        ...text,
+        decide: plan.work.map((part) => ({ part: part.id, label: part.label })),
+        captures: plan.captures.map((capture, index) => ({ part: capture.id, label: capture.label, caption: capture.caption, renderer: capture.renderer, shows: plan.shows[index] ?? null }))
+      })
       const views = yield* buildViews(spec.views, parts, captionOf((part) => part.label), viewsOf(() => []))
       return { id, target: null, title, ...text, kind: "work", definition, parts, views: yield* freezeBefores(env, views, plan.befores) }
     }
     if (plan.unit) {
       const unit = plan.unit
       const frozen = yield* freezeUnitParts(env, unit, plan.chosen.map((part) => part.id))
-      const parts = [...captured, ...plan.chosen.map((part): FrozenPart => ({ id: part.id, label: part.label, role: part.role ?? null, asset: part.asset ?? null, evidence: frozen[part.id]! }))]
+      const parts = [...captured, ...plan.chosen.map((part): FrozenPart => ({ id: part.id, label: part.label, role: part.role ?? null, asset: part.asset ?? null, evidence: frozen[part.id]! })), ...work]
       const views = yield* buildViews(spec.views, parts, captionOf((part) => `${unit.name} · ${part.label}`), viewsOf((part) => (part.asset ? [{ part: part.id, caption: `${unit.name} · ${part.label}` }] : [])))
       return { id, target: { kind: "unit", id: unit.id }, title: titled(unit.name), ...text, kind: "unit", definition: yield* freezeDefinition(env, unit), parts, views: yield* freezeBefores(env, views, plan.befores) }
     }
@@ -263,6 +312,7 @@ const freezeItem = (env: FreezeEnv, plan: Plan): Freezing<SubmissionItem> =>
         evidence: { digest: digest(Object.fromEntries(Object.entries(leaves).map(([key, leaf]) => [key, leaf.digest]))), unit: unit.id, definition: yield* freezeDefinition(env, unit), parts: leaves }
       })
     }
+    parts.push(...work)
     const definition = yield* evidence.freezeJson({ id: collection.id, name: collection.name, kind: collection.kind, members: collection.members })
     const views = yield* buildViews(spec.views, parts, captionOf((part) => `${collection.name} · ${part.label}`), viewsOf((part) => {
       if (part.id === "preview") return [{ part: "preview", caption: `${collection.name} · ${part.label}` }]
@@ -293,7 +343,11 @@ export const submit = (input: typeof SubmitInput.Type, env: WriteEnv, requestId:
     const p = env.projection
     if (input.items.length === 0 || input.items.length > 200) return yield* fail("invalid", "a submission needs 1-200 items")
     if (input.title != null && input.title.length > 300) return yield* fail("invalid", "title must be text")
-    if (input.brief != null && input.brief.length > 5000) return yield* fail("invalid", "brief must be text of at most 5000 characters")
+    for (const field of ["ask", "brief", "changes", "limits"] as const) {
+      const max = SUBMISSION_TEXT[field]
+      if ((input[field]?.length ?? 0) > max) return yield* fail("invalid", `${field} must be text of at most ${max} characters`)
+    }
+    if (input.ask != null && input.ask.trim().includes("\n")) return yield* fail("invalid", "ask must be one sentence on one line", { fix: "put the background in brief" })
     if (input.supersedes && !p.records.submission.some((submission) => submission.id === input.supersedes)) return yield* fail("not_found", `submission ${input.supersedes} not found`)
     const freezing: FreezeEnv = { ...env, within: assetFiles((yield* ProjectFiles).root, p.snapshot.assetRoots) }
     // Every item is checked before the first byte is frozen.
@@ -307,7 +361,10 @@ export const submit = (input: typeof SubmitInput.Type, env: WriteEnv, requestId:
       at: yield* nowIso,
       checkout: { branch: env.checkout.branch, head: env.checkout.head, dirty: yield* dirtyCount },
       supersedes: input.supersedes ?? null,
+      ...(isNonEmpty(input.ask) ? { ask: input.ask.trim() } : {}),
       brief: isNonEmpty(input.brief) ? input.brief.trim() : null,
+      ...(isNonEmpty(input.changes) ? { changes: input.changes.trim() } : {}),
+      ...(isNonEmpty(input.limits) ? { limits: input.limits.trim() } : {}),
       items,
       ...(requestId !== null && env.requestBinding ? { requestId, requestBinding: env.requestBinding } : {})
     }
@@ -320,7 +377,7 @@ export const SubmitOutput = Linked({ ...Written({ submission: SubmissionView }).
 
 export const submitAction = write(
   "review.submit",
-  "Explicitly submit units, collections or work for review; freezes definitions and file bytes. brief is Markdown shown to the reviewer beside the items. An item may carry captures (evidence rendered outside the catalog, each its own part capture:<n>) and text; an item without a target is work and holds captures, text or both. A view may add before ({path} of a project file under the asset roots, or {submission, item, part, leaf?} of earlier evidence; optional label) and afterLabel to show its evidence as a before/after comparison",
+  "Explicitly submit units, collections or work for review; freezes definitions and file bytes. title names what is submitted; ask is the question the person answers; brief, changes and limits are Markdown that apply to every item, shown on the review's overview. Items are only what the person decides, and an item's text holds only what differs for it. An item may carry captures (evidence rendered outside the catalog, each its own part capture:<n>) and text; an item without a target is work and holds captures, text or both. A view may add before ({path} of a project file under the asset roots, or {submission, item, part, leaf?} of earlier evidence; optional label) and afterLabel to show its evidence as a before/after comparison",
   SubmitInput,
   SubmitOutput,
   "reviews",

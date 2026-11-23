@@ -13,11 +13,12 @@ export const RESERVED_SECTIONS: ReadonlyArray<string> = ["collections", "assets"
 export const unitRoute = (scope: string, id: string): string => `#/${enc(scope)}/u/${enc(id)}`
 export const collectionRoute = (id: string): string => `#/collections/c/${enc(id)}`
 export const assetRoute = (id: string): string => `#/assets/a/${enc(id)}`
-export const reviewRoute = (submission: string, item?: string): string => `#/reviews/s/${enc(submission)}${item === undefined ? "" : `/${enc(item)}`}`
+export const reviewRoute = (submission: string, item?: string, view?: string): string =>
+  `#/reviews/s/${enc(submission)}${item === undefined ? "" : `/${enc(item)}`}${item !== undefined && view !== undefined ? `?view=${enc(view)}` : ""}`
 
 /** The page of a note's or decision's target; null when the target is not in this checkout. */
-export const targetRoute = (p: Projection, target: Target & { readonly item?: string | undefined }): string | null => {
-  if (target.kind === "submission") return reviewRoute(target.id, target.item)
+export const targetRoute = (p: Projection, target: Target & { readonly item?: string | undefined; readonly view?: string | undefined }): string | null => {
+  if (target.kind === "submission") return reviewRoute(target.id, target.item, target.view)
   if (target.kind === "collection") return collectionRoute(target.id)
   if (target.kind === "asset") return assetRoute(target.id)
   const unit = p.snapshot.unitsById.get(target.id)

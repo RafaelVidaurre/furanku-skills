@@ -46,6 +46,8 @@ test("multi-item review keeps notes, part navigation and long content usable at 
     const { app, url } = server
     const s = await W(app, agent)("review.submit", {
       title: "LongBatchTitle".repeat(18),
+      ask: "Do these eleven sounds fit the crypt?",
+      limits: "Room tails are **not mastered** yet.",
       brief: "### Listen\nOne **submission description** for eleven sounds.\n\n```text\n" + "UnbrokenCode".repeat(90) + "\n```",
       items: names.map((_, i) => ({
         target: { kind: "unit", id: `sound/${i}` },
@@ -64,9 +66,22 @@ test("multi-item review keeps notes, part navigation and long content usable at 
     }
     await show()
     await shot(p, "review-first-item-1600")
+    await t.test("a review of several items opens on its overview: the ask, the brief and its limits, then the first item", async () => {
+      await p.goto(`${url}#/reviews/s/${sub.id}`)
+      await p.locator(".overview").waitFor()
+      assert.equal(await p.locator(".sub-ask").textContent(), "Do these eleven sounds fit the crypt?")
+      assert.equal(await p.locator('.overview [aria-label="Submission brief"] strong').textContent(), "submission description")
+      assert.equal(await p.locator('.overview [aria-label="Known limits"] strong').textContent(), "not mastered")
+      assert.equal(await p.locator(".overview-row.sel .row-name").textContent(), "Overview")
+      await shot(p, "review-overview-1600")
+      await p.getByRole("button", { name: "Start with First sound" }).click()
+      await p.waitForFunction((id) => window.catalogViewer?.state().selection?.item === id, first.id)
+    })
     await t.test("one Markdown submission brief below the preview, including after item navigation", async () => {
       for (const item of [first, second]) {
         await show(item)
+        await p.locator(".d-main details.submission-note > summary").click()
+        if (item === first) await shot(p, "review-item-brief-open-1600")
         assert.equal(await p.locator('[aria-label="Submission brief"]').count(), 1)
         assert.equal(await p.locator('.d-main [aria-label="Submission brief"] strong').textContent(), "submission description")
         assert.equal(await p.locator('.d-main [aria-label="Submission brief"] pre code').count(), 1)

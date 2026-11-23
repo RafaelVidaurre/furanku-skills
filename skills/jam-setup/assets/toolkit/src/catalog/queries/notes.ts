@@ -16,6 +16,7 @@ export const noteView = (p: Projection, note: NoteRecord) => {
   let exists = true
   let name = target.id
   let partLabel: string | null = null
+  let viewLabel: string | null = null
   let thumb: ReturnType<typeof assetRef> | null = null
   if (target.kind === "unit") {
     const unit = unitsById.get(target.id)
@@ -44,10 +45,11 @@ export const noteView = (p: Projection, note: NoteRecord) => {
     if (item) {
       name += ` · ${item.title}`
       if (part) partLabel = item.parts.find((candidate) => candidate.id === part)?.label ?? part
+      if (target.view) viewLabel = item.views.find((candidate) => candidate.id === target.view)?.caption ?? target.view
     }
   }
   // Where the note's subject is shown; null when it is no longer in this checkout.
-  return { ...note, targetName: name, targetExists: exists, partLabel, thumb, route: exists ? targetRoute(p, target) : null }
+  return { ...note, targetName: name, targetExists: exists, partLabel, viewLabel, thumb, route: exists ? targetRoute(p, target) : null }
 }
 
 export interface NoteListInput {

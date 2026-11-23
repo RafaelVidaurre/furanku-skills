@@ -74,7 +74,10 @@ const frame = <I extends ItemView>(submission: SubmissionRecord, items: Readonly
   at: submission.at,
   checkout: submission.checkout,
   supersedes: submission.supersedes ?? null,
+  ask: submission.ask ?? null,
   brief: submission.brief ?? null,
+  changes: submission.changes ?? null,
+  limits: submission.limits ?? null,
   counts: {
     items: items.length,
     waiting: items.filter((item) => item.summary.undecided > 0).length,
@@ -96,6 +99,8 @@ const pick = (part: FrozenPart) => ({
   ...(part.asset != null ? { asset: part.asset } : {}),
   // A capture: who rendered it, and the two labels of a before/after pair.
   ...(part.renderer != null ? { renderer: part.renderer } : {}),
+  // A capture is a way of showing: the part it shows, or null for the whole item.
+  ...(part.shows !== undefined ? { shows: part.shows } : {}),
   ...(part.evidence.pair ? { pairLabels: part.evidence.labels ?? ["Before", "After"] } : {})
 })
 
@@ -110,7 +115,12 @@ const submissionDetail = (p: Projection, evidence: Evidence["Service"], submissi
             const partLeaves = yield* Effect.forEach(leaves(p, frozen.evidence, frozen.label), (leaf) => leafView(evidence, submission.id, item.id, part.id, leaf))
             return { ...part, ...pick(frozen), evidence: publicEvidence(frozen.evidence), leaves: partLeaves }
           }))
-        const views = yield* Effect.forEach(item.views, (frozen) => viewOf(evidence, submission.id, item.id, frozen))
+        // Each view says which decided part it shows (null: the whole item, or reference material).
+        const showsOf = (partId: string): string | null => {
+          const frozen = item.parts.find((candidate) => candidate.id === partId)
+          return frozen === undefined ? null : frozen.shows !== undefined ? frozen.shows : p.policy.reviewable(frozen) ? frozen.id : null
+        }
+        const views = yield* Effect.forEach(item.views, (frozen) => Effect.map(viewOf(evidence, submission.id, item.id, frozen), (view) => ({ ...view, shows: showsOf(frozen.part) })))
         return { ...view, parts, views, attributes: item.attributes ?? null, kind: item.kind, preview: framePreview(p, item) }
       })),
     (items) => frame(submission, items)

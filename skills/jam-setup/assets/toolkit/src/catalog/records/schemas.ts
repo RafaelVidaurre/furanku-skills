@@ -4,13 +4,15 @@
 import * as Schema from "effect/Schema"
 import { isRecord } from "../../kernel/hash.ts"
 import type { RecordKind } from "../model/types.ts"
-import { CAPTURE_PART, ITEM_PART } from "../model/parts.ts"
+import { CAPTURE_PART, ITEM_PART, WORK_PART } from "../model/parts.ts"
 import { VERDICTS } from "../model/verdicts.ts"
 import { EVIDENCE_PATH } from "./layout.ts"
 
 export const TAG = /^[a-z0-9][a-z0-9:._/+-]{0,63}$/u
 export const CATEGORY = /^[^/\s][^/]{0,63}(\/[^/\s][^/]{0,63}){0,7}$/u
 export const PART_COMMENT_MAX = 5000
+/** Longest text of each submission-wide field, in characters. */
+export const SUBMISSION_TEXT = { ask: 300, brief: 5000, changes: 2000, limits: 2000 } as const
 export const isTag = (value: unknown): value is string => typeof value === "string" && TAG.test(value)
 export const isCategory = (value: unknown): value is string => typeof value === "string" && CATEGORY.test(value)
 
@@ -134,7 +136,8 @@ export const NoteRecord = Schema.Struct({
     kind: Schema.Literals(["unit", "collection", "asset", "submission"]),
     id: text(500),
     item: nullable(text(200)),
-    part: nullable(text(600))
+    part: nullable(text(600)),
+    view: nullable(text(200))
   }),
   body: text(20000),
   by: Actor,
@@ -178,7 +181,7 @@ export const CollectionRecord = Schema.Struct({
 export const CategoriesRecord = Schema.Struct({ categories: Schema.Array(Category), revision: Revision })
   .annotate({ identifier: "CategoriesRecord", description: "Registered category paths" })
 
-const FrozenPart = Schema.Struct({ id: text(600), label: text(600), evidence: Schema.Unknown })
+const FrozenPart = Schema.Struct({ id: text(600), label: text(600), shows: nullable(text(600)), evidence: Schema.Unknown })
 const SubmissionItem = Schema.Struct({
   id: Schema.String.check(Schema.isPattern(/^it_[a-z0-9]+$/u)),
   // Null for work that is not catalog content (lighting, tooling, a proposal).
@@ -194,7 +197,13 @@ const SubmissionItem = Schema.Struct({
   if (!validDefinition(item.definition)) return "item definition evidence is invalid"
   if (!item.parts.every(validPartEvidence)) return `item ${item.id} parts or evidence are invalid`
   // Work holds only its own evidence: captures, or the one part `item` of a text-only item.
-  if (item.target === null && !item.parts.every((part) => CAPTURE_PART.test(part.id) || part.id === ITEM_PART)) return `item ${item.id} has no target, so it holds only captures or the part ${ITEM_PART}`
+  if (item.target === null && !item.parts.every((part) => CAPTURE_PART.test(part.id) || WORK_PART.test(part.id))) return `item ${item.id} has no target, so it holds only captures and the parts ${ITEM_PART} or ${ITEM_PART}:<id>`
+  // A capture shows one of the item's parts (or the whole item); only captures show anything.
+  for (const part of item.parts) {
+    if (part.shows === undefined) continue
+    if (!CAPTURE_PART.test(part.id)) return `item ${item.id}: only a capture names the part it shows`
+    if (part.shows !== null && !item.parts.some((other) => other.id === part.shows && !CAPTURE_PART.test(other.id))) return `item ${item.id}: ${part.id} shows ${part.shows}, which is not a part of the item`
+  }
   if (new Set(item.parts.map((part) => part.id)).size !== item.parts.length) return "duplicate part ids"
   const viewsValid = item.views.every((view) =>
     /^vw_[a-z0-9]+$/.test(String(view["id"] ?? "")) && isText(view["caption"], 300) && item.parts.some((part) => part.id === view["part"]) &&
@@ -214,7 +223,12 @@ export const SubmissionRecord = Schema.Struct({
     dirty: nullable(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)))
   }),
   supersedes: nullable(Schema.String.check(Schema.isPattern(/^sub_[a-z0-9]+$/u))),
-  brief: nullable(text(5000)),
+  // What the person decides, then Markdown that applies to every item. Each is optional, so
+  // submissions recorded before ask, changes and limits existed read unchanged.
+  ask: nullable(text(SUBMISSION_TEXT.ask)),
+  brief: nullable(text(SUBMISSION_TEXT.brief)),
+  changes: nullable(text(SUBMISSION_TEXT.changes)),
+  limits: nullable(text(SUBMISSION_TEXT.limits)),
   items: Schema.NonEmptyArray(SubmissionItem),
   requestId: nullable(text(300)),
   requestBinding: nullable(Binding)

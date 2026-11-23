@@ -150,7 +150,8 @@ export const Empty = Schema.Record(Schema.String, Schema.Never.annotate({ messag
 const RefMembers = {
   item: optional(Text).annotate({ description: "A submission item id (with kind submission)" }),
   part: optional(Text).annotate({ description: "A part id of the unit, collection or submission item" }),
-  leaf: optional(Text).annotate({ description: "One evidence leaf inside a member or preview part: <unit>/<part>, or base" })
+  leaf: optional(Text).annotate({ description: "One evidence leaf inside a member or preview part: <unit>/<part>, or base" }),
+  view: optional(Text).annotate({ description: "A view id of the submission item: the way of showing the note is about" })
 }
 type RefMember = keyof typeof RefMembers
 

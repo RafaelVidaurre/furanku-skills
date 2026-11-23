@@ -28,7 +28,7 @@ const project = async () => {
   return { dir, v1, v2 }
 }
 
-test("a unit item carries a pair, a file and a committed model as captures of their own; the unit's content is unaffected", async () => {
+test("a unit item shows a pair, a file and a committed model as captures of the part they show; only the part is decided", async () => {
   const { dir, v1 } = await project()
   // Uncommitted work is frozen into the catalog's store; committed files are referenced as Git blobs.
   write(dir, "captures/fresh.png", png(3, 3, [5, 6, 7, 255]))
@@ -60,11 +60,15 @@ test("a unit item carries a pair, a file and a committed model as captures of th
   const record = read(dir, `.catalog/reviews/${submission.id}/submission.json`).items[0]
   assert.equal(record.parts[2].evidence.pair.before.ref.git.commit, v1)
   assert.equal(record.parts[2].evidence.pair.after.ref.git.commit, git(dir, "rev-parse", "HEAD").trim())
-  assert.deepEqual(item.views.map((view: Any) => [view.part, view.caption]), [["capture:1", "Helm in game"], ["capture:2", "Native pixels"], ["capture:3", "Source model"], ["icon", "Iron Helm · Icon"]])
+  assert.deepEqual(item.views.map((view: Any) => [view.part, view.caption, view.shows]), [["capture:1", "Helm in game", "icon"], ["capture:2", "Native pixels", "icon"], ["capture:3", "Source model", "icon"], ["icon", "Iron Helm · Icon", "icon"]])
+  // A capture is a way of showing the item's only part, never decided itself.
+  assert.deepEqual(item.parts.map((part: Any) => [part.id, part.reviewable, part.shows ?? "-"]), [["capture:1", false, "icon"], ["capture:2", false, "icon"], ["capture:3", false, "icon"], ["icon", true, "-"]])
+  assert.equal(item.summary.total, 1)
+  await rejects(run("review.decide", { submission: submission.id, item: item.id, verdicts: { "capture:2": "changes" } }), "invalid")
   const after = await app.evidenceMedia(submission.id, item.id, "capture:1", "after")
   assert.equal(after.mime, "image/png")
 
-  await run("review.decide", { submission: submission.id, item: item.id, whole: "approved", exceptions: { "capture:2": "changes" } })
+  await run("review.decide", { submission: submission.id, item: item.id, whole: "approved" })
   const helm = await app.run("unit.get", { id: "armor/helm" })
   assert.equal(helm.review.parts.find((part: Any) => part.id === "icon").verdict, "approved")
   assert.ok(!helm.review.parts.some((part: Any) => part.id.startsWith("capture:")), "captures are item evidence, not content parts")
@@ -74,9 +78,11 @@ test("a unit item carries a pair, a file and a committed model as captures of th
   // Two frozen captures compare like any frozen evidence.
   const compared = await app.run("evidence.compare", { a: { submission: submission.id, item: item.id, part: "capture:1" }, b: { submission: submission.id, item: item.id, part: "capture:1" } })
   assert.deepEqual(compared.rows.map((row: Any) => [row.key, row.identical]), [["before", true], ["after", true]])
-  // Only content parts: the item is submitted for its captures.
+  // No content parts chosen: the unit is decided as a whole, and its capture shows it.
   const only = await run("review.submit", { items: [{ target: { kind: "unit", id: "armor/boots" }, parts: [], captures: [{ label: "Boots in game", file: "captures/clip.png" }] }] })
   assert.deepEqual(only.submission.items[0].summary.total, 1)
+  const whole = (await app.run("review.get", { submission: only.submission.id })).items[0]
+  assert.deepEqual(whole.parts.map((part: Any) => [part.id, part.label, part.reviewable]), [["capture:1", "Boots in game", false], ["item", "Iron Boots", true]])
   await rejects(run("review.submit", { items: [{ target: { kind: "unit", id: "armor/boots" }, parts: [] }] }), "invalid")
   cleanup(dir)
 })
@@ -99,7 +105,10 @@ test("work items hold captures or a text to decide; every input is checked befor
     [{ title: "x", captures: [{ label: "", file: "captures/clip.png" }] }, "invalid"],
     [{ captures: [{ label: "a", file: "captures/clip.png" }] }, "invalid"],
     [{ title: "x" }, "invalid"],
-    [{ title: "x", text: "y", parts: ["icon"] }, "invalid"]
+    [{ title: "x", text: "y", parts: ["icon"] }, "invalid"],
+    [{ title: "x", decide: [{ id: "Design", label: "Design" }], captures: [{ label: "a", file: "captures/clip.png" }] }, "invalid"],
+    [{ title: "x", decide: [{ id: "design", label: "Design" }, { id: "design", label: "Again" }], captures: [{ label: "a", file: "captures/clip.png" }] }, "invalid"],
+    [{ title: "x", decide: [{ id: "design", label: "Design" }], captures: [{ label: "a", file: "captures/clip.png", shows: "colour" }] }, "invalid"]
   ]
   for (const [item, code] of refused) await rejects(run("review.submit", { items: [{ title: "ok", text: "fine" }, item] }), code)
   assert.equal((await app.run("review.list", {})).total, 0, "a refused submission writes nothing")
@@ -116,8 +125,9 @@ test("work items hold captures or a text to decide; every input is checked befor
   const review = await app.run("review.get", { submission: submission.id })
   assert.deepEqual(review.items.map((item: Any) => [item.target, item.targetExists, item.text, item.parts.map((part: Any) => part.id)]), [
     [null, null, "Halve the pulse.", ["item"]],
-    [null, null, "Warm floors return.", ["capture:1"]]
+    [null, null, "Warm floors return.", ["capture:1", "item"]]
   ])
+  assert.deepEqual(review.items[1].parts.map((part: Any) => [part.id, part.label, part.reviewable, part.shows ?? "-"]), [["capture:1", "Whole frame", false, "item"], ["item", "Torchlight", true, "-"]])
   assert.deepEqual(review.items[0].views, [], "a text to decide has nothing to show but its text")
   await run("review.decide", { submission: submission.id, item: review.items[0].id, whole: "rejected", partComments: { item: "Keep the pulse" } })
   assert.equal((await app.run("review.list", { state: "rejected" })).total, 1)
@@ -128,6 +138,39 @@ test("work items hold captures or a text to decide; every input is checked befor
   unlinkSync(join(dir, record.items[1].parts[0].evidence.pair.after.ref.store))
   const after = (await app.run("review.get", { submission: submission.id })).items[1].parts[0].leaves[1]
   assert.equal(after.status, "missing")
+  cleanup(dir)
+})
+
+test("work decides what it names; each capture shows one of those parts or the whole item, and a note can point at one view", async () => {
+  const { dir } = await project()
+  write(dir, "captures/fresh.png", png(3, 3, [5, 6, 7, 255]))
+  const app = await open(dir)
+  const run = W(app)
+  const { submission } = await run("review.submit", {
+    items: [{
+      title: "Crypt rat",
+      decide: [{ id: "design", label: "Design" }, { id: "palette", label: "Palette" }],
+      captures: [
+        { label: "Old / new, three-quarter", before: "captures/before.png", after: "captures/after.png", shows: "design" },
+        { label: "Concept sheet", file: "captures/clip.png", shows: "item:palette" },
+        { label: "In the crypt", file: "captures/fresh.png" }
+      ]
+    }]
+  })
+  const review = await app.run("review.get", { submission: submission.id })
+  const item = review.items[0]
+  // Three ways of showing, two things to decide.
+  assert.deepEqual(item.parts.filter((part: Any) => part.reviewable).map((part: Any) => [part.id, part.label]), [["item:design", "Design"], ["item:palette", "Palette"]])
+  assert.deepEqual(item.views.map((view: Any) => [view.caption, view.shows]), [["Old / new, three-quarter", "item:design"], ["Concept sheet", "item:palette"], ["In the crypt", null]])
+  assert.equal(item.summary.total, 2)
+  // A note on one view names it, and links to it.
+  const view = item.views[0]
+  const { note } = await run("note.create", { target: { kind: "submission", id: submission.id, item: item.id, view: view.id }, body: "The spines read as fur at this angle" })
+  const listed = (await app.run("review.get", { submission: submission.id })).observations.find((candidate: Any) => candidate.id === note.id)
+  assert.deepEqual([listed.target.view, listed.viewLabel], [view.id, "Old / new, three-quarter"])
+  assert.match(listed.route, new RegExp(`\\?view=${view.id}$`))
+  await rejects(run("note.create", { target: { kind: "submission", id: submission.id, item: item.id, view: "vw_missing" }, body: "x" }), "not_found")
+  await rejects(run("note.create", { target: { kind: "unit", id: "armor/helm", view: view.id }, body: "x" }), "invalid")
   cleanup(dir)
 })
 

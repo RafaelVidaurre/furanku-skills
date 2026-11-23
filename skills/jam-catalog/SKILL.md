@@ -58,16 +58,21 @@ A step of a run is put in front of a person with `jam run request-review` (the `
 
 Look before you submit: capture each part the person will judge and open the images. Something visibly wrong (missing geometry, a blank texture, the wrong file) is fixed or reported, not sent for approval. Give the submission one view per thing to judge, each with a caption naming what it shows.
 
-Write the submission's `brief` in Markdown for the person deciding:
+Each thing the person reads goes in its own field, written for them:
 
-- what they are deciding, numbered when there are several parts;
-- what changed since they last looked, and why;
-- where to look, naming the view by its caption;
-- known limits and what is not done.
+| Field | Holds |
+| --- | --- |
+| `title` | What the submission holds, as a name: "Creature remakes, 14 designs" |
+| `ask` | The one question they answer, in a sentence: "Approve, change or reject each creature's design." |
+| `brief` | Markdown for every item: how the work was made, how to read the views, naming each by its caption |
+| `changes` | Markdown: what changed since they last looked, and why |
+| `limits` | Markdown: known defects and what is not done |
+| item `text` | Markdown: only what differs for this item |
+| view `caption` | What that view shows |
 
-Leave out what the page already shows (author, branch, commit) and what they will not open (hashes, request ids, tool logs). When a change is easiest to judge against what came before, give a view a `before` (an earlier file, or earlier frozen evidence) so the page offers a side-by-side.
+`brief`, `changes` and `limits` appear once, on the review's overview; leave a field out when it has nothing to say. Every item is something the person decides: a note to read first goes in `brief`, never in an item. A line that would repeat in every item's `text` belongs in `brief` too. Leave out what the page already shows (author, branch, commit) and what they will not open (hashes, request ids, tool logs). When a change is easiest to judge against what came before, give a view a `before` (an earlier file, or earlier frozen evidence) so the page offers a side-by-side.
 
-What the catalog cannot render itself (an engine screenshot or clip, a file as it was at a commit) goes in an item's `captures`, each `{ "label", "file" }` or a pair `{ "label", "before", "after", "labels": [..] }`, with `"renderer"` naming what drew it; a file is a checkout path or `{ "revision", "path" }`. Work that is not catalog content (lighting, tooling, a proposal) is an item without `target`: a `title` with captures, `text`, or both. Captures are decided like parts but never count as the unit's own.
+What the catalog cannot render itself (an engine screenshot or clip, a file as it was at a commit) goes in an item's `captures`, each `{ "label", "file" }` or a pair `{ "label", "before", "after", "labels": [..] }`, with `"renderer"` naming what drew it; a file is a checkout path or `{ "revision", "path" }`. Work that is not catalog content (lighting, tooling, a proposal) is an item without `target`: a `title` with captures, `text`, or both. An item with only `text` is a proposal the person approves or rejects. Captures are decided like parts but never count as the unit's own.
 
 A verdict is the person's. They give it in the browser. When they told you their decision instead, relay it with `review.decide` as yourself (`--actor-kind agent`) and add `"relay": {"by": "<the name they go by in the project>", "channel": "<where they said it>", "words": "<what they said, verbatim>"}`, with `whole` (or `verdicts` per part) set to one of `review.verdicts` in `catalog.config.json` (by default `approved`, `changes`, `rejected`). The record then shows it came through you, and a run's human gate accepts it as a relay. Their words set what the decision covers: "the crate is fine" decides the model, not attributes they did not look at; ask when it is unclear. Never record your own judgement as a person's.
 

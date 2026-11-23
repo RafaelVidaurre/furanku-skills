@@ -1,35 +1,43 @@
-import { html, useState, useQuery, write, ago, Icon, Person, Popover, useDraft, useUnsaved, href, withQuery, replace, entityHref, Thumb, toast, newRequestId, ErrorLine, baseName } from './core.js';
+import { html, useState, useEffect, useRef, useQuery, write, ago, Icon, Person, Popover, useDraft, useUnsaved, href, withQuery, replace, entityHref, Thumb, toast, newRequestId, ErrorLine, baseName } from './core.js';
 
 const same = (a, b) => a.kind === b.kind && a.id === b.id;
-const targetHref = (t) => (t.kind === 'submission' ? href({ section: 'reviews', kind: 's', id: t.id, member: t.item }) : entityHref(t.kind, t.id, t.part && t.kind === 'unit' ? { part: t.part } : {}));
+const targetHref = (t) => (t.kind === 'submission' ? href({ section: 'reviews', kind: 's', id: t.id, member: t.item, ...(t.item && t.view ? { query: new URLSearchParams({ view: t.view }) } : {}) }) : entityHref(t.kind, t.id, t.part && t.kind === 'unit' ? { part: t.part } : {}));
 
 // Notes on a target (and its parts), plus related notes (e.g. on linked assets). No replies.
-export function NotesBlock({ target, notes, parts = [] }) {
+export function NotesBlock({ target, notes, parts = [], views = [] }) {
   const open = notes.filter((n) => !n.resolved);
   const done = notes.filter((n) => n.resolved);
   return html`<section class="block" aria-label="Notes">
     <header class="block-h"><h3>Notes</h3>${open.length > 0 && html`<span class="badge">${open.length}</span>`}</header>
-    <${NoteComposer} target=${target} parts=${parts} />
+    <${NoteComposer} target=${target} parts=${parts} views=${views} />
     <div class="notes">${open.map((n) => html`<${NoteItem} n=${n} key=${n.id} ctx=${target} />`)}</div>
     ${done.length > 0 && html`<details class="history"><summary>Dealt with · ${done.length}</summary>
       <div class="notes">${done.map((n) => html`<${NoteItem} n=${n} key=${n.id} ctx=${target} />`)}</div></details>`}
   </section>`;
 }
 
-function NoteComposer({ target, parts }) {
+function NoteComposer({ target, parts, views }) {
   const [d, setD] = useDraft(`note:${target.kind}:${target.id}:${target.item ?? ''}`, null);
-  const draft = d ?? { body: '', part: '', requestId: newRequestId() };
+  const draft = d ?? { body: '', part: '', view: '', requestId: newRequestId() };
+  const input = useRef(null);
+  // "Note" on a view's caption bar starts a note about that view.
+  useEffect(() => {
+    const on = (e) => { if (e.detail.item !== target.item) return; setD({ ...draft, view: e.detail.view }); input.current?.focus(); };
+    addEventListener('catalog:note-on-view', on); return () => removeEventListener('catalog:note-on-view', on);
+  });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   useUnsaved(`note:${target.id}`, !!d?.body);
   const add = async () => {
     if (!draft.body.trim()) return;
     setBusy(true); setErr(null);
-    try { await write('note.create', { target: { ...target, ...(draft.part ? { part: draft.part } : {}) }, body: draft.body }, draft.requestId); setD(null); }
+    try { await write('note.create', { target: { ...target, ...(draft.part ? { part: draft.part } : {}), ...(draft.view ? { view: draft.view } : {}) }, body: draft.body }, draft.requestId); setD(null); }
     catch (e) { setErr(e); } finally { setBusy(false); }
   };
-  return html`<div class=${`note-new${draft.body ? ' active' : ''}`}>
-    <textarea rows=${draft.body ? 3 : 1} placeholder="Add a note" aria-label="Add a note" value=${draft.body}
+  const viewLabel = views.find((v) => v.id === draft.view)?.label;
+  return html`<div class=${`note-new${draft.body || draft.view ? ' active' : ''}`}>
+    ${viewLabel && html`<div class="note-view-pick"><span class="chip">On view: ${viewLabel}</span><button class="icon-btn sm" aria-label="Not about this view" title="Not about this view" onClick=${() => setD(draft.body ? { ...draft, view: '' } : null)}><${Icon} name="x" size=${11} /></button></div>`}
+    <textarea ref=${input} rows=${draft.body || draft.view ? 3 : 1} placeholder=${viewLabel ? `Note on ${viewLabel}` : 'Add a note'} aria-label="Add a note" value=${draft.body}
       onInput=${(e) => setD({ ...draft, body: e.target.value })} onKeyDown=${(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) add(); }}></textarea>
     <${ErrorLine} error=${err} onRetry=${err && err.code !== 'checkout_changed' ? add : null} />
     ${draft.body && html`<div class="note-new-f">
@@ -58,6 +66,7 @@ export function NoteItem({ n, ctx, showTarget }) {
       ${!n.targetExists && html`<span class="chip c-bad" title=${`${t.kind} ${t.id}`}>Target missing</span>`}
       ${foreign && !showTarget && html`<a class="chip" href=${targetHref(t)} title=${t.id}>${baseName(t.id)}</a>`}
       ${n.partLabel && html`<span class="chip">${n.partLabel}</span>`}
+      ${n.viewLabel && html`<a class="chip view-chip" href=${targetHref(t)} title="Show this view">${n.viewLabel}</a>`}
       <${Person} by=${n.by} /><span class="muted small" title=${n.at}>${ago(n.at)}${n.editedAt ? ' · edited' : ''}</span>
       <span class="note-actions push">
         ${!n.resolved && html`<${Popover} align="right" label="Mark dealt with" trigger=${() => html`<button class="btn xs" title="Mark dealt with"><${Icon} name="check" size=${12} />Dealt with</button>`}>

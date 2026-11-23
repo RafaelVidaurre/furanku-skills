@@ -15,7 +15,7 @@ export interface Policy {
   readonly verdicts: ReadonlyArray<string>
   readonly referenceRoles: ReadonlyArray<string>
   /** False for supporting material: shown with a submission, never counted or decided. */
-  reviewable(part: { readonly id: string; readonly role?: string | null | undefined }): boolean
+  reviewable(part: { readonly id: string; readonly role?: string | null | undefined; readonly shows?: string | null | undefined }): boolean
 }
 
 export const policyOf = (plugins: PluginSet): Policy => {
@@ -25,7 +25,8 @@ export const policyOf = (plugins: PluginSet): Policy => {
     resolver: plugins.resolvers[resolver] ?? RESOLVERS["latest"]!,
     verdicts: verdicts.filter((verdict) => (VERDICTS as ReadonlyArray<string>).includes(verdict)),
     referenceRoles,
-    reviewable: (part) => !referenceRoles.includes(partRole(part))
+    // A capture that names what it shows is a way of showing, not something to decide.
+    reviewable: (part) => part.shows === undefined && !referenceRoles.includes(partRole(part))
   }
 }
 
