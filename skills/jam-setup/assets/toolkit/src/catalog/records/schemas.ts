@@ -192,7 +192,9 @@ const SubmissionItem = Schema.Struct({
   definition: Schema.Unknown,
   parts: Schema.NonEmptyArray(FrozenPart),
   views: Schema.Array(Schema.Record(Schema.String, Schema.Unknown)),
-  preview: nullable(Schema.Struct({ module: text(100) }))
+  preview: nullable(Schema.Struct({ module: text(100) })),
+  // The parts are options: the person picks one of them, or none.
+  choose: Schema.optionalKey(Schema.Literal("one"))
 }).check(Schema.makeFilter((item) => {
   if (!validDefinition(item.definition)) return "item definition evidence is invalid"
   if (!item.parts.every(validPartEvidence)) return `item ${item.id} parts or evidence are invalid`
@@ -230,9 +232,17 @@ export const SubmissionRecord = Schema.Struct({
   changes: nullable(text(SUBMISSION_TEXT.changes)),
   limits: nullable(text(SUBMISSION_TEXT.limits)),
   items: Schema.NonEmptyArray(SubmissionItem),
+  // Taken back by its submitter or a person: it waits on nobody and stays readable.
+  withdrawn: Schema.optionalKey(Schema.Struct({ by: Actor, at: Iso, reason: text(2000) })),
+  // Set once its words or framing are edited.
+  revision: Schema.optionalKey(Revision),
+  editedAt: Schema.optionalKey(Iso),
+  editedBy: Schema.optionalKey(Actor),
   requestId: nullable(text(300)),
-  requestBinding: nullable(Binding)
-}).check(Schema.makeFilter((submission) => requestPair(submission.requestId, submission.requestBinding) || "request binding is invalid"))
+  requestBinding: nullable(Binding),
+  lastRequestId: nullable(text(300)),
+  lastRequestBinding: nullable(Binding)
+}).check(Schema.makeFilter((submission) => (requestPair(submission.requestId, submission.requestBinding) && requestPair(submission.lastRequestId, submission.lastRequestBinding)) || "request binding is invalid"))
   .annotate({ identifier: "SubmissionRecord", description: "A review submission: items with frozen parts, evidence and views" })
 
 export const DecisionRecord = Schema.Struct({
@@ -250,6 +260,9 @@ export const DecisionRecord = Schema.Struct({
   // An agent recording what a person decided elsewhere. The agent stays the actor; the person's
   // words are kept verbatim, so nobody mistakes the record for the person's own click.
   relay: Schema.optionalKey(Schema.Struct({ by: text(200), channel: text(300), words: text(PART_COMMENT_MAX) })),
+  // A pick among an item's options; its verdicts say the same: the picked option approved (or
+  // approved with changes), every other option rejected; none picked rejects them all.
+  pick: Schema.optionalKey(Schema.Struct({ option: Schema.NullOr(text(600)) })),
   // A decision changed after it was recorded: its revision, and who changed it when. It keeps its
   // place in the order (`at`), so an edited verdict still yields to later ones.
   revision: Schema.optionalKey(Revision),
@@ -270,6 +283,12 @@ export const DecisionRecord = Schema.Struct({
   } else {
     if (!decision.verdicts || Object.keys(decision.verdicts).sort().join("\n") !== [...parts].sort().join("\n")) return "part verdicts are invalid"
     decided = Object.keys(decision.verdicts)
+  }
+  if (decision.pick !== undefined) {
+    const verdicts = decision.verdicts ?? {}
+    const option = decision.pick.option
+    if (decision.covers.kind !== "parts" || (option !== null && !(option in verdicts))) return "pick is invalid"
+    if (!Object.entries(verdicts).every(([part, verdict]) => (part === option ? verdict === "approved" || verdict === "changes" : verdict === "rejected"))) return "pick verdicts are invalid"
   }
   // Part comments may only address parts this decision decides.
   return !decision.partComments || Object.keys(decision.partComments).every((part) => decided.includes(part)) || "part comments are invalid"

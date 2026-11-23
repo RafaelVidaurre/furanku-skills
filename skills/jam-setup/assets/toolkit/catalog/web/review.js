@@ -31,6 +31,7 @@ export function commentsFor(dec, comments = {}, partIds) {
 function effectLine(dec, parts, name) {
   if (!dec) return '';
   const label = (p) => parts.find((x) => x.id === p)?.label ?? p;
+  if (dec.pick) return dec.pick === 'none' ? `None of these: ${name}` : `${dec.pickVerdict === 'changes' ? 'Picked, with changes' : 'Picked'}: ${label(dec.pick)}`;
   if (dec.whole) {
     const ex = Object.entries(dec.exceptions);
     return `${VERDICT[dec.whole]}: ${name}${ex.length ? ` except ${ex.map(([p, v]) => `${label(p)} (${VERDICT[v].toLowerCase()})`).join(', ')}` : ''}`;
@@ -130,6 +131,17 @@ function PartVerdicts({ parts, verdicts, onChange, comments = {}, onComments, cu
     </div>`; })}
   </div>`;
 }
+// Choosing one option: each option, or none of them, and whether the pick is taken as it is.
+function ChoiceDecision({ parts, pick, pickVerdict, onPick, onPickVerdict, onSelect }) {
+  const opt = (id, label, extra) => html`<div class=${`choice-opt${pick === id ? ' on' : ''}${id === 'none' ? ' none' : ''}`} key=${id}>
+    <button role="radio" aria-checked=${pick === id} class="choice-pick" onClick=${() => onPick(pick === id ? null : id)}><span class="choice-dot"></span><span>${label}</span></button>${extra}</div>`;
+  return html`<div class="choice" role="radiogroup" aria-label="Pick one">
+    ${parts.map((p) => opt(p.id, p.label, html`<button class="btn xs ghost" aria-label=${`Show ${p.label}`} onClick=${() => onSelect(p.id)}>Show</button>`))}
+    ${opt('none', 'None of these')}
+    ${pick && pick !== 'none' && html`<span class="seg choice-take" role="radiogroup" aria-label="Take it">${[['approved', 'As it is'], ['changes', 'With changes']].map(([v, l]) => html`<button role="radio" aria-checked=${(pickVerdict ?? 'approved') === v} class=${`seg-b${(pickVerdict ?? 'approved') === v ? ' on' : ''}`} onClick=${() => onPickVerdict(v)}>${l}</button>`)}</span>`}
+  </div>`;
+}
+
 function AllParts({ parts, onChange }) {
   return html`<div class="comp-all"><span class="muted small">All parts</span>
     ${VERDICTS.map(([v, ic, t]) => html`<button class="btn sm" onClick=${() => onChange(Object.fromEntries(parts.map((p) => [p.id, v])))}><${Icon} name=${ic} size=${12} />${t}</button>`)}</div>`;
@@ -338,12 +350,17 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
   const attributesRef = useRef(null);
   const update = (x) => setDraft({ ...d, ...x });
   const parts = item.parts.filter(p => p.reviewable !== false);
-  const dec = decisionFrom(d.verdicts, parts.map((p) => p.id));
+  // An item that chooses one option is decided by a pick; anything else by verdicts per part.
+  const chooses = item.choose === 'one';
+  const dec = chooses ? (d.pick ? { pick: d.pick, pickVerdict: d.pickVerdict ?? 'approved' } : null) : decisionFrom(d.verdicts, parts.map((p) => p.id));
+  const pickComment = (draft0) => (draft0.pick && draft0.pick !== 'none' && draft0.comments?.[draft0.pick]?.trim() ? { [draft0.pick]: draft0.comments[draft0.pick].trim() } : undefined);
+  // None of them, or a pick with changes, needs words: what would work, or what to change.
+  const needsWords = chooses && dec && (dec.pick === 'none' || dec.pickVerdict === 'changes') && !d.comment?.trim() && !pickComment(d);
   useUnsaved(`item:${item.id}`, !!draft);
   const attrPart = parts.find((x) => x.id === 'attributes');
   const nextWaiting = () => sub.items.slice(idx + 1).concat(sub.items.slice(0, idx)).find((i) => i.summary.undecided > 0 && i.id !== item.id);
   // One activation targets the item shown at activation time; the item id is captured here.
-  const save = async (decision = dec, comment = d.comment, requestId = d.requestId, partComments = commentsFor(decision, d.comments, parts.map((p) => p.id))) => {
+  const save = async (decision = dec, comment = d.comment, requestId = d.requestId, partComments = chooses ? pickComment(d) : commentsFor(decision, d.comments, parts.map((p) => p.id))) => {
     if (!decision || saving.current) return;
     saving.current = true; setBusy(true); setErr(null);
     const firstVerdict = !d.editing && item.summary.undecided === item.summary.total;
@@ -368,7 +385,7 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
       }
       if (e.key === ']' && sub.items[idx + 1]) goItem(sub.items[idx + 1].id);
       if (e.key === '[' && idx > 0) goItem(sub.items[idx - 1].id);
-      if (e.key === 'a' && !e.repeat) { e.preventDefault(); save({ whole: 'approved', exceptions: {} }, d.comment, newRequestId()); }
+      if (e.key === 'a' && !e.repeat && !chooses) { e.preventDefault(); save({ whole: 'approved', exceptions: {} }, d.comment, newRequestId()); }
     };
     addEventListener('keydown', key); return () => removeEventListener('keydown', key);
   });
@@ -377,7 +394,8 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
   const [confirming, setConfirming] = useState(null);
   const editDecision = (e) => {
     const own = (m) => Object.fromEntries(Object.entries(m ?? {}).filter(([id]) => parts.some((p) => p.id === id)));
-    setDraft({ verdicts: own(e.verdicts), comments: own(e.partComments), comment: e.comment ?? '', requestId: newRequestId(), editing: { id: e.id, revision: e.revision ?? 1, at: e.at, by: e.by } });
+    const picked = e.pick ? { pick: e.pick.option ?? 'none', pickVerdict: e.pick.option && e.verdicts[e.pick.option] === 'changes' ? 'changes' : 'approved' } : {};
+    setDraft({ verdicts: own(e.verdicts), ...picked, comments: own(e.partComments), comment: e.comment ?? '', requestId: newRequestId(), editing: { id: e.id, revision: e.revision ?? 1, at: e.at, by: e.by } });
     setErr(null);
     requestAnimationFrame(() => decisionRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
   };
@@ -445,13 +463,15 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
         <section class=${`block${d.editing ? ' editing' : ''}`} aria-label="Decision" ref=${decisionRef}>
           <header class="block-h"><h3>Decision</h3><${VerdictBar} parts=${parts} /><span class="muted small">${STATE_LABEL[item.state]}</span></header>
           ${d.editing && html`<div class="editing-line"><${Icon} name="edit" size=${12} /><span>Editing the verdict</span>${d.editing.by && html`<${Person} by=${d.editing.by} />`}<span class="muted">${ago(d.editing.at)}</span></div>`}
-          <${AllParts} parts=${parts} onChange=${(v) => update({ verdicts: v })} />
-          <${PartVerdicts} onSelect=${selectPart} parts=${parts} verdicts=${d.verdicts} onChange=${(v) => update({ verdicts: v })} comments=${d.comments ?? {}} onComments=${(n) => update({ comments: n })} />
-          <textarea class="comp-comment" placeholder="Comment on the whole review" aria-label="Comment" rows="2" value=${d.comment} onInput=${(e) => update({ comment: e.target.value })}></textarea>
+          ${chooses
+            ? html`<${ChoiceDecision} parts=${parts} pick=${d.pick} pickVerdict=${d.pickVerdict} onPick=${(pick) => update({ pick, pickVerdict: 'approved' })} onPickVerdict=${(pickVerdict) => update({ pickVerdict })} onSelect=${selectPart} />`
+            : html`<${AllParts} parts=${parts} onChange=${(v) => update({ verdicts: v })} />
+          <${PartVerdicts} onSelect=${selectPart} parts=${parts} verdicts=${d.verdicts} onChange=${(v) => update({ verdicts: v })} comments=${d.comments ?? {}} onComments=${(n) => update({ comments: n })} />`}
+          <textarea class="comp-comment" placeholder=${dec?.pick === 'none' ? 'What would work instead? (needed)' : dec?.pickVerdict === 'changes' ? 'What should change? (needed)' : 'Comment on the whole review'} aria-label="Comment" rows="2" value=${d.comment} onInput=${(e) => update({ comment: e.target.value })}></textarea>
           <${ErrorLine} error=${err} onRetry=${err && err.code !== 'checkout_changed' ? () => save() : null} />
           <div class="decide-f"><span class="scope-line">${effectLine(dec, parts, item.title)}</span>
             ${draft && html`<button class="btn ghost sm" onClick=${() => setDraft(null)}>${d.editing ? 'Cancel' : 'Discard'}</button>`}
-            <button class="btn primary sm" disabled=${!dec || busy} onClick=${() => save()}>${d.editing ? 'Save changes' : 'Save'}</button></div>
+            <button class="btn primary sm" disabled=${!dec || busy || needsWords} title=${needsWords ? 'Say what would work, or what to change' : undefined} onClick=${() => save()}>${d.editing ? 'Save changes' : 'Save'}</button></div>
         </section>
         <section class="block" aria-label="Verdicts">
           <header class="block-h"><h3>Verdicts</h3><span class="badge">${sub.decisions.filter((e) => e.item === item.id).length}</span></header>
@@ -459,7 +479,7 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
               <span class="ritem-actions">${confirming === e.id
                 ? html`<span class="small">Delete this verdict?</span><button class="btn xs danger" onClick=${() => deleteDecision(e)}>Delete</button><button class="btn xs ghost" onClick=${() => setConfirming(null)}>Keep</button>`
                 : html`<button class="icon-btn sm" aria-label="Edit verdict" title="Edit verdict" onClick=${() => editDecision(e)}><${Icon} name="edit" size=${12} /></button><button class="icon-btn sm" aria-label="Delete verdict" title="Delete verdict" onClick=${() => setConfirming(e.id)}><${Icon} name="trash" size=${12} /></button>`}</span></div>
-            <div class="pvs">${Object.entries(e.verdicts).filter(([pid]) => parts.some(p => p.id === pid)).map(([pid, v]) => html`<span class=${`pv ${v}`}><${Icon} name=${v === 'approved' ? 'check' : v === 'changes' ? 'x' : 'stop'} size=${11} />${parts.find((x) => x.id === pid)?.label ?? pid}</span>`)}</div>
+            ${e.pick ? html`<div class="pvs"><span class=${`pv ${e.pick.option ? e.verdicts[e.pick.option] : 'rejected'}`}><${Icon} name=${e.pick.option ? 'check' : 'stop'} size=${11} />${e.pick.option ? `Picked ${parts.find((x) => x.id === e.pick.option)?.label ?? e.pick.option}${e.verdicts[e.pick.option] === 'changes' ? ', with changes' : ''}` : 'None of these'}</span></div>` : html`<div class="pvs">${Object.entries(e.verdicts).filter(([pid]) => parts.some(p => p.id === pid)).map(([pid, v]) => html`<span class=${`pv ${v}`}><${Icon} name=${v === 'approved' ? 'check' : v === 'changes' ? 'x' : 'stop'} size=${11} />${parts.find((x) => x.id === pid)?.label ?? pid}</span>`)}</div>`}
             <${PartComments} e=${{ ...e, verdicts: Object.fromEntries(Object.entries(e.verdicts).filter(([id]) => parts.some(p => p.id === id))) }} label=${(pid) => parts.find((x) => x.id === pid)?.label ?? pid} />${e.comment && html`<p class="ritem-c">${e.comment}</p>`}</div>`)}
         </section>
         <${NotesBlock} target=${{ kind: 'submission', id: sub.id, item: item.id }} notes=${sub.observations.filter((n) => n.target.item === item.id || !n.target.item)} parts=${parts} views=${item.views.map((v) => ({ id: v.id, label: viewLabel(v) }))} />

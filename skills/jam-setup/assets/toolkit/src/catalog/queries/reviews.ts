@@ -55,6 +55,7 @@ const itemHeader = (p: Projection, submission: SubmissionRecord, item: Submissio
       targetType: target?.kind === "unit" ? unitsById.get(target.id)?.type ?? null : null,
       title: item.title,
       text: item.text ?? null,
+      ...(item.choose ? { choose: item.choose } : {}),
       // Null for work, which targets no content.
       targetExists: target === null ? null : target.kind === "unit" ? unitsById.has(target.id) : p.collectionsById.has(target.id),
       state: state.summary.state,
