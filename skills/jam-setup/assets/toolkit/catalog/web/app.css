@@ -47,7 +47,6 @@ kbd { font: 10.5px var(--mono); color: var(--faint); border: 1px solid var(--lin
 /* Shell */
 .app { display: grid; grid-template-columns: 200px minmax(0, 1fr); grid-template-rows: 44px minmax(0, 1fr); height: 100vh; height: 100dvh; }
 .top { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 0 12px; border-bottom: 1px solid var(--line); background: var(--panel); }
-.top .menu { display: none; }
 .proj { font-weight: 650; letter-spacing: .2px; }
 .rev { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 .dirty { color: var(--warn); font-family: var(--mono); font-size: 11.5px; }
@@ -312,6 +311,18 @@ kbd { font: 10.5px var(--mono); color: var(--faint); border: 1px solid var(--lin
 .compare-body { flex: 1; overflow: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 18px; }
 .cmp-item h4 { font-size: 13px; margin-bottom: 6px; }
 .cmp-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.cmp-stage { position: relative; }
+.cmp-dims { margin-bottom: 6px; }
+.cmp-modes { position: absolute; left: 8px; bottom: 8px; z-index: 6; display: flex; align-items: center; gap: 2px; padding: 2px; border-radius: 8px; background: #0b0d10d9; border: 1px solid #ffffff1f; box-shadow: 0 4px 16px #0008; }
+.cmp-modes > span { display: flex; gap: 2px; padding-right: 2px; margin-right: 2px; border-right: 1px solid #ffffff1f; }
+.cmp-modes button { position: relative; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; color: #c3cad3; }
+.cmp-modes button:hover { background: #ffffff14; color: #fff; }
+.cmp-modes button.on { background: var(--accent-bg); color: var(--accent); }
+.cmp-modes button:disabled { opacity: .35; cursor: default; }
+@media (hover: hover) {
+  .cmp-modes button[data-tip]:hover::after, .cmp-modes button[data-tip]:focus-visible::after { content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); padding: 3px 8px; border-radius: 4px; background: #000; color: #fff; font-size: 11.5px; white-space: nowrap; pointer-events: none; }
+  .cmp-modes button:first-child[data-tip]:hover::after, .cmp-modes button:first-child[data-tip]:focus-visible::after { left: 0; transform: none; }
+}
 .cmp-side { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .cmp-side > div, .cmp-one { display: flex; flex-direction: column; gap: 4px; }
 .cmp-side .viewer, .cmp-one .viewer { position: relative; height: min(58vh, 560px); border-radius: 6px; border: 1px solid var(--line); }
@@ -350,7 +361,6 @@ kbd { font: 10.5px var(--mono); color: var(--faint); border: 1px solid var(--lin
 @media (max-width: 820px) {
   .app { grid-template-columns: minmax(0, 1fr); }
   .top { gap: 8px; padding: 0 6px; }
-  .top .menu { display: inline-grid; }
   .rev .mono, .gsearch kbd { display: none; }
   .gsearch { width: auto; flex: 1; min-width: 0; margin-left: 0; }
   .me { flex: none; }
@@ -514,6 +524,8 @@ model-thumb.failed { background: repeating-linear-gradient(-45deg, #1a1212 0 4px
 /* Browse, inspect and review are separate destinations. */
 :root { --r: 8px; --muted: #9ba3af; --faint: #7c8592; }
 .app { grid-template-columns: 216px minmax(0, 1fr); grid-template-rows: 56px minmax(0, 1fr); }
+.app.nav-collapsed { grid-template-columns: minmax(0, 1fr); }
+.app.nav-collapsed:not(.nav-open) .side { display: none; }
 .top { padding: 0 20px; gap: 14px; }
 .side { padding: 16px 10px; }
 .nav-i { padding: 9px 12px; font-size: 13px; }
@@ -570,7 +582,6 @@ model-thumb.failed { background: repeating-linear-gradient(-45deg, #1a1212 0 4px
 @media (max-width: 820px) {
   .app { grid-template-columns: minmax(0, 1fr); }
   .top { padding: 0 12px; gap: 8px; }
-  .top .menu { display: inline-grid; }
   .side { display: none; }
   .nav-open .side { display: block; position: fixed; top: 56px; bottom: 0; left: 0; width: 216px; z-index: 30; }
   .browse-head { padding: 20px 16px 12px; align-items: start; }
@@ -710,6 +721,7 @@ audio-thumb canvas { width: 100%; height: 100%; object-fit: fill; }
   .btn { padding: 8px 12px; } .btn.sm { padding: 7px 11px; } .btn.xs { padding: 5px 9px; }
   .seg-b { padding: 7px 11px; }
   .tool { padding: 5px 10px; }
+  .cmp-modes button { width: 34px; height: 34px; }
   .note-actions, .member-ops, .member-x, .org-row .icon-btn { opacity: 1; }
   .tag-x { display: inline-grid; }
 }
@@ -790,7 +802,6 @@ audio-thumb canvas { width: 100%; height: 100%; object-fit: fill; }
 
   /* Comparisons: labels only (the file and digest are on wider screens), icon-only full screen. */
   .cmp-tools { gap: 6px; margin-bottom: 6px; }
-  .full-btn > span { display: none; }
   .cmp-cap .mono, .toggle-caps { display: none; }
   .slider-caps { gap: 8px; flex-wrap: nowrap; }
   .slider-caps > .cmp-cap:last-child { text-align: right; justify-content: flex-end; }

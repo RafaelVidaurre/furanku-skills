@@ -215,7 +215,8 @@ const G = {
   link: 'M8 12l4-4 M7 9l-2 2a2.5 2.5 0 0 0 4 4l2-2 M13 11l2-2a2.5 2.5 0 0 0-4-4l-2 2', grid: 'M3 3h6v6H3z M11 3h6v6h-6z M3 11h6v6H3z M11 11h6v6h-6z', rows: 'M3 4h14 M3 10h14 M3 16h14',
   agent: 'M5 7h10v8H5z M10 3v4 M8 11h.01 M12 11h.01', trash: 'M4 6h12 M8 6V4h4v2 M6 6l1 11h6l1-11', edit: 'M4 16l1-4 8-8 3 3-8 8z', delta: 'M10 4l7 12H3z',
   stop: 'M10 3a7 7 0 1 1 0 14a7 7 0 0 1 0-14z M5 5l10 10', warn: 'M10 3l8 14H2z M10 8v4 M10 14.5v.01', expand: 'M3 8V3h5 M17 8V3h-5 M3 12v5h5 M17 12v5h-5', send: 'M3 10l14-6-6 14-2-6z',
-  split: 'M3 4h14v12H3z M10 2v16',
+  split: 'M3 4h14v12H3z M10 2v16', sideBySide: 'M2 5h7v10H2z M11 5h7v10h-7z', swap: 'M4 7h12 M13 4l3 3-3 3 M16 13H4 M7 10l-3 3 3 3',
+  collapse: 'M8 3v5H3 M12 3v5h5 M8 17v-5H3 M12 17v-5h5', sidebar: 'M3 4h14v12H3z M8 4v12',
 };
 // `path` (SVG path data for a 20×20 box) wins over a named glyph: media kinds bring their own.
 export function Icon({ name, path, size = 14, cls = '' }) {

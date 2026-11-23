@@ -17,18 +17,28 @@ import { OrganizationView } from './organize.js';
 import { CompareOverlay } from './compare.js';
 import { markRendered } from './controller.js';
 
+const NAV_KEY = 'catalog:navCollapsed';
+
 function App() {
   const s = useSession();
   const route = useRoute();
   const [nav, setNav] = useState(false);
+  // Wide screens hide the navigation column for room, remembered across visits; narrow screens
+  // open it as a drawer over the page.
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(NAV_KEY) === '1');
+  const narrow = () => matchMedia('(max-width: 820px)').matches;
+  const onMenu = () => {
+    if (narrow()) { setNav(!nav); return; }
+    localStorage.setItem(NAV_KEY, collapsed ? '0' : '1'); setCollapsed(!collapsed);
+  };
   useEffect(() => setNav(false), [location.hash]);
   useKeys(route);
   useEffect(() => { requestAnimationFrame(() => markRendered(location.hash)); });
   if (!s.boot) return html`<div class="boot"><span class="spin"></span></div>`;
   const listSection = isListSection(route.section);
   const detail = listSection && route.kind ? renderDetail(route) : null;
-  return html`<div class=${`app${nav ? ' nav-open' : ''}`}>
-    <${Top} s=${s} onMenu=${() => setNav(!nav)} />
+  return html`<div class=${`app${nav ? ' nav-open' : ''}${collapsed ? ' nav-collapsed' : ''}`}>
+    <${Top} s=${s} onMenu=${onMenu} navShown=${narrow() ? nav : !collapsed} />
     <${Side} route=${route} />
     <main class=${`main${detail ? ' has-detail' : ''}`}><${Boundary} key=${location.hash.split('?')[0]}>
       ${s.changed && html`<div class="banner" role="alert">This checkout is now on <b>${s.changed.branch ?? `detached ${shortHash(s.changed.head)}`}</b>. Saving is paused and drafts are kept for ${s.boot.checkout.branch ?? 'the previous checkout'}. <button class="btn xs" onClick=${() => location.reload()}>Reload</button></div>`}
@@ -90,7 +100,7 @@ function currentScope(section) {
   return scopeOf(lastScope) ?? scopes()[0] ?? null;
 }
 
-function Top({ s, onMenu }) {
+function Top({ s, onMenu, navShown }) {
   useMediaKinds();
   const c = s.summary.checkout;
   const me = s.summary.actor;
@@ -101,7 +111,7 @@ function Top({ s, onMenu }) {
   const waiting = attention ? attention.waiting + attention.notes + attention.changed + attention.problems : 0;
   const problems = s.summary.problems + kindProblems().length;
   return html`<header class="top">
-    <button class="icon-btn menu" onClick=${onMenu} aria-label="Navigation"><${Icon} name="rows" /></button>
+    <button class="icon-btn menu" onClick=${onMenu} aria-label=${navShown ? 'Hide navigation' : 'Show navigation'} title=${navShown ? 'Hide navigation' : 'Show navigation'} aria-expanded=${navShown}><${Icon} name="sidebar" /></button>
     <span class="proj">${s.summary.project}</span>
     ${all.length > 1 && html`<nav class="primary-nav" aria-label="Library">${all.map((scope) => html`<a href=${`#/${enc(scope.id)}`} title=${scope.description} aria-current=${r.section === scope.id ? 'page' : undefined}>${scope.label}</a>`)}</nav>`}
     <${Popover} label="Workspace details" trigger=${() => html`<button class="icon-btn" aria-label="Workspace details"><${Icon} name="branch" size=${14} /></button>`}>
