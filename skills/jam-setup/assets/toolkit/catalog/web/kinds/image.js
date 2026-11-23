@@ -65,7 +65,7 @@ export function ImageViewer({ src, label, view: extView, onView, viewerId, shows
   </div>`;
 }
 
-// Image comparison: side by side (linked zoom), divider, or fixed-frame toggle; fullscreen keeps the mode.
+// Image comparison: side by side (linked zoom), divider, or toggle; fullscreen keeps the mode.
 export function ImageCompare({ a, b, labels, mark, control }) {
   const [dims, setDims] = useState({});
   const [mode, setModeState] = useState(null);
@@ -83,22 +83,22 @@ export function ImageCompare({ a, b, labels, mark, control }) {
   const m = control?.mode ?? (explicit ? mode : aligned ? mode ?? 'divider' : 'side');
   useEffect(() => { if (control?.divider != null) setDivider(Math.max(0, Math.min(100, control.divider))); if (control?.side) setShowB(control.side === 'b'); }, [control?.divider, control?.side]);
   const setMode = (x) => { setModeState(x); setExplicit(true); };
+  // Inline, divider and toggle frames take the images' shape so neither letterboxes on a narrow
+  // screen; full screen fills the window instead.
+  const ratio = aligned ? `${dims.a[0]} / ${dims.a[1]}` : null;
   useEffect(() => { for (const k of ['a', 'b']) { const s = k === 'a' ? a : b; if (s.status !== 'ok') mark(k)('error'); else if (dims[k] === 'error') mark(k)('error'); else if (dims[k]) mark(k)('ready'); else mark(k)('loading'); } }, [dims.a, dims.b]);
   const body = (inFull) => html`<div class=${`cmp${inFull ? ' full' : ''}`}>
     <div class="cmp-tools">
       <span class="seg" role="radiogroup" aria-label="Comparison mode">${[['side', 'Side by side'], ['divider', 'Divider'], ['toggle', 'Toggle']].map(([k, l]) => html`<button role="radio" aria-checked=${m === k} class=${`seg-b${m === k ? ' on' : ''}`} disabled=${k !== 'side' && !both} onClick=${() => setMode(k)}>${l}</button>`)}</span>
       ${both && !aligned && Array.isArray(dims.a) && Array.isArray(dims.b) && html`<span class="muted small">${dims.a.join('×')} vs ${dims.b.join('×')}</span>`}
-      <button class="btn sm push" onClick=${() => setFull(!inFull)} aria-label=${inFull ? 'Exit full screen' : 'Full screen'}><${Icon} name="expand" size=${12} />${inFull ? 'Exit' : 'Full screen'}</button>
+      <button class="btn sm push full-btn" onClick=${() => setFull(!inFull)} aria-label=${inFull ? 'Exit full screen' : 'Full screen'} title=${inFull ? 'Exit full screen' : 'Full screen'}><${Icon} name="expand" size=${12} /><span>${inFull ? 'Exit' : 'Full screen'}</span></button>
     </div>
     ${m === 'side' && html`<div class="cmp-side">
       <div>${sideLabel(a, labels[0])}${a.status === 'ok' ? html`<${ImageViewer} src=${a.url} view=${view} onView=${setView} />` : html`<${SideError} side=${a} />`}</div>
       <div>${sideLabel(b, labels[1])}${b.status === 'ok' ? html`<${ImageViewer} src=${b.url} view=${view} onView=${setView} />` : html`<${SideError} side=${b} />`}</div>
     </div>`}
-    ${m === 'divider' && html`<${Divider} a=${a} b=${b} labels=${labels} value=${divider} onChange=${setDivider} />`}
-    ${m === 'toggle' && html`<div class="cmp-one">
-      <div class="toggle-bar"><button class="btn sm toggle-btn" aria-pressed=${showB} onClick=${() => setShowB(!showB)} onKeyDown=${(e) => { if (e.repeat && (e.key === ' ' || e.key === 'Enter')) e.preventDefault(); }}>Showing ${showB ? labels[1] : labels[0]} <span class="muted">· Space to flip</span></button>${sideLabel(showB ? b : a, showB ? labels[1] : labels[0])}</div>
-      <div class="frame"><img src=${showB ? b.url : a.url} alt=${showB ? labels[1] : labels[0]} draggable="false" /></div>
-    </div>`}
+    ${m === 'divider' && html`<${Divider} a=${a} b=${b} labels=${labels} value=${divider} onChange=${setDivider} ratio=${inFull ? null : ratio} />`}
+    ${m === 'toggle' && html`<${Toggle} a=${a} b=${b} labels=${labels} showB=${showB} onFlip=${() => setShowB(!showB)} ratio=${inFull ? null : ratio} />`}
   </div>`;
   return html`${body(false)}${full && html`<${FullScreen} onClose=${() => setFull(false)}>${body(true)}<//>`}`;
 }
@@ -110,12 +110,27 @@ function FullScreen({ onClose, children }) {
     <div class="compare-body">${children}</div></div></div>`;
 }
 
-function Divider({ a, b, labels, value, onChange }) {
+// Toggle: one frame showing one side; clicking or tapping the image (or Space/Enter on it) shows the other.
+function Toggle({ a, b, labels, showB, onFlip, ratio }) {
+  const [label, other] = showB ? [labels[1], labels[0]] : [labels[0], labels[1]];
+  const side = showB ? b : a;
+  return html`<div class="cmp-one">
+    <div class="toggle-caps">${sideLabel(side, label)}</div>
+    <div class="frame flip" role="button" tabindex="0" aria-pressed=${showB} aria-label=${`Showing ${label}. Show ${other}`} title=${`Show ${other}`} style=${ratio ? `aspect-ratio: ${ratio}` : ''}
+      onClick=${onFlip} onKeyDown=${(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) onFlip(); } }}>
+      <img src=${side.url} alt=${label} draggable="false" />
+      <span class="frame-tag" aria-hidden="true"><span class=${`ab${showB ? '' : ' on'}`}></span><span class=${`ab${showB ? ' on' : ''}`}></span>${label}</span>
+      <span class="frame-hint" aria-hidden="true">${matchMedia('(pointer: coarse)').matches ? 'Tap' : 'Click'} to show ${other}</span>
+    </div>
+  </div>`;
+}
+
+function Divider({ a, b, labels, value, onChange, ratio }) {
   const box = useRef();
   const drag = useRef(null);
   const set = (e) => { const r = box.current.getBoundingClientRect(); onChange(Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100))); };
   return html`<div class="cmp-one"><div class="slider-caps">${sideLabel(a, labels[0])}${sideLabel(b, labels[1])}</div>
-    <div class="slider" ref=${box}
+    <div class="slider" ref=${box} style=${ratio ? `aspect-ratio: ${ratio}` : ''}
       onPointerDown=${(e) => { drag.current = { x: e.clientX, moved: false }; box.current.setPointerCapture(e.pointerId); }}
       onPointerMove=${(e) => { if (!drag.current) return; if (Math.abs(e.clientX - drag.current.x) > 4) drag.current.moved = true; if (drag.current.moved) set(e); }}
       onPointerUp=${(e) => { if (drag.current && !drag.current.moved) set(e); drag.current = null; }} onPointerCancel=${() => { drag.current = null; }}>

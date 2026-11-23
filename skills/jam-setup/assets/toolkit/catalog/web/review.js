@@ -175,6 +175,13 @@ export function SubmissionView({ route }) {
     if (s.view) { const it = sub.items.find((i) => i.id === (s.item ?? itemId)); if (!it?.views.some((v) => v.id === s.view)) throw refusal('not_found', 'no such view'); setTimeout(() => setView(s.view), 0); }
   });
   useEffect(() => () => { setSelectionProvider(() => null); setSelectHandler(null); }, []);
+  // The item list scrolls on its own (sideways on a phone): keep the open item in it visible.
+  useEffect(() => {
+    const row = document.querySelector('.sub-items .row.sel'); const list = row?.parentElement;
+    if (!row || !list) return;
+    const r = row.getBoundingClientRect(), l = list.getBoundingClientRect();
+    list.scrollBy({ left: r.left < l.left || r.right > l.right ? r.left - l.left - (l.width - r.width) / 2 : 0, top: r.top < l.top || r.bottom > l.bottom ? r.top - l.top - (l.height - r.height) / 2 : 0 });
+  }, [itemId, !!sub]);
   if (error) return html`<div class="detail"><${ErrorLine} error=${error} onRetry=${reload} /></div>`;
   if (!sub) return html`<div class="detail"><div class="viewer-msg"><span class="spin"></span></div></div>`;
   const idx = sub.items.findIndex((i) => i.id === itemId);
@@ -187,6 +194,7 @@ export function SubmissionView({ route }) {
         ${sub.supersedes && html`<div class="row-sub">Replaces <a href=${href({ section: 'reviews', kind: 's', id: sub.supersedes })}>${sub.supersedes.slice(-6).toUpperCase()}</a></div>`}
         ${sub.supersededBy.length > 0 && html`<div class="row-sub">Replaced by ${sub.supersededBy.map((x) => html`<a href=${href({ section: 'reviews', kind: 's', id: x.id })}>${x.ref}</a> `)}</div>`}
         <div class="sub-counts">${sub.counts.waiting ? html`<span class="cnt wait">${sub.counts.waiting} waiting</span>` : ''}<span class="cnt">${sub.counts.approved}/${sub.counts.items} approved</span></div>
+        <${ReviewPager} subId=${subId} route=${route} />
       </div>
       <div class="rows" role="list">${sub.items.map((it) => html`<a key=${it.id} role="listitem" class=${`row${it.id === itemId ? ' sel' : ''}`} aria-current=${it.id === itemId ? 'true' : undefined} href=${href({ section: 'reviews', kind: 's', id: subId, member: it.id })}>
         <span class="row-main"><span class="row-name">${it.title}</span><span class="row-sub">${!it.target ? 'Work' : it.target.kind === 'collection' ? 'Collection' : scopeOf(it.targetScope)?.label ?? 'Unit'} · ${STATE_LABEL[it.state]}${it.target && !it.targetExists ? ' · removed from catalog' : ''}</span></span><${VerdictBar} parts=${it.parts.filter(p => p.reviewable !== false)} /></a>`)}</div>
@@ -194,6 +202,40 @@ export function SubmissionView({ route }) {
     ${item && html`<${ItemView} key=${item.id} sub=${sub} item=${item} view=${view} viewError=${unavailable} setView=${setView} idx=${idx} goItem=${goItem} />`}
     ${!item && html`<div class="item-view"><div class="errline" role="alert"><${Icon} name="warn" size=${13} /><span>${unavailable}</span></div></div>`}
   </div>`;
+}
+
+// Steps between submissions of the queue this one was opened from (Waiting unless the queue
+// says otherwise), in the queue's order, without deciding anything. Shift+[ and Shift+] step too.
+// The current submission keeps its place after its last part is decided and it leaves the queue.
+const QUEUE_LABEL = { waiting: 'waiting', changes: 'with changes requested', rejected: 'with rejections', approved: 'approved', all: '' };
+function ReviewPager({ subId, route }) {
+  const state = route.query.get('state') ?? 'waiting';
+  const q = route.query.get('q') ?? '';
+  const queue = useQuery('review.list', { state, q, pageSize: 200 }).data;
+  const order = useQuery('review.list', { state: 'all', q, pageSize: 200 }).data;
+  const pos = order?.submissions.findIndex((x) => x.id === subId) ?? -1;
+  const inQueue = new Set(queue?.submissions.map((x) => x.id));
+  const before = pos < 0 ? [] : order.submissions.slice(0, pos).filter((x) => inQueue.has(x.id));
+  const after = pos < 0 ? queue?.submissions ?? [] : order.submissions.slice(pos + 1).filter((x) => inQueue.has(x.id));
+  const prev = before.at(-1), next = after[0];
+  const go = (x) => { if (x) location.hash = href({ section: 'reviews', kind: 's', id: x.id, query: new URLSearchParams([...route.query].filter(([k]) => ['state', 'q'].includes(k))) }).slice(1); };
+  useEffect(() => {
+    const key = (e) => {
+      if (e.defaultPrevented || isTyping(e) || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('.scrim')) return;
+      if (e.key === '}' && next) { e.preventDefault(); go(next); }
+      if (e.key === '{' && prev) { e.preventDefault(); go(prev); }
+    };
+    addEventListener('keydown', key); return () => removeEventListener('keydown', key);
+  });
+  if (!queue || !order || (!prev && !next)) return null;
+  const label = QUEUE_LABEL[state] ?? '';
+  const n = queue.total;
+  const where = inQueue.has(subId) ? `${before.length + 1} of ${n}${label ? ` ${label}` : ''}` : `${n} review${n === 1 ? '' : 's'}${label ? ` ${label}` : ''}`;
+  return html`<nav class="review-pager" aria-label="Reviews">
+    <button class="btn sm" disabled=${!prev} onClick=${() => go(prev)} title=${prev ? `Previous review: ${prev.title} (Shift+[)` : 'No earlier review'} aria-label="Previous review"><${Icon} name="back" size=${12} /></button>
+    <span class="muted small">${where}</span>
+    <button class="btn sm" disabled=${!next} onClick=${() => go(next)} title=${next ? `Next review: ${next.title} (Shift+])` : 'No later review'}><span>Next review</span><${Icon} name="chev" size=${12} /></button>
+  </nav>`;
 }
 
 // A capture: evidence rendered outside the catalog, its own part. A pair shows its two images compared.
@@ -325,9 +367,9 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
   return html`<div class="item-view">
     <header class="d-head">
       <div class="d-title"><h1>${item.title}</h1>${!item.target ? null : item.targetExists ? html`<a class="small" href=${targetHref}>${item.target.id}</a>` : html`<span class="small c-bad">${item.target.id} is no longer in this checkout</span>`}
-        <span class="push muted small">${idx + 1} / ${sub.items.length}</span>
+        ${sub.items.length > 1 && html`<span class="item-pager"><span class="muted small">${idx + 1} / ${sub.items.length}</span>
         <button class="icon-btn sm" disabled=${idx === 0} onClick=${() => goItem(sub.items[idx - 1].id)} aria-label="Previous item" title="Previous item ([)"><${Icon} name="back" size=${12} /></button>
-        <button class="icon-btn sm" disabled=${idx === sub.items.length - 1} onClick=${() => goItem(sub.items[idx + 1].id)} aria-label="Next item" title="Next item (])"><${Icon} name="chev" size=${12} /></button>
+        <button class="icon-btn sm" disabled=${idx === sub.items.length - 1} onClick=${() => goItem(sub.items[idx + 1].id)} aria-label="Next item" title="Next item (])"><${Icon} name="chev" size=${12} /></button></span>`}
       </div>
     </header>
     <div class="d-body">
