@@ -1,5 +1,6 @@
 // The catalog's domain vocabulary: what sources produce after normalization, and what the
 // records under `.catalog/` hold. Types only; the rules live beside them in this folder.
+import type { Sheet } from "./sheet.ts"
 
 export interface Actor {
   readonly name: string
@@ -61,6 +62,8 @@ export interface DisplayDef {
 export interface TypeDef {
   readonly scope: string
   readonly label: string
+  /** The label of several, for lists of the type. */
+  readonly plural: string
   readonly roles: ReadonlyArray<RoleDef>
   readonly fields: ReadonlyArray<FieldDef>
   readonly thumb: string | null
@@ -100,8 +103,12 @@ export interface Link {
   readonly role: string
   readonly asset: string
   readonly key?: string
+  /** What a person calls the file in this unit; shown instead of its name. */
+  readonly label?: string
   /** Per-link data from the source (take number, word timings); never review evidence. */
   readonly meta?: Record<string, unknown>
+  /** How the linked image is cut into animation frames; reviewed with the image's bytes. */
+  readonly sheet?: Sheet
 }
 
 export interface Unit {
@@ -178,6 +185,8 @@ export interface Part {
   readonly role?: string
   readonly asset?: string
   readonly member?: string
+  /** The link's sheet: the part is the animation it cuts from the asset. */
+  readonly sheet?: Sheet
 }
 
 // ---- Records (the JSON files under .catalog). Field order is the order they are written in.
@@ -254,6 +263,8 @@ export interface LeafEvidence {
   readonly ref?: EvidenceRef
   /** Who rendered a capture (for example a game engine); captures only. */
   readonly renderer?: string
+  /** The sheet the image was reviewed as; its digest covers the bytes and the sheet. */
+  readonly sheet?: Sheet
 }
 
 export interface DefinitionEvidence {

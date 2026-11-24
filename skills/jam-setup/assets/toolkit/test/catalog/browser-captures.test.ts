@@ -86,7 +86,9 @@ test("captures and work items in the review page; pixel art keeps hard texels an
     await page.goto(`${s.url}#/reviews/s/${submission.id}/${helm.id}`)
     await page.waitForFunction(ready)
     assert.equal((await page.evaluate(() => (globalThis as Any).catalogViewer.state())).selection.part, "capture:1")
-    assert.equal(await page.locator(".stage-view img").evaluate((image) => getComputedStyle(image).imageRendering), "auto")
+    // A capture is not pixel art: smoothed when shown smaller, its own pixels only when magnified.
+    const captureScale = (await page.evaluate(() => (globalThis as Any).catalogViewer.state())).viewer.zoom.scale
+    assert.equal(await page.locator(".stage-view img").evaluate((image) => getComputedStyle(image).imageRendering), captureScale > 1 ? "pixelated" : "auto")
     await page.locator(".caption-bar").scrollIntoViewIfNeeded()
     assert.equal(await page.locator(".caption-bar .renderer-badge").innerText(), "Unreal")
     await page.screenshot({ path: `${OUT}/unit-capture-1440.png` })

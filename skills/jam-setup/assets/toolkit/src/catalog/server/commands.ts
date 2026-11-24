@@ -114,6 +114,7 @@ const capture = Command.make(
     camera: Flag.String("camera").pipe(Flag.withDescription('Camera of a model as JSON: {"position":[x,y,z],"target":[x,y,z]}'), Flag.optional),
     mode: Flag.String("mode").pipe(Flag.withDescription("Surface of a model: textured, clay or wireframe"), Flag.optional),
     animation: Flag.String("animation").pipe(Flag.withDescription("An animation clip of a model, shown at its first frame"), Flag.optional),
+    frame: Flag.Int("frame").pipe(Flag.withDescription("A frame of a sprite-sheet animation (from 0), shown paused"), Flag.optional),
     out: Flag.String("out").pipe(Flag.withDescription("Also write the PNG to this file"), Flag.optional),
     size: Flag.String("size").pipe(Flag.withDescription("Page size as <width>x<height> (default 1280x860)"), Flag.optional),
     url: Flag.String("url").pipe(Flag.withDescription("Capture through this running catalog server instead of a temporary one"), Flag.optional)
@@ -126,6 +127,7 @@ const capture = Command.make(
         camera: yield* cameraOf(flags.camera),
         mode: Option.getOrUndefined(flags.mode),
         animation: Option.getOrUndefined(flags.animation),
+        frame: Option.getOrUndefined(flags.frame),
         out: Option.getOrUndefined(flags.out),
         url: Option.getOrUndefined(flags.url)
       }

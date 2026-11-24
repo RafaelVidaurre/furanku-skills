@@ -51,7 +51,8 @@ export const AssetRef = Schema.Struct({
   version: Nullable(Str),
   size: Nullable(Num),
   mime: Nullable(Str),
-  url: Nullable(Str)
+  url: Nullable(Str),
+  sheet: opt(Open.annotate({ description: "A thumbnail of an animation cut from this image: the sheet, so its first frame is shown" }))
 })
 
 // ---- Project schema
@@ -65,6 +66,7 @@ const InspectorDef = Schema.Struct({ ...MountFields, default: Bool })
 export const TypeDef = Schema.Struct({
   scope: Str,
   label: Str,
+  plural: Str,
   roles: Schema.Array(RoleDef),
   fields: Schema.Array(FieldDef),
   thumb: Nullable(Str),
@@ -116,6 +118,9 @@ export const DecisionSummary = Schema.Struct({
   editedAt: opt(Str),
   editedBy: opt(Actor)
 })
+/** A sprite sheet as the catalog keeps it (model/sheet.ts): fps, loop, and a grid or frames. */
+const SheetOut = opt(Open.annotate({ description: "How the image is cut into animation frames: { fps, loop, grid | frames, durations? }; present only for an image shown as an animation" }))
+
 /** A content part with its current verdict and the decision that gave it. */
 export const PartReview = Schema.Struct({
   id: Str,
@@ -123,6 +128,7 @@ export const PartReview = Schema.Struct({
   role: opt(Str),
   asset: opt(Str),
   member: opt(Str),
+  sheet: SheetOut,
   reviewable: Bool,
   verdict: Nullable(Str),
   decision: Nullable(DecisionSummary),
@@ -187,7 +193,8 @@ const ItemPart = Schema.Struct({
     size: Nullable(Num),
     sha256: Nullable(Str),
     storage: Nullable(Schema.Literals(["git", "catalog"])),
-    unit: Nullable(Str)
+    unit: Nullable(Str),
+    sheet: SheetOut
   }),
   leaves: Schema.Array(Open).annotate({ description: "Each frozen byte stream or attribute set of the part with its verified status and media URL" })
 })
@@ -277,7 +284,10 @@ export const UnitDetail = Linked({
     asset: AssetRef,
     alsoUsedBy: Schema.Array(Schema.Struct({ unit: Str, role: Str, name: opt(Str), roleLabel: Str })),
     key: opt(Str),
+    label: opt(Str.annotate({ description: "What the unit calls this file (an animation's name in the game), when its source says" })),
+    part: Nullable(Str).annotate({ description: "The review part this link is: its role, or role:key in a role that takes many" }),
     meta: Nullable(Open),
+    sheet: SheetOut,
     facts: Schema.Record(Str, Open).annotate({ description: "Probe name to { facts } or { error }" })
   })),
   missing: Schema.Array(RoleDef),

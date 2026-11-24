@@ -9,6 +9,7 @@ import type { Evidence } from "../Evidence.ts"
 import { ensureHashed, targetAssets } from "../hashes.ts"
 import type { MediaKinds } from "../MediaKinds.ts"
 import { isItemEvidence, reviewAttrs, unitParts } from "../model/parts.ts"
+import { mediaDigest, type Sheet } from "../model/sheet.ts"
 import type { LeafEvidence } from "../model/types.ts"
 import { factsOf, type Projection, typeOf } from "../Projection.ts"
 import { frozenPart, type Leaf, leaves } from "./evidence.ts"
@@ -22,16 +23,16 @@ export interface FrozenRef {
 }
 
 /** Current content standing in for one side: what the working tree holds for the same identity. */
-type Current = { readonly current: true; readonly kind: string | null; readonly asset: string; readonly path: string; readonly sha256: string | null; readonly token: string | undefined; readonly size: number | undefined; readonly mime: string | undefined; readonly state: string; readonly error: string | undefined }
+type Current = { readonly current: true; readonly kind: string | null; readonly asset: string; readonly path: string; readonly sha256: string | null; readonly token: string | undefined; readonly size: number | undefined; readonly mime: string | undefined; readonly state: string; readonly error: string | undefined; readonly sheet?: Sheet }
 type Side = LeafEvidence | Current | null
 
 const MISSING = { status: "missing", error: "not present on this side" } as const
 
-const currentAsset = (p: Projection, assetId: string): Current | null => {
+const currentAsset = (p: Projection, assetId: string, sheet?: Sheet): Current | null => {
   const asset = p.snapshot.assetsById.get(assetId)
   if (!asset) return null
   const facts = factsOf(p, asset.id)
-  return { current: true, kind: asset.kind, asset: asset.id, path: asset.path, sha256: facts.sha256 ?? null, token: facts.token, size: facts.size, mime: facts.mime, state: facts.state, error: facts.error }
+  return { current: true, kind: asset.kind, asset: asset.id, path: asset.path, sha256: facts.sha256 ?? null, token: facts.token, size: facts.size, mime: facts.mime, state: facts.state, error: facts.error, ...(sheet === undefined ? {} : { sheet }) }
 }
 
 const currentLeaf = (p: Projection, unitId: string, partId: string): Side => {
@@ -43,22 +44,25 @@ const currentLeaf = (p: Projection, unitId: string, partId: string): Side => {
     return { kind: "attributes", attrs, digest: digest(attrs) }
   }
   const part = unitParts(unit, type).find((candidate) => candidate.id === partId)
-  return part?.asset === undefined ? null : currentAsset(p, part.asset)
+  return part?.asset === undefined ? null : currentAsset(p, part.asset, part.sheet)
 }
+
+/** A side shown as an animation carries its sheet; a plain image carries none. */
+const sheetOf = (side: { readonly sheet?: Sheet | undefined }) => (side.sheet === undefined ? {} : { sheet: side.sheet })
 
 const sideView = (evidence: Evidence["Service"], side: Side, url: string | null) =>
   Effect.gen(function*() {
     if (!side) return MISSING
     if ("current" in side) {
       return side.state === "ok" && side.sha256 !== null && side.token !== undefined
-        ? { status: "ok", kind: side.kind, sha256: side.sha256, mime: side.mime, size: side.size, asset: side.asset, path: side.path, url: assetUrl(side.asset, side.token) }
+        ? { status: "ok", kind: side.kind, sha256: side.sha256, digest: mediaDigest(side.sha256, side.sheet), mime: side.mime, size: side.size, asset: side.asset, path: side.path, url: assetUrl(side.asset, side.token), ...sheetOf(side) }
         : { status: side.state, error: side.error, kind: side.kind, asset: side.asset, path: side.path }
     }
     if (side.attrs !== undefined || side.kind === "attributes") return { status: "ok", kind: "attributes", attrs: side.attrs }
     if (!side.ref) return { status: "ok", kind: "composite", digest: side.digest }
     const read = yield* evidence.readRef(side.ref, side.sha256)
     return read.status === "ok"
-      ? { status: "ok", kind: side.kind, mime: side.mime, sha256: side.sha256, size: side.size, path: side.path, asset: side.asset, url }
+      ? { status: "ok", kind: side.kind, mime: side.mime, sha256: side.sha256, digest: side.digest, size: side.size, path: side.path, asset: side.asset, url, ...sheetOf(side) }
       : { status: read.status, error: read.error, kind: side.kind, path: side.path, asset: side.asset, sha256: side.sha256 }
   })
 
@@ -98,7 +102,7 @@ export const compare = (p: Projection, evidence: Evidence["Service"], a: FrozenR
       const bothOk = sideA.status === "ok" && sideB.status === "ok"
       const identical = bothOk && ("attrs" in sideA
         ? digest(sideA.attrs) === digest((sideB as { attrs?: unknown }).attrs)
-        : "sha256" in sideA && !!sideA.sha256 && sideA.sha256 === (sideB as { sha256?: unknown }).sha256)
+        : "digest" in sideA && !!sideA.digest && sideA.digest === (sideB as { digest?: unknown }).digest)
       out.push({ key, label: (row.a ?? row.b)!.label, a: sideA, b: sideB, identical })
     }
     return {

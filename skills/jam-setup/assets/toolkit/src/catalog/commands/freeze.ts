@@ -9,6 +9,7 @@ import { fail, type ToolError } from "../../kernel/errors.ts"
 import { digest, extensionOf } from "../../kernel/hash.ts"
 import { reviewAttrs, unitParts } from "../model/parts.ts"
 import type { DefinitionEvidence, LeafEvidence, MediaFacts, Unit } from "../model/types.ts"
+import { mediaDigest, type Sheet } from "../model/sheet.ts"
 import { factsOf, typeOf } from "../Projection.ts"
 
 export interface FreezeEnv extends WriteEnv {
@@ -30,6 +31,10 @@ export const freezeFile = (env: FreezeEnv, asset: string, path: string, kind: st
     if (ref === null) return yield* fail("conflict", `${path} changed while it was being captured; submit again`)
     return { digest: sha256, asset, path, kind: kind ?? facts.kind ?? "", ...(mime === undefined ? {} : { mime }), size: size ?? 0, sha256, ref }
   })
+
+/** Media reviewed as an animation: the sheet is frozen with the bytes, and the digest covers both. */
+export const withSheet = (leaf: LeafEvidence, sheet: Sheet | undefined): LeafEvidence =>
+  sheet === undefined || leaf.sha256 === undefined ? leaf : { ...leaf, digest: mediaDigest(leaf.sha256, sheet), sheet }
 
 export const freezeAsset = (env: FreezeEnv, assetId: string): Effect.Effect<LeafEvidence, ToolError, Evidence | MediaKinds> => {
   const asset = env.projection.snapshot.assetsById.get(assetId)
@@ -58,7 +63,7 @@ export const freezeUnitParts = (env: FreezeEnv, unit: Unit, partIds: ReadonlyArr
     const frozen: Record<string, LeafEvidence> = {}
     for (const part of unitParts(unit, typeOf(env.projection, unit))) {
       if (!partIds.includes(part.id)) continue
-      frozen[part.id] = part.asset === undefined ? attributesEvidence(env, unit) : yield* freezeAsset(env, part.asset)
+      frozen[part.id] = part.asset === undefined ? attributesEvidence(env, unit) : withSheet(yield* freezeAsset(env, part.asset), part.sheet)
     }
     return frozen
   })

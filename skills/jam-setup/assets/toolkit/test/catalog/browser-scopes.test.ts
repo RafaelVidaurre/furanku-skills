@@ -22,7 +22,7 @@ const units = [
 ]
 const types = (scopes: Readonly<Record<string, string | undefined>>) => ({
   ...TYPES,
-  scene: { label: "Scene", ...(scopes["scene"] ? { scope: scopes["scene"] } : {}), thumb: "still", fields: [], roles: [{ key: "still", label: "Still", mediaKinds: ["image"] }] },
+  scene: { label: "Scene", plural: "Scenes", ...(scopes["scene"] ? { scope: scopes["scene"] } : {}), thumb: "still", fields: [], roles: [{ key: "still", label: "Still", mediaKinds: ["image"] }] },
   prop: { label: "Prop", ...(scopes["prop"] ? { scope: scopes["prop"] } : {}), fields: [{ key: "material", label: "Material" }], roles: [] },
   cue: { label: "Cue", ...(scopes["cue"] ? { scope: scopes["cue"] } : {}), fields: [{ key: "tempo", label: "Tempo", kind: "number" }], roles: [] }
 })
@@ -48,9 +48,9 @@ test("one scope: no split, its label names the library, and every unit address i
     assert.equal(await page.locator(".browse-head .muted").innerText(), "Everything that is on the page of the script")
     assert.equal(await page.getByRole("listitem").count(), 4, "every unit is in the one scope")
     assert.equal(await page.locator(".primary-nav").count(), 0, "with one scope there is nothing to switch between")
-    assert.equal(await page.locator(".nav-caption").innerText(), "STORY")
+    assert.equal(await page.locator(".nav-caption").first().innerText(), "STORY")
     await page.locator(".side").getByRole("link", { name: "All story 4", exact: true }).waitFor()
-    assert.deepEqual(await page.locator(".side .nav-i").allInnerTexts().then((texts) => texts.map((text) => text.replace(/\s+/g, " "))), ["All story 4", "Act one 1", "Act two 1", "Hand props 1", "Collections 0", "Assets 1", "Notes 0", "Reviews", "Categories & tags"])
+    assert.deepEqual(await page.locator(".side .nav-i").allInnerTexts().then((texts) => texts.map((text) => text.replace(/\s+/g, " "))), ["All story 4", "Scenes 2", "Prop 1", "Cue 1", "Act one 1", "Act two 1", "Hand props 1", "Collections 0", "Assets 1", "Notes 0", "Reviews", "Categories & tags"])
     await page.screenshot({ path: `${OUT}/one-scope.png` })
     // A unit opens under the scope; an address under any other name is corrected or refused.
     await page.getByRole("listitem").filter({ hasText: "Opening" }).click()
@@ -88,7 +88,7 @@ test("one scope: no split, its label names the library, and every unit address i
   }
 })
 
-test("no plugin registers scopes: Main and Material split the units, and assets and organization are sections of their own", async (t) => {
+test("no plugin registers scopes: Content and Source material split the units, and assets and organization are sections of their own", async (t) => {
   const found = await browserOrSkip()
   if ("skip" in found) return t.skip(found.skip)
   const { browser } = found
@@ -96,15 +96,19 @@ test("no plugin registers scopes: Main and Material split the units, and assets 
   const s = await startServer(dir)
   mkdirSync(OUT, { recursive: true })
   try {
-    assert.deepEqual((await s.app.run("schema", {})).scopes.map((scope: Any) => [scope.id, scope.label]), [["main", "Main"], ["material", "Material"]])
+    assert.deepEqual((await s.app.run("schema", {})).scopes.map((scope: Any) => [scope.id, scope.label]), [["main", "Content"], ["material", "Source material"]])
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
     const errors: Array<string> = []
     page.on("pageerror", (error) => errors.push(String(error)))
     await page.goto(s.url)
     await page.getByRole("listitem").filter({ hasText: "Opening" }).waitFor()
-    assert.deepEqual(await page.locator(".primary-nav a").evaluateAll((links) => links.map((link) => [link.textContent, link.getAttribute("href")])), [["Main", "#/main"], ["Material", "#/material"]])
+    assert.deepEqual(await page.locator(".primary-nav a").evaluateAll((links) => links.map((link) => [link.textContent, link.getAttribute("href")])), [["Content", "#/main"], ["Source material", "#/material"]])
     assert.match(page.url(), /#\/main$|\/$/)
-    await page.locator(".primary-nav").getByRole("link", { name: "Material", exact: true }).click()
+    // A section lists its units by type (named in the plural when the type gives one), then the categories people filed them in.
+    assert.deepEqual(await page.locator(".side .nav-i, .side .nav-caption").evaluateAll((items) => items.slice(0, 6).map((item) => (item as HTMLElement).innerText.replace(/\s+/g, " ").trim())), ["CONTENT", "All content 3", "Scenes 2", "Cue 1", "CATEGORIES", "Act one 1"])
+    await page.locator(".side").getByRole("link", { name: "Scenes 2", exact: true }).click()
+    assert.match(page.url(), /f\.type=scene/)
+    await page.locator(".primary-nav").getByRole("link", { name: "Source material", exact: true }).click()
     await page.getByRole("listitem").filter({ hasText: "Lantern" }).click()
     await page.locator("h1").filter({ hasText: "Lantern" }).waitFor()
     assert.match(page.url(), /#\/material\/u\/prop%2Flantern$/)

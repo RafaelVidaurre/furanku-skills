@@ -530,7 +530,7 @@ describe("keyboard, layout and resources", () => {
     })
     try {
       await p.goBack()
-      await p.getByRole("status").filter({ hasText: "Loading main" }).waitFor()
+      await p.getByRole("status").filter({ hasText: "Loading content" }).waitFor()
       assert.equal(await p.locator(".card").count(), 0)
     } finally {
       release()

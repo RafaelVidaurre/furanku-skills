@@ -6,6 +6,8 @@ The catalog takes its content from the project itself:
 
 Do the steps in order. Stop after step 1 when the person only needs to see the engine's content.
 
+When the project declares which assets belong in its catalog, its `jam` plugin can use `{ "plugin": "jam", "options": { "includeRuns": false } }`. This keeps media measurements and doctor checks available. Recipe runs appear as catalog units by default.
+
 ## 1. The engine's content
 
 1. Check that `jam engine show` lists `inventory` among the commands the adapter runs. Without it, install a full adapter for the engine (the `jam-engine` skill).
@@ -23,9 +25,10 @@ Do the steps in order. Stop after step 1 when the person only needs to see the e
 | `filter` | Engine metadata keys to offer as search filters | none |
 | `scope` | The page section the units appear in. Set it when the project registers its own sections | `material` |
 | `importWith` | The project's own action for putting content into the engine, when it builds that content itself rather than importing file by file; `engine.import` then refuses and names it | none |
+| `currentPreviewsOnly` | Hide a generated preview or animation as soon as its source or any recorded input changes. Regenerate it with `jam engine previews`. | `false` |
 | `matchSourcesByMd5` | When the path the engine stored for a source file does not resolve (it imported from a temporary folder or another checkout), find the file among the catalog's media by the MD5 the engine stored. The first run hashes the media under the asset roots; each file version is hashed once per machine | `false` |
 
-**What each unit holds.** Each engine file the adapter could read becomes the unit `engine:<engine id>`, for example `engine:/Game/Props/SM_Crate`. It sits with the project's source material (the `material` section). The catalog has no section per origin: where something comes from is in its attributes and relations, and what a person looks for (items, characters, levels) is the project's main content, which steps 2 to 4 set up. Its attributes:
+**What each unit holds.** Each engine file the adapter could read becomes the unit `engine:<engine id>`, for example `engine:/Game/Props/SM_Crate`. It sits with the project's source material (the `material` scope, "Source material"). The catalog has no section per origin: where something comes from is in its attributes and relations, and what a person looks for (items, characters, levels) is the project's main content, which steps 2 to 4 set up. Its attributes:
 - `class`, `engineId`, `file` and `saved`;
 - the engine's metadata, one attribute per key (`Triangles`, `ParentClass`, …);
 - `uses`: the engine units it references, which the page shows as "Uses" and "Used by";
@@ -39,7 +42,7 @@ Do the steps in order. Stop after step 1 when the person only needs to see the e
 
 The inventory runs again only when an engine file changes. To read everything again, run `jam catalog run engine.refresh --input '{"full":true}'`.
 
-**Previews.** Engine files are binary, so a unit shows nothing until the adapter makes previews: `jam engine previews`, or the catalog action `engine.previews` (input `full`, `engine`, `only`, `limit`, as the command's flags). Each unit then gets an image, a GLB model or a sound in its `preview` role, which is also its thumbnail; `jam engine docs previews` says what each class gets. Making them may start the engine and take minutes, so it is never done on page load; run it again after engine files change, and it makes only those of the changed files. Until then the unit keeps its old preview and its `preview` attribute says it is from an earlier version. The previews folder (`.engine/previews` in the scratch root) is machine-local and is a media folder of the catalog.
+**Previews.** Engine files are binary, so a unit shows nothing until the adapter makes previews: `jam engine previews`, or the catalog action `engine.previews` (input `full`, `engine`, `only`, `limit`, as the command's flags). Each unit then gets an image, a GLB model, a sound or a video in its `preview` role, which is also its thumbnail, and an asset that holds sprite animations gets each one in its `animation` role, playing; `jam engine docs previews` says what each class gets. Making them may start the engine and take minutes, so it is never done on page load; run it again after engine files change, and it makes only those of the changed files. Until then the unit keeps its old preview and its `preview` attribute says it is from an earlier version. The previews folder (`.engine/previews` in the scratch root) is machine-local and is a media folder of the catalog.
 
 To put files into the engine from the catalog, run `engine.import` with a unit, whose linked model, image or audio files are imported, or with `files`. It also needs the adapter's `kind`, and a `destination` when the adapter has no default. For example: `jam catalog run engine.import --actor-kind agent --actor-name <you> --request-id <id> --input '{"unit":"kit/barrel","kind":"static"}'`. The new assets appear as engine units. A project whose engine content is generated from its own data, and not imported file by file, adds its own action that runs that build and names it in `importWith`.
 
@@ -59,7 +62,7 @@ Done when every row names one source of truth and the person has confirmed the l
 
 ## 3. Units, types and archetypes
 
-- **Units.** A unit is one thing a person looks up or reviews, wherever it is defined. A kind whose truth is in the engine uses the engine units, retyped and moved to the main section in step 4. A kind whose truth is elsewhere (server data, data files) gets its own units from a project source, in the main section. Those units link to the engine units that show them (`engine:<engine id>`) with a relation, so one page shows an item's data and its engine assets together. Content split across places, such as an item defined on the server whose mesh and icon live in the engine, is one unit with relations, not one unit per place.
+- **Units.** A unit is one thing a person looks up or reviews, wherever it is defined. A kind whose truth is in the engine uses the engine units, retyped and moved to the content (the `main` scope, "Content") in step 4. A kind whose truth is elsewhere (server data, data files) gets its own units from a project source, in the content. Those units link to the engine units that show them (`engine:<engine id>`) with a relation, so one page shows an item's data and its engine assets together. Content split across places, such as an item defined on the server whose mesh and icon live in the engine, is one unit with relations, not one unit per place.
 - **Archetypes.** For each archetype (Weapon, Consumable, Boss…), write the rule that decides it and the fact it reads. Prefer, in this order:
   1. the class or parent class (`class`, `ParentClass`);
   2. the components, facets or property values the data declares;
@@ -76,10 +79,12 @@ Create `jam/catalog/<project>.ts` and list it in `plugins` after `engine`. The c
 
 | The project has | Plugin piece |
 | --- | --- |
+| Kinds of content (characters, items, effects) | a type each, with a `plural` for lists; they share the Content scope, and the page lists that scope by type. Register a scope only for a separate library |
 | Content outside the engine | a source that reads its files and returns units, listing those files as `inputs` |
 | Archetypes of engine assets | `enrich`: retype or categorise `engine:` units by the rule's fact |
 | References in data or code that the engine cannot see | a relation whose `from(unit)` returns the unit ids an attribute names |
-| A view the generic page lacks: loot odds, a creature's drops, lighting, animation playback | an inspector or panel: a browser module declared under `browserModules` |
+| Animations cut from sprite sheets, with their frame layout and speed in data, code or file names | a `sheet` on each link to the sheet image (`tools/jam/src/catalog/README.md`, "Sprite sheets"): the page plays it, and reviews cover its timing |
+| A view the generic page lacks: loot odds, a creature's drops, lighting | an inspector or panel: a browser module declared under `browserModules` |
 | Work a person or agent starts from the catalog | an action named `<plugin>.<operation>` |
 
 For example, an `enrich` that makes engine assets of one class into weapons, part of the project's main content. The new type starts from the engine type, so it keeps its field labels and its "Imported from" role:

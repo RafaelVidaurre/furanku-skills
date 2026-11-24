@@ -1,6 +1,7 @@
 // The review projection: for a unit or collection, the current verdict of each part across every
 // submission that targets it, and whether the content changed since that verdict saw it.
 import { digest } from "../../kernel/hash.ts"
+import { mediaDigest } from "../model/sheet.ts"
 import { shortRef } from "../../kernel/Ids.ts"
 import { collectionParts, reviewAttrs, unitParts } from "../model/parts.ts"
 import type { Collection, FrozenPart, Part, SubmissionItem, SubmissionRecord, Target, DecisionRecord } from "../model/types.ts"
@@ -100,7 +101,9 @@ export const currentDigest = (p: Projection, target: Target, partId: string): st
     const type = typeOf(p, unit)
     if (partId === "attributes") return digest(reviewAttrs(unit, type))
     const part = unitParts(unit, type).find((candidate) => candidate.id === partId)
-    return part?.asset === undefined ? null : shaOf(part.asset)
+    if (part?.asset === undefined) return null
+    const sha = shaOf(part.asset)
+    return sha === null ? null : mediaDigest(sha, part.sheet)
   }
   const collection = p.collectionsById.get(target.id)
   if (!collection) return null

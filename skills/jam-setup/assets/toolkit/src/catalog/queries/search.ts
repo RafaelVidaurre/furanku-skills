@@ -45,7 +45,12 @@ const facetsFor = (p: Projection, section: Section): Record<string, Facet<never>
   if (section === "units") {
     const attributeFacets = Object.values(schema.types).flatMap((type) => type.fields).filter((field) => field.filter).map((field): [string, Facet<Unit>] => [`attr.${field.key}`, {
       label: field.label,
-      values: (unit) => (typeOf(p, unit).fields.some((own) => own.key === field.key && own.filter) && unit.attrs[field.key] != null ? [String(unit.attrs[field.key])] : []),
+      values: (unit) => {
+        if (!typeOf(p, unit).fields.some((own) => own.key === field.key && own.filter)) return []
+        const value = unit.attrs[field.key]
+        if (Array.isArray(value)) return value.filter(item => item != null && typeof item !== "object").map(String)
+        return value == null ? [] : [String(value)]
+      },
       name: (value) => value
     }])
     const facets: Record<string, Facet<Unit>> = {

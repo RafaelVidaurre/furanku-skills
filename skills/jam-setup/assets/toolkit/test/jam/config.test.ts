@@ -74,6 +74,15 @@ describe("configuration", () => {
     }
   })
 
+  it("setup spells content folders as the project already does: the defaults it prints, and choices written in another letter case", () => {
+    const root = tempProject({ files: { "art/hero.png": "x", "Content/readme.md": "x" } })
+    const defaults = cli(root, "setup", "--json").json<{ template: { roots: { scratch: string; delivered: string; scan: Array<string> } } }>()
+    assert.deepEqual(defaults.template.roots, { scratch: "art/.scratch", delivered: "art/Assets", scan: ["art"] })
+    write(root, "choices.json", JSON.stringify({ roots: { scratch: "content/.work", delivered: "content/final", scan: ["content"] } }))
+    assert.equal(cli(root, "setup", "--from", "choices.json").status, 0)
+    assert.deepEqual(readJson<JamConfig>(root, "jam.config.json").roots, { scratch: "Content/.work", delivered: "Content/final", scan: ["Content"] })
+  })
+
   it("config set changes one validated field: caps, no cap, disabled, the review mode; a wrong value changes nothing", () => {
     const root = jamProject()
     const set = (...args: ReadonlyArray<string>) => cli(root, "config", "set", ...args)

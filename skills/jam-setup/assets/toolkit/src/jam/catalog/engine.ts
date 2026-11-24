@@ -26,6 +26,7 @@ import {
   type PluginContext,
   type ProblemInput,
   Schema,
+  type SheetInput,
   type SourceOutput,
   type ToolError,
   toolError,
@@ -68,6 +69,7 @@ export interface EngineAccess {
 export const USES = "uses"
 const SOURCE_FILES = "sourceFiles"
 const PREVIEW = "preview"
+const ANIMATION = "animation"
 const UNIT_PREFIX = "engine:"
 // Engine assets are source material for the content a project is about (its items, characters,
 // levels): they go where other source material goes. Where content comes from is shown on the unit
@@ -86,6 +88,7 @@ interface Options {
   readonly exclude: ReadonlyArray<RegExp>
   readonly filters: ReadonlySet<string>
   /** Find a source file whose recorded path does not resolve by its MD5 among the catalog's media. */
+  readonly currentPreviewsOnly: boolean
   readonly matchByMd5: boolean
   /** The project's own action for putting content into the engine, when it builds that content itself. */
   readonly importWith: string | null
@@ -103,6 +106,7 @@ const optionsOf = (raw: Readonly<Record<string, unknown>>): Options => ({
   types: isRecord(raw["types"]) ? Object.fromEntries(Object.entries(raw["types"]).filter(([, value]) => isRecord(value))) as Options["types"] : {},
   exclude: strings(raw["exclude"]).map(glob),
   filters: new Set(strings(raw["filter"])),
+  currentPreviewsOnly: raw["currentPreviewsOnly"] === true,
   matchByMd5: raw["matchSourcesByMd5"] === true,
   importWith: typeof raw["importWith"] === "string" && raw["importWith"] !== "" ? raw["importWith"] : null,
   scope: typeof raw["scope"] === "string" && raw["scope"] !== "" ? raw["scope"] : DEFAULT_SCOPE
@@ -113,6 +117,13 @@ const className = (path: string): string => path.slice(path.lastIndexOf(".") + 1
 /** `StaticMesh` -> `Static Mesh`, `LODGroup` -> `LOD Group`, `UVChannels` -> `UV Channels`, `Texture2D` stays. */
 const words = (name: string): string => name.replace(/_C$/, "").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2").replace(/_/g, " ").trim()
 const typeKeyOf = (cls: string): string => `engine-${words(className(cls)).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`.slice(0, 64)
+
+/**
+ * A unit's name: the main asset's object name when the engine names it inside its file
+ * (`/Game/Props/SM_Crate.SM_Crate`), else the file's own name (`res://sprites/hero.tres`).
+ */
+export const nameOf = (id: string, main: string): string =>
+  main === id ? id.slice(id.lastIndexOf("/") + 1) : main.slice(main.lastIndexOf(".") + 1)
 
 export const unitIdOf = (engineId: string): string => `${UNIT_PREFIX}${engineId}`
 
@@ -143,12 +154,24 @@ const importedFrom = (file: string, tags: Readonly<Record<string, string>> | und
   })
 }
 
+/**
+ * The engine file an object id names: the id itself when it is a file's id (`res://props/crate.tres`),
+ * else the id without its object name (`/Game/Props/SM_Crate.SM_Crate` -> `/Game/Props/SM_Crate`). Null when neither is known.
+ */
+export const fileIdOf = (id: string, known: (fileId: string) => boolean): string | null => {
+  if (known(id)) return id
+  const dot = id.lastIndexOf(".")
+  return dot > id.lastIndexOf("/") && known(id.slice(0, dot)) ? id.slice(0, dot) : null
+}
+
 /** A property value as a unit attribute: references to engine files become their unit ids, other structure stays JSON. */
 const attributeOf = (value: unknown, unitOf: ReadonlyMap<string, string>): { value: unknown; refs: boolean } => {
   const reference = (item: unknown): string | undefined => {
     if (!isRecord(item)) return undefined
     const id = typeof item["object"] === "string" ? item["object"] : typeof item["soft"] === "string" ? item["soft"] : undefined
-    return id === undefined ? undefined : unitOf.get(id.split(".")[0]!) ?? id
+    if (id === undefined) return undefined
+    const file = fileIdOf(id, (candidate) => unitOf.has(candidate))
+    return file === null ? id : unitOf.get(file)!
   }
   const list = Array.isArray(value) ? value : [value]
   const ids = list.map(reference)
@@ -189,15 +212,35 @@ const BASE_FIELDS: ReadonlyArray<FieldInput> = [
 /** The version a preview is made for (the index's `version`): the engine's content hash, else the size and modification time the inventory read. */
 const fileVersion = (file: InventoryFile): string => file.hash ?? `${file.size}:${file.mtimeMs}`
 
-/** The unit's preview link and what to say about it: how it was made, that it is out of date, or why there is none. */
-const previewOf = (path: string, file: InventoryFile, previews: Previews | undefined): { link?: LinkInput; note?: string } => {
+/** The index only says a sheet is an object; the catalog checks its fields when it loads the link and reports a bad one. */
+const sheetOf = (sheet: Readonly<Record<string, unknown>>): SheetInput => sheet as unknown as SheetInput
+
+/**
+ * The unit's preview links and what to say about them: how they were made, that they are out of
+ * date, or why there are none. An animation resource's named animations each get a link of their
+ * own, which the catalog plays from its sheet.
+ */
+const previewOf = (path: string, file: InventoryFile, previews: Previews | undefined, files: EngineInventory["files"], currentOnly: boolean): { links: ReadonlyArray<LinkInput>; note?: string } => {
   const entry = previews?.index?.files[path]
-  if (previews === undefined || entry === undefined) return {}
-  const current = entry.version === fileVersion(file)
-  if (entry.file === undefined) return current && entry.failed !== undefined ? { note: `none: ${entry.failed}` } : {}
+  if (previews === undefined || entry === undefined) return { links: [] }
+  // Current when the file and every file it was made from are at the versions it was made for.
+  const current = entry.version === fileVersion(file) &&
+    Object.entries(entry.inputs ?? {}).every(([input, version]) => files[input] !== undefined && fileVersion(files[input]!) === version)
+  if (!current && currentOnly) return { links: [], note: "preview is out of date (run jam engine previews)" }
+  const animations = (entry.animations ?? []).map((animation): LinkInput => ({
+    role: ANIMATION,
+    asset: `${previews.dir}/${animation.file}`,
+    key: animation.name,
+    sheet: sheetOf(animation.sheet),
+    ...(animation.source === undefined ? {} : { meta: { source: animation.source } })
+  }))
+  if (entry.file === undefined && animations.length === 0) return current && entry.failed !== undefined ? { links: [], note: `none: ${entry.failed}` } : { links: [] }
   const how = entry.how ?? "made by the engine adapter"
   return {
-    link: { role: PREVIEW, asset: `${previews.dir}/${entry.file}` },
+    links: [
+      ...(entry.file === undefined ? [] : [{ role: PREVIEW, asset: `${previews.dir}/${entry.file}`, ...(entry.sheet === undefined ? {} : { sheet: sheetOf(entry.sheet) }) }]),
+      ...animations
+    ],
     note: current ? how : `${how}, for an earlier version of the file (run jam engine previews)`
   }
 }
@@ -214,7 +257,7 @@ export const contentOf = (inventory: EngineInventory, options: Options, previews
   const problems: Array<ProblemInput> = []
   for (const [path, file] of entries) {
     if (file.unread !== undefined) {
-      problems.push({ subject: path, error: `the engine adapter could not read ${file.id}: ${file.unread}`, recovery: "run jam engine inventory --engine, or the catalog action engine.refresh with engine: true" })
+      problems.push({ subject: path, error: `the engine adapter could not read ${file.id}: ${file.unread}`, recovery: "jam engine docs inventory says how this adapter reads such files; an adapter that can start the engine reads more with the catalog action engine.refresh and engine: true" })
       continue
     }
     const main = (file.assets ?? []).find((asset) => asset.id === file.main)
@@ -226,8 +269,9 @@ export const contentOf = (inventory: EngineInventory, options: Options, previews
         label: configured?.label ?? words(className(main.class)),
         scope: options.scope,
         roles: [
-          { key: PREVIEW, label: "Engine preview", mediaKinds: ["image", "model", "audio"], help: "What the engine shows of this asset, made by jam engine previews" },
-          { key: "source", label: "Imported from", mediaKinds: ["model", "image", "audio", "video"], many: true, help: "The file the engine imported this asset from" }
+          { key: PREVIEW, label: "Engine preview", mediaKinds: ["image", "model", "audio", "video"], help: "What the engine shows of this asset, made by jam engine previews" },
+          { key: "source", label: "Imported from", mediaKinds: ["model", "image", "audio", "video"], many: true, help: "The file the engine imported this asset from" },
+          { key: ANIMATION, label: "Animation", mediaKinds: ["image"], many: true, help: "An animation the asset holds, played from its frames" }
         ],
         thumb: PREVIEW,
         reviewAttributes: false
@@ -249,11 +293,11 @@ export const contentOf = (inventory: EngineInventory, options: Options, previews
     const references = file.references ?? []
     const uses = [...new Set(references.filter((ref) => ref.kind !== "native" && unitOf.has(ref.to)).map((ref) => unitOf.get(ref.to)!))]
     const sources = (file.assets ?? []).flatMap((asset) => importedFrom(path, asset.tags))
-    const preview = previewOf(path, file, previews)
+    const preview = previewOf(path, file, previews, inventory.files, options.currentPreviewsOnly)
     units.push({
       id: unitIdOf(file.id),
       type,
-      name: file.main!.slice(file.main!.lastIndexOf(".") + 1),
+      name: nameOf(file.id, file.main!),
       attrs: {
         ...Object.fromEntries(Object.entries(tags).filter(([key]) => key !== "AssetImportData")),
         ...properties,
@@ -272,7 +316,7 @@ export const contentOf = (inventory: EngineInventory, options: Options, previews
         ...(sources.length === 0 ? {} : { [SOURCE_FILES]: sources }),
         ...(preview.note === undefined ? {} : { [PREVIEW]: preview.note })
       },
-      ...(preview.link === undefined ? {} : { links: [preview.link] }),
+      ...(preview.links.length === 0 ? {} : { links: preview.links }),
       search: [file.id, main.class],
       sources: [path]
     })
@@ -467,8 +511,14 @@ export const enginePlugin = ({ inventory, importFiles, previews = noPreviews }: 
           }
           const imported = yield* importFiles({ kind: input.kind, files, destination: input.destination })
           if (imported.status !== "ran") return { status: imported.status, units: [], assets: [], ...(imported.next === undefined ? {} : { next: imported.next }) }
-          remember(yield* inventory({}))
-          return { status: "ran", units: imported.assets.map((asset) => unitIdOf(asset.id.split(".")[0]!)), assets: imported.assets }
+          const read = remember(yield* inventory({}))
+          // The units of the imported assets: the engine files that hold them, as the fresh inventory lists them.
+          const fileIds = new Set(Object.values(read.inventory?.files ?? {}).map((file) => file.id))
+          const units = imported.assets.flatMap((asset) => {
+            const file = fileIdOf(asset.id, (id) => fileIds.has(id))
+            return file === null ? [] : [unitIdOf(file)]
+          })
+          return { status: "ran", units: [...new Set(units)], assets: imported.assets }
         })
     }), defineAction({
       name: "engine.refresh",

@@ -52,7 +52,14 @@ export const ViewerControl = Schema.StructWithRest(
     })).annotate({ description: "Select a part, view or comparison on the open page" }),
     camera: optional(Schema.Struct({ position: optional(Schema.Array(Schema.Finite)), target: optional(Schema.Array(Schema.Finite)) })),
     mode: optional(Schema.String).annotate({ description: "Surface mode of a model: textured, clay or wireframe" }),
-    animation: optional(Schema.Struct({ clip: optional(Schema.String), time: optional(Schema.Finite), playing: optional(Schema.Boolean) })),
+    animation: optional(Schema.Struct({
+      clip: optional(Schema.String).annotate({ description: "A model's animation clip" }),
+      time: optional(Schema.Finite),
+      playing: optional(Schema.Boolean),
+      frame: optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))).annotate({ description: "A frame of a sprite-sheet animation, from 0" }),
+      speed: optional(Schema.Finite).annotate({ description: "Playback speed of a sprite-sheet animation: 0.25, 0.5, 1 or 2" })
+    })),
+    sprite: optional(Schema.Record(Schema.String, Schema.Unknown)).annotate({ description: "A sprite-sheet animation's display: { show: \"animation\" | \"sheet\", onion: boolean, whole: boolean (the whole frame box, not only what is drawn in it) }" }),
     isolate: optional(Schema.Union([Schema.String, Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))])).annotate({ description: "Show one mesh of a model: its name or index" }),
     texture: optional(Schema.String).annotate({ description: "Show one texture of a model" }),
     inspector: optional(Schema.Record(Schema.String, Schema.Unknown)).annotate({ description: "A command for the inspector showing (selected as inspector:<key>)" }),

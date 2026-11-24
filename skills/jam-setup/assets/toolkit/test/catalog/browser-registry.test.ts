@@ -64,7 +64,8 @@ test("a plugin's media kind is recognised, served, shown, controlled, compared a
     assert.equal(await page.locator("[data-text-viewer]").textContent(), SCRIPT)
     // Its thumbnail and icon are the ones it registered; its label is the schema's.
     assert.equal(await page.locator(".strip .tile.on .thumb").textContent(), "Aa")
-    assert.match(await page.locator('section[aria-label="Assets"] .mship').first().innerText(), /Script\s+scene\.txt/)
+    // The side column groups files under their role, each with its kind's thumbnail, name and label.
+    assert.match(await page.locator('section[aria-label="Assets"]').innerText(), /Script\s+Aa\s+scene\s+Text/i)
     await page.screenshot({ path: `${OUT}/text-detail.png` })
     // Switching to a built-in kind and back swaps viewers through the same registry.
     await page.locator(".strip").getByRole("tab", { name: /Still/ }).click()

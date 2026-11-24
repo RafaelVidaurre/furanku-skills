@@ -37,7 +37,7 @@ describe("installing", () => {
     assert.ok(!existsSync(join(root, "tools/jam/node_modules")))
     assert.ok(!existsSync(join(root, "tools/jam/core.mjs")), "nothing of version 1 is shipped")
     assert.deepEqual(readJson(root, "catalog.config.json"), { version: 3, plugins: [{ plugin: "manifest", options: { file: "Art/catalog.json" } }, "jam"] })
-    assert.deepEqual(readJson<{ version: number; assetRoots: unknown }>(root, "Art/catalog.json"), { ...readJson(join(TOOLKIT, ".."), "project/catalog.json"), assetRoots: ["Art"] })
+    assert.deepEqual(readJson<{ version: number; assetRoots: unknown }>(root, "Art/catalog.json"), { ...readJson(join(TOOLKIT, ".."), "project/catalog.json"), assetRoots: ["Art"], unitFiles: ["Art/Catalog"] })
     assert.equal(readJson<{ version: number }>(root, "Art/catalog.json").version, 2)
     assert.equal(read(root, ".gitignore"), "dist/\n\n# >>> jam toolkit\n/Art/.scratch/\n/jam.local.json\n.catalog/.local/\n# <<< jam toolkit\n")
     assert.deepEqual([first.json["configuration"], first.json["dependencies"], first.json["complete"]], ["missing", "skipped (--no-deps)", true])
@@ -80,6 +80,16 @@ describe("installing", () => {
     assert.equal(read(taken, "tools/jam/recipes/prop.json"), "{\"mine\": true}")
     assert.equal(install(taken, "--no-lfs", "--force").status, 0)
     assert.match(read(taken, ".gitignore"), /^keep-me\n\n# >>> jam toolkit/)
+  })
+
+  it("default content folders the project already has in another letter case keep the project's spelling", () => {
+    const root = tempProject({ files: { "art/concepts/hero.png": "x", ".gitignore": "" } })
+    const result = install(root, "--no-lfs")
+    assert.equal(result.status, 0, result.stderr)
+    assert.deepEqual(result.json["roots"], { scratch: "art/.scratch", tracked: ["art"], from: result.json["roots"].from })
+    assert.match(read(root, ".gitignore"), /\n\/art\/\.scratch\/\n/)
+    assert.deepEqual(readJson<{ plugins: unknown }>(root, "catalog.config.json").plugins, [{ plugin: "manifest", options: { file: "art/catalog.json" } }, "jam"])
+    assert.deepEqual(readJson<{ assetRoots: unknown; unitFiles: unknown }>(root, "art/catalog.json"), { ...readJson(join(TOOLKIT, ".."), "project/catalog.json"), assetRoots: ["art"], unitFiles: ["art/Catalog"] })
   })
 
   it("--dir installs somewhere else, records it as the toolkit of the configuration, and derives ignore and LFS entries from the configured roots", () => {

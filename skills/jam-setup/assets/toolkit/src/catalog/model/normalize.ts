@@ -4,6 +4,7 @@
 import * as Effect from "effect/Effect"
 import { isNonEmpty, isRecord } from "../../kernel/hash.ts"
 import type { MergedSources, ProblemInput, RoleInput } from "../plugin.ts"
+import { parseSheet, type Sheet } from "./sheet.ts"
 import type { Asset, CatalogSchema, CollectionKind, DisplayDef, FieldDef, InspectorDef, Link, Member, MountDef, Problem, RoleDef, TypeDef, Unit } from "./types.ts"
 
 export interface SourceCollection {
@@ -101,6 +102,7 @@ const normalizeSchema = (sources: MergedSources, rules: NormalizeRules, problems
     types[key] = {
       scope: type.scope ?? rules.scopes[0] ?? "main",
       label: isNonEmpty(type.label) ? type.label : key,
+      plural: isNonEmpty(type.plural) ? type.plural : isNonEmpty(type.label) ? type.label : key,
       roles,
       fields,
       thumb: type.thumb ?? roles[0]?.key ?? null,
@@ -196,12 +198,29 @@ export const normalize = (sources: MergedSources, reported: ReadonlyArray<Proble
           report(from, `${unit.id}: ${role.label} takes one asset`)
           continue
         }
-        if (links.some((other) => other.role === role.key && other.asset === asset.id)) continue
+        // One image may be linked twice under different keys (two animations cut from one sheet).
+        const identity = link.key ?? asset.id
+        if (links.some((other) => other.role === role.key && other.asset === asset.id && (other.key ?? other.asset) === identity)) continue
         if (link.key != null && (!isNonEmpty(link.key) || link.key.length > 100 || links.some((other) => other.role === role.key && other.key === link.key))) {
           report(from, `${unit.id}: invalid or duplicate link key for ${role.key}`)
           continue
         }
-        links.push({ role: role.key, asset: asset.id, ...(link.key == null ? {} : { key: link.key }), ...(isRecord(link.meta) ? { meta: link.meta } : {}) })
+        // A sheet that cannot be played is reported and left off; the image stays linked.
+        let sheet: Sheet | undefined
+        if (link.sheet != null) {
+          const parsed = parseSheet(link.sheet)
+          if ("error" in parsed) report(from, `${unit.id}: sheet of ${asset.id}: ${parsed.error}`)
+          else if (asset.kind !== null && asset.kind !== "image") report(from, `${unit.id}: sheet of ${asset.id}: a sheet cuts an image, and this is ${asset.kind}`)
+          else sheet = parsed.ok
+        }
+        links.push({
+          role: role.key,
+          asset: asset.id,
+          ...(link.key == null ? {} : { key: link.key }),
+          ...(isNonEmpty(link.label) && link.label.length <= 100 ? { label: link.label.trim() } : {}),
+          ...(isRecord(link.meta) ? { meta: link.meta } : {}),
+          ...(sheet === undefined ? {} : { sheet })
+        })
       }
       units.set(unit.id, {
         id: unit.id,

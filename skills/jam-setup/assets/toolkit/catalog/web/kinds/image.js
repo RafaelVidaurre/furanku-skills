@@ -5,8 +5,12 @@ import { useViewer } from '../controller.js';
 import { registerMediaKind } from '../media-kinds.js';
 import { Msg } from '../viewers.js';
 import { sideLabel, SideError } from '../compare.js';
+import { SpriteCompare, SpriteThumb, SpriteViewer } from './sprite.js';
+import { TrimmedImage } from './trim.js';
 
 // ---------- 2D image: fit, zoom around pointer, pan, 1:1; controlled or uncontrolled view ----------
+// Magnified, an image shows its own pixels (nearest neighbour): smoothing would blur detail it does
+// not have. Shown smaller, it is smoothed unless the project's display keeps hard texels.
 export function ImageViewer({ src, label, view: extView, onView, viewerId, shows, onStatus }) {
   const box = useRef(); const img = useRef();
   const [loaded, setLoaded] = useState({ src: null });
@@ -23,7 +27,9 @@ export function ImageViewer({ src, label, view: extView, onView, viewerId, shows
   const fit = () => {
     if (!natural || !box.current) return null;
     const r = box.current.getBoundingClientRect();
-    const scale = Math.min((r.width - 24) / natural.w, (r.height - 24) / natural.h, 4);
+    // Magnified, an image fits in whole steps, so each of its pixels is drawn the same size.
+    const room = Math.min((r.width - 24) / natural.w, (r.height - 24) / natural.h, 4);
+    const scale = room >= 1 ? Math.floor(room) : room;
     return { scale, x: (r.width - natural.w * scale) / 2, y: (r.height - natural.h * scale) / 2 };
   };
   const v = view ?? fit();
@@ -55,7 +61,7 @@ export function ImageViewer({ src, label, view: extView, onView, viewerId, shows
     (c) => { if (c.zoom) { if (c.zoom.fit) setView(null); else setView({ scale: c.zoom.scale ?? v?.scale ?? 1, x: c.zoom.x ?? v?.x ?? 0, y: c.zoom.y ?? v?.y ?? 0 }); return true; } return false; });
   return html`<div class="viewer viewer-2d" ref=${box} tabindex="0" data-viewer-input aria-label=${label ?? 'Image'} onPointerDown=${onDown} onDblClick=${() => (view ? setView(null) : natural && oneToOne())} onKeyDown=${onKey}>
     <${Msg} status=${status} error=${status === 'error' ? 'Image could not be decoded or loaded' : null} onRetry=${() => { setFailed(null); setNonce(nonce + 1); }} />
-    <img ref=${img} key=${`${src}#${nonce}`} src=${src} draggable="false" alt="" style=${v ? `transform: translate(${v.x}px, ${v.y}px) scale(${v.scale}); opacity: 1` : 'opacity:0'}
+    <img ref=${img} key=${`${src}#${nonce}`} src=${src} draggable="false" alt="" style=${v ? `transform: translate(${v.x}px, ${v.y}px) scale(${v.scale}); opacity: 1${v.scale > 1 ? '; image-rendering: pixelated' : ''}` : 'opacity:0'}
       onLoad=${async (e) => { const el = e.target; try { await el.decode(); setLoaded({ src, w: el.naturalWidth, h: el.naturalHeight }); } catch { setFailed(src); } }} onError=${() => setFailed(src)} />
     ${natural && html`<div class="viewer-tools">
       <button class="tool" onClick=${() => setView(null)} title="Fit (0)">Fit</button>
@@ -148,11 +154,15 @@ function Divider({ a, b, labels, value, onChange, ratio }) {
 }
 
 
+// An image that carries a `sheet` is an animation cut from it (sprite.js): it plays, compares in
+// step and shows its first frame as a thumbnail.
 registerMediaKind('image', {
   icon: 'M3 4h14v12H3z M3 13l4-4 3 3 2-2 5 5',
-  controls: ['zoom'],
-  viewer: ({ media, label, ...rest }) => html`<${ImageViewer} src=${media.url} label=${label ?? media.id} ...${rest} />`,
-  thumbnail: ({ asset }) => html`<img src=${asset.url} alt="" loading="lazy" decoding="async" />`,
-  compare: ImageCompare,
-  components: { ImageViewer },
+  controls: ['zoom', 'animation', 'sprite'],
+  viewer: ({ media, label, ...rest }) => media.sheet
+    ? html`<${SpriteViewer} src=${media.url} sheet=${media.sheet} label=${label ?? media.id} ...${rest} />`
+    : html`<${ImageViewer} src=${media.url} label=${label ?? media.id} ...${rest} />`,
+  thumbnail: ({ asset }) => asset.sheet ? html`<${SpriteThumb} asset=${asset} />` : html`<${TrimmedImage} key=${asset.url} src=${asset.url} />`,
+  compare: (props) => (props.a.sheet || props.b.sheet ? html`<${SpriteCompare} ...${props} />` : html`<${ImageCompare} ...${props} />`),
+  components: { ImageViewer, SpriteViewer },
 });

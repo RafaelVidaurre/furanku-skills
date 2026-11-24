@@ -9,7 +9,8 @@ import { Evidence } from "../Evidence.ts"
 import { MediaKinds } from "../MediaKinds.ts"
 import type { FrozenView, LeafEvidence, MediaFacts, ViewBefore } from "../model/types.ts"
 import { frozenPart, leaves } from "../queries/evidence.ts"
-import { type FreezeEnv, freezeFile } from "./freeze.ts"
+import { parseSheet, type Sheet } from "../model/sheet.ts"
+import { type FreezeEnv, freezeFile, withSheet } from "./freeze.ts"
 
 export interface BeforeInput {
   readonly path?: string | null | undefined
@@ -18,17 +19,19 @@ export interface BeforeInput {
   readonly part?: string | null | undefined
   readonly leaf?: string | null | undefined
   readonly label?: string | null | undefined
+  /** A file before side shown as an animation: the sheet that cuts it. */
+  readonly sheet?: unknown
 }
 
 export interface BeforePlan {
   readonly label: string
   readonly afterLabel: string
-  readonly file?: { readonly path: string; readonly facts: MediaFacts }
+  readonly file?: { readonly path: string; readonly facts: MediaFacts; readonly sheet?: Sheet }
   readonly from?: NonNullable<ViewBefore["from"]>
   readonly evidence?: LeafEvidence
 }
 
-const LEAF_KEYS = ["digest", "asset", "path", "kind", "mime", "size", "sha256", "ref"] as const
+const LEAF_KEYS = ["digest", "asset", "path", "kind", "mime", "size", "sha256", "ref", "sheet"] as const
 
 const label = (value: string | null | undefined, what: string, fallback: string): Effect.Effect<string, ToolError> =>
   value == null ? Effect.succeed(fallback) : isNonEmpty(value) && value.length <= 100 ? Effect.succeed(value.trim()) : fail("invalid", `${what} must be text (at most 100 characters)`)
@@ -53,8 +56,13 @@ export const planBefore = (
       const facts = yield* (yield* MediaKinds).facts({ path, kind: null }, kinds, env.within)
       if (facts.state !== "ok") return yield* fail(facts.state === "forbidden" ? "forbidden" : "invalid", `cannot use ${path} as before: ${facts.error ?? facts.state}`)
       if (facts.kind !== shownKind) return yield* mismatch(facts.kind)
-      return { ...labels, file: { path, facts } }
+      if (before.sheet == null) return { ...labels, file: { path, facts } }
+      const sheet = parseSheet(before.sheet)
+      if ("error" in sheet) return yield* fail("invalid", `before sheet: ${sheet.error}`)
+      if (facts.kind !== "image") return yield* fail("invalid", `before sheet: a sheet cuts an image, and ${path} is ${facts.kind}`)
+      return { ...labels, file: { path, facts, sheet: sheet.ok } }
     }
+    if (before.sheet != null) return yield* fail("invalid", "before sheet belongs to a file before side; earlier evidence keeps the sheet it was reviewed with")
     if (!isNonEmpty(before.submission) || !isNonEmpty(before.item) || !isNonEmpty(before.part)) {
       return yield* fail("invalid", "view before needs submission, item and part (leaf is optional)")
     }
@@ -78,6 +86,6 @@ export const freezeBefores = (env: FreezeEnv, views: ReadonlyArray<FrozenView>, 
     Effect.gen(function*() {
       const plan = plans?.[index]
       if (!plan) return view
-      const evidence = plan.file ? yield* freezeFile(env, plan.file.path, plan.file.path, plan.file.facts.kind ?? null, plan.file.facts) : plan.evidence!
+      const evidence = plan.file ? withSheet(yield* freezeFile(env, plan.file.path, plan.file.path, plan.file.facts.kind ?? null, plan.file.facts), plan.file.sheet) : plan.evidence!
       return { ...view, before: { label: plan.label, evidence, ...(plan.from ? { from: plan.from } : {}) }, afterLabel: plan.afterLabel }
     }))

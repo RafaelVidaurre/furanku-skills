@@ -22,8 +22,8 @@ import { message, pluginContext } from "./support.ts"
 
 /** The split used when no plugin registers its own. */
 export const DEFAULT_SCOPES: ReadonlyArray<ScopeInput> = [
-  { id: "main", label: "Main", description: "Units that make up the project" },
-  { id: "material", label: "Material", description: "Source material and media units" }
+  { id: "main", label: "Content", description: "What the project is made of, by type" },
+  { id: "material", label: "Source material", description: "The files content is made from: engine assets, imports, references" }
 ]
 
 export interface Owned<A> {

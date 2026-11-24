@@ -1,6 +1,6 @@
 // What a reviewer can give a verdict on. Part identity is explicit: it never depends on a label or
 // on the order of links, so a rename or a reorder keeps decisions where they were.
-import type { CatalogSchema, Collection, Part, TypeDef, Unit } from "./types.ts"
+import type { CatalogSchema, Collection, Link, Part, RoleDef, TypeDef, Unit } from "./types.ts"
 
 const stem = (path: string): string => (path.split("/").pop() ?? path).replace(/\.[^.]+$/, "")
 
@@ -9,6 +9,9 @@ export const reviewAttrs = (unit: Unit, type: TypeDef): Record<string, unknown> 
   const derived = new Set(type.fields.filter((field) => field.derived).map((field) => field.key))
   return Object.fromEntries(Object.entries(unit.attrs).filter(([key]) => !derived.has(key)))
 }
+
+/** The part a link is reviewed as: its role, or in a many-role the role and the link's key (default: its asset). */
+export const linkPartId = (role: RoleDef, link: Link): string => (role.many ? `${role.key}:${link.key ?? link.asset}` : role.key)
 
 /**
  * A unit's parts: each linked asset, keyed by role (single) or role plus link key or asset
@@ -20,10 +23,11 @@ export const unitParts = (unit: Unit, type: TypeDef): ReadonlyArray<Part> => {
     const links = unit.links.filter((link) => link.role === role.key)
     for (const link of links) {
       parts.push({
-        id: role.many ? `${role.key}:${link.key ?? link.asset}` : role.key,
-        label: role.many && links.length > 1 ? `${role.label} · ${stem(link.asset)}` : role.label,
+        id: linkPartId(role, link),
+        label: role.many && links.length > 1 ? `${role.label} · ${link.label ?? stem(link.asset)}` : link.label ?? role.label,
         role: role.key,
-        asset: link.asset
+        asset: link.asset,
+        ...(link.sheet === undefined ? {} : { sheet: link.sheet })
       })
     }
   }

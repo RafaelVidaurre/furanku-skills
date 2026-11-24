@@ -68,7 +68,8 @@ export const publicEvidence = (evidence: PartEvidence) => ({
   size: evidence.size ?? null,
   sha256: evidence.sha256 ?? null,
   storage: storageOf(evidence),
-  unit: evidence.unit ?? null
+  unit: evidence.unit ?? null,
+  ...(evidence.sheet === undefined ? {} : { sheet: evidence.sheet })
 })
 
 const storageOf = (evidence: LeafEvidence): "git" | "catalog" | null =>
@@ -91,6 +92,7 @@ export const leafView = (evidence: EvidenceService, submission: string, item: st
       part: leaf.part ?? null,
       renderer: frozen.renderer ?? null,
       storage: storageOf(frozen) ?? "catalog",
+      ...(frozen.sheet === undefined ? {} : { sheet: frozen.sheet }),
       ...status,
       url: status.status === "ok" ? evidenceUrl(submission, item, part, leaf.key) : null
     }
@@ -128,6 +130,7 @@ export const viewOf = (evidence: EvidenceService, submission: string, item: stri
         path: frozen.path,
         sha256: frozen.sha256,
         storage: storageOf(frozen) ?? "catalog",
+        ...(frozen.sheet === undefined ? {} : { sheet: frozen.sheet }),
         ...status,
         url: status.status === "ok" ? `/media/before/${encodeURIComponent(submission)}/${encodeURIComponent(item)}/${encodeURIComponent(view.id)}` : null
       }

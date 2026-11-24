@@ -23,7 +23,7 @@ test("the page opens on the first scope that holds units and leaves empty scopes
     await page.goto(server.url)
     await page.getByRole("listitem").filter({ hasText: "Uncast model" }).waitFor()
     assert.match(page.url(), /#\/material$|\/$/)
-    assert.equal(await page.locator(".primary-nav").getByRole("link", { name: "Main", exact: true }).count(), 0)
+    assert.equal(await page.locator(".primary-nav").getByRole("link", { name: "Content", exact: true }).count(), 0)
     await shot(page, "opens-on-material")
     // An address naming the empty scope still works.
     await page.goto(server.url + "#/main")

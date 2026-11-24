@@ -19,12 +19,24 @@ const image: MediaKind = {
   }
 }
 
+/**
+ * The codec of an Ogg file, from its first packet: an Ogg page's 27-byte header and segment table
+ * come first, then the packet (Theora video `\x80theora`, Vorbis `\x01vorbis`, Opus `OpusHead`).
+ */
+const oggCodec = (head: Uint8Array): "theora" | "other" | null => {
+  if (head.length < 28 || ascii(head, 0, 4) !== "OggS") return null
+  const packet = 27 + (head[26] ?? 0)
+  return head.length >= packet + 7 && head[packet] === 0x80 && ascii(head, packet + 1, packet + 7) === "theora" ? "theora" : "other"
+}
+
 const video: MediaKind = {
   id: "video",
   label: "Video",
-  extensions: ["mp4", "m4v", "webm"],
+  extensions: ["mp4", "m4v", "webm", "ogv"],
   sniff: (head) => {
     if (head.length >= 12 && ascii(head, 4, 8) === "ftyp") return "video/mp4"
+    // Browsers differ on Ogg Theora (Chromium no longer plays it); it is video all the same.
+    if (oggCodec(head) === "theora") return "video/ogg"
     if (head.length >= 4 && head[0] === 0x1a && head[1] === 0x45 && head[2] === 0xdf && head[3] === 0xa3) return "video/webm"
     return null
   }
@@ -44,7 +56,7 @@ const audio: MediaKind = {
   extensions: ["wav", "ogg", "flac", "mp3"],
   sniff: (head) => {
     if (head.length >= 12 && ascii(head, 0, 4) === "RIFF" && ascii(head, 8, 12) === "WAVE") return "audio/wav"
-    if (head.length >= 4 && ascii(head, 0, 4) === "OggS") return "audio/ogg"
+    if (head.length >= 4 && ascii(head, 0, 4) === "OggS" && oggCodec(head) !== "theora") return "audio/ogg"
     if (head.length >= 4 && ascii(head, 0, 4) === "fLaC") return "audio/flac"
     if ((head.length >= 3 && ascii(head, 0, 3) === "ID3") || mpegFrame(head)) return "audio/mpeg"
     return null

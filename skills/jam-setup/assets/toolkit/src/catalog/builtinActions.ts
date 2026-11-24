@@ -208,7 +208,8 @@ const Side = Schema.Struct({
   asset: Schema.optional(Schema.NullOr(Schema.String)),
   path: Schema.optional(Schema.NullOr(Schema.String)),
   url: Schema.optional(Schema.NullOr(Schema.String)),
-  attrs: Schema.optional(Schema.Unknown)
+  attrs: Schema.optional(Schema.Unknown),
+  sheet: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)).annotate({ description: "How this side's image is cut into animation frames, when it is shown as an animation" })
 })
 const ComparedPart = Schema.Struct({ ...FrozenRef.fields, label: Schema.String })
 export const EvidenceCompareOutput = Schema.Struct({

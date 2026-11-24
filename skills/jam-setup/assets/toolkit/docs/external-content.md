@@ -38,7 +38,7 @@ The catalog's `manifest` plugin reads hand-declared content. `catalog.config.jso
 ```
 
 - Keep the id stable for the game object, so replacing the file later keeps its notes and review history.
-- Models are self-contained GLBs. `external-asset` also takes `image` and `video` links, several of each. Its other fields (`objectType`, `pack`, `sourceFile`, `purpose`, ...) are listed in the manifest; fill the ones you know. Other types, fields and roles are declared in the manifest file.
+- Models are self-contained GLBs. `external-asset` also takes `image` and `video` links, several of each. A bought sprite sheet is an `image` link with a `sheet` that says how it is cut into frames, so it plays (`tools/jam/src/catalog/README.md`, "Sprite sheets"). Its other fields (`objectType`, `pack`, `sourceFile`, `purpose`, ...) are listed in the manifest; fill the ones you know. Other types, fields and roles are declared in the manifest file.
 - Confirm with `jam catalog run unit.get --input '{"id":"<id>"}'` and `jam catalog run problems`.
 - File it where a person will look for it: the `jam-catalog` skill covers categories, collections and tags.
 

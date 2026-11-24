@@ -6,6 +6,7 @@ import { createHash } from "node:crypto"
 import { existsSync, readFileSync, utimesSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
+import { fileIdOf, nameOf } from "../../src/jam/catalog/engine.ts"
 import { catalogProject, openCatalog } from "./catalog-support.ts"
 import { glb, png, write } from "./fixtures.ts"
 
@@ -93,6 +94,18 @@ const calls = (root: string): ReadonlyArray<ReadonlyArray<string>> =>
   readFileSync(join(root, "inventory-calls.log"), "utf8").trim().split("\n").map((line) => JSON.parse(line))
 
 describe("engine content in the catalog", () => {
+  it("an object id names its engine file whether the engine ids objects inside files or files themselves", () => {
+    const known = new Set(["/Game/Props/SM_Crate", "res://props/crate.tres"])
+    const has = (id: string) => known.has(id)
+    assert.deepEqual([fileIdOf("/Game/Props/SM_Crate.SM_Crate", has), fileIdOf("res://props/crate.tres", has), fileIdOf("/Game/Gone.Gone", has), fileIdOf("res://a.b/c", has)], ["/Game/Props/SM_Crate", "res://props/crate.tres", null, null])
+  })
+
+  it("a unit is named after the asset inside its file, or after the file when the engine names none", () => {
+    assert.equal(nameOf("/Game/Props/SM_Crate", "/Game/Props/SM_Crate.SM_Crate"), "SM_Crate")
+    assert.equal(nameOf("res://sprites/hero/hero_frames.tres", "res://sprites/hero/hero_frames.tres"), "hero_frames.tres")
+  })
+
+
   it("each readable engine file is a unit typed by its class, among the project's source material, with its metadata and what it uses", async () => {
     const root = project({ types: { "/Script/MyGame.ItemDefinition": { type: "item", label: "Item" } }, exclude: ["Content/Dev/**"], filter: ["Rarity"] })
     const catalog = openCatalog(root)
@@ -175,7 +188,7 @@ describe("engine content in the catalog", () => {
     const { problems } = await catalog.run("problems", {})
     const legacy = problems.find((problem: Any) => problem.subject === "Content/Old/T_Legacy.uasset")
     assert.match(legacy.error, /could not read \/Game\/Old\/T_Legacy: package version 1019/)
-    assert.match(legacy.recovery, /jam engine inventory --engine/)
+    assert.match(legacy.recovery, /jam engine docs inventory/)
     assert.equal((await catalog.run("unit.search", {})).units.some((unit: Any) => unit.id === "engine:/Game/Old/T_Legacy"), false)
   })
 
@@ -240,7 +253,8 @@ const PREVIEWS = `
   copyFileSync("preview.glb", out + "/sm-crate.glb")
   const files = {
     "Content/Props/T_Crate.uasset": { version: version("Content/Props/T_Crate.uasset"), file: "t-crate.png", kind: "image", how: "the texture's source image" },
-    "Content/Props/SM_Crate.uasset": { version: version("Content/Props/SM_Crate.uasset"), file: "sm-crate.glb", kind: "model", how: "a glTF export" },
+    "Content/Props/SM_Crate.uasset": { version: version("Content/Props/SM_Crate.uasset"), inputs: { "Content/Props/T_Crate.uasset": version("Content/Props/T_Crate.uasset") }, file: "sm-crate.glb", kind: "model", how: "a glTF export",
+      animations: [{ name: "spin", file: "t-crate.png", source: "art/crate.png", sheet: { fps: 8, grid: { columns: 2, rows: 2 } } }, { name: "broken", file: "t-crate.png", sheet: { fps: 0, grid: { columns: 2 } } }] },
     "Content/Props/MI_Crate.uasset": { version: version("Content/Props/MI_Crate.uasset"), failed: "the material did not compile" }
   }
   writeFileSync(out + "/index.json", JSON.stringify({ format: 1, adapter: "fake", generatedAt: "2026-11-18T00:00:00Z", files }))
@@ -277,7 +291,11 @@ describe("engine previews in the catalog", () => {
     ])
     assert.equal(texture.unit.attrs.preview, "the texture's source image")
     const mesh = await catalog.run("unit.get", { id: "engine:/Game/Props/SM_Crate" })
-    assert.deepEqual(mesh.links.map((link: Any) => [link.role, link.asset.kind, link.asset.state]), [["preview", "model", "ok"], ["source", "model", "invalid"]])
+    assert.deepEqual(mesh.links.map((link: Any) => [link.role, link.asset.kind, link.asset.state]), [["preview", "model", "ok"], ["animation", "image", "ok"], ["animation", "image", "ok"], ["source", "model", "invalid"]])
+    // Each animation the adapter names is its own part, played from its sheet; a sheet the catalog cannot play is a problem.
+    assert.deepEqual(mesh.links.filter((link: Any) => link.role === "animation").map((link: Any) => [link.part, link.sheet?.grid?.count ?? null, link.meta?.source ?? null]), [["animation:spin", 4, "art/crate.png"], ["animation:broken", null, null]])
+    const { problems } = await catalog.run("problems", {})
+    assert.ok(problems.some((problem: Any) => /sheet of .*t-crate.png: fps must be/.test(problem.error)), JSON.stringify(problems))
     const material = await catalog.run("unit.get", { id: "engine:/Game/Props/MI_Crate" })
     assert.deepEqual([material.links, material.unit.attrs.preview], [[], "none: the material did not compile"])
     const found = await catalog.run("unit.search", { q: "SM_Crate" })
@@ -300,5 +318,18 @@ describe("engine previews in the catalog", () => {
     assert.match(texture.unit.attrs.preview, /for an earlier version of the file \(run jam engine previews\)/)
     const material = await catalog.run("unit.get", { id: "engine:/Game/Props/MI_Crate" })
     assert.equal(material.unit.attrs.preview, undefined, "a failure is about the version it was made for")
+    // The mesh's own file did not change, but the texture it was made from did.
+    const mesh = await catalog.run("unit.get", { id: "engine:/Game/Props/SM_Crate" })
+    assert.match(mesh.unit.attrs.preview, /for an earlier version of the file/)
+    const config = JSON.parse(readFileSync(join(root, "catalog.config.json"), "utf8"))
+    config.plugins = config.plugins.map((plugin: Any) => plugin.plugin === "engine" || plugin === "engine"
+      ? { plugin: "engine", options: { ...plugin.options, currentPreviewsOnly: true } } : plugin)
+    write(root, "catalog.config.json", JSON.stringify(config))
+    const current = openCatalog(root)
+    for (const id of ["engine:/Game/Props/T_Crate", "engine:/Game/Props/SM_Crate"]) {
+      const item = await current.run("unit.get", { id })
+      assert.deepEqual(item.links.map((link: Any) => link.role), ["source"])
+      assert.match(item.unit.attrs.preview, /out of date/)
+    }
   })
 })

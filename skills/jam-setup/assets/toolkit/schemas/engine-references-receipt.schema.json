@@ -15,6 +15,22 @@
                 "type": "string",
                 "pattern": "\\S"
               },
+              "referencers": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "\\S"
+                },
+                "description": "What refers to it: engine ids or project files"
+              },
+              "uses": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "\\S"
+                },
+                "description": "What it refers to"
+              },
               "kind": {
                 "type": "string"
               },

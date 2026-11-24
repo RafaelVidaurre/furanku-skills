@@ -39,6 +39,8 @@ export interface CaptureRequest {
   readonly mode?: string | undefined
   /** An animation clip, shown paused at its first frame. */
   readonly animation?: string | undefined
+  /** A frame of a sprite-sheet animation, shown paused. */
+  readonly frame?: number | undefined
   /** Copy the capture to this file (any path on this machine), from the checkout of the server that took it. */
   readonly out?: string | undefined
   /** A running server to capture through, instead of a temporary one. */
@@ -56,7 +58,8 @@ export const capture = (request: CaptureRequest, server: Omit<ServeOptions, "por
     const controls = {
       ...(request.camera === undefined ? {} : { camera: request.camera }),
       ...(request.mode === undefined ? {} : { mode: request.mode }),
-      ...(request.animation === undefined ? {} : { animation: { clip: request.animation, time: 0, playing: false } })
+      ...(request.animation === undefined ? {} : { animation: { clip: request.animation, time: 0, playing: false } }),
+      ...(request.frame === undefined ? {} : { animation: { frame: request.frame, playing: false } })
     }
     const steps = (run: (action: string, input: unknown) => Effect.Effect<unknown, ToolError>) =>
       Effect.gen(function*() {

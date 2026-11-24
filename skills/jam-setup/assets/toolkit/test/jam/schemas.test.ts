@@ -57,7 +57,7 @@ describe("published schemas", () => {
 
 describe("engine adapters that ship beside the toolkit", () => {
   // The adapter skills live in the same repository; an installed toolkit does not carry them.
-  const ADAPTERS = ["../../../jam-engine-unreal/adapter", "../../../jam-engine/assets/example-adapter"].map((path) => join(TOOLKIT, path))
+  const ADAPTERS = ["../../../jam-engine-unreal/adapter", "../../../jam-engine-godot/adapter", "../../../jam-engine/assets/example-adapter"].map((path) => join(TOOLKIT, path))
 
   it("validate against the adapter schema, and every guide they name exists", { skip: ADAPTERS.every((dir) => existsSync(dir)) ? false : "the adapter skills are not in this checkout" }, async () => {
     for (const dir of ADAPTERS) {

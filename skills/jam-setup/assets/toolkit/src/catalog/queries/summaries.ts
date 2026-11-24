@@ -1,4 +1,5 @@
 // The short forms of units, collections and assets that lists and cards show.
+import type { Sheet } from "../model/sheet.ts"
 import { isRecord } from "../../kernel/hash.ts"
 import type { Asset, Collection, FieldDef, RoleDef, Unit } from "../model/types.ts"
 import { factsOf, type Projection, typeOf } from "../Projection.ts"
@@ -31,7 +32,8 @@ export const assetRef = (p: Projection, asset: Asset) => {
     url: facts.state === "ok" && facts.token !== undefined ? assetUrl(asset.id, facts.token) : null
   }
 }
-export type AssetRef = ReturnType<typeof assetRef>
+/** An asset as lists and pages refer to it; a thumbnail of an animation also carries its sheet. */
+export type AssetRef = ReturnType<typeof assetRef> & { readonly sheet?: Sheet }
 
 const assetRefById = (p: Projection, id: string): AssetRef | null => {
   const asset = p.snapshot.assetsById.get(id)
@@ -43,7 +45,10 @@ export const thumbOf = (p: Projection, unit: Unit): AssetRef | null => {
   const type = typeOf(p, unit)
   const link = unit.links.find((candidate) => candidate.role === type.thumb) ??
     unit.links.find((candidate) => p.snapshot.assetsById.get(candidate.asset)?.kind === "image") ?? unit.links[0]
-  return link ? assetRefById(p, link.asset) : null
+  if (!link) return null
+  const ref = assetRefById(p, link.asset)
+  // An animation's thumbnail is its first frame, not the whole sheet.
+  return ref && link.sheet ? { ...ref, sheet: link.sheet } : ref
 }
 
 export const openNotes = (p: Projection, kind: string, id: string): number =>

@@ -37,7 +37,7 @@ jam catalog run <write action> --actor-kind agent --actor-name <your name> --req
 - Read an action's input schema before its first use (`jam catalog actions --json`). A unit's parts (`model`, `attributes`, ...) are listed by `unit.get` under its review parts.
 - A refusal prints `error:` and `fix:`; an input field that does not exist is refused, never ignored.
 - A refusal `unsupported` saying a file `was written by an older toolkit` means the project's catalog files predate this toolkit: follow `tools/jam/docs/catalog-migration.md`.
-- To look at something yourself: `jam catalog capture --target unit:<id> --part <part> --out <scratch folder>/<name>.png` (also `--mode clay|wireframe|textured`, `--camera`, `--animation`), then open the image. It needs no running server. Its `shows` field names exactly what was drawn. It is a catalog render, not a picture from an engine.
+- To look at something yourself: `jam catalog capture --target unit:<id> --part <part> --out <scratch folder>/<name>.png` (also `--mode clay|wireframe|textured`, `--camera`, `--animation`, and `--frame <n>` for a sprite animation), then open the image. It needs no running server. Its `shows` field names exactly what was drawn. It is a catalog render, not a picture from an engine.
 
 Done when a follow-up read (`unit.get`, `note.list`, `review.get`) shows what you wrote.
 
@@ -65,7 +65,7 @@ An item separates what is decided from how it is shown:
 
 Several angles of one thing are views of one part, never several parts.
 
-Show media in the catalog's own viewer whenever it can be. A model is shown as its GLB, where the person can orbit, zoom, play its clips and switch to clay or wireframe: a unit's model part, or a capture of the file. Old against new is a capture pair of the two GLBs (`{ "revision", "path" }` for the old one when it is only in Git), shown side by side with linked cameras or as an overlay. An angle worth pointing out is a view of that same capture with a `camera` (`{ "position": [x, y, z], "target": [x, y, z] }`; check the framing with `jam catalog capture`), not a rendered still. Renders and screenshots are views only for what the viewer cannot show (in-engine lighting, the game camera with its post-processing), placed after the model.
+Show media in the catalog's own viewer whenever it can be. A model is shown as its GLB, where the person can orbit, zoom, play its clips and switch to clay or wireframe: a unit's model part, or a capture of the file. Old against new is a capture pair of the two GLBs (`{ "revision", "path" }` for the old one when it is only in Git), shown side by side with linked cameras or as an overlay. An angle worth pointing out is a view of that same capture with a `camera` (`{ "position": [x, y, z], "target": [x, y, z] }`; check the framing with `jam catalog capture`), not a rendered still. A sprite animation is its sheet image with the link's `sheet`, and plays in the viewer; old against new is a view whose `before` is earlier evidence or `{ "path", "sheet" }`, played in step with it. Renders and screenshots are views only for what the viewer cannot show (in-engine lighting, the game camera with its post-processing), placed after the model.
 
 Each thing the person reads goes in its own field, written for them:
 
@@ -91,7 +91,7 @@ Done when `review.get` shows the submission or decision, and the person has its 
 
 ## Extending the catalog
 
-When the person wants the catalog to show the project's own content (the game engine's assets, archetypes such as weapons or creatures, data from the server), follow `tools/jam/docs/catalog-integration.md`.
+When the person wants the catalog to show the project's own content (the game engine's assets, archetypes such as weapons or creatures, data from the server, animations cut from sprite sheets), follow `tools/jam/docs/catalog-integration.md`.
 
 A project adds its own sources, relations, media kinds, checks, actions, scopes, inspectors and panels (its own browser modules on a unit's page) with a plugin: a module listed under `plugins` in `catalog.config.json`, kept under `jam/catalog/`, that imports `tools/jam/catalog-plugin.ts`. The contract, with a complete small plugin, is `tools/jam/src/catalog/README.md` (section "Plugins"); `tools/jam/examples/plugins/storybook.ts` uses every extension point. `jam catalog example <new folder>` creates a sample project to try things in.
 
