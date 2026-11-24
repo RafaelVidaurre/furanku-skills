@@ -39,6 +39,12 @@ An animation is left out, with the reason in the entry's `how`, when:
 
 When no animation can be shown the entry is `failed` with each reason.
 
+## Reading SpriteFrames in a project plugin
+
+Import `readSpriteFrames` from the installed `jam/engines/godot/lib/sprite-frames.mjs` to read selected text resources without copying preview files. Call `await readSpriteFrames(paths, { readText, viewable, imageSize })` with paths relative to the directory holding `project.godot`. The callbacks receive paths in the same form. `readText` supplies text for readable resources and returns `null` for unavailable resources. `viewable` admits images for the plugin, and `imageSize` gives their pixel dimensions as `[width, height]` or `null`.
+
+Each result in `animations` has the `source` resource path, `image` path, authored `name`, and `sheet`. The reader follows explicit `res://` references to images and external `AtlasTexture` resources. Pass the returned `problems` through to the plugin's source so unavailable dependencies and unsupported animations show their reasons.
+
 ## When it runs again
 
 - Each copy is named by its source's path and version, so an image that is also the atlas of animations is copied once, and a changed image gets a new copy.

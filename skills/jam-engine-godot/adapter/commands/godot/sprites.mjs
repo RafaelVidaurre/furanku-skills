@@ -46,7 +46,8 @@ function textureFrame(value, doc, context) {
   if (path === null) throw new Skip(`a frame names a missing external resource ${ext}`);
   if (/\.tres$/i.test(path)) {
     const text = context.readText(path);
-    const other = text === null ? null : readResourceText(text);
+    if (text === null) throw new Skip(`its external AtlasTexture ${path} could not be read`);
+    const other = readResourceText(text);
     if (other?.header?.attrs?.type !== 'AtlasTexture' || other.resource === null) throw new Skip(`a frame of ${path}, which is not an AtlasTexture`);
     return atlasFrame(other.resource, other, context);
   }
@@ -79,13 +80,13 @@ function sheetFrame(frame, duration, imageSize) {
 
 /**
  * The animations of one SpriteFrames (`props`, the properties of its resource or sub_resource, in `doc`):
- * `{ animations: [{ name, image, sheet }], skipped: [{ name, why }] }`, where `image` is the res:// path
- * of the one image the frames are cut from.
+ * `{ animations: [{ name, image, sheet }], skipped: [{ name, why }] }`, where `image` is the path
+ * of the one image the frames are cut from, in the form returned by `externalPath`.
  *
- * context.externalPath(ext) -> res:// path of an [ext_resource] (by uid first), or null
- * context.readText(resPath) -> the text of a .tres in the project, or null
- * context.imageSize(resPath) -> [width, height], or null
- * context.viewable(resPath) -> whether the catalog shows the image as it is
+ * context.externalPath(ext) -> path of an [ext_resource], or null
+ * context.readText(path) -> the text of a .tres in the project, or null
+ * context.imageSize(path) -> [width, height], or null
+ * context.viewable(path) -> whether the catalog shows the image as it is
  */
 export function spriteAnimations(props, doc, context) {
   const animations = [];
