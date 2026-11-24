@@ -37,7 +37,7 @@ export function UnitDetail({ route, ctx }) {
   const col = useQuery('collection.get', { id: ctx ?? '' }, !!ctx);
   const notMember = !!ctx && !!col.data && col.data.collection.id === ctx && !col.data.members.some((m) => m.id === id);
   const setPart = (pid) => replace(withQuery(route, { part: pid }));
-  const link = sel && d.links.find((l) => l.asset.id === sel.asset && l.role === sel.role);
+  const link = sel && linkOfPart(d, sel);
   const unavailable = notMember ? `${id} is not a member of ${ctx}` : badPart ? `${d.unit.name} has no media part or inspector "${partId}"` : (q.error && !d ? q.error.message : null);
   const inspectorIds = inspectors.map((v) => `inspector:${v.key}`);
   setSelectionProvider(() => ({ kind: 'unit', id, collection: ctx ?? null, part: selInspector ? `inspector:${selInspector.key}` : sel?.id ?? (badPart ? partId : null), loading: (!d && !q.error) || q.stale || (!!ctx && !col.data), unavailable: !!unavailable, error: unavailable, parts: [...inspectorIds, ...media.map((p) => p.id)], asset: link ? { id: link.asset.id, sha256: link.asset.sha256, kind: link.asset.kind } : null }));
@@ -59,7 +59,8 @@ export function UnitDetail({ route, ctx }) {
       ${!media.length && !inspectors.length && contentFields.length > 0 && html`<section class="block content-properties" aria-label="Unit details"><${Attributes} d=${d} technical=${false} /></section>`}
       <div class="d-side">
         ${(media.length > 0 || inspectors.length > 0) && contentFields.length > 0 && html`<section class="block content-properties" aria-label="Unit details"><${Attributes} d=${d} technical=${false} /></section>`}
-        ${d.links.length > 0 && html`<section class="block" aria-label="Assets"><header class="block-h"><h3>Assets</h3><span class="badge">${d.links.length}</span></header><div class="usage">${d.links.map(l => html`<a class="mship" href=${entityHref('asset', l.asset.id)}><${KindIcon} kind=${l.asset.kind} size=${16} /><span><strong>${l.roleLabel}</strong><span class="asset-filename">${baseName(l.asset.path)}</span></span><${Icon} name="chev" size=${12} /></a>`)}</div></section>`}
+        <${MediaGrid} title="Animations" d=${d} links=${d.links.filter((l) => l.sheet)} current=${sel?.id} setPart=${setPart} />
+        <${MediaGrid} title="Assets" d=${d} links=${d.links.filter((l) => !l.sheet)} current=${sel?.id} setPart=${setPart} />
         <${Relations} d=${d} />
         ${(technicalFields.length > 0 || d.unit.sources.length > 0) && html`<details class="disclosure"><summary>Technical details</summary><${Attributes} d=${d} technical /></details>`}
         <section class="block" aria-label="Collections">
@@ -76,6 +77,12 @@ export function UnitDetail({ route, ctx }) {
   </div>`;
 }
 
+// The link a part shows: by the part id the server gives each link (one image can be two
+// animations cut from one sheet), else by role and asset.
+const linkOfPart = (d, p) => d.links.find((x) => x.part === p.id) ?? d.links.find((x) => x.asset.id === p.asset && x.role === p.role);
+// Presentation belongs to the link. One source image may have several crops or animations.
+const linkMedia = (link) => link && { ...link.asset, sheet: link.sheet, crop: link.crop };
+
 // An inspector's own state (its selections) lives in the page address, so a link reopens it as it was.
 const inspectorStateOf = (route) => { try { return JSON.parse(route.query.get('vs') ?? '{}'); } catch { return {}; } };
 
@@ -90,18 +97,20 @@ function Stage({ d, media, inspectors = [], selInspector, sel, link, setPart, ba
       inspectorState=${inspectorStateOf(route)} onState=${(state) => replace(withQuery(route, { vs: state && Object.keys(state).length ? JSON.stringify(state) : null }))} /></div>`}
     ${badPart && html`<div class="stage-view" data-viewer-root data-active="true"><${UnavailableViewer} viewerId="stage" shows=${{ unit: d.unit.id, part: badPart }} message=${`No media part or inspector "${badPart}"`} /></div>`}
     ${a && html`<div class="stage-view" data-viewer-root data-active="true">
-      <${MediaViewer} media=${a} viewerId="stage" shows=${shows} label=${a.id} keepCamera context=${{ unit: d.unit, type: d.type, link }} />
+      <${MediaViewer} media=${linkMedia(link)} viewerId="stage" shows=${shows} label=${a.id} keepCamera context=${{ unit: d.unit, type: d.type, link }} />
     </div>`}
     <div class="strip" role="tablist" aria-label="Media"
       onKeyDown=${(e) => { if (isTyping(e) && !e.target.closest('.strip')) return; const i = ids.indexOf(current); const n = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : null; if (n != null && ids[n]) { setPart(ids[n]); e.preventDefault(); requestAnimationFrame(() => document.querySelector('.strip [aria-selected="true"]')?.focus()); } }}>
       ${inspectors.map((v) => html`<button role="tab" aria-selected=${v === selInspector} tabindex=${v === selInspector ? 0 : -1} class=${`tile${v === selInspector ? ' on' : ''}`} onClick=${() => setPart(`inspector:${v.key}`)} title=${v.help ?? v.label}>
         <span class="thumb view-thumb" style="width:52px;height:52px"><${Icon} name="expand" size=${20} /></span><span class="tile-l">${v.label}</span></button>`)}
-      ${media.map((p) => {
-        const l = d.links.find((x) => x.asset.id === p.asset && x.role === p.role);
+      ${media.map((p, i) => {
+        const l = linkOfPart(d, p);
+        const group = (media.length > 1 && media[i - 1]?.role !== p.role) ? html`<span class="strip-group" aria-hidden="true">${l.roleLabel}</span>` : '';
         const shared = l.alsoUsedBy.length;
-        return html`<button role="tab" aria-selected=${p === sel} tabindex=${p === sel ? 0 : -1} class=${`tile${p === sel ? ' on' : ''}`} onClick=${() => setPart(p.id)} title=${l.asset.id}>
-          <${Thumb} asset=${l.asset} size=${52} pixel=${!!d.display?.pixelArt} />
-          <span class="tile-l">${p.label}</span>
+        // The tile shows the short name under its group's label; its accessible name is the part's full label.
+        return html`${group}<button role="tab" aria-selected=${p === sel} tabindex=${p === sel ? 0 : -1} class=${`tile${p === sel ? ' on' : ''}`} onClick=${() => setPart(p.id)} aria-label=${p.label} title=${`${p.label}\n${l.asset.path}`}>
+          <${Thumb} asset=${linkMedia(l)} size=${44} pixel=${!!d.display?.pixelArt} />
+          <span class="tile-l">${mediaName(l)}</span>
           ${shared > 0 && html`<span class="tile-shared" title=${`Shared by ${shared + 1} units`}><${Icon} name="link" size=${10} />${shared + 1}</span>`}
 
         </button>`;
@@ -116,9 +125,35 @@ function Stage({ d, media, inspectors = [], selInspector, sel, link, setPart, ba
   </div>`;
 }
 
+// A unit's files in the side column, as a grid of thumbnails: animations (images cut into frames)
+// apart from other assets, each grouped under its role in the type's order. A tile shows a still
+// thumbnail (an animation's first frame), the name the unit gives the file, and how an animation
+// plays; choosing one shows it in the viewer.
+function MediaGrid({ title, d, links, current, setPart }) {
+  if (!links.length) return null;
+  const roles = [...new Set(links.map((l) => l.roleLabel))];
+  const tile = (l) => {
+    const on = !!l.part && l.part === current;
+    const body = html`<span class="media-thumb"><${Thumb} asset=${linkMedia(l)} fill pixel=${!!d.display?.pixelArt} /></span>
+      <span class="media-name">${mediaName(l)}</span>
+      ${l.sheet ? html`<span class="media-meta">${frames(l.sheet)} frames · ${+l.sheet.fps.toFixed(2)} fps</span>` : html`<span class="media-meta">${kindLabel(l.asset.kind)}</span>`}`;
+    return l.part
+      ? html`<button class=${`media-tile${on ? ' on' : ''}`} aria-pressed=${on} title=${l.asset.path} onClick=${() => setPart(l.part)}>${body}</button>`
+      : html`<a class="media-tile" href=${entityHref('asset', l.asset.id)} title=${l.asset.path}>${body}</a>`;
+  };
+  return html`<section class="block media-block" aria-label=${title}><header class="block-h"><h3>${title}</h3><span class="badge">${links.length}</span></header>
+    ${roles.map((role) => html`${roles.length > 1 || role !== title ? html`<div class="attr-group media-group">${role}</div>` : ''}<div class="media-grid">${links.filter((l) => l.roleLabel === role).map(tile)}</div>`)}
+  </section>`;
+}
+/** What a person calls a linked file: the name the unit gives it, else its file name without the extension. */
+const mediaName = (l) => l.label ?? baseName(l.asset.path).replace(/\.[^.]+$/, '');
+const frames = (sheet) => sheet.grid?.count ?? sheet.frames?.length ?? 0;
+
 function Value({ v, f, refs }) {
   if (f?.kind === 'refs' && refs) return html`<span class="refs">${refs.map((r) => (r.exists ? html`<a class="ref" href=${entityHref('unit', r.id)}><${Thumb} asset=${r.thumb} size=${18} />${r.name}</a>` : html`<span class="ref missing" title="Not in this checkout">${r.id}</span>`))}</span>`;
   if (f?.kind === 'code') return html`<pre class="code-value">${String(v)}</pre>`;
+  // A list of plain values reads as a list; only structured data falls back to its JSON.
+  if (Array.isArray(v) && v.every((x) => x == null || typeof x !== 'object')) return v.length ? html`<ul class="value-list">${v.map((x) => html`<li>${String(x)}</li>`)}</ul>` : html`<span class="muted">None</span>`;
   if (v && typeof v === 'object') return html`<details class="nested"><summary>${Array.isArray(v) ? `${v.length} items` : `${Object.keys(v).length} fields`}</summary><pre>${JSON.stringify(v, null, 2)}</pre></details>`;
   return html`${String(v)}${f?.unit ? html`<span class="muted"> ${f.unit}</span>` : ''}`;
 }

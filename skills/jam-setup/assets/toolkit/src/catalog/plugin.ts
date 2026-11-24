@@ -32,6 +32,7 @@ export * from "./contract/media.ts"
 export * from "./contract/page.ts"
 export * from "./contract/review.ts"
 export * from "./contract/sources.ts"
+export { defineSourceInventory, type SourceInventoryFile, type SourceInventoryOptions } from "./sourceInventory.ts"
 
 export interface Plugin {
   readonly name: string

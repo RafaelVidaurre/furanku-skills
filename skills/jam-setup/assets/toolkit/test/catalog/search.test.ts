@@ -62,6 +62,23 @@ test("T05 facets: counts apply the other filters; filters combine; pages are bou
   cleanup(dir)
 })
 
+test("attribute filters count a shared list member once per unit", async () => {
+  const dir = await makeProject({
+    extra: { types: { item: { fields: [{ key: "audience", label: "Audience", filter: true }] } } },
+    units: [
+      { id: "map", type: "item", attrs: { audience: ["players", "editors", "players"] } },
+      { id: "rule", type: "item", attrs: { audience: "editors" } }
+    ]
+  })
+  try {
+    const result = await (await open(dir)).run("unit.search", { filters: { "attr.audience": ["players"] } })
+    assert.deepEqual(result.ids, ["map"])
+    assert.deepEqual(Object.fromEntries(result.facets["attr.audience"].values.map((v: Facet) => [v.value, v.count])), { players: 1, editors: 2 })
+  } finally {
+    cleanup(dir)
+  }
+})
+
 test("T06 metadata-only entries, expected-but-missing art and undecodable files are distinct states", async () => {
   const dir = await standardProject({})
   write(dir, "art/broken.png", Buffer.from("this is not a png"))

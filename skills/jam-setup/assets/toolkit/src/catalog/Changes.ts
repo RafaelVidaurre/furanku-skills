@@ -20,6 +20,8 @@ import { LOCAL_DIR } from "./records/layout.ts"
 const MAX_PATHS = 20_000
 /** Not inputs of anything: the catalog's own machine-local files, Git's database, installed packages. */
 const IGNORED = new RegExp(`^(?:\\.git|${LOCAL_DIR.replace(/\./g, "\\.")}|node_modules)(?:/|$)|/node_modules(?:/|$)`)
+/** The catalog's records: what a person or agent wrote in the catalog, never a source's input. */
+const RECORDS = /^\.catalog(?:\/|$)/
 /** Where the markers that settle the feed are written. */
 const MARKERS = `${LOCAL_DIR}/changes`
 /** A marker whose event takes longer than this: the watcher is not delivering, and is no longer trusted. */
@@ -124,22 +126,26 @@ export class Changes extends Context.Service<Changes, {
 
 /**
  * A test of whether changes concern any of `paths`: the path itself, something inside it, or a
- * folder holding it (a renamed or removed folder). `""` is the whole project. Built once for a
- * set of paths; each test costs a few lookups per changed path.
+ * folder holding it (a renamed or removed folder). `""` and `"."` are the whole project, apart from
+ * the catalog's own records, which no source reads. Built once for a set of paths; each test costs
+ * a few lookups per changed path.
  */
 export const concerns = (paths: Iterable<string>): (changed: ReadonlySet<string>) => boolean => {
   const exact = new Set<string>()
   const holders = new Set<string>()
   let everything = false
   for (const raw of paths) {
-    const path = raw.replace(/^\.\//, "").replace(/\/+$/, "")
+    const path = raw.replace(/^\.(?:\/|$)/, "").replace(/\/+$/, "")
     if (path === "") everything = true
     exact.add(path)
     for (let i = path.indexOf("/"); i !== -1; i = path.indexOf("/", i + 1)) holders.add(path.slice(0, i))
   }
   return (changed) => {
     if (changed.size === 0) return false
-    if (everything) return true
+    if (everything) {
+      for (const path of changed) if (!RECORDS.test(path)) return true
+      return false
+    }
     for (const path of changed) {
       if (exact.has(path) || holders.has(path)) return true
       for (let i = path.lastIndexOf("/"); i > 0; i = path.lastIndexOf("/", i - 1)) if (exact.has(path.slice(0, i))) return true

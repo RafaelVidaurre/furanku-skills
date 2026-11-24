@@ -59,6 +59,18 @@ describe("probes", () => {
   })
 })
 
+it("a project can keep media measurements while limiting content to its own declarations", async () => {
+  const root = await kitProject()
+  await start(root, "asset", "draft", { budget: "prop" })
+  write(root, "catalog.config.json", JSON.stringify({
+    version: 3, plugins: ["manifest", { plugin: "jam", options: { includeRuns: false } }]
+  }))
+  const app = openCatalog(root)
+  assert.deepEqual((await app.run("unit.search", {})).ids, ["kit/plank"])
+  const picture = await app.run("asset.get", { id: "kit/plank.png" })
+  assert.deepEqual(picture.facts["jam-pixels"].facts, { width: 24, height: 12 })
+})
+
 describe("made from", () => {
   it("a subject's inputs lead to the units they came from, in either plugin, and those units show who used them", async () => {
     const root = await kitProject()

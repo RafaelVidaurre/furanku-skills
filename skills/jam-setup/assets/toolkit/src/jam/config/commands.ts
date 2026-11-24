@@ -19,6 +19,7 @@ import { getAt, parseValue, removeAt, setAt } from "./edit.ts"
 import { migrateConfig, migrateLocal, type MigrationDefaults } from "./migrate.ts"
 import { Providers } from "../providers/Providers.ts"
 import { JamConfig } from "./schema.ts"
+import { rootsOnDisk } from "./spelling.ts"
 
 const summary = (config: JamConfig): string =>
   pairs([
@@ -153,7 +154,11 @@ export const setup = Command.make("setup", {
     const shipped = yield* toolkit.readJson("defaults/config.json")
     // The toolkit knows where it is installed; the choices need not repeat it.
     const installedAt = yield* files.relative(toolkit.dir).pipe(Effect.catch(() => Effect.succeed(null)))
-    const template = installedAt === null || !isRecord(shipped) ? shipped : { ...shipped, toolkit: installedAt }
+    const located = installedAt === null || !isRecord(shipped) ? shipped : { ...shipped, toolkit: installedAt }
+    // Default folders the project already has in another letter case keep the project's spelling.
+    const onDisk = (config: unknown): unknown =>
+      isRecord(config) && isRecord(config["roots"]) ? { ...config, roots: rootsOnDisk(files.root, config["roots"]) } : config
+    const template = onDisk(located)
     const source = maybe(from)
     if (source !== undefined && defaults) return yield* fail("invalid", "give --from <file> or --defaults, not both")
     if (source === undefined && !defaults) {
@@ -172,7 +177,7 @@ export const setup = Command.make("setup", {
     const choices = source === undefined ? {} : yield* files.readJson(source)
     if (!isRecord(choices)) return yield* fail("invalid", `${source}: expected a JSON object with fields of ${CONFIG_FILE}`)
     if (choices["version"] === 1) return yield* fail("unsupported", `${source} is a version 1 configuration`, { fix: `save it as ${CONFIG_FILE} and run "jam config migrate"` })
-    const config = yield* configs.save(merge(template, choices))
+    const config = yield* configs.save(onDisk(merge(template, choices)))
     yield* output.emit({ configured: true, config }, lines(`wrote ${CONFIG_FILE}`, summary(config), "next: jam doctor"))
   })).pipe(described(
     "Create jam.config.json from decided choices merged over the toolkit's defaults, or from the defaults alone. With neither flag it prints the defaults to decide on. It never authenticates, spends, or replaces an existing file.",

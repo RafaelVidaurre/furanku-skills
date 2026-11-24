@@ -65,12 +65,15 @@ export const write = (dir: string, rel: string, value: unknown): void => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const read = (dir: string, rel: string): any => JSON.parse(readFileSync(join(dir, rel), "utf8"))
 
-/** A minimal valid RGBA PNG. */
-export const png = (w = 4, h = 4, rgba: ReadonlyArray<number> = [200, 40, 40, 255]): Buffer => {
+/** A minimal valid RGBA PNG, with either a solid color or per-pixel colors. */
+export const png = (
+  w = 4, h = 4,
+  rgba: ReadonlyArray<number> | ((x: number, y: number) => ReadonlyArray<number>) = [200, 40, 40, 255]
+): Buffer => {
   const raw = Buffer.alloc((w * 4 + 1) * h)
   for (let y = 0; y < h; y++) {
     raw[y * (w * 4 + 1)] = 0
-    for (let x = 0; x < w; x++) raw.set(rgba, y * (w * 4 + 1) + 1 + x * 4)
+    for (let x = 0; x < w; x++) raw.set(typeof rgba === "function" ? rgba(x, y) : rgba, y * (w * 4 + 1) + 1 + x * 4)
   }
   const chunk = (type: string, data: Buffer): Buffer => {
     const length = Buffer.alloc(4)

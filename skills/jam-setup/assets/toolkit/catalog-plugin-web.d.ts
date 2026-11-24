@@ -46,6 +46,8 @@ interface MediaRef {
   readonly path?: string
   readonly sha256?: string | null
   readonly version?: string
+  /** A still image region in source pixels. */
+  readonly crop?: readonly [number, number, number, number]
   /** `ok`, or why it cannot be shown (`missing`, `invalid`, …); with `error`. */
   readonly state?: string
   readonly error?: string | null
@@ -58,6 +60,7 @@ interface CompareSide {
   readonly kind?: string
   readonly sha256?: string | null
   readonly path?: string
+  readonly crop?: readonly [number, number, number, number]
   readonly error?: string | null
 }
 

@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ASSETS = resolve(dirname(fileURLToPath(import.meta.url)), '../assets');
 const BUNDLE = join(ASSETS, 'toolkit');
@@ -74,9 +74,12 @@ function toolkitDir(root, explicit, config) {
   return posix(inside);
 }
 
-// Content roots: the project's own once configured, else the defaults a new configuration starts with.
-function contentRoots(config) {
-  const roots = config?.version === 2 ? config.roots : config?.version === 1 ? bundled('defaults/migration-v1.json').roots : bundled('defaults/config.json').roots;
+// Content roots: the project's own once configured, else the defaults a new configuration starts with,
+// spelled as the project spells folders it already has (the toolkit's rule, so `jam setup` agrees).
+async function contentRoots(root, config) {
+  const { rootsOnDisk } = await import(pathToFileURL(join(BUNDLE, 'src/jam/config/spelling.ts')).href);
+  const configured = config?.version === 2 ? config.roots : config?.version === 1 ? bundled('defaults/migration-v1.json').roots : bundled('defaults/config.json').roots;
+  const roots = rootsOnDisk(root, configured);
   const tracked = [...new Set([roots.delivered, ...(roots.scan ?? [])])].filter((root, _, all) => !all.some((other) => other !== root && root.startsWith(`${other}/`)));
   return { scratch: roots.scratch, delivered: roots.delivered, tracked, source: config?.version === 2 ? CONFIG : 'toolkit defaults (rerun after "jam setup" if the project chooses other folders)' };
 }
@@ -203,7 +206,8 @@ function catalog(root, roots) {
   const manifest = config.plugins.find((entry) => pluginName(entry) === 'manifest')?.options?.file;
   if (!manifest) return result;
   if (!existsSync(join(root, manifest))) {
-    writeJson(join(root, manifest), { ...readJson(join(ASSETS, 'project/catalog.json')), assetRoots: roots.tracked });
+    // Hand-registered units live in one file each, in a folder beside the manifest.
+    writeJson(join(root, manifest), { ...readJson(join(ASSETS, 'project/catalog.json')), assetRoots: roots.tracked, unitFiles: [`${dirname(manifest)}/Catalog`] });
     result.catalogManifest = `created ${manifest} (hand-registered external content)`;
   } else result.catalogManifest = 'present';
   return result;
@@ -229,7 +233,7 @@ function jam(root, dir, args) {
   catch { return { ok: false, value: { error: { message: (result.stderr || result.stdout || String(result.error?.message)).trim() } } }; }
 }
 
-function main() {
+async function main() {
   const { values: o } = parseArgs({ options: { project: { type: 'string' }, dir: { type: 'string' }, check: { type: 'boolean' }, 'no-deps': { type: 'boolean' }, 'no-lfs': { type: 'boolean' }, force: { type: 'boolean' }, help: { type: 'boolean' } } });
   if (o.help) { console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 4).join('\n')); return; }
   const root = projectRoot(o.project);
@@ -284,7 +288,7 @@ function main() {
     summary.configuration = typeof summary.configuration === 'object' ? { ...summary.configuration, toolkit } : `version 2 (toolkit set to ${toolkit})`;
   }
 
-  const roots = contentRoots(config);
+  const roots = await contentRoots(root, config);
   summary.roots = { scratch: roots.scratch, tracked: roots.tracked, from: roots.source };
   summary.gitignore = replaceBlock(join(root, '.gitignore'), '# >>> jam toolkit', '# <<< jam toolkit', [`/${roots.scratch}/`, '/jam.local.json', '.catalog/.local/']) ? 'updated' : 'present';
   const hadCatalog = existsSync(join(root, 'catalog.config.json')) || existsSync(join(root, '.catalog'));
@@ -318,4 +322,4 @@ function main() {
   if (failed) process.exitCode = 2;
 }
 
-try { main(); } catch (error) { console.error(`jam-setup install: ${error.message}`); process.exitCode = 1; }
+main().catch((error) => { console.error(`jam-setup install: ${error.message}`); process.exitCode = 1; });

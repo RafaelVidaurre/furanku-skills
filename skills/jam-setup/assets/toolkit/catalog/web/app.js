@@ -199,10 +199,18 @@ function Side({ route }) {
   const Item = ({ to, active, label, n, depth = 0, strong }) => html`<a class=${`nav-i${active ? ' on' : ''}${strong ? ' strong' : ''}`} href=${to} style=${depth ? `padding-left:${12 + depth * 14}px` : ''} aria-current=${active ? 'page' : undefined}><span>${label}</span>${n != null && html`<span class="count">${n}</span>`}</a>`;
   // A previous scope's counts and categories cannot describe this one.
   const mine = units?.scope === area ? units : null;
+  // A section's structure is its types (what the project's files define); categories are how people filed it.
+  // In the order the project declares its types (heroes before warriors before summons), not alphabetical.
+  const declared = Object.keys(s.schema?.schema?.types ?? {});
+  const types = [...(mine?.facets.type?.values ?? [])].sort((a, b) => declared.indexOf(a.value) - declared.indexOf(b.value));
+  const categories = mine?.facets.cat.values.filter(c => !c.value.includes('/')) ?? [];
+  const typePlural = (t) => s.schema?.schema?.types?.[t.value]?.plural ?? t.label;
   return html`<nav class="side" aria-label="Catalog">
     ${scope && html`<div class="nav-caption" title=${scope.description}>${scope.label}</div>
     <${Item} strong to=${link(area)} active=${route.section === area && none} label=${`All ${scope.label.toLowerCase()}`} n=${mine?.all} />
-    ${(mine?.facets.cat.values.filter(c => !c.value.includes('/')) ?? []).map(c => html`<${Item} to=${link(area, 'cat', c.value)} active=${route.section === area && only('cat', c.value)} label=${c.label} n=${c.count} depth=${1} />`)}
+    ${types.length > 1 && types.map(t => html`<${Item} to=${link(area, 'type', t.value)} active=${route.section === area && only('type', t.value)} label=${typePlural(t)} n=${t.count} depth=${1} />`)}
+    ${categories.length > 0 && html`<div class="nav-caption nav-subcaption" title="How people filed this section's units: categories set in the catalog or by the project">Categories</div>
+    ${categories.map(c => html`<${Item} to=${link(area, 'cat', c.value)} active=${route.section === area && only('cat', c.value)} label=${c.label} n=${c.count} depth=${1} />`)}`}
     <div class="nav-sep"></div>`}
     <${Item} to=${link('collections')} active=${route.section === 'collections' && none} label="Collections" n=${cols?.all} />
     <${Item} to=${link('assets')} active=${route.section === 'assets' && none} label="Assets" n=${assets?.all} />

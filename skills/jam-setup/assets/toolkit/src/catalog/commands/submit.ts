@@ -31,7 +31,12 @@ const ViewInput = Schema.Struct({
   camera: optional(Schema.Struct({ position: optional(Vec3), target: optional(Vec3) })),
   state: optional(Schema.Struct({
     mode: optional(Schema.Literals(["textured", "clay", "wireframe"])),
-    animation: optional(Schema.Struct({ clip: optional(Text), time: optional(Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0))), playing: optional(Schema.Boolean) })),
+    animation: optional(Schema.Struct({
+      clip: optional(Text),
+      time: optional(Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0))),
+      playing: optional(Schema.Boolean),
+      frame: optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))).annotate({ description: "The frame a sprite-sheet animation opens on, from 0" })
+    })),
     isolate: optional(Schema.Union([Schema.String, Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))])),
     texture: optional(Text)
   })),
@@ -41,8 +46,12 @@ const ViewInput = Schema.Struct({
     item: optional(Schema.String),
     part: optional(Schema.String),
     leaf: optional(Schema.String),
-    label: optional(Schema.String)
-  })).annotate({ description: "Show this view against a project file ({path}) or earlier frozen evidence ({submission, item, part, leaf?})" }),
+    label: optional(Schema.String),
+    crop: optional(Schema.Tuple([Schema.Int, Schema.Int, Schema.Int, Schema.Int])).annotate({
+      description: "With path: [x, y, width, height] of a still image in whole source pixels"
+    }),
+    sheet: optional(Schema.Record(Schema.String, Schema.Unknown)).annotate({ description: "With path: the file is an animation cut by this sheet ({ fps, loop?, grid | frames }), played in step with the view's own" })
+  })).annotate({ description: "Show this view against a project file ({path}, and optional crop or sheet) or earlier frozen evidence ({submission, item, part, leaf?})" }),
   afterLabel: optional(Schema.String)
 })
 const ItemInput = Schema.Struct({

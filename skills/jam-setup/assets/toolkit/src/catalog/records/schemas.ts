@@ -5,6 +5,8 @@ import * as Schema from "effect/Schema"
 import { isRecord } from "../../kernel/hash.ts"
 import type { RecordKind } from "../model/types.ts"
 import { CAPTURE_PART, ITEM_PART, WORK_PART } from "../model/parts.ts"
+import { isImageCrop } from "../model/image.ts"
+import { isSheet, mediaDigest } from "../model/sheet.ts"
 import { VERDICTS } from "../model/verdicts.ts"
 import { EVIDENCE_PATH } from "./layout.ts"
 
@@ -63,7 +65,11 @@ export const validRef = (ref: unknown, sha: unknown): boolean => {
 export const validLeaf = (leaf: unknown): boolean => {
   if (!isRecord(leaf)) return false
   if (leaf["kind"] === "attributes") return isRecord(leaf["attrs"]) && isHex(leaf["digest"])
-  return isText(leaf["kind"], 100) && isHex(leaf["sha256"]) && leaf["digest"] === leaf["sha256"] && isText(leaf["asset"], 500) &&
+  const sheet = leaf["sheet"]
+  const crop = leaf["crop"]
+  if (sheet !== undefined && !isSheet(sheet)) return false
+  if (crop !== undefined && (leaf["kind"] !== "image" || sheet !== undefined || !isImageCrop(crop))) return false
+  return isText(leaf["kind"], 100) && isHex(leaf["sha256"]) && leaf["digest"] === mediaDigest(leaf["sha256"], sheet, crop) && isText(leaf["asset"], 500) &&
     isText(leaf["path"], 1000) && isCount(leaf["size"]) && optionalText(leaf["mime"], 100) && validRef(leaf["ref"], leaf["sha256"]) &&
     optionalText(leaf["renderer"], 100)
 }
@@ -110,6 +116,8 @@ export const validViewState = (state: unknown): boolean => {
     if (animation["clip"] != null && !isText(animation["clip"], 200)) return false
     if (animation["time"] != null && !(typeof animation["time"] === "number" && animation["time"] >= 0)) return false
     if (animation["playing"] != null && typeof animation["playing"] !== "boolean") return false
+    // A sprite sheet starts on a frame rather than a clip.
+    if (animation["frame"] != null && !isCount(animation["frame"])) return false
   }
   if (state["isolate"] != null && !(typeof state["isolate"] === "string" || isCount(state["isolate"]))) return false
   if (state["texture"] != null && !isText(state["texture"], 300)) return false

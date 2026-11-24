@@ -1,5 +1,6 @@
 // The catalog's domain vocabulary: what sources produce after normalization, and what the
 // records under `.catalog/` hold. Types only; the rules live beside them in this folder.
+import type { ImagePresentation } from "./image.ts"
 
 export interface Actor {
   readonly name: string
@@ -61,6 +62,8 @@ export interface DisplayDef {
 export interface TypeDef {
   readonly scope: string
   readonly label: string
+  /** The label of several, for lists of the type. */
+  readonly plural: string
   readonly roles: ReadonlyArray<RoleDef>
   readonly fields: ReadonlyArray<FieldDef>
   readonly thumb: string | null
@@ -96,10 +99,12 @@ export interface CatalogSchema {
   readonly collectionKinds: Readonly<Record<string, CollectionKind>>
 }
 
-export interface Link {
+export interface Link extends ImagePresentation {
   readonly role: string
   readonly asset: string
   readonly key?: string
+  /** What a person calls the file in this unit; shown instead of its name. */
+  readonly label?: string
   /** Per-link data from the source (take number, word timings); never review evidence. */
   readonly meta?: Record<string, unknown>
 }
@@ -172,7 +177,7 @@ export interface Target {
   readonly id: string
 }
 
-export interface Part {
+export interface Part extends ImagePresentation {
   readonly id: string
   readonly label: string
   readonly role?: string
@@ -242,7 +247,7 @@ export type EvidenceRef =
   | { readonly git: { readonly commit: string; readonly path: string; readonly blob: string } }
 
 /** Frozen evidence of one byte stream or one attribute set. */
-export interface LeafEvidence {
+export interface LeafEvidence extends ImagePresentation {
   readonly digest: string
   readonly kind?: string
   readonly attrs?: Record<string, unknown>

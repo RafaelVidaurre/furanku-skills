@@ -37,14 +37,64 @@
                   "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
                   "description": "The preview, a file in the previews folder"
                 },
+                "sheet": {
+                  "type": "object",
+                  "description": "The image is an animation cut into frames: { fps, loop?, grid: { columns, rows?, start?, count?, cell?, origin?, gap? }, durations? } or { fps, loop?, frames: [{ region: [x, y, w, h], offset?, size?, duration? }] } (tools/jam/src/catalog/README.md, Sprite sheets)"
+                },
+                "inputs": {
+                  "type": "object",
+                  "patternProperties": {
+                    "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "description": "Other inventory files the preview was made from (the images an animation is cut from), with the version each had; the catalog says the preview is out of date when one changed"
+                },
+                "animations": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "pattern": "\\S",
+                        "description": "The animation's name in the engine"
+                      },
+                      "file": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                        "description": "The image its frames are cut from, a file in the previews folder"
+                      },
+                      "source": {
+                        "type": "string",
+                        "pattern": "^(?![A-Za-z]:)(?!\\/)(?!.*\\\\)(?!.*(?:^|\\/)\\.{0,2}(?:\\/|$)).+$",
+                        "description": "The project file that image is, when it is one: the catalog tells which of the project's images the engine plays this way"
+                      },
+                      "sheet": {
+                        "type": "object",
+                        "description": "The image is an animation cut into frames: { fps, loop?, grid: { columns, rows?, start?, count?, cell?, origin?, gap? }, durations? } or { fps, loop?, frames: [{ region: [x, y, w, h], offset?, size?, duration? }] } (tools/jam/src/catalog/README.md, Sprite sheets)"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "file",
+                      "sheet"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Animations the engine file holds (a sprite animation resource), each shown playing in the catalog"
+                },
                 "kind": {
                   "type": "string",
                   "enum": [
                     "image",
                     "model",
-                    "audio"
+                    "audio",
+                    "video"
                   ],
-                  "description": "image: PNG, JPEG or WebP. model: self-contained GLB. audio: WAV"
+                  "description": "image: PNG, JPEG or WebP. model: self-contained GLB. audio: WAV. video: WebM or MP4"
                 },
                 "how": {
                   "type": "string",

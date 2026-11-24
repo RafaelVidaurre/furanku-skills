@@ -345,7 +345,10 @@ export function TagPicker({ exclude = [], onPick }) {
 }
 
 export function CategoryPicker({ value, projectValue, onChange }) {
-  return html`<${Popover} label="Category" trigger=${() => html`<button class=${`cat${value ? '' : ' unset'}`} title=${projectValue && value === projectValue ? 'Category (from the project)' : 'Category'}>${value ? value.split('/').join(' / ') : 'Category'}</button>`}>
+  // A category is how people file things in the catalog (kept in its records, shared through Git);
+  // it is not part of what the project defines, which the type shows.
+  const title = !value ? 'File this in a category (shared with everyone through the catalog\'s records)' : projectValue && value === projectValue ? 'Category given by the project\'s files; choose another to file it differently' : 'Category people filed this in; choose to change it';
+  return html`<${Popover} label="Category" trigger=${() => html`<button class=${`cat${value ? '' : ' unset'}`} title=${title} aria-label=${value ? `Category: ${value}` : 'Add a category'}>${value ? value.split('/').join(' / ') : html`<${Icon} name="plus" size=${11} />Category`}</button>`}>
     ${(close) => html`<${CategoryList} value=${value} onPick=${(c) => { onChange(c); close(); }} />`}
   <//>`;
 }

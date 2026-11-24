@@ -4,6 +4,8 @@
 import * as Effect from "effect/Effect"
 import { isNonEmpty, isRecord } from "../../kernel/hash.ts"
 import type { MergedSources, ProblemInput, RoleInput } from "../plugin.ts"
+import { isImageCrop, type ImagePresentation } from "./image.ts"
+import { parseSheet } from "./sheet.ts"
 import type { Asset, CatalogSchema, CollectionKind, DisplayDef, FieldDef, InspectorDef, Link, Member, MountDef, Problem, RoleDef, TypeDef, Unit } from "./types.ts"
 
 export interface SourceCollection {
@@ -101,6 +103,7 @@ const normalizeSchema = (sources: MergedSources, rules: NormalizeRules, problems
     types[key] = {
       scope: type.scope ?? rules.scopes[0] ?? "main",
       label: isNonEmpty(type.label) ? type.label : key,
+      plural: isNonEmpty(type.plural) ? type.plural : isNonEmpty(type.label) ? type.label : key,
       roles,
       fields,
       thumb: type.thumb ?? roles[0]?.key ?? null,
@@ -196,12 +199,35 @@ export const normalize = (sources: MergedSources, reported: ReadonlyArray<Proble
           report(from, `${unit.id}: ${role.label} takes one asset`)
           continue
         }
-        if (links.some((other) => other.role === role.key && other.asset === asset.id)) continue
+        // One image may be linked twice under different keys (two animations cut from one sheet).
+        const identity = link.key ?? asset.id
+        if (links.some((other) => other.role === role.key && other.asset === asset.id && (other.key ?? other.asset) === identity)) continue
         if (link.key != null && (!isNonEmpty(link.key) || link.key.length > 100 || links.some((other) => other.role === role.key && other.key === link.key))) {
           report(from, `${unit.id}: invalid or duplicate link key for ${role.key}`)
           continue
         }
-        links.push({ role: role.key, asset: asset.id, ...(link.key == null ? {} : { key: link.key }), ...(isRecord(link.meta) ? { meta: link.meta } : {}) })
+        // Report invalid image presentation while retaining the source link.
+        let presentation: ImagePresentation = {}
+        if (link.crop != null && link.sheet != null) {
+          report(from, `${unit.id}: ${asset.id}: a link can have either crop or sheet`)
+        } else if (link.crop != null) {
+          if (!isImageCrop(link.crop)) report(from, `${unit.id}: crop of ${asset.id}: expected [x, y, width, height] in whole pixels`)
+          else if (asset.kind !== null && asset.kind !== "image") report(from, `${unit.id}: crop of ${asset.id}: a crop cuts an image, and this is ${asset.kind}`)
+          else presentation = { crop: [...link.crop] }
+        } else if (link.sheet != null) {
+          const parsed = parseSheet(link.sheet)
+          if ("error" in parsed) report(from, `${unit.id}: sheet of ${asset.id}: ${parsed.error}`)
+          else if (asset.kind !== null && asset.kind !== "image") report(from, `${unit.id}: sheet of ${asset.id}: a sheet cuts an image, and this is ${asset.kind}`)
+          else presentation = { sheet: parsed.ok }
+        }
+        links.push({
+          role: role.key,
+          asset: asset.id,
+          ...(link.key == null ? {} : { key: link.key }),
+          ...(isNonEmpty(link.label) && link.label.length <= 100 ? { label: link.label.trim() } : {}),
+          ...(isRecord(link.meta) ? { meta: link.meta } : {}),
+          ...presentation
+        })
       }
       units.set(unit.id, {
         id: unit.id,

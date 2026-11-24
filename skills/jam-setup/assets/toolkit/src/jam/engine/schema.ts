@@ -153,7 +153,13 @@ export type InspectReceipt = typeof InspectReceipt.Type
 
 /** What `references <id>...` prints. */
 export const ReferencesReceipt = Schema.Struct({
-  references: Schema.Array(Schema.Struct({ id: Text, kind: opt(Schema.String), path: opt(Schema.String) }))
+  references: Schema.Array(Schema.Struct({
+    id: Text,
+    referencers: opt(Schema.Array(Text).pipe(Schema.annotate({ description: "What refers to it: engine ids or project files" }))),
+    uses: opt(Schema.Array(Text).pipe(Schema.annotate({ description: "What it refers to" }))),
+    kind: opt(Schema.String),
+    path: opt(Schema.String)
+  }))
 }).pipe(Schema.annotate({ identifier: "EngineReferencesReceipt", title: "Receipt printed by an adapter's references command" }))
 
 /** What `check` prints: the same problem shape the toolkit's own checks use. */
@@ -270,13 +276,26 @@ export const InventoryReceipt = Schema.Struct({
 }).pipe(Schema.annotate({ identifier: "EngineInventoryReceipt", title: "Receipt printed by an adapter's inventory command" }))
 
 /** What the previews index says about one engine file, by the file's project path in the inventory. */
+const PreviewFile = Schema.String.pipe(Schema.check(Schema.isPattern(/^[A-Za-z0-9][A-Za-z0-9._-]*$/u, { message: "expected a file name in the previews folder" })))
+/** How an image preview is cut into animation frames: the catalog's sheet, checked when the catalog loads it. */
+const PreviewSheet = Schema.Record(Schema.String, Schema.Unknown).pipe(Schema.annotate({
+  description: "The image is an animation cut into frames: { fps, loop?, grid: { columns, rows?, start?, count?, cell?, origin?, gap? }, durations? } or { fps, loop?, frames: [{ region: [x, y, w, h], offset?, size?, duration? }] } (tools/jam/src/catalog/README.md, Sprite sheets)"
+}))
+
 export const PreviewEntry = Schema.Struct({
   version: Text.pipe(Schema.annotate({ description: "The file's version the entry was made for: its inventory hash, or <size>:<mtimeMs> when it has none" })),
-  file: opt(Schema.String.pipe(
-    Schema.check(Schema.isPattern(/^[A-Za-z0-9][A-Za-z0-9._-]*$/u, { message: "expected a file name in the previews folder" })),
-    Schema.annotate({ description: "The preview, a file in the previews folder" })
-  )),
-  kind: opt(Schema.Literals(["image", "model", "audio"]).pipe(Schema.annotate({ description: "image: PNG, JPEG or WebP. model: self-contained GLB. audio: WAV" }))),
+  file: opt(PreviewFile.pipe(Schema.annotate({ description: "The preview, a file in the previews folder" }))),
+  sheet: opt(PreviewSheet),
+  inputs: opt(Schema.Record(PortablePath, Text).pipe(Schema.annotate({
+    description: "Other inventory files the preview was made from (the images an animation is cut from), with the version each had; the catalog says the preview is out of date when one changed"
+  }))),
+  animations: opt(Schema.Array(Schema.Struct({
+    name: Text.pipe(Schema.annotate({ description: "The animation's name in the engine" })),
+    file: PreviewFile.pipe(Schema.annotate({ description: "The image its frames are cut from, a file in the previews folder" })),
+    source: opt(PortablePath.pipe(Schema.annotate({ description: "The project file that image is, when it is one: the catalog tells which of the project's images the engine plays this way" }))),
+    sheet: PreviewSheet
+  })).pipe(Schema.annotate({ description: "Animations the engine file holds (a sprite animation resource), each shown playing in the catalog" }))),
+  kind: opt(Schema.Literals(["image", "model", "audio", "video"]).pipe(Schema.annotate({ description: "image: PNG, JPEG or WebP. model: self-contained GLB. audio: WAV. video: WebM or MP4" }))),
   how: opt(Text.pipe(Schema.annotate({ description: "How the adapter made it, in a few words" }))),
   failed: opt(Text.pipe(Schema.annotate({ description: "Why no preview was made for this version; the adapter tries again when the file changes" })))
 })

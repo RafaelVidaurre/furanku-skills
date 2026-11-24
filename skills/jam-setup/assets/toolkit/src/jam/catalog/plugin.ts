@@ -79,11 +79,17 @@ export const jamPlugin = (runs: RunCatalogAccess): Plugin => {
     name: "jam",
     sources: [defineSource({
       name: "runs",
-      inputs: () => runs((ledger) => ledger.inputs),
-      scans: () => runs((ledger) => ledger.scans),
-      load: () => Effect.tap(runs((ledger) => ledger.load), (output) => Effect.sync(() => void (subjects = new Set((output.units ?? []).map((unit) => unit.id)))))
+      inputs: ({ options }) => options.includeRuns === false ? [] : runs((ledger) => ledger.inputs),
+      scans: ({ options }) => options.includeRuns === false ? [] : runs((ledger) => ledger.scans),
+      load: ({ options }) => {
+        if (options.includeRuns === false) {
+          subjects = new Set()
+          return {}
+        }
+        return Effect.tap(runs((ledger) => ledger.load), (output) => Effect.sync(() => void (subjects = new Set((output.units ?? []).map((unit) => unit.id)))))
+      }
     })],
-    enrich: (merged) => traceInputs(merged, subjects),
+    enrich: (merged) => subjects.size ? traceInputs(merged, subjects) : undefined,
     relations: [{ name: "made-from", label: "Made from", inverseLabel: "Used by", from: (unit) => strings(unit.attrs[MADE_FROM]) }],
     probes: PROBES.map((probe) => defineProbe({ ...probe, measure: (file) => runs((ledger) => ledger.measure(file.path)) })),
     checks: Object.entries(CHECKS).map(([name, label]) => defineCheck({ name, label, run: () => runs((ledger) => ledger.check(name as CheckName)) }))

@@ -48,6 +48,8 @@ export interface MountInput {
 
 export interface TypeInput {
   readonly label?: string
+  /** The label of several ("Characters"), where the page lists the type; the label when absent. */
+  readonly plural?: string
   /** A registered scope id; the first registered scope when absent. */
   readonly scope?: string
   readonly fields?: ReadonlyArray<FieldInput>
@@ -99,8 +101,58 @@ export interface LinkInput {
   readonly asset: string
   /** Stable identity of this link within a many-role (default: the asset id). */
   readonly key?: string
+  /**
+   * What a person calls this file in this unit (an animation's name in the game: "Walk"); shown
+   * instead of the file's name. Changing it keeps the review part, which `key` identifies.
+   */
+  readonly label?: string
   /** Per-link data such as a take number or word timings. Shown, never reviewed. */
   readonly meta?: Record<string, unknown>
+  /**
+   * An image cut into the frames of an animation (a sprite sheet): the page plays it, and a review
+   * of this part covers the sheet with the image. See `SheetInput`.
+   */
+  readonly sheet?: SheetInput
+  /** A still-image crop in source pixels, reviewed with the original image. Use either crop or sheet. */
+  readonly crop?: ImageCropInput
+}
+
+/** A rectangle `[x, y, width, height]` in pixels from the source image's top left. */
+export type ImageCropInput = readonly [number, number, number, number]
+
+/** A sprite sheet as a source gives it: a grid of equal cells, or one rectangle per frame. */
+export interface SheetInput {
+  /** Frames per second at duration 1. */
+  readonly fps: number
+  /** Play again from the first frame after the last (default true). */
+  readonly loop?: boolean
+  /** Equal cells in rows. Cells are counted along rows from the top-left one. */
+  readonly grid?: {
+    readonly columns: number
+    readonly rows?: number
+    /** The first cell of the animation (default 0). */
+    readonly start?: number
+    /** How many cells it plays (default: the rest of the grid). */
+    readonly count?: number
+    /** A cell's [width, height] in pixels (default: the image divided into columns and rows). */
+    readonly cell?: readonly [number, number]
+    /** The first cell's top-left corner (default [0, 0]). */
+    readonly origin?: readonly [number, number]
+    /** Pixels between cells (default [0, 0]). */
+    readonly gap?: readonly [number, number]
+  }
+  /** A grid's per-frame durations, relative to 1 / fps. */
+  readonly durations?: ReadonlyArray<number>
+  /** One rectangle per frame, for packed or trimmed sheets. */
+  readonly frames?: ReadonlyArray<{
+    readonly region: readonly [number, number, number, number]
+    /** Where the region's top-left sits in the frame (default [0, 0]). */
+    readonly offset?: readonly [number, number]
+    /** The frame's full [width, height] (default: the region's). */
+    readonly size?: readonly [number, number]
+    /** How long it shows, relative to 1 / fps (default 1). */
+    readonly duration?: number
+  }>
 }
 
 export interface UnitInput {

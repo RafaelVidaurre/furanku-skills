@@ -144,7 +144,7 @@ const inventory = Command.make("inventory", {
       : lines(
         `${result.path}: ${receipt["files"]} files, ${receipt["assets"]} assets`,
         `read ${receipt["read"]}, reused ${receipt["reused"]}, removed ${receipt["removed"]}`,
-        Number(receipt["unread"]) > 0 ? `${receipt["unread"]} files could not be read; "jam engine inventory --engine" reads them through the engine` : null
+        Number(receipt["unread"]) > 0 ? `${receipt["unread"]} files could not be read; "jam engine docs inventory" says why, and whether "jam engine inventory --engine" reads them` : null
       ))
   })).pipe(described(
     "Read what the engine's content holds (files, assets, classes, engine metadata, references) into one inventory file. Only files whose size or modification time changed are read again.",

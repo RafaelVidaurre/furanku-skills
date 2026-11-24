@@ -26,6 +26,10 @@ After changing Crew/model-routing harness or model support, run `npm run check:r
 
 Work is tracked in [Beads](https://github.com/gastownhall/beads) (`bd`): `.beads/issues.jsonl` is the shared record, the Dolt database beside it is local-only. This repo is public — keep personal data out of anything tracked there.
 
+## Dogfooding in a project
+
+When work in a real project (dogfooding) needs a capability, build it here first, project- and engine-agnostic, ship it in the skill or toolkit, and have the project use it from there. The project keeps only what is true of that project alone (its catalog plugin, its naming conventions, its data). Fixes found while dogfooding land here the same way, with tests here.
+
 ## When editing an existing skill
 
 Prune before you add: hunt no-ops (lines the model already obeys by default) and stale layers, and cut them. A skill that only ever grows is decaying.

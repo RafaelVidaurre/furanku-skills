@@ -36,6 +36,10 @@ test("audio magic bytes distinguish WAV from WEBP and reject incomplete/invalid 
   ]
   for (const [bytes, mime] of headers) assert.deepEqual(sniff(bytes), { kind: "audio", mime })
   assert.deepEqual(sniff(Buffer.from("RIFFxxxxWEBP")), { kind: "image", mime: "image/webp" })
+  // An Ogg file is audio unless its first packet is a Theora video header.
+  const oggPage = (packet: string): Buffer => Buffer.concat([Buffer.from("OggS"), Buffer.alloc(22), Buffer.from([1, packet.length]), Buffer.from(packet, "latin1")])
+  assert.deepEqual(sniff(oggPage("\x80theora\x03\x02\x01")), { kind: "video", mime: "video/ogg" })
+  assert.deepEqual(sniff(oggPage("\x01vorbis\x00\x00")), { kind: "audio", mime: "audio/ogg" })
   for (const bytes of [Buffer.from("RIFFxxxx"), Buffer.from("RIFFxxxxFAKE"), Buffer.from("Og"), Buffer.from([0xff, 0xff, 0xff, 0xff])]) assert.equal(sniff(bytes), null)
   for (const ext of ["wav", "ogg", "flac", "mp3"]) assert.equal(kindByExtension(kinds, `x.${ext}`), "audio")
 })

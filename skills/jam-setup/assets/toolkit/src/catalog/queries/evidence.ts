@@ -1,5 +1,6 @@
 // Reading frozen evidence out of submissions: the leaves of a part, their verified status, and
 // their bytes. A frozen side is never replaced by current content.
+import { imagePresentation } from "../model/image.ts"
 import * as Effect from "effect/Effect"
 import { fail, type ToolError } from "../../kernel/errors.ts"
 import type { Evidence } from "../Evidence.ts"
@@ -68,7 +69,8 @@ export const publicEvidence = (evidence: PartEvidence) => ({
   size: evidence.size ?? null,
   sha256: evidence.sha256 ?? null,
   storage: storageOf(evidence),
-  unit: evidence.unit ?? null
+  unit: evidence.unit ?? null,
+  ...imagePresentation(evidence)
 })
 
 const storageOf = (evidence: LeafEvidence): "git" | "catalog" | null =>
@@ -91,6 +93,7 @@ export const leafView = (evidence: EvidenceService, submission: string, item: st
       part: leaf.part ?? null,
       renderer: frozen.renderer ?? null,
       storage: storageOf(frozen) ?? "catalog",
+      ...imagePresentation(frozen),
       ...status,
       url: status.status === "ok" ? evidenceUrl(submission, item, part, leaf.key) : null
     }
@@ -128,6 +131,7 @@ export const viewOf = (evidence: EvidenceService, submission: string, item: stri
         path: frozen.path,
         sha256: frozen.sha256,
         storage: storageOf(frozen) ?? "catalog",
+        ...imagePresentation(frozen),
         ...status,
         url: status.status === "ok" ? `/media/before/${encodeURIComponent(submission)}/${encodeURIComponent(item)}/${encodeURIComponent(view.id)}` : null
       }

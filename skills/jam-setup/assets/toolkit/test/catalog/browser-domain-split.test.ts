@@ -8,7 +8,7 @@ import { browserOrSkip, newPage, screenshots, startServer, type TestServer } fro
 type Any = any // eslint-disable-line @typescript-eslint/no-explicit-any
 const { shot } = screenshots(import.meta.url)
 
-test("Main and Material have independent counts, categories, search, detail links and return navigation", async (t) => {
+test("Content and Source material have independent counts, categories, search, detail links and return navigation", async (t) => {
   const found = await browserOrSkip()
   if ("skip" in found) return t.skip(found.skip)
   const { browser } = found
@@ -37,7 +37,7 @@ test("Main and Material have independent counts, categories, search, detail link
     await page.getByRole("listitem").filter({ hasText: "Player" }).waitFor()
     assert.equal(await page.getByRole("listitem").filter({ hasText: "Uncast model" }).count(), 0)
     await shot(page, "main-list")
-    await page.locator(".primary-nav").getByRole("link", { name: "Material", exact: true }).click()
+    await page.locator(".primary-nav").getByRole("link", { name: "Source material", exact: true }).click()
     await page.getByRole("listitem").filter({ hasText: "Uncast model" }).click()
     await page.locator("h1").filter({ hasText: "Uncast model" }).waitFor()
     assert.match(page.url(), /#\/material\/u\//)

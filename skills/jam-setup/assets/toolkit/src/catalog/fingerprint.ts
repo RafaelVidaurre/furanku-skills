@@ -23,7 +23,8 @@ export const fingerprint = (files: ProjectFiles["Service"], inputs: ReadonlyArra
       }).pipe(Effect.catch(() => Effect.succeed(`${path}:unreadable`)))
     const parts: Array<string> = []
     for (const raw of inputs) {
-      const input = raw.replace(/\/+$/, "")
+      // "." and "./x" name what "" and "x" do: the project, and a path inside it.
+      const input = raw.replace(/^\.(?:\/|$)/, "").replace(/\/+$/, "")
       const stat = input === "" ? { kind: "directory" as const } : yield* files.stat(input).pipe(Effect.catch(() => Effect.succeed(undefined)))
       if (stat === undefined) continue
       if (stat === null) parts.push(`${input}:none`)

@@ -41,7 +41,8 @@
         "./skills/jam-voice",
         "./skills/jam-catalog",
         "./skills/jam-engine",
-        "./skills/jam-engine-unreal"
+        "./skills/jam-engine-unreal",
+        "./skills/jam-engine-godot"
       ]
     }
   ]

@@ -1,4 +1,5 @@
 // Everything about one unit, collection or asset.
+import { imagePresentation } from "../model/image.ts"
 import * as Effect from "effect/Effect"
 import { fail, type ToolError } from "../../kernel/errors.ts"
 import { shortRef } from "../../kernel/Ids.ts"
@@ -6,8 +7,8 @@ import type { ProjectFiles } from "../../kernel/ProjectFiles.ts"
 import type { Facts } from "../Facts.ts"
 import { ensureHashed } from "../hashes.ts"
 import type { MediaKinds } from "../MediaKinds.ts"
-import { isItemEvidence, unitParts } from "../model/parts.ts"
-import type { Actor, Target } from "../model/types.ts"
+import { isItemEvidence, linkPartId, unitParts } from "../model/parts.ts"
+import type { Actor, Link, Target } from "../model/types.ts"
 import { decisionOrder, decisionVerdicts } from "../model/verdicts.ts"
 import { factsOf, type Projection, targetKey, typeOf } from "../Projection.ts"
 import { assetRoute, collectionRoute, unitRoute } from "../routes.ts"
@@ -59,6 +60,11 @@ export const unitGet = (p: Projection, facts: FactsService, id: string): Effect.
     yield* ensureHashed(p, unit.links.map((link) => link.asset))
     const { assetsById, unitsById } = p.snapshot
     const type = typeOf(p, unit)
+    // The part a link is reviewed as; one image may be two parts (two animations cut from one sheet).
+    const partOf = (link: Link): string | null => {
+      const role = type.roles.find((candidate) => candidate.key === link.role)
+      return role === undefined ? null : linkPartId(role, link)
+    }
     const links = yield* Effect.forEach(unit.links, (link) =>
       Effect.gen(function*() {
         const asset = assetsById.get(link.asset)!
@@ -69,7 +75,10 @@ export const unitGet = (p: Projection, facts: FactsService, id: string): Effect.
           asset: assetRef(p, asset),
           alsoUsedBy: [...others.values()],
           ...(link.key === undefined ? {} : { key: link.key }),
+          ...(link.label === undefined ? {} : { label: link.label }),
+          part: partOf(link),
           meta: link.meta ?? null,
+          ...imagePresentation(link),
           facts: yield* facts.forAsset(asset, factsOf(p, asset.id), p.plugins.probes)
         }
       }))

@@ -35,7 +35,7 @@ const fixture = async (t: TestContext, run: (page: TestPage, url: string) => Pro
 test("pending tab and filter queries never display another result count or cards", (t) =>
   fixture(t, async (page, url) => {
     await page.goto(url + "#/material")
-    await page.locator(".side").getByRole("link", { name: "All material 8", exact: true }).waitFor()
+    await page.locator(".side").getByRole("link", { name: "All source material 8", exact: true }).waitFor()
     let release: () => void = () => undefined
     let gate = new Promise<void>((resolve) => { release = resolve })
     let started: () => void = () => undefined
@@ -49,10 +49,10 @@ test("pending tab and filter queries never display another result count or cards
       await route.continue()
     })
     try {
-      await page.locator(".primary-nav").getByRole("link", { name: "Main", exact: true }).click()
-      await page.waitForFunction(() => document.querySelector(".browse-head h1")?.textContent === "Main")
+      await page.locator(".primary-nav").getByRole("link", { name: "Content", exact: true }).click()
+      await page.waitForFunction(() => document.querySelector(".browse-head h1")?.textContent === "Content")
       await requestStarted
-      assert.equal(await page.locator(".side").getByRole("link", { name: /^All main/ }).innerText(), "All main")
+      assert.equal(await page.locator(".side").getByRole("link", { name: /^All content/ }).innerText(), "All content")
       assert.equal(await page.locator(".chips [aria-live]").count(), 0)
       assert.equal(await page.getByRole("listitem").count(), 0)
       await shot(page, "main-pending")

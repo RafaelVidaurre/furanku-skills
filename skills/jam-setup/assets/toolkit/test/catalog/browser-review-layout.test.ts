@@ -96,7 +96,8 @@ test("multi-item review keeps notes, part navigation and long content usable at 
       await p.goto(`${url}#/main/u/sound%2F0`)
       await p.waitForFunction(() => window.catalogViewer?.state().selection?.id === "sound/0")
       await ready(p)
-      assert.deepEqual(await p.locator(".tile-l").allTextContents(), first.parts.filter((x: Any) => x.id !== "attributes").map((x: Any) => x.label))
+      // A strip tile's name is the part's label (its visible text may be shorter).
+      assert.deepEqual(await p.locator(".strip [role=tab]").evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute("aria-label"))), first.parts.filter((x: Any) => x.id !== "attributes").map((x: Any) => x.label))
     })
     await t.test("part labels navigate and focus the preview without changing a verdict; attributes open in place", async () => {
       await show()
