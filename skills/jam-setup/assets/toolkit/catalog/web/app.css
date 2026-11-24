@@ -306,7 +306,7 @@ kbd { font: 10.5px var(--mono); color: var(--faint); border: 1px solid var(--lin
 .viewer-sprite { cursor: default; }
 .sprite-stage { position: absolute; inset: 0 0 52px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .sprite-frame, .sprite-map img, .sprite-still { display: block; image-rendering: auto; }
-.pixel-art .sprite-frame, .pixel-art .sprite-map img, .pixel-art .sprite-still, .thumb.pixel .thumb-canvas,
+.pixel-art .sprite-frame, .pixel-art .sprite-map img, .pixel-art .sprite-still, .pixel-art .sprite-still image, .thumb.pixel .thumb-canvas,
 .magnified .sprite-frame, .sprite-map.magnified img, .sprite-still.magnified, .thumb img.magnified { image-rendering: pixelated; }
 .sprite-window { position: relative; flex: none; overflow: hidden; }
 .sprite-window canvas { position: absolute; }
@@ -381,7 +381,7 @@ kbd { font: 10.5px var(--mono); color: var(--faint); border: 1px solid var(--lin
 .cmp-cap { font-size: 12px; display: flex; gap: 8px; align-items: baseline; }
 .slider-caps { display: flex; justify-content: space-between; }
 .slider { position: relative; height: min(58vh, 560px); background: #0f1114; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; cursor: ew-resize; touch-action: none; }
-.slider img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; user-select: none; pointer-events: none; }
+.slider :is(img, .comparison-image) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; user-select: none; pointer-events: none; }
 .slider-bar { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); transform: translateX(-1px); pointer-events: none; }
 .slider-range { position: absolute; left: 10px; right: 10px; bottom: 8px; opacity: .6; }
 .attr-diff { border-collapse: collapse; min-width: 360px; }
@@ -529,7 +529,7 @@ model-thumb.failed { background: repeating-linear-gradient(-45deg, #1a1212 0 4px
 /* Comparison */
 .same { font-size: 12px; color: var(--ok); margin-bottom: 6px; }
 .frame { position: relative; height: min(58vh, 560px); background: #0f1114; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-.frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.frame :is(img, .comparison-image) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 .frame[style*="aspect-ratio"], .slider[style*="aspect-ratio"] { height: auto; max-height: min(72vh, 760px); }
 .frame.flip { cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
 .frame.flip:focus-visible { outline-offset: -2px; }
@@ -760,7 +760,7 @@ audio-thumb canvas { width: 100%; height: 100%; object-fit: fill; }
 
 /* Display policy: pixel art keeps hard texels (catalog.config.json `display`, or a type's own).
    Thumbnails show whole images for every project. Captures keep smooth scaling. */
-.thumb.pixel img, .pixel-art .viewer-2d img, .pixel-art .slider img, .pixel-art .frame img { image-rendering: pixelated; }
+.thumb.pixel img, .pixel-art .viewer-2d img, .pixel-art .slider :is(img, image), .pixel-art .frame :is(img, image) { image-rendering: pixelated; }
 
 /* Review items: text above the evidence, and who rendered a capture. */
 .item-text { margin: 0; line-height: 1.5; }

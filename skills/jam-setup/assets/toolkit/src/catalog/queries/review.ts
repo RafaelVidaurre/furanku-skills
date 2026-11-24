@@ -103,7 +103,7 @@ export const currentDigest = (p: Projection, target: Target, partId: string): st
     const part = unitParts(unit, type).find((candidate) => candidate.id === partId)
     if (part?.asset === undefined) return null
     const sha = shaOf(part.asset)
-    return sha === null ? null : mediaDigest(sha, part.sheet)
+    return sha === null ? null : mediaDigest(sha, part.sheet, part.crop)
   }
   const collection = p.collectionsById.get(target.id)
   if (!collection) return null

@@ -4,7 +4,8 @@
 import * as Effect from "effect/Effect"
 import { isNonEmpty, isRecord } from "../../kernel/hash.ts"
 import type { MergedSources, ProblemInput, RoleInput } from "../plugin.ts"
-import { parseSheet, type Sheet } from "./sheet.ts"
+import { isImageCrop, type ImagePresentation } from "./image.ts"
+import { parseSheet } from "./sheet.ts"
 import type { Asset, CatalogSchema, CollectionKind, DisplayDef, FieldDef, InspectorDef, Link, Member, MountDef, Problem, RoleDef, TypeDef, Unit } from "./types.ts"
 
 export interface SourceCollection {
@@ -205,13 +206,19 @@ export const normalize = (sources: MergedSources, reported: ReadonlyArray<Proble
           report(from, `${unit.id}: invalid or duplicate link key for ${role.key}`)
           continue
         }
-        // A sheet that cannot be played is reported and left off; the image stays linked.
-        let sheet: Sheet | undefined
-        if (link.sheet != null) {
+        // Report invalid image presentation while retaining the source link.
+        let presentation: ImagePresentation = {}
+        if (link.crop != null && link.sheet != null) {
+          report(from, `${unit.id}: ${asset.id}: a link can have either crop or sheet`)
+        } else if (link.crop != null) {
+          if (!isImageCrop(link.crop)) report(from, `${unit.id}: crop of ${asset.id}: expected [x, y, width, height] in whole pixels`)
+          else if (asset.kind !== null && asset.kind !== "image") report(from, `${unit.id}: crop of ${asset.id}: a crop cuts an image, and this is ${asset.kind}`)
+          else presentation = { crop: [...link.crop] }
+        } else if (link.sheet != null) {
           const parsed = parseSheet(link.sheet)
           if ("error" in parsed) report(from, `${unit.id}: sheet of ${asset.id}: ${parsed.error}`)
           else if (asset.kind !== null && asset.kind !== "image") report(from, `${unit.id}: sheet of ${asset.id}: a sheet cuts an image, and this is ${asset.kind}`)
-          else sheet = parsed.ok
+          else presentation = { sheet: parsed.ok }
         }
         links.push({
           role: role.key,
@@ -219,7 +226,7 @@ export const normalize = (sources: MergedSources, reported: ReadonlyArray<Proble
           ...(link.key == null ? {} : { key: link.key }),
           ...(isNonEmpty(link.label) && link.label.length <= 100 ? { label: link.label.trim() } : {}),
           ...(isRecord(link.meta) ? { meta: link.meta } : {}),
-          ...(sheet === undefined ? {} : { sheet })
+          ...presentation
         })
       }
       units.set(unit.id, {

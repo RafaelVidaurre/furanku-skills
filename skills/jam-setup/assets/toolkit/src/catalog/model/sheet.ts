@@ -9,6 +9,7 @@
 //           `size` is the frame's full size and `offset` where the region sits in it, so trimmed
 //           frames keep their place (the region's empty border was cut away when packing).
 // A frame is shown for `duration / fps` seconds (`duration` defaults to 1).
+import type { ImageCropInput } from "../contract/sources.ts"
 import { digest, isRecord } from "../../kernel/hash.ts"
 
 export type Pair = readonly [number, number]
@@ -159,8 +160,9 @@ export const sheetDuration = (sheet: Sheet): number => {
 }
 
 /**
- * The digest of media as a reviewer sees it: its bytes alone, or its bytes and the sheet that
- * cuts them into an animation. One function, so a frozen part and the current one always agree.
+ * A review covers the original media bytes and the region or animation it shows.
  */
-export const mediaDigest = (sha256: string, sheet: Sheet | undefined): string =>
-  sheet === undefined ? sha256 : digest({ sha256, sheet })
+export const mediaDigest = (sha256: string, sheet: Sheet | undefined, crop?: ImageCropInput): string => {
+  if (sheet !== undefined) return digest({ sha256, sheet })
+  return crop === undefined ? sha256 : digest({ sha256, crop })
+}

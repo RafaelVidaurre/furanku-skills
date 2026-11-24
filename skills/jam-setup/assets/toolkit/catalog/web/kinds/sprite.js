@@ -10,6 +10,7 @@ import { useViewer, refusal } from '../controller.js';
 import { Msg } from '../viewers.js';
 import { sideLabel, SideError } from '../compare.js';
 import { drawnPart, drawPart } from './trim.js';
+import { cropFits, CroppedImage } from './crop.js';
 
 const SPEEDS = [0.25, 0.5, 1, 2];
 const P = {
@@ -380,12 +381,16 @@ export function SpriteCompare({ a, b, labels, mark, control, apiRef }) {
   const t = useTransport({ total, loop: true });
   const [mode, setMode] = useState('side');
   const m = control?.mode ?? mode;
-  const sideState = (s, img, r) => s.status !== 'ok' ? 'error' : img.error || r?.error ? 'error' : img.img && (!s.sheet || r) ? 'ready' : 'loading';
+  const cropError = (s, img) => s.crop && img.img && !cropFits(s.crop, img.img.naturalWidth, img.img.naturalHeight)
+    ? `Crop lies outside the ${img.img.naturalWidth}×${img.img.naturalHeight} image` : null;
+  const sideState = (s, img, r) => s.status !== 'ok' || img.error || r?.error || cropError(s, img)
+    ? 'error' : img.img && (!s.sheet || r) ? 'ready' : 'loading';
   const st = [sideState(a, ia, ra), sideState(b, ib, rb)];
   useEffect(() => { mark('a')(st[0]); mark('b')(st[1]); }, [st[0], st[1]]);
   const [ca, cb] = [useContent(ia.img, ra), useContent(ib.img, rb)];
-  const boxOf = (img, r) => (r && !r.error ? r.box : img.img ? [img.img.naturalWidth, img.img.naturalHeight] : [0, 0]);
-  const [ba, bb] = [boxOf(ia, ra), boxOf(ib, rb)];
+  const boxOf = (s, img, r) => r && !r.error ? r.box
+    : img.img && !cropError(s, img) ? s.crop?.slice(2) ?? [img.img.naturalWidth, img.img.naturalHeight] : [0, 0];
+  const [ba, bb] = [boxOf(a, ia, ra), boxOf(b, ib, rb)];
   const sameSize = ba[0] === bb[0] && ba[1] === bb[1] && ba[0] > 0;
   // Frames of one size are cut to one box, so the two line up; otherwise each to its own drawing.
   const [cropA, cropB] = sameSize && ra && rb ? [union(ca, cb), union(ca, cb)] : [ra ? ca : null, rb ? cb : null];
@@ -404,11 +409,14 @@ export function SpriteCompare({ a, b, labels, mark, control, apiRef }) {
   if (apiRef) apiRef.current = { getState, control: commands };
   const side = (s, img, r, k) => {
     if (s.status !== 'ok') return html`<${SideError} side=${s} />`;
-    if (img.error || r?.error) return html`<div class="viewer"><div class="viewer-msg err" role="alert">${img.error ?? r.error}</div></div>`;
+    const error = img.error ?? r?.error ?? cropError(s, img);
+    if (error) return html`<div class="viewer"><div class="viewer-msg err" role="alert">${error}</div></div>`;
     if (!img.img || (s.sheet && !r)) return html`<div class="viewer"><${Msg} status="loading" /></div>`;
-    return r
-      ? html`<${FrameCanvas} img=${img.img} resolved=${r} index=${frameAt(r, t.time, true)} scale=${fit} ghost=${k === 'ghost'} crop=${s === a ? cropA : cropB} />`
-      : html`<img class=${`sprite-still${k === 'ghost' ? ' ghost' : ''}${fit > 1 ? ' magnified' : ''}`} src=${img.img.src} alt="" style=${`width:${img.img.naturalWidth * fit}px`} />`;
+    if (r) return html`<${FrameCanvas} img=${img.img} resolved=${r} index=${frameAt(r, t.time, true)} scale=${fit} ghost=${k === 'ghost'} crop=${s === a ? cropA : cropB} />`;
+    const stillClass = `sprite-still${k === 'ghost' ? ' ghost' : ''}${fit > 1 ? ' magnified' : ''}`;
+    if (s.crop) return html`<${CroppedImage} className=${stillClass} src=${img.img.src} crop=${s.crop}
+      size=${[img.img.naturalWidth, img.img.naturalHeight]} style=${`width:${s.crop[2] * fit}px;height:${s.crop[3] * fit}px`} />`;
+    return html`<img class=${stillClass} src=${img.img.src} alt="" style=${`width:${img.img.naturalWidth * fit}px`} />`;
   };
   const ready = !st.includes('loading');
   return html`<div class="cmp cmp-sprite">

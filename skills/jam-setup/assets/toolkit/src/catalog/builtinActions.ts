@@ -210,6 +210,7 @@ const Side = Schema.Struct({
   path: Schema.optional(Schema.NullOr(Schema.String)),
   url: Schema.optional(Schema.NullOr(Schema.String)),
   attrs: Schema.optional(Schema.Unknown),
+  crop: Schema.optional(Schema.Tuple([Schema.Int, Schema.Int, Schema.Int, Schema.Int])),
   sheet: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)).annotate({ description: "How this side's image is cut into animation frames, when it is shown as an animation" })
 })
 const ComparedPart = Schema.Struct({ ...FrozenRef.fields, label: Schema.String })

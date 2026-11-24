@@ -1,6 +1,6 @@
 // The catalog's domain vocabulary: what sources produce after normalization, and what the
 // records under `.catalog/` hold. Types only; the rules live beside them in this folder.
-import type { Sheet } from "./sheet.ts"
+import type { ImagePresentation } from "./image.ts"
 
 export interface Actor {
   readonly name: string
@@ -99,7 +99,7 @@ export interface CatalogSchema {
   readonly collectionKinds: Readonly<Record<string, CollectionKind>>
 }
 
-export interface Link {
+export interface Link extends ImagePresentation {
   readonly role: string
   readonly asset: string
   readonly key?: string
@@ -107,8 +107,6 @@ export interface Link {
   readonly label?: string
   /** Per-link data from the source (take number, word timings); never review evidence. */
   readonly meta?: Record<string, unknown>
-  /** How the linked image is cut into animation frames; reviewed with the image's bytes. */
-  readonly sheet?: Sheet
 }
 
 export interface Unit {
@@ -179,14 +177,12 @@ export interface Target {
   readonly id: string
 }
 
-export interface Part {
+export interface Part extends ImagePresentation {
   readonly id: string
   readonly label: string
   readonly role?: string
   readonly asset?: string
   readonly member?: string
-  /** The link's sheet: the part is the animation it cuts from the asset. */
-  readonly sheet?: Sheet
 }
 
 // ---- Records (the JSON files under .catalog). Field order is the order they are written in.
@@ -251,7 +247,7 @@ export type EvidenceRef =
   | { readonly git: { readonly commit: string; readonly path: string; readonly blob: string } }
 
 /** Frozen evidence of one byte stream or one attribute set. */
-export interface LeafEvidence {
+export interface LeafEvidence extends ImagePresentation {
   readonly digest: string
   readonly kind?: string
   readonly attrs?: Record<string, unknown>
@@ -263,8 +259,6 @@ export interface LeafEvidence {
   readonly ref?: EvidenceRef
   /** Who rendered a capture (for example a game engine); captures only. */
   readonly renderer?: string
-  /** The sheet the image was reviewed as; its digest covers the bytes and the sheet. */
-  readonly sheet?: Sheet
 }
 
 export interface DefinitionEvidence {

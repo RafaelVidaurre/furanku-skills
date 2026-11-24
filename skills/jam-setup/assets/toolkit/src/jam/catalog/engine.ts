@@ -33,6 +33,7 @@ import {
   type TypeInput,
   type UnitInput
 } from "../../catalog/plugin.ts"
+import { ownsProjectDependencies } from "../../catalog/sourceInventory.ts"
 import { createHash } from "node:crypto"
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
@@ -476,7 +477,12 @@ export const enginePlugin = ({ inventory, importFiles, previews = noPreviews }: 
           Effect.promise(() => existingSources(sourceOutput(remember(result), context, found), context)))
     })],
     enrich: linkSources,
-    relations: [{ name: "engine-uses", label: "Uses", inverseLabel: "Used by", from: (unit) => strings(unit.attrs[USES]) }],
+    relations: [{
+      name: "engine-uses",
+      label: "Uses",
+      inverseLabel: "Used by",
+      from: (unit) => ownsProjectDependencies(unit) ? [] : strings(unit.attrs[USES])
+    }],
     actions: [defineAction({
       name: "engine.import",
       access: "write",

@@ -93,6 +93,113 @@ const project = (engine: Record<string, unknown> = {}, extra: Record<string, unk
 const calls = (root: string): ReadonlyArray<ReadonlyArray<string>> =>
   readFileSync(join(root, "inventory-calls.log"), "utf8").trim().split("\n").map((line) => JSON.parse(line))
 
+const sourceInventoryProject = (files: unknown, withEngine: boolean) => project({}, {
+  "catalog.config.json": JSON.stringify({ version: 3, plugins: [
+    ...(withEngine ? ["engine"] : []),
+    { plugin: "./catalog/release.ts", options: { duplicates: withEngine } }
+  ] }),
+  "release-files.json": JSON.stringify(files),
+  "art/portrait.png": png(4, 4),
+  "catalog/release.ts": `
+    import { definePlugin, defineSource, defineSourceInventory } from ${JSON.stringify(new URL("../../catalog-plugin.ts", import.meta.url).href)}
+    const inventory = defineSourceInventory({
+      linkSourcePaths: (link) => typeof link.meta?.declaration === "string" ? [link.meta.declaration] : []
+    })
+    export default definePlugin({
+      name: "release-files",
+      sources: [defineSource({
+        name: "files",
+        inputs: () => ["release-files.json", "art"],
+        async load(context) {
+          const files = await context.files.readJson("release-files.json")
+          const material = files === null ? { types: {}, units: [] } : inventory.source(files)
+          return {
+            assetRoots: ["art"],
+            assets: [{ id: "portrait", path: "art/portrait.png" }],
+            types: {
+              ...material.types,
+              character: { roles: [{ key: "portrait", label: "Portrait", mediaKinds: ["image"] }] },
+              importAlias: { scope: "material" }
+            },
+            units: [
+              ...material.units,
+              { id: "npc/sentinel", type: "character", sources: ["data/npc.json"],
+                links: [{ role: "portrait", asset: "portrait", meta: { declaration: "data/binding.json" } }] },
+              { id: "npc/other", type: "character", attrs: { material: ["source:art/portrait.png"] } },
+              ...(context.options.duplicates ? [
+                { id: "engine:alias-crate", type: "importAlias", attrs: {
+                  file: "Content/Props/SM_Crate.uasset", uses: ["engine:alias-material", "source:data/npc.json"] } },
+                { id: "engine:alias-material", type: "importAlias", attrs: { file: "Content/Props/MI_Crate.uasset" } }
+              ] : [])
+            ]
+          }
+        }
+      })],
+      enrich: (merged) => inventory.project(merged).patch,
+      relations: inventory.relations
+    })
+  `
+})
+
+describe("authoritative source inventory", () => {
+  it("joins file paths, retains one engine row, and combines project and adapter dependency evidence", async () => {
+    const catalog = openCatalog(sourceInventoryProject({
+      "Content/Props/SM_Crate.uasset": { targets: ["desktop"] },
+      "Content/Props/MI_Crate.uasset": {},
+      "Content/Items/DA_Sword.uasset": { uses: ["data/binding.json", "Content/Props/SM_Crate.uasset", "data/binding.json", "unlisted"] },
+      "data/npc.json": {},
+      "data/binding.json": {},
+      "art/portrait.png": {}
+    }, true))
+    const material = (await catalog.run("unit.search", { scope: "material" })).units
+    assert.deepEqual(material.map((unit: Any) => unit.id).sort(), [
+      "engine:/Game/Items/DA_Sword", "engine:/Game/Props/MI_Crate", "engine:/Game/Props/SM_Crate",
+      "source:art/portrait.png", "source:data/binding.json", "source:data/npc.json"
+    ])
+    const crate = await catalog.run("unit.get", { id: "engine:/Game/Props/SM_Crate" })
+    assert.equal(crate.unit.attrs.Triangles, "12")
+    assert.deepEqual(crate.unit.attrs.targets, ["desktop"])
+    assert.deepEqual(crate.unit.attrs.external, ["/Engine/BasicShapes/Cube"])
+    assert.deepEqual(crate.unit.attrs.uses, ["engine:/Game/Props/MI_Crate", "source:data/npc.json"])
+    const materialUnit = await catalog.run("unit.get", { id: "engine:/Game/Props/MI_Crate" })
+    assert.deepEqual(materialUnit.unit.attrs.uses, [], "adapter dependency on the omitted texture is removed")
+
+    const sword = await catalog.run("unit.get", { id: "engine:/Game/Items/DA_Sword" })
+    assert.equal("external" in sword.unit.attrs, false)
+    const outgoing = sword.relations.filter((relation: Any) => relation.label === "Uses")
+    assert.equal(outgoing.length, 1)
+    assert.deepEqual(outgoing[0].units.map((unit: Any) => unit.id), ["source:data/binding.json", "engine:/Game/Props/SM_Crate"])
+
+    const sentinel = await catalog.run("unit.get", { id: "npc/sentinel" })
+    assert.deepEqual(sentinel.relations.find((relation: Any) => relation.label === "Source files").units.map((unit: Any) => unit.id),
+      ["source:data/npc.json", "source:art/portrait.png", "source:data/binding.json"])
+    const unrelated = await catalog.run("unit.get", { id: "npc/other" })
+    assert.deepEqual(unrelated.relations, [])
+    const binding = await catalog.run("unit.get", { id: "source:data/binding.json" })
+    assert.deepEqual(binding.relations.find((relation: Any) => relation.label === "Used by").units.map((unit: Any) => unit.id),
+      ["engine:/Game/Items/DA_Sword"])
+  })
+
+  it("retains dependencies without the engine plugin", async () => {
+    const catalog = openCatalog(sourceInventoryProject({
+      "data/npc.json": { uses: ["data/binding.json"] },
+      "data/binding.json": {}
+    }, false))
+    const binding = await catalog.run("unit.get", { id: "source:data/binding.json" })
+    assert.deepEqual(binding.relations.filter((relation: Any) => relation.label === "Used by").map((relation: Any) => relation.units.map((unit: Any) => unit.id)),
+      [["source:data/npc.json"]])
+    assert.equal("targets" in binding.unit.attrs, false)
+    assert.equal("uses" in binding.unit.attrs, false)
+  })
+
+  it("keeps the adapter's default when the project supplies no inventory", async () => {
+    const catalog = openCatalog(sourceInventoryProject(null, true))
+    const material = (await catalog.run("unit.search", { scope: "material" })).units
+    assert.ok(material.some((unit: Any) => unit.id === "engine:/Game/Dev/Scratch"))
+    assert.equal(material.some((unit: Any) => unit.id.startsWith("source:")), false)
+  })
+})
+
 describe("engine content in the catalog", () => {
   it("an object id names its engine file whether the engine ids objects inside files or files themselves", () => {
     const known = new Set(["/Game/Props/SM_Crate", "res://props/crate.tres"])

@@ -3,6 +3,7 @@
 // list of large images costs little; a picture without a transparent border is shown whole. What
 // ends up smaller than its tile is enlarged without smoothing.
 import { html, useRef, useState, useLayoutEffect } from '../core.js';
+import { cropFits } from './crop.js';
 
 const MEASURE = 128;
 const DRAW = 256;
@@ -51,7 +52,7 @@ export function drawPart(canvas, source, [x, y, w, h]) {
 }
 
 /** An image thumbnail that shows the drawn part of a picture with a transparent border, else the whole image. */
-export function TrimmedImage({ src }) {
+export function TrimmedImage({ src, crop }) {
   const [part, setPart] = useState(null);
   // The loaded picture outlives its <img>, which leaves the page once the canvas shows the part.
   const loaded = useRef(null);
@@ -60,5 +61,14 @@ export function TrimmedImage({ src }) {
   if (part) return html`<canvas ref=${canvas} class="thumb-canvas" aria-hidden="true"></canvas>`;
   // A picture the tile enlarges shows its pixels rather than a blur.
   const magnified = (img) => img.classList.toggle('magnified', img.naturalWidth < img.clientWidth && img.naturalHeight < img.clientHeight);
-  return html`<img src=${src} alt="" loading="lazy" decoding="async" onLoad=${(e) => { loaded.current = e.target; magnified(e.target); setPart(drawnPart(e.target)); }} />`;
+  return html`<img src=${src} alt="" loading="lazy" decoding="async" style=${crop ? 'visibility:hidden' : undefined} onLoad=${(e) => {
+    const image = e.target;
+    loaded.current = image;
+    if (crop) {
+      if (cropFits(crop, image.naturalWidth, image.naturalHeight)) setPart(crop);
+    } else {
+      magnified(image);
+      setPart(drawnPart(image));
+    }
+  }} />`;
 }

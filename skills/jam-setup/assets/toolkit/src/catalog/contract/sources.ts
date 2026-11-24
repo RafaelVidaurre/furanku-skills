@@ -113,7 +113,12 @@ export interface LinkInput {
    * of this part covers the sheet with the image. See `SheetInput`.
    */
   readonly sheet?: SheetInput
+  /** A still-image crop in source pixels, reviewed with the original image. Use either crop or sheet. */
+  readonly crop?: ImageCropInput
 }
+
+/** A rectangle `[x, y, width, height]` in pixels from the source image's top left. */
+export type ImageCropInput = readonly [number, number, number, number]
 
 /** A sprite sheet as a source gives it: a grid of equal cells, or one rectangle per frame. */
 export interface SheetInput {

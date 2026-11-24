@@ -47,8 +47,11 @@ const ViewInput = Schema.Struct({
     part: optional(Schema.String),
     leaf: optional(Schema.String),
     label: optional(Schema.String),
+    crop: optional(Schema.Tuple([Schema.Int, Schema.Int, Schema.Int, Schema.Int])).annotate({
+      description: "With path: [x, y, width, height] of a still image in whole source pixels"
+    }),
     sheet: optional(Schema.Record(Schema.String, Schema.Unknown)).annotate({ description: "With path: the file is an animation cut by this sheet ({ fps, loop?, grid | frames }), played in step with the view's own" })
-  })).annotate({ description: "Show this view against a project file ({path}, and its sheet when it is an animation) or earlier frozen evidence ({submission, item, part, leaf?})" }),
+  })).annotate({ description: "Show this view against a project file ({path}, and optional crop or sheet) or earlier frozen evidence ({submission, item, part, leaf?})" }),
   afterLabel: optional(Schema.String)
 })
 const ItemInput = Schema.Struct({

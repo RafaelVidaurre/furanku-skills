@@ -5,6 +5,7 @@ import * as Schema from "effect/Schema"
 import { isRecord } from "../../kernel/hash.ts"
 import type { RecordKind } from "../model/types.ts"
 import { CAPTURE_PART, ITEM_PART, WORK_PART } from "../model/parts.ts"
+import { isImageCrop } from "../model/image.ts"
 import { isSheet, mediaDigest } from "../model/sheet.ts"
 import { VERDICTS } from "../model/verdicts.ts"
 import { EVIDENCE_PATH } from "./layout.ts"
@@ -65,8 +66,10 @@ export const validLeaf = (leaf: unknown): boolean => {
   if (!isRecord(leaf)) return false
   if (leaf["kind"] === "attributes") return isRecord(leaf["attrs"]) && isHex(leaf["digest"])
   const sheet = leaf["sheet"]
+  const crop = leaf["crop"]
   if (sheet !== undefined && !isSheet(sheet)) return false
-  return isText(leaf["kind"], 100) && isHex(leaf["sha256"]) && leaf["digest"] === mediaDigest(leaf["sha256"], sheet) && isText(leaf["asset"], 500) &&
+  if (crop !== undefined && (leaf["kind"] !== "image" || sheet !== undefined || !isImageCrop(crop))) return false
+  return isText(leaf["kind"], 100) && isHex(leaf["sha256"]) && leaf["digest"] === mediaDigest(leaf["sha256"], sheet, crop) && isText(leaf["asset"], 500) &&
     isText(leaf["path"], 1000) && isCount(leaf["size"]) && optionalText(leaf["mime"], 100) && validRef(leaf["ref"], leaf["sha256"]) &&
     optionalText(leaf["renderer"], 100)
 }

@@ -1,4 +1,5 @@
 // Everything about one unit, collection or asset.
+import { imagePresentation } from "../model/image.ts"
 import * as Effect from "effect/Effect"
 import { fail, type ToolError } from "../../kernel/errors.ts"
 import { shortRef } from "../../kernel/Ids.ts"
@@ -77,7 +78,7 @@ export const unitGet = (p: Projection, facts: FactsService, id: string): Effect.
           ...(link.label === undefined ? {} : { label: link.label }),
           part: partOf(link),
           meta: link.meta ?? null,
-          ...(link.sheet === undefined ? {} : { sheet: link.sheet }),
+          ...imagePresentation(link),
           facts: yield* facts.forAsset(asset, factsOf(p, asset.id), p.plugins.probes)
         }
       }))

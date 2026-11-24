@@ -83,6 +83,7 @@ Create `jam/catalog/<project>.ts` and list it in `plugins` after `engine`. The c
 | Content outside the engine | a source that reads its files and returns units, listing those files as `inputs` |
 | Archetypes of engine assets | `enrich`: retype or categorise `engine:` units by the rule's fact |
 | References in data or code that the engine cannot see | a relation whose `from(unit)` returns the unit ids an attribute names |
+| Still images cut from an atlas | a `crop: [x, y, width, height]` on each link to the source image. Reviews cover the chosen region and original image bytes. |
 | Animations cut from sprite sheets, with their frame layout and speed in data, code or file names | a `sheet` on each link to the sheet image (`tools/jam/src/catalog/README.md`, "Sprite sheets"): the page plays it, and reviews cover its timing |
 | A view the generic page lacks: loot odds, a creature's drops, lighting | an inspector or panel: a browser module declared under `browserModules` |
 | Work a person or agent starts from the catalog | an action named `<plugin>.<operation>` |
@@ -107,6 +108,36 @@ export default definePlugin({
 ```
 
 Done when each row of step 2 and each archetype of step 3 is covered by a source, an enrich rule or a relation, or by nothing because the engine units already show it.
+
+### Use the project's build or export inventory
+
+Use `defineSourceInventory` when the project's build or export process defines which files belong in Source material. Give it a map keyed by project-relative file paths. Each file can name its build `targets` and the paths it `uses`.
+
+```ts
+import { definePlugin, defineSource, defineSourceInventory, type SourceInventoryFile } from "../../tools/jam/catalog-plugin.ts"
+
+const inventory = defineSourceInventory()
+
+export default definePlugin({
+  name: "build-files",
+  sources: [defineSource({
+    name: "inventory",
+    inputs: () => ["exported-files.json"],
+    load: async (context) => {
+      const files = await context.files.readJson("exported-files.json") as Record<string, SourceInventoryFile>
+      return inventory.source(files)
+    }
+  })],
+  enrich: (merged) => inventory.project(merged).patch,
+  relations: inventory.relations
+})
+```
+
+If the project uses `engine`, list the project plugin after it. Listed files keep the engine's id, type, and metadata when the project paths match exactly. If several engine rows share a path, the first id in lexical order represents the file. A listed file with no engine row gets a `source:<path>` entry. Engine rows outside the list are removed. Leave out the inventory output when the project cannot provide it. An explicitly empty inventory selects zero files.
+
+Build targets appear as a filter where they are supplied. Supplied dependencies replace the engine's dependency edges for that file, and `uses: []` clears them. When `uses` is omitted, the catalog keeps the adapter's dependencies to surviving entries and its external references. The `Uses` and `Used by` relations also work with a project inventory alone.
+
+The `Source files` relation links content to inventory entries through each unit's `sources` and linked asset paths. To add paths from link metadata, pass `linkSourcePaths(link)` to `defineSourceInventory`. In a source that already produces content, merge the inventory's `types` and append its `units` to the source's output.
 
 ## 5. Check the result
 

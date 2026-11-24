@@ -80,8 +80,8 @@ export function UnitDetail({ route, ctx }) {
 // The link a part shows: by the part id the server gives each link (one image can be two
 // animations cut from one sheet), else by role and asset.
 const linkOfPart = (d, p) => d.links.find((x) => x.part === p.id) ?? d.links.find((x) => x.asset.id === p.asset && x.role === p.role);
-// A link's asset as media: an image the link cuts into frames carries its sheet, so it plays.
-const withSheet = (l) => (l?.sheet ? { ...l.asset, sheet: l.sheet } : l?.asset);
+// Presentation belongs to the link. One source image may have several crops or animations.
+const linkMedia = (link) => link && { ...link.asset, sheet: link.sheet, crop: link.crop };
 
 // An inspector's own state (its selections) lives in the page address, so a link reopens it as it was.
 const inspectorStateOf = (route) => { try { return JSON.parse(route.query.get('vs') ?? '{}'); } catch { return {}; } };
@@ -97,7 +97,7 @@ function Stage({ d, media, inspectors = [], selInspector, sel, link, setPart, ba
       inspectorState=${inspectorStateOf(route)} onState=${(state) => replace(withQuery(route, { vs: state && Object.keys(state).length ? JSON.stringify(state) : null }))} /></div>`}
     ${badPart && html`<div class="stage-view" data-viewer-root data-active="true"><${UnavailableViewer} viewerId="stage" shows=${{ unit: d.unit.id, part: badPart }} message=${`No media part or inspector "${badPart}"`} /></div>`}
     ${a && html`<div class="stage-view" data-viewer-root data-active="true">
-      <${MediaViewer} media=${withSheet(link)} viewerId="stage" shows=${shows} label=${a.id} keepCamera context=${{ unit: d.unit, type: d.type, link }} />
+      <${MediaViewer} media=${linkMedia(link)} viewerId="stage" shows=${shows} label=${a.id} keepCamera context=${{ unit: d.unit, type: d.type, link }} />
     </div>`}
     <div class="strip" role="tablist" aria-label="Media"
       onKeyDown=${(e) => { if (isTyping(e) && !e.target.closest('.strip')) return; const i = ids.indexOf(current); const n = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : null; if (n != null && ids[n]) { setPart(ids[n]); e.preventDefault(); requestAnimationFrame(() => document.querySelector('.strip [aria-selected="true"]')?.focus()); } }}>
@@ -109,7 +109,7 @@ function Stage({ d, media, inspectors = [], selInspector, sel, link, setPart, ba
         const shared = l.alsoUsedBy.length;
         // The tile shows the short name under its group's label; its accessible name is the part's full label.
         return html`${group}<button role="tab" aria-selected=${p === sel} tabindex=${p === sel ? 0 : -1} class=${`tile${p === sel ? ' on' : ''}`} onClick=${() => setPart(p.id)} aria-label=${p.label} title=${`${p.label}\n${l.asset.path}`}>
-          <${Thumb} asset=${withSheet(l)} size=${44} pixel=${!!d.display?.pixelArt} />
+          <${Thumb} asset=${linkMedia(l)} size=${44} pixel=${!!d.display?.pixelArt} />
           <span class="tile-l">${mediaName(l)}</span>
           ${shared > 0 && html`<span class="tile-shared" title=${`Shared by ${shared + 1} units`}><${Icon} name="link" size=${10} />${shared + 1}</span>`}
 
@@ -134,7 +134,7 @@ function MediaGrid({ title, d, links, current, setPart }) {
   const roles = [...new Set(links.map((l) => l.roleLabel))];
   const tile = (l) => {
     const on = !!l.part && l.part === current;
-    const body = html`<span class="media-thumb"><${Thumb} asset=${withSheet(l)} fill pixel=${!!d.display?.pixelArt} /></span>
+    const body = html`<span class="media-thumb"><${Thumb} asset=${linkMedia(l)} fill pixel=${!!d.display?.pixelArt} /></span>
       <span class="media-name">${mediaName(l)}</span>
       ${l.sheet ? html`<span class="media-meta">${frames(l.sheet)} frames · ${+l.sheet.fps.toFixed(2)} fps</span>` : html`<span class="media-meta">${kindLabel(l.asset.kind)}</span>`}`;
     return l.part

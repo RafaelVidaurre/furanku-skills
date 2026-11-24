@@ -1,5 +1,6 @@
 // What a reviewer can give a verdict on. Part identity is explicit: it never depends on a label or
 // on the order of links, so a rename or a reorder keeps decisions where they were.
+import { imagePresentation } from "./image.ts"
 import type { CatalogSchema, Collection, Link, Part, RoleDef, TypeDef, Unit } from "./types.ts"
 
 const stem = (path: string): string => (path.split("/").pop() ?? path).replace(/\.[^.]+$/, "")
@@ -27,7 +28,7 @@ export const unitParts = (unit: Unit, type: TypeDef): ReadonlyArray<Part> => {
         label: role.many && links.length > 1 ? `${role.label} · ${link.label ?? stem(link.asset)}` : link.label ?? role.label,
         role: role.key,
         asset: link.asset,
-        ...(link.sheet === undefined ? {} : { sheet: link.sheet })
+        ...imagePresentation(link)
       })
     }
   }

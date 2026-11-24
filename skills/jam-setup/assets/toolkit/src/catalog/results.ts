@@ -41,6 +41,10 @@ const ReviewState = Schema.Literals(["none", "undecided", "approved", "partial",
 export const Rollup = Schema.Struct({ total: Num, approved: Num, changes: Num, rejected: Num, undecided: Num, changed: Num, state: ReviewState })
 export const Relay = Schema.Struct({ by: Str, channel: Str, words: Str })
 
+const CropOut = opt(Schema.Tuple([Schema.Int, Schema.Int, Schema.Int, Schema.Int]).annotate({
+  description: "[x, y, width, height] of a still image in source pixels"
+}))
+
 export const AssetRef = Schema.Struct({
   id: Str,
   path: Str,
@@ -52,6 +56,7 @@ export const AssetRef = Schema.Struct({
   size: Nullable(Num),
   mime: Nullable(Str),
   url: Nullable(Str),
+  crop: CropOut,
   sheet: opt(Open.annotate({ description: "A thumbnail of an animation cut from this image: the sheet, so its first frame is shown" }))
 })
 
@@ -129,6 +134,7 @@ export const PartReview = Schema.Struct({
   role: opt(Str),
   asset: opt(Str),
   member: opt(Str),
+  crop: CropOut,
   sheet: SheetOut,
   reviewable: Bool,
   verdict: Nullable(Str),
@@ -198,6 +204,7 @@ const ItemPart = Schema.Struct({
     sha256: Nullable(Str),
     storage: Nullable(Schema.Literals(["git", "catalog"])),
     unit: Nullable(Str),
+    crop: CropOut,
     sheet: SheetOut
   }),
   leaves: Schema.Array(Open).annotate({ description: "Each frozen byte stream or attribute set of the part with its verified status and media URL" })
@@ -291,6 +298,7 @@ export const UnitDetail = Linked({
     label: opt(Str.annotate({ description: "What the unit calls this file (an animation's name in the game), when its source says" })),
     part: Nullable(Str).annotate({ description: "The review part this link is: its role, or role:key in a role that takes many" }),
     meta: Nullable(Open),
+    crop: CropOut,
     sheet: SheetOut,
     facts: Schema.Record(Str, Open).annotate({ description: "Probe name to { facts } or { error }" })
   })),

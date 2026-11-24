@@ -336,12 +336,12 @@ function EvidenceStage({ sub, item, view, viewError }) {
   if (view.before) {
     // The submitter chose a before side for this view: show both, each resolved independently.
     const b = view.before;
-    const row = { key: view.id, label: view.caption, a: b, b: l, identical: b.status === 'ok' && l.status === 'ok' && b.sha256 === l.sha256 };
+    const row = { key: view.id, label: view.caption, a: b, b: l, identical: b.status === 'ok' && l.status === 'ok' && b.digest === l.digest };
     return html`<div class="stage-cmp"><${CompareRows} key=${view.id} rows=${[row]} labels=${[b.label, view.afterLabel]} viewerId="stage" shows=${{ ...src, before: { path: b.path, sha256: b.sha256 } }} camera=${view.camera} state=${view.state} /></div>`;
   }
   if (l.status !== 'ok') return html`<${UnavailableViewer} viewerId="stage" shows=${src} asset=${{ kind: l.kind }} message=${`${l.status === 'corrupt' ? 'Saved file has changed: ' : 'Preview unavailable: '}${l.error}`} />`;
   // Each view is its own viewer: its camera and state are those the submitter declared.
-  return html`<${MediaViewer} key=${view.id} media=${{ kind: l.kind, url: l.url, path: l.path, sha256: l.sha256, ...(l.sheet ? { sheet: l.sheet } : {}) }} viewerId="stage" shows=${src} initialCamera=${view.camera} initialState=${view.state} label=${view.caption} />`;
+  return html`<${MediaViewer} key=${view.id} media=${{ kind: l.kind, url: l.url, path: l.path, sha256: l.sha256, sheet: l.sheet, crop: l.crop }} viewerId="stage" shows=${src} initialCamera=${view.camera} initialState=${view.state} label=${view.caption} />`;
 }
 
 // Horizontal touch swipe on the caption bar changes views; it never starts on a viewer surface.
