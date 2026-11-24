@@ -93,7 +93,6 @@ export const leafView = (evidence: EvidenceService, submission: string, item: st
       part: leaf.part ?? null,
       renderer: frozen.renderer ?? null,
       storage: storageOf(frozen) ?? "catalog",
-      digest: frozen.digest,
       ...imagePresentation(frozen),
       ...status,
       url: status.status === "ok" ? evidenceUrl(submission, item, part, leaf.key) : null
@@ -132,8 +131,7 @@ export const viewOf = (evidence: EvidenceService, submission: string, item: stri
         path: frozen.path,
         sha256: frozen.sha256,
         storage: storageOf(frozen) ?? "catalog",
-        digest: frozen.digest,
-      ...imagePresentation(frozen),
+        ...imagePresentation(frozen),
         ...status,
         url: status.status === "ok" ? `/media/before/${encodeURIComponent(submission)}/${encodeURIComponent(item)}/${encodeURIComponent(view.id)}` : null
       }

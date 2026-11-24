@@ -69,7 +69,8 @@ export function ImageViewer({ src, crop, label, view: extView, onView, viewerId,
     else return;
     e.preventDefault(); e.stopPropagation();
   };
-  useViewer(viewerId, () => ({ kind: 'image', status, error, shows, ...(crop ? { crop } : {}), natural: natural ? { width: natural.w, height: natural.h } : null, zoom: v ? { scale: +v.scale.toFixed(4), x: Math.round(v.x), y: Math.round(v.y) } : null, controls: ['zoom'] }),
+  const stateError = outside ? error : failed === src ? `Failed to load ${shows?.path ?? src}` : null;
+  useViewer(viewerId, () => ({ kind: 'image', status, error: stateError, shows, ...(crop ? { crop } : {}), natural: natural ? { width: natural.w, height: natural.h } : null, zoom: v ? { scale: +v.scale.toFixed(4), x: Math.round(v.x), y: Math.round(v.y) } : null, controls: ['zoom'] }),
     (c) => { if (c.zoom) { if (c.zoom.fit) setView(null); else setView({ scale: c.zoom.scale ?? v?.scale ?? 1, x: c.zoom.x ?? v?.x ?? 0, y: c.zoom.y ?? v?.y ?? 0 }); return true; } return false; });
   return html`<div class="viewer viewer-2d" ref=${box} tabindex="0" data-viewer-input aria-label=${label ?? 'Image'} onPointerDown=${onDown} onDblClick=${() => (view ? setView(null) : natural && oneToOne())} onKeyDown=${onKey}>
     <${Msg} status=${status} error=${error} onRetry=${outside ? null : () => { setFailed(null); setNonce(nonce + 1); }} />

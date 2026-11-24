@@ -30,7 +30,7 @@ test("an atlas crop is frozen with the original bytes and changing only the crop
     assert.deepEqual(item.parts[0].leaves[0].crop, start)
     assert.deepEqual(item.views[0].before.crop, end)
     assert.equal(item.views[0].before.sha256, item.parts[0].leaves[0].sha256)
-    assert.notEqual(item.views[0].before.digest, item.parts[0].leaves[0].digest)
+    assert.notEqual(item.parts[0].evidence.digest, item.parts[0].evidence.sha256)
 
     const copied = await run("review.submit", {
       items: [{ target, views: [{ part: partId, caption: "Previous", before: { submission, item: item.id, part: partId } }] }]

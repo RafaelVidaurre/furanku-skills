@@ -336,7 +336,8 @@ function EvidenceStage({ sub, item, view, viewError }) {
   if (view.before) {
     // The submitter chose a before side for this view: show both, each resolved independently.
     const b = view.before;
-    const row = { key: view.id, label: view.caption, a: b, b: l, identical: b.status === 'ok' && l.status === 'ok' && b.digest === l.digest };
+    const samePresentation = JSON.stringify(b.crop ?? b.sheet) === JSON.stringify(l.crop ?? l.sheet);
+    const row = { key: view.id, label: view.caption, a: b, b: l, identical: b.status === 'ok' && l.status === 'ok' && b.sha256 === l.sha256 && samePresentation };
     return html`<div class="stage-cmp"><${CompareRows} key=${view.id} rows=${[row]} labels=${[b.label, view.afterLabel]} viewerId="stage" shows=${{ ...src, before: { path: b.path, sha256: b.sha256 } }} camera=${view.camera} state=${view.state} /></div>`;
   }
   if (l.status !== 'ok') return html`<${UnavailableViewer} viewerId="stage" shows=${src} asset=${{ kind: l.kind }} message=${`${l.status === 'corrupt' ? 'Saved file has changed: ' : 'Preview unavailable: '}${l.error}`} />`;
