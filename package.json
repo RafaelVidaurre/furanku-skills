@@ -1,6 +1,6 @@
 {
   "name": "furanku-skills",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Public collection of agent skills; ships the furanku-skills CLI (init, agents-md, guidance-composer)",
   "license": "MIT",
   "bin": {
