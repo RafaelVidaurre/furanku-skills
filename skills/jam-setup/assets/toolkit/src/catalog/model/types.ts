@@ -334,6 +334,8 @@ export interface SubmissionItem {
   readonly views: ReadonlyArray<FrozenView>
   readonly attributes?: unknown
   readonly preview?: { readonly module: string; readonly label?: string; readonly represents?: string } | null
+  /** "one": the parts are options and the person picks one of them, or none. */
+  readonly choose?: "one"
 }
 
 export interface SubmissionRecord {
@@ -353,6 +355,14 @@ export interface SubmissionRecord {
   readonly limits?: string | null
   readonly items: ReadonlyArray<SubmissionItem>
   readonly requestId?: string
+  /** Taken back by its submitter or a person: it waits on nobody and stays readable. */
+  readonly withdrawn?: { readonly by: Actor; readonly at: string; readonly reason: string }
+  /** Set once its words or framing are edited. */
+  readonly revision?: number
+  readonly editedAt?: string
+  readonly editedBy?: Actor
+  readonly lastRequestId?: string
+  readonly lastRequestBinding?: RequestBinding
   readonly requestBinding?: RequestBinding
 }
 
@@ -373,6 +383,8 @@ export interface DecisionRecord {
   readonly partComments?: Readonly<Record<string, string>>
   /** An agent recording a person's decision given outside the catalog, in their words. */
   readonly relay?: { readonly by: string; readonly channel: string; readonly words: string }
+  /** On an item that chooses one option: the option picked, or null for none of them. */
+  readonly pick?: { readonly option: string | null }
   /** Set once the decision is edited: its revision, and who changed it when. */
   readonly revision?: number
   readonly editedAt?: string

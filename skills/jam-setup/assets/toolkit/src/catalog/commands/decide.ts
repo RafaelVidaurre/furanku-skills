@@ -25,6 +25,8 @@ const Decision = {
   whole: optional(Schema.String).annotate({ description: `One verdict for every reviewable part of the item: ${VERDICT_WORDS}`, examples: ["approved"] }),
   exceptions: optional(Schema.Record(Schema.String, Schema.String)).annotate({ description: `With whole: part id → a different verdict (${VERDICT_WORDS})` }),
   verdicts: optional(Schema.Record(Schema.String, Schema.String)).annotate({ description: `Instead of whole: part id → verdict (${VERDICT_WORDS}) for the named parts only` }),
+  pick: optional(Schema.String).annotate({ description: "On an item that chooses one option, instead of whole or verdicts: the part id of the option picked, or \"none\" when none of them works (then comment says what would)" }),
+  pickVerdict: optional(Schema.Literals(["approved", "changes"])).annotate({ description: "With pick: approved (default) takes the option as it is; changes takes it once the comment's changes are made" }),
   comment: optional(Schema.String).annotate({ description: "About the whole decision" }),
   partComments: optional(Schema.Record(Schema.String, Schema.String)).annotate({ description: "A comment per part this decision decides" }),
   relay: optional(Schema.Struct({
@@ -53,10 +55,10 @@ export const DecisionDeleteOutput = Linked({
   ...Written({ deleted: Schema.String, item: Rollup.annotate({ description: "The item's state without this decision" }), ...Route }).fields
 })
 type DecisionInput = Pick<typeof DecideInput.Type, keyof typeof Decision>
-type Covered = Pick<DecisionRecord, "covers" | "verdict" | "exceptions" | "verdicts" | "partComments">
+type Covered = Pick<DecisionRecord, "covers" | "verdict" | "exceptions" | "verdicts" | "partComments" | "pick">
 
 /** Check a decision against an item's part ids and shape what the record will hold. */
-const decision = (p: Projection, partIds: ReadonlyArray<string>, input: DecisionInput): Effect.Effect<Covered, ToolError> =>
+const decision = (p: Projection, partIds: ReadonlyArray<string>, input: DecisionInput, chooses = false): Effect.Effect<Covered, ToolError> =>
   Effect.gen(function*() {
     const allowed = p.policy.verdicts
     const known = (entries: Readonly<Record<string, string>>, what: string): Effect.Effect<void, ToolError> =>
@@ -67,7 +69,21 @@ const decision = (p: Projection, partIds: ReadonlyArray<string>, input: Decision
         }
       })
     let covered: Covered
-    if (input.whole != null) {
+    if (chooses) {
+      // Picking one option decides them all: the pick is taken (as is, or with changes), the rest are not.
+      if (input.whole != null || input.verdicts != null || input.exceptions != null) return yield* fail("invalid", "this item chooses one option: give pick (an option's part id, or none)")
+      if (input.pick == null) return yield* fail("invalid", "give pick: the part id of the option picked, or none")
+      const option = input.pick === "none" ? null : input.pick
+      if (option !== null && !partIds.includes(option)) return yield* fail("invalid", `option ${option} is not in this item`, { fix: `pick one of: ${partIds.join(", ")}, or none` })
+      const taken = input.pickVerdict ?? "approved"
+      if (!["approved", "changes", "rejected"].every((verdict) => allowed.includes(verdict))) return yield* fail("unsupported", "picking an option needs the verdicts approved, changes and rejected in review.verdicts")
+      const said = isNonEmpty(input.comment) || (option !== null && isNonEmpty(input.partComments?.[option]))
+      if (option === null && !said) return yield* fail("invalid", "none of the options works: say in comment what would")
+      if (taken === "changes" && !said) return yield* fail("invalid", "taking an option with changes: say in comment what to change")
+      covered = { covers: { kind: "parts", parts: [...partIds] }, verdicts: Object.fromEntries(partIds.map((part) => [part, part === option ? taken : "rejected"])), pick: { option } }
+    } else if (input.pick != null || input.pickVerdict != null) {
+      return yield* fail("invalid", "pick is for an item that chooses one option; give whole or verdicts")
+    } else if (input.whole != null) {
       if (input.verdicts != null) return yield* fail("invalid", "give either whole (+ exceptions) or verdicts, not both")
       if (!allowed.includes(input.whole)) return yield* fail("invalid", `verdict must be one of ${allowed.join(", ")}`)
       const exceptions = input.exceptions ?? {}
@@ -101,7 +117,7 @@ const decideOn = (env: WriteEnv, submission: SubmissionRecord, item: SubmissionI
     if (input.relay != null && env.actor.kind !== "agent") {
       return yield* fail("invalid", "relay is for an agent recording a person's decision; a person deciding for themselves leaves it out", { fix: "declare --actor-kind agent with relay, or drop relay" })
     }
-    const covered = yield* decision(p, reviewableIds(p, item), input)
+    const covered = yield* decision(p, reviewableIds(p, item), input, item.choose === "one")
     const record: DecisionRecord = {
       id: yield* (yield* Ids).next("dc"),
       submission: submission.id,
@@ -164,9 +180,9 @@ export const decideActions = [
         yield* mayChange(env.actor, current)
         if (input.relay != null && env.actor.kind !== "agent") return yield* fail("invalid", "relay is for an agent recording a person's decision; a person editing leaves it out")
         const { item, submission } = yield* findItem(p, current.submission, current.item)
-        const covered = yield* decision(p, reviewableIds(p, item), input)
+        const covered = yield* decision(p, reviewableIds(p, item), input, item.choose === "one")
         // Everything the decision says is replaced; who recorded it, when, and why it exists stay.
-        const { verdict: _v, exceptions: _e, verdicts: _vs, partComments: _pc, comment: _c, relay: _r, lastRequestId: _l, lastRequestBinding: _lb, ...kept } = current
+        const { verdict: _v, exceptions: _e, verdicts: _vs, partComments: _pc, pick: _pick, comment: _c, relay: _r, lastRequestId: _l, lastRequestBinding: _lb, ...kept } = current
         const relay = input.relay != null
           ? { relay: { by: input.relay.by.trim(), channel: input.relay.channel.trim(), words: input.relay.words.trim() } }
           : current.relay && env.actor.kind === "agent" ? { relay: current.relay } : {}

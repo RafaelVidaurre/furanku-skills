@@ -148,3 +148,52 @@ test("captures and work items in the review page; pixel art keeps hard texels an
     cleanup(dir)
   }
 })
+
+test("an item of options is decided by picking one, or none with what would work; a review can be withdrawn from its page", async (t) => {
+  const found = await browserOrSkip()
+  if ("skip" in found) return t.skip(found.skip)
+  const dir = await standardProject()
+  write(dir, "shots/a.png", png(32, 32, [200, 60, 60, 255]))
+  write(dir, "shots/b.png", png(32, 32, [60, 60, 200, 255]))
+  git(dir, "add", "-A")
+  git(dir, "commit", "-q", "-m", "concepts")
+  const s = await startServer(dir)
+  mkdirSync(OUT, { recursive: true })
+  try {
+    const { submission } = await W(s.app)("review.submit", {
+      title: "Tidestone sentinel concepts",
+      items: [{
+        title: "Tidestone sentinel",
+        choose: "one",
+        decide: [{ id: "a", label: "A: Drowned warden" }, { id: "b", label: "B: Abyssal idol" }],
+        captures: [{ label: "A", file: "shots/a.png", shows: "a" }, { label: "B", file: "shots/b.png", shows: "b" }]
+      }]
+    })
+    const item = submission.items[0]
+    const page = await found.browser.newPage({ viewport: { width: 1440, height: 900 } })
+    page.setDefaultTimeout(20000)
+    await page.goto(`${s.url}#/reviews/s/${submission.id}/${item.id}`)
+    await page.locator(".choice").waitFor()
+    assert.deepEqual(await page.locator(".choice-pick").allInnerTexts(), ["A: Drowned warden", "B: Abyssal idol", "None of these"])
+    // None of these needs words before it can be saved.
+    await page.getByRole("radio", { name: "None of these" }).click()
+    assert.equal(await page.locator(".decide-f .btn.primary").isDisabled(), true)
+    await page.getByRole("radio", { name: "B: Abyssal idol" }).click()
+    await page.screenshot({ path: `${OUT}/choice-1440.png` })
+    await page.locator(".decide-f .btn.primary").click()
+    await page.locator('.ritem .pv:has-text("Picked B: Abyssal idol")').waitFor()
+    const decided = await s.app.run("review.get", { submission: submission.id })
+    assert.deepEqual([decided.items[0].state, decided.decisions[0].pick], ["approved", { option: "item:b" }])
+    // Withdrawn from its page: it stays readable and leaves the queue.
+    await page.getByRole("button", { name: "Withdraw review" }).click()
+    await page.getByLabel("Why withdraw it").fill("Wrong concepts")
+    await page.getByRole("button", { name: "Withdraw", exact: true }).click()
+    await page.locator(".withdrawn-line").waitFor()
+    assert.equal((await s.app.run("review.get", { submission: submission.id })).withdrawn.reason, "Wrong concepts")
+    await page.screenshot({ path: `${OUT}/withdrawn-1440.png` })
+  } finally {
+    await found.browser.close()
+    await s.close()
+    cleanup(dir)
+  }
+})

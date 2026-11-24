@@ -143,6 +143,25 @@
           ],
           "additionalProperties": true
         },
+        "pick": {
+          "type": "object",
+          "properties": {
+            "option": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "option"
+          ],
+          "additionalProperties": true
+        },
         "revision": {
           "type": "integer",
           "minimum": 1,

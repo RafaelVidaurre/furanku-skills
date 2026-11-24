@@ -11,6 +11,7 @@ import { removeAction } from "./commands/remove.ts"
 import { noteActions } from "./commands/notes.ts"
 import { organizationActions } from "./commands/organization.ts"
 import { submitAction } from "./commands/submit.ts"
+import { reviseActions } from "./commands/revise.ts"
 import { doctor, doctorFix } from "./doctor.ts"
 import { Evidence } from "./Evidence.ts"
 import { Facts } from "./Facts.ts"
@@ -309,4 +310,4 @@ const lockRemove = write("lock.remove", "Remove a lock whose owning process has 
 const doctorFixAction = write("doctor.fix", "Apply the repairs that checks declare (for example fetching Git LFS files), then check again and report what is still wrong", Empty, DoctorFixOutput, "doctor", (_input, env) => doctorFix(env))
 
 /** Every built-in action. Not annotated, so each keeps its name and schemas for `actionMap.ts`. */
-export const builtinActions = [...reads, ...collectionActions, ...noteActions, ...organizationActions, submitAction, ...decideActions, removeAction, lockRemove, doctorFixAction]
+export const builtinActions = [...reads, ...collectionActions, ...noteActions, ...organizationActions, submitAction, ...reviseActions, ...decideActions, removeAction, lockRemove, doctorFixAction]
