@@ -3,6 +3,7 @@
 // so raw HTML, scripts, styles, images, forms and event handlers never reach the page.
 import { Marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { useMemo } from 'preact/hooks';
 import { html } from './core.js';
 
 const marked = new Marked({ gfm: true, breaks: true });
@@ -17,5 +18,6 @@ purify.addHook('afterSanitizeAttributes', (n) => {
 export const renderMarkdown = (text) => purify.sanitize(marked.parse(text), { ALLOWED_TAGS, ALLOWED_ATTR });
 
 export function Markdown({ text, label }) {
-  return html`<div class="md" aria-label=${label} dangerouslySetInnerHTML=${{ __html: renderMarkdown(text) }}></div>`;
+  const content = useMemo(() => ({ __html: renderMarkdown(text) }), [text]);
+  return html`<div class="md" aria-label=${label} dangerouslySetInnerHTML=${content}></div>`;
 }
