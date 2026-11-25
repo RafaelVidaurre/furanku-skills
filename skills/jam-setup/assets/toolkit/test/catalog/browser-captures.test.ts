@@ -160,8 +160,13 @@ test("an item of options is decided by picking one, or none with what would work
   const s = await startServer(dir)
   mkdirSync(OUT, { recursive: true })
   try {
+    const { submission: previous } = await W(s.app)("review.submit", {
+      title: "First concept pass",
+      items: [{ title: "Sentinel sketch", captures: [{ label: "Sketch", file: "shots/a.png" }] }]
+    })
     const { submission } = await W(s.app)("review.submit", {
       title: "Tidestone sentinel concepts",
+      supersedes: previous.id,
       items: [{
         title: "Tidestone sentinel",
         choose: "one",
@@ -174,6 +179,11 @@ test("an item of options is decided by picking one, or none with what would work
     page.setDefaultTimeout(20000)
     await page.goto(`${s.url}#/reviews/s/${submission.id}/${item.id}`)
     await page.locator(".choice").waitFor()
+    const related = page.getByRole("navigation", { name: "Related reviews" })
+    await related.getByRole("link", { name: previous.ref }).click()
+    await page.getByRole("heading", { name: "First concept pass" }).waitFor()
+    await related.getByRole("link", { name: submission.ref }).click()
+    await page.getByRole("heading", { name: "Tidestone sentinel concepts" }).waitFor()
     assert.deepEqual(await page.locator(".choice-pick").allInnerTexts(), ["A: Drowned warden", "B: Abyssal idol", "None of these"])
     // None of these needs words before it can be saved.
     await page.getByRole("radio", { name: "None of these" }).click()
@@ -185,9 +195,16 @@ test("an item of options is decided by picking one, or none with what would work
     const decided = await s.app.run("review.get", { submission: submission.id })
     assert.deepEqual([decided.items[0].state, decided.decisions[0].pick], ["approved", { option: "item:b" }])
     // Withdrawn from its page: it stays readable and leaves the queue.
-    await page.getByRole("button", { name: "Withdraw review" }).click()
-    await page.getByLabel("Why withdraw it").fill("Wrong concepts")
-    await page.getByRole("button", { name: "Withdraw", exact: true }).click()
+    const withdraw = page.getByRole("button", { name: "Withdraw review" })
+    const dialog = page.getByRole("dialog", { name: "Withdraw review" })
+    await withdraw.click()
+    await page.waitForFunction(() => document.activeElement?.id === "withdraw-reason")
+    await page.keyboard.press("Escape")
+    await dialog.waitFor({ state: "hidden" })
+    await page.waitForFunction(() => document.activeElement?.matches(".withdraw-btn"), undefined, { timeout: 2000 })
+    await withdraw.click()
+    await dialog.getByLabel("Why withdraw it?").fill("Wrong concepts")
+    await dialog.getByRole("button", { name: "Withdraw", exact: true }).click()
     await page.locator(".withdrawn-line").waitFor()
     assert.equal((await s.app.run("review.get", { submission: submission.id })).withdrawn.reason, "Wrong concepts")
     await page.screenshot({ path: `${OUT}/withdrawn-1440.png` })

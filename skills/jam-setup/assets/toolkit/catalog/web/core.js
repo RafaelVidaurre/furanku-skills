@@ -66,12 +66,15 @@ export async function boot() {
       const prev = session.summary;
       // The schema is large and changes rarely: it is fetched when the version moved, never per poll.
       if (c.version !== session.schema?.version) await loadSchema();
+      if (!session.offline && JSON.stringify(c) === JSON.stringify(prev)) return;
       session.summary = c;
       if (c.checkout.key !== session.boot.checkout.key) session.changed = c.checkout;
       if (prev && (c.version !== prev.version || c.records !== prev.records || c.checkout.head !== prev.checkout.head)) session.rev++;
       session.offline = false;
       notify();
-    } catch { session.offline = true; notify(); }
+    } catch {
+      if (!session.offline) { session.offline = true; notify(); }
+    }
   };
   setInterval(poll, 2500);
   document.addEventListener('visibilitychange', poll);
@@ -298,15 +301,15 @@ document.addEventListener('keydown', (e) => {
     else if (!e.shiftKey && document.activeElement === f.at(-1)) { f[0].focus(); e.preventDefault(); }
   }
 }, true);
-export function useDialog(onClose) {
+export function useDialog(onClose, triggerRef) {
   const ref = useRef();
   const closeRef = useRef(onClose); closeRef.current = onClose;
   useEffect(() => {
-    const prev = document.activeElement;
+    const prev = triggerRef?.current ?? document.activeElement;
     const entry = { ref, close: () => closeRef.current() };
     if (ref.current?.isConnected) dialogs.push(entry);
     requestAnimationFrame(() => (ref.current?.querySelector('[autofocus]') ?? ref.current?.querySelector('button, input, textarea, [tabindex]'))?.focus());
-    return () => { const i = dialogs.indexOf(entry); if (i >= 0) dialogs.splice(i, 1); if (prev?.isConnected) prev.focus?.(); };
+    return () => { const i = dialogs.indexOf(entry); if (i >= 0) dialogs.splice(i, 1); if (prev?.isConnected) prev.focus?.({ preventScroll: true }); };
   }, []);
   return ref;
 }

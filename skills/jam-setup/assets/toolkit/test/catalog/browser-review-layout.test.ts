@@ -3,7 +3,7 @@
 // Nothing changed but the way the server is started.
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { agent, cleanup, makeProject, tone, W } from "./helpers.ts"
+import { agent, cleanup, makeProject, png, tone, W } from "./helpers.ts"
 import { browserOrSkip, newPage, screenshots, soundType, startServer, type TestPage, type TestServer } from "./server.ts"
 
 type Any = any // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -27,6 +27,70 @@ const assertContained = async (p: TestPage, selector: string): Promise<void> => 
     }))
   assert.deepEqual(spills, [], "visible content stays inside its container")
 }
+
+test("Show switches choice evidence in place and preserves the decision draft", async (t) => {
+  const found = await browserOrSkip()
+  if ("skip" in found) return t.skip(found.skip)
+  const { browser } = found
+  let server: TestServer | undefined
+  let dir: string | undefined
+  try {
+    dir = await makeProject({ assets: {
+      "art/meadow.png": png(80, 40, [40, 160, 40, 255]),
+      "art/battlefield.png": png(40, 80, [120, 90, 40, 255])
+    } })
+    server = await startServer(dir)
+    const { submission } = await W(server.app, agent)("review.submit", { items: [{
+      title: "Road options",
+      text: Array.from({ length: 15 }, (_, i) => `Notes on road surface ${i + 1}.`).join("\n\n"),
+      choose: "one",
+      decide: [{ id: "meadow", label: "Spring meadow" }, { id: "battlefield", label: "Old battlefield" }],
+      captures: [
+        { label: "Meadow", file: "art/meadow.png", shows: "meadow" },
+        { label: "Battlefield", file: "art/battlefield.png", shows: "battlefield" }
+      ]
+    }] })
+    for (const width of [1440, 390]) {
+      const p = await newPage(browser, { viewport: { width, height: 720 } })
+      try {
+        await p.goto(`${server.url}#/reviews/s/${submission.id}/${submission.items[0].id}`)
+        await ready(p)
+
+        const show = p.getByRole("button", { name: "Show Old battlefield" })
+        const comment = p.getByRole("textbox", { name: "Comment", exact: true })
+        await comment.fill("Keep the wheel tracks.")
+        await show.scrollIntoViewIfNeeded()
+        const pane = p.locator(".detail-pane")
+        const before = await pane.evaluate((el) => el.scrollTop)
+        const commentNode = await comment.elementHandle()
+        const navNode = await p.locator('.side a[href="#/reviews"]').elementHandle()
+        const redundantRequests: string[] = []
+        p.on("request", (req) => {
+          if (req.resourceType() === "document" || req.url().endsWith("/api/run/review.get")) redundantRequests.push(req.url())
+        })
+        await show.click()
+        await ready(p)
+
+        assert.equal(await p.getByRole("tab", { name: "Battlefield", exact: true }).getAttribute("aria-selected"), "true")
+        assert.equal(await show.getAttribute("aria-pressed"), "true")
+        assert.equal(await pane.evaluate((el) => el.scrollTop), before, `Show preserves scroll at ${width}px`)
+        assert.equal(await show.evaluate((el) => document.activeElement === el), true, "Show retains keyboard focus")
+        assert.equal(await comment.inputValue(), "Keep the wheel tracks.")
+        assert.equal(await commentNode.evaluate((el) => el.isConnected), true, "the draft editor stays mounted")
+        assert.equal(await navNode.evaluate((el) => el.isConnected), true, "side navigation stays mounted")
+        assert.equal(await p.getByRole("radio", { name: "Old battlefield" }).getAttribute("aria-checked"), "false")
+        assert.deepEqual(redundantRequests, [], "switching evidence keeps the page and review data loaded")
+        assert.deepEqual(p.errors, [])
+      } finally {
+        await p.close()
+      }
+    }
+  } finally {
+    await browser.close()
+    await server?.close()
+    if (dir) cleanup(dir)
+  }
+})
 
 test("multi-item review keeps notes, part navigation and long content usable at desktop and narrow widths", async (t) => {
   const found = await browserOrSkip()

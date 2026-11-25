@@ -1,4 +1,4 @@
-import { html, useState, useRef, useEffect, useQuery, write, href, withQuery, entityHref, ago, Icon, Person, Verdict, VerdictBar, VERDICT, STATE_LABEL, useDraft, useDialog, useUnsaved, toast, newRequestId, ErrorLine, shortHash, CopyId, replace, isTyping, scopes, scopeOf, defaultScope, pixelArt } from './core.js';
+import { html, useState, useRef, useEffect, useQuery, write, href, withQuery, entityHref, ago, Icon, Person, Verdict, VerdictBar, VERDICT, STATE_LABEL, useDraft, useDialog, useUnsaved, toast, newRequestId, ErrorLine, shortHash, CopyId, replace, parseHash, isTyping, scopes, scopeOf, defaultScope, pixelArt } from './core.js';
 import { MediaViewer, UnavailableViewer } from './viewers.js';
 import { mediaKind } from './media-kinds.js';
 import { PreviewHost } from './previews.js';
@@ -132,11 +132,13 @@ function PartVerdicts({ parts, verdicts, onChange, comments = {}, onComments, cu
   </div>`;
 }
 // Choosing one option: each option, or none of them, and whether the pick is taken as it is.
-function ChoiceDecision({ parts, pick, pickVerdict, onPick, onPickVerdict, onSelect }) {
+function ChoiceDecision({ parts, pick, pickVerdict, onPick, onPickVerdict, previewed, viewFor, onShow, onViewAttributes }) {
   const opt = (id, label, extra) => html`<div class=${`choice-opt${pick === id ? ' on' : ''}${id === 'none' ? ' none' : ''}`} key=${id}>
     <button role="radio" aria-checked=${pick === id} class="choice-pick" onClick=${() => onPick(pick === id ? null : id)}><span class="choice-dot"></span><span>${label}</span></button>${extra}</div>`;
   return html`<div class="choice" role="radiogroup" aria-label="Pick one">
-    ${parts.map((p) => opt(p.id, p.label, html`<button class="btn xs ghost" aria-label=${`Show ${p.label}`} onClick=${() => onSelect(p.id)}>Show</button>`))}
+    ${parts.map((p) => opt(p.id, p.label, viewFor(p.id)
+      ? html`<button class="btn sm choice-show" aria-label=${`Show ${p.label}`} aria-controls="review-preview" aria-pressed=${previewed === p.id} onClick=${() => onShow(p.id)}>${previewed === p.id ? 'Showing' : 'Show'}</button>`
+      : p.id === 'attributes' && html`<button class="btn sm choice-show" aria-label=${`View ${p.label}`} onClick=${onViewAttributes}>View</button>`))}
     ${opt('none', 'None of these')}
     ${pick && pick !== 'none' && html`<span class="seg choice-take" role="radiogroup" aria-label="Take it">${[['approved', 'As it is'], ['changes', 'With changes']].map(([v, l]) => html`<button role="radio" aria-checked=${(pickVerdict ?? 'approved') === v} class=${`seg-b${(pickVerdict ?? 'approved') === v ? ' on' : ''}`} onClick=${() => onPickVerdict(v)}>${l}</button>`)}</span>`}
   </div>`;
@@ -182,13 +184,16 @@ export function SubmissionView({ route }) {
   const viewId = route.query.get('view');
   const view = item && (viewId ? item.views.find((v) => v.id === viewId) : item.views.find((v) => item.parts.some((p) => p.id === v.part && (p.reviewable !== false || p.shows !== undefined))) ?? item.views[0]);
   const unavailable = sub && !item && !onOverview ? `Item ${route.member} is not in this submission` : item && viewId && !view ? `View ${viewId} is not in this item` : null;
-  const goItem = (id, push = true) => { const r = { section: 'reviews', kind: 's', id: subId, member: id, query: new URLSearchParams([...route.query].filter(([k]) => ['state', 'q'].includes(k))) }; push ? (location.hash = href(r).slice(1)) : replace(r); };
-  const setView = (id) => replace(withQuery(route, { view: id }));
+  const itemRoute = (id) => ({ section: 'reviews', kind: 's', id: subId, member: id, query: new URLSearchParams([...route.query].filter(([k]) => ['state', 'q'].includes(k))) });
+  const goItem = (id) => { location.hash = href(itemRoute(id)).slice(1); };
+  const setView = (id) => replace(withQuery(parseHash(), { view: id }));
   setSelectionProvider(() => ({ kind: 'submission', submission: subId, item: itemId, view: view?.id ?? viewId ?? null, part: view?.part ?? null, loading: !sub && !error, unavailable: !!(unavailable || error), error: unavailable ?? error?.message ?? null, evidence: view && item ? leafOf(item, view) : null, before: view?.before ? { label: view.before.label, path: view.before.path, sha256: view.before.sha256, status: view.before.status, from: view.before.from } : null }));
   setSelectHandler((s) => {
-    if (s.item && !sub?.items.some((i) => i.id === s.item)) throw refusal('not_found', 'no such item');
-    if (s.item) goItem(s.item, false);
-    if (s.view) { const it = sub.items.find((i) => i.id === (s.item ?? itemId)); if (!it?.views.some((v) => v.id === s.view)) throw refusal('not_found', 'no such view'); setTimeout(() => setView(s.view), 0); }
+    const target = s.item ? sub?.items.find((i) => i.id === s.item) : item;
+    if (s.item && !target) throw refusal('not_found', 'no such item');
+    if (s.view && !target?.views.some((v) => v.id === s.view)) throw refusal('not_found', 'no such view');
+    if (s.item) replace(withQuery(itemRoute(s.item), { view: s.view }));
+    else if (s.view) setView(s.view);
   });
   useEffect(() => () => { setSelectionProvider(() => null); setSelectHandler(null); }, []);
   // The item list scrolls on its own (sideways on a phone): keep the open item in it visible.
@@ -208,10 +213,14 @@ export function SubmissionView({ route }) {
         ${sub.ask && html`<p class="sub-ask">${sub.ask}</p>`}
         <div class="row-sub"><${CopyId} id=${sub.id} label=${sub.ref} /> · <${Person} by=${sub.by} /> · ${ago(sub.at)}</div>
         <div class="row-sub">${sub.checkout.branch ?? 'detached'} @ <span class="mono">${shortHash(sub.checkout.head)}</span>${sub.checkout.dirty ? ` · ${sub.checkout.dirty} uncommitted` : ''}</div>
-        ${sub.supersedes && html`<div class="row-sub">Replaces <a href=${href({ section: 'reviews', kind: 's', id: sub.supersedes })}>${sub.supersedes.slice(-6).toUpperCase()}</a></div>`}
-        ${sub.supersededBy.length > 0 && html`<div class="row-sub">Replaced by ${sub.supersededBy.map((x) => html`<a href=${href({ section: 'reviews', kind: 's', id: x.id })}>${x.ref}</a> `)}</div>`}
-        ${sub.withdrawn ? html`<div class="withdrawn-line" role="status"><${Icon} name="stop" size=${12} /><span>Withdrawn by <${Person} by=${sub.withdrawn.by} /> ${ago(sub.withdrawn.at)}: ${sub.withdrawn.reason}</span></div>` : html`<${Withdraw} sub=${sub} />`}
         <div class="sub-counts">${sub.counts.waiting ? html`<span class="cnt wait">${sub.counts.waiting} waiting</span>` : ''}<span class="cnt">${sub.counts.approved}/${sub.counts.items} approved</span></div>
+        <div class="review-actions">
+          ${(sub.supersedes || sub.supersededBy.length > 0) && html`<nav class="review-lineage" aria-label="Related reviews">
+            ${sub.supersedes && html`<div class="review-relation"><span>Replaces</span><${ReviewRef} id=${sub.supersedes} /></div>`}
+            ${sub.supersededBy.length > 0 && html`<div class="review-relation"><span>Replaced by</span>${sub.supersededBy.map((x) => html`<${ReviewRef} key=${x.id} id=${x.id} label=${x.ref} />`)}</div>`}
+          </nav>`}
+          ${sub.withdrawn ? html`<div class="withdrawn-line" role="status"><${Icon} name="stop" size=${12} /><span>Withdrawn by <${Person} by=${sub.withdrawn.by} /> ${ago(sub.withdrawn.at)}: ${sub.withdrawn.reason}</span></div>` : html`<${Withdraw} sub=${sub} />`}
+        </div>
         <${ReviewPager} subId=${subId} route=${route} />
       </div>
       <div class="rows" role="list">${overviewable && html`<a role="listitem" class=${`row overview-row${onOverview ? ' sel' : ''}`} aria-current=${onOverview ? 'true' : undefined} href=${href({ section: 'reviews', kind: 's', id: subId, member: OVERVIEW })}>
@@ -224,21 +233,47 @@ export function SubmissionView({ route }) {
   </div>`;
 }
 
+function ReviewRef({ id, member, label = id.slice(-6).toUpperCase() }) {
+  return html`<a class="review-ref" href=${href({ section: 'reviews', kind: 's', id, member })}><span class="mono">${label}</span><${Icon} name="chev" size=${11} /></a>`;
+}
+
 // Taking a submission back: it leaves every queue and stays readable with its verdicts.
 function Withdraw({ sub }) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef(null);
+  return html`<div>
+    <button ref=${triggerRef} class="btn sm withdraw-btn" aria-haspopup="dialog" onClick=${() => setOpen(true)}><${Icon} name="stop" size=${13} />Withdraw review</button>
+    ${open && html`<${WithdrawDialog} sub=${sub} triggerRef=${triggerRef} onClose=${() => setOpen(false)} />`}
+  </div>`;
+}
+
+function WithdrawDialog({ sub, triggerRef, onClose }) {
   const [reason, setReason] = useState('');
   const [err, setErr] = useState(null);
-  const go = async () => {
-    if (!reason.trim()) return;
-    try { await write('review.withdraw', { submission: sub.id, reason: reason.trim(), expectedRevision: sub.revision }, newRequestId()); setOpen(false); toast('Review withdrawn'); }
+  const [busy, setBusy] = useState(false);
+  const saving = useRef(false);
+  const [requestId] = useState(newRequestId);
+  const close = () => { if (!saving.current) onClose(); };
+  const ref = useDialog(close, triggerRef);
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!reason.trim() || saving.current) return;
+    saving.current = true; setBusy(true); setErr(null);
+    try { await write('review.withdraw', { submission: sub.id, reason: reason.trim(), expectedRevision: sub.revision }, requestId); onClose(); toast('Review withdrawn'); }
     catch (e) { setErr(e); }
+    finally { saving.current = false; setBusy(false); }
   };
-  if (!open) return html`<button class="btn xs ghost withdraw-btn" onClick=${() => setOpen(true)}>Withdraw review</button>`;
-  return html`<div class="withdraw-form">
-    <input value=${reason} placeholder="Why withdraw it?" aria-label="Why withdraw it" autofocus onInput=${(e) => setReason(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') go(); if (e.key === 'Escape') setOpen(false); }} />
-    <${ErrorLine} error=${err} />
-    <div class="note-new-f"><button class="btn ghost sm push" onClick=${() => setOpen(false)}>Cancel</button><button class="btn danger sm" disabled=${!reason.trim()} onClick=${go}>Withdraw</button></div>
+  return html`<div class="scrim">
+    <form class="dialog withdraw-dialog" ref=${ref} role="dialog" aria-modal="true" aria-labelledby="withdraw-title" onSubmit=${submit}>
+      <header class="dialog-h"><h2 id="withdraw-title">Withdraw review</h2></header>
+      <div class="withdraw-form">
+        <p class="muted">This removes the review from the queue and keeps any recorded verdicts.</p>
+        <label for="withdraw-reason">Why withdraw it?</label>
+        <input id="withdraw-reason" value=${reason} required disabled=${busy} onInput=${(e) => setReason(e.target.value)} />
+        <${ErrorLine} error=${err} />
+      </div>
+      <footer class="dialog-f"><button type="button" class="btn sm push" disabled=${busy} onClick=${close}>Cancel</button><button type="submit" class="btn danger sm" disabled=${busy || !reason.trim()}>${busy ? 'Withdrawing…' : 'Withdraw'}</button></footer>
+    </form>
   </div>`;
 }
 
@@ -398,10 +433,10 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
       if (e.defaultPrevented || isTyping(e) || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('.scrim')) return;
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         // Read the current view from the URL: rapid presses must not reuse a stale selection.
-        const cur = new URLSearchParams(location.hash.split('?')[1] ?? '').get('view');
+        const cur = parseHash().query.get('view');
         const i = Math.max(0, primaryViews.findIndex((v) => v.id === cur));
         const n = primaryViews[i + (e.key === 'ArrowRight' ? 1 : -1)];
-        if (n) { location.replace(href({ section: 'reviews', kind: 's', id: sub.id, member: item.id, query: new URLSearchParams([...new URLSearchParams(location.hash.split('?')[1] ?? '')].filter(([k]) => k !== 'view').concat([['view', n.id]])) })); e.preventDefault(); }
+        if (n) { setView(n.id); e.preventDefault(); }
       }
       if (e.key === ']' && sub.items[idx + 1]) goItem(sub.items[idx + 1].id);
       if (e.key === '[' && idx > 0) goItem(sub.items[idx - 1].id);
@@ -444,16 +479,22 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
     const part = item.parts.find(p => p.id === v.part);
     return v.caption === `${item.title} · ${part?.label}` ? part.label : v.caption;
   };
+  const viewFor = (id) => item.views.find((v) => v.shows === id) ?? item.views.find((v) => v.part === id);
+  const previewed = view?.shows ?? view?.part;
+  const showPart = (id) => {
+    if (previewed === id) return;
+    const evidence = viewFor(id);
+    if (evidence) setView(evidence.id);
+  };
   const selectPart = (id) => {
-    const evidence = item.views.find((v) => v.shows === id) ?? item.views.find((v) => v.part === id);
     const element = id === 'attributes' ? attributesRef.current : stageRef.current;
     if (id === 'attributes' && element) element.open = true;
-    else if (evidence) setView(view?.part === id ? view.id : evidence.id);
+    else showPart(id);
     if (element) { element.scrollIntoView({ block: 'start', inline: 'nearest' }); element.focus({ preventScroll: true }); }
   };
   return html`<div class="item-view">
     <header class="d-head">
-      <div class="d-title"><h1>${item.title}</h1>${!item.target ? null : item.targetExists ? html`<a class="small" href=${targetHref}>${item.target.id}</a>` : html`<span class="small c-bad">${item.target.id} is no longer in this checkout</span>`}
+      <div class="d-title"><h1>${item.title}</h1>${!item.target ? null : item.targetExists ? html`<a class="small review-ref" href=${targetHref}>${item.target.id}<${Icon} name="chev" size=${11} /></a>` : html`<span class="small c-bad">${item.target.id} is no longer in this checkout</span>`}
         ${sub.items.length > 1 && html`<span class="item-pager"><span class="muted small">${idx + 1} / ${sub.items.length}</span>
         <button class="icon-btn sm" disabled=${idx === 0} onClick=${() => goItem(sub.items[idx - 1].id)} aria-label="Previous item" title="Previous item ([)"><${Icon} name="back" size=${12} /></button>
         <button class="icon-btn sm" disabled=${idx === sub.items.length - 1} onClick=${() => goItem(sub.items[idx + 1].id)} aria-label="Next item" title="Next item (])"><${Icon} name="chev" size=${12} /></button></span>`}
@@ -463,15 +504,15 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
       <div class="d-main">
         ${item.text && html`<div class="item-text"><${Markdown} text=${item.text} label="About this item" /></div>`}
         ${item.views.length > 0 && html`<div class="stage">
-          <div ref=${stageRef} tabindex="-1" aria-label="Preview" class=${`stage-view${view?.before || isPair(item, view) ? ' compare-view' : ''}${pixelView ? ' pixel-art' : ''}`} data-viewer-root data-active="true"><${EvidenceStage} sub=${sub} item=${item} view=${view} viewError=${viewError} /></div>
-          ${primaryViews.length > 0 && html`<div class="strip" role="tablist" aria-label="Views">${primaryViews.map((v) => html`<button role="tab" aria-selected=${v === view} tabindex=${v === view ? 0 : -1} class=${`tile view-tile${v === view ? ' on' : ''}`} onClick=${() => setView(v.id)}>${v.before && html`<span class="view-cmp" title=${`${v.before.label} / ${v.afterLabel} comparison`}><${Icon} name="split" size=${11} /></span>`}${viewLabel(v)}</button>`)}</div>`}
+          <div id="review-preview" ref=${stageRef} tabindex="-1" aria-label="Preview" class=${`stage-view${view?.before || isPair(item, view) ? ' compare-view' : ''}${pixelView ? ' pixel-art' : ''}`} data-viewer-root data-active="true"><${EvidenceStage} sub=${sub} item=${item} view=${view} viewError=${viewError} /></div>
+          ${primaryViews.length > 0 && html`<div class="strip" role="tablist" aria-label="Views">${primaryViews.map((v) => html`<button key=${v.id} role="tab" aria-selected=${v === view} tabindex=${v === view ? 0 : -1} class=${`tile view-tile${v === view ? ' on' : ''}`} onClick=${() => v !== view && setView(v.id)}>${v.before && html`<span class="view-cmp" title=${`${v.before.label} / ${v.afterLabel} comparison`}><${Icon} name="split" size=${11} /></span>`}${viewLabel(v)}</button>`)}</div>`}
           ${view && html`<div class="asset-line caption-bar" ...${swipe}>
             ${vIdx >= 0 && primaryViews.length > 1 && html`<button class="icon-btn sm" disabled=${vIdx <= 0} onClick=${() => stepView(-1)} aria-label="Previous view"><${Icon} name="back" size=${12} /></button><span class="muted small">${vIdx + 1}/${primaryViews.length}</span><button class="icon-btn sm" disabled=${vIdx >= primaryViews.length - 1} onClick=${() => stepView(1)} aria-label="Next view"><${Icon} name="chev" size=${12} /></button>`}
             <span class="caption">${viewLabel(view)}</span>
             ${view.shows && parts.length > 1 && html`<span class="chip shows-chip" title="The part this view shows">${parts.find((x) => x.id === view.shows)?.label ?? view.shows}</span>`}
             <button class="btn xs note-on-view" title="Add a note about what this view shows" onClick=${() => dispatchEvent(new CustomEvent('catalog:note-on-view', { detail: { item: item.id, view: view.id } }))}><${Icon} name="note" size=${11} />Note</button>
             ${(() => { const r = item.parts.find((x) => x.id === view.part)?.renderer; return r && html`<span class="renderer-badge" title="Rendered outside the catalog: these are the renderer's own pixels">${r}</span>`; })()}
-            ${view.before?.from && html`<span class="push muted small">${view.before.label} from <a href=${href({ section: 'reviews', kind: 's', id: view.before.from.submission, member: view.before.from.item })}>${view.before.from.submission.slice(-6).toUpperCase()}</a></span>`}</div>`}
+            ${view.before?.from && html`<span class="push muted small">${view.before.label} from <${ReviewRef} id=${view.before.from.submission} member=${view.before.from.item} /></span>`}</div>`}
         </div>`}
         ${hasBrief(sub) && (sub.items.length === 1
           ? html`<section class="block submission-note"><${BriefSections} sub=${sub} /></section>`
@@ -484,7 +525,7 @@ function ItemView({ sub, item, view, viewError, setView, idx, goItem }) {
           <header class="block-h"><h3>Decision</h3><${VerdictBar} parts=${parts} /><span class="muted small">${STATE_LABEL[item.state]}</span></header>
           ${d.editing && html`<div class="editing-line"><${Icon} name="edit" size=${12} /><span>Editing the verdict</span>${d.editing.by && html`<${Person} by=${d.editing.by} />`}<span class="muted">${ago(d.editing.at)}</span></div>`}
           ${chooses
-            ? html`<${ChoiceDecision} parts=${parts} pick=${d.pick} pickVerdict=${d.pickVerdict} onPick=${(pick) => { update({ pick, pickVerdict: 'approved' }); if (pick && pick !== 'none' && item.views.some((v) => v.shows === pick)) setView(item.views.find((v) => v.shows === pick).id); }} onPickVerdict=${(pickVerdict) => update({ pickVerdict })} onSelect=${selectPart} />`
+            ? html`<${ChoiceDecision} parts=${parts} pick=${d.pick} pickVerdict=${d.pickVerdict} onPick=${(pick) => { update({ pick, pickVerdict: 'approved' }); if (pick && pick !== 'none') showPart(pick); }} onPickVerdict=${(pickVerdict) => update({ pickVerdict })} previewed=${previewed} viewFor=${viewFor} onShow=${showPart} onViewAttributes=${() => selectPart('attributes')} />`
             : html`<${AllParts} parts=${parts} onChange=${(v) => update({ verdicts: v })} />
           <${PartVerdicts} onSelect=${selectPart} parts=${parts} verdicts=${d.verdicts} onChange=${(v) => update({ verdicts: v })} comments=${d.comments ?? {}} onComments=${(n) => update({ comments: n })} />`}
           <textarea class="comp-comment" placeholder=${dec?.pick === 'none' ? 'What would work instead? (needed)' : dec?.pickVerdict === 'changes' ? 'What should change? (needed)' : 'Comment on the whole review'} aria-label="Comment" rows="2" value=${d.comment} onInput=${(e) => update({ comment: e.target.value })}></textarea>

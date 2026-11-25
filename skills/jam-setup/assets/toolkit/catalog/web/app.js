@@ -38,7 +38,7 @@ function App() {
   const listSection = isListSection(route.section);
   const detail = listSection && route.kind ? renderDetail(route) : null;
   return html`<div class=${`app${nav ? ' nav-open' : ''}${collapsed ? ' nav-collapsed' : ''}`}>
-    <${Top} s=${s} onMenu=${onMenu} navShown=${narrow() ? nav : !collapsed} />
+    <${Top} s=${s} section=${route.section} onMenu=${onMenu} navShown=${narrow() ? nav : !collapsed} />
     <${Side} route=${route} />
     <main class=${`main${detail ? ' has-detail' : ''}`}><${Boundary} key=${location.hash.split('?')[0]}>
       ${s.changed && html`<div class="banner" role="alert">This checkout is now on <b>${s.changed.branch ?? `detached ${shortHash(s.changed.head)}`}</b>. Saving is paused and drafts are kept for ${s.boot.checkout.branch ?? 'the previous checkout'}. <button class="btn xs" onClick=${() => location.reload()}>Reload</button></div>`}
@@ -100,12 +100,11 @@ function currentScope(section) {
   return scopeOf(lastScope) ?? scopes()[0] ?? null;
 }
 
-function Top({ s, onMenu, navShown }) {
+function Top({ s, section, onMenu, navShown }) {
   useMediaKinds();
   const c = s.summary.checkout;
   const me = s.summary.actor;
   const others = otherCheckoutDrafts();
-  const r = useRoute();
   const all = scopes();
   const attention = useQuery('inbox', { limit: 1 }).data?.counts;
   const waiting = attention ? attention.waiting + attention.notes + attention.changed + attention.problems : 0;
@@ -113,12 +112,12 @@ function Top({ s, onMenu, navShown }) {
   return html`<header class="top">
     <button class="icon-btn menu" onClick=${onMenu} aria-label=${navShown ? 'Hide navigation' : 'Show navigation'} title=${navShown ? 'Hide navigation' : 'Show navigation'} aria-expanded=${navShown}><${Icon} name="sidebar" /></button>
     <span class="proj">${s.summary.project}</span>
-    ${all.length > 1 && html`<nav class="primary-nav" aria-label="Library">${all.map((scope) => html`<a href=${`#/${enc(scope.id)}`} title=${scope.description} aria-current=${r.section === scope.id ? 'page' : undefined}>${scope.label}</a>`)}</nav>`}
+    ${all.length > 1 && html`<nav class="primary-nav" aria-label="Library">${all.map((scope) => html`<a href=${`#/${enc(scope.id)}`} title=${scope.description} aria-current=${section === scope.id ? 'page' : undefined}>${scope.label}</a>`)}</nav>`}
     <${Popover} label="Workspace details" trigger=${() => html`<button class="icon-btn" aria-label="Workspace details"><${Icon} name="branch" size=${14} /></button>`}>
       <div class="picker workspace-details"><strong>${c.branch ?? 'Local workspace'}</strong><span class="mono">${c.head ?? ''}</span><span class="mono">${c.root}</span><${Uncommitted} />${others.length > 0 && html`<details><summary>Recover unsent text from other workspaces</summary><${OtherDrafts} keys=${others} /></details>`}</div>
     <//>
     ${problems > 0 && html`<${Popover} label="Problems" trigger=${() => html`<button class="btn xs warn"><${Icon} name="warn" size=${12} />${problems}</button>`}><${Problems} /><//>`}
-    <a class=${`btn xs attention-link${waiting ? ' has' : ''}`} href="#/inbox" aria-current=${r.section === 'inbox' ? 'page' : undefined} title="Reviews waiting, open notes, changed verdicts and problems"><${Icon} name="inbox" size=${13} /><span>Needs attention</span>${waiting > 0 && html`<span class="badge">${waiting}</span>`}</a>
+    <a class=${`btn xs attention-link${waiting ? ' has' : ''}`} href="#/inbox" aria-current=${section === 'inbox' ? 'page' : undefined} title="Reviews waiting, open notes, changed verdicts and problems"><${Icon} name="inbox" size=${13} /><span>Needs attention</span>${waiting > 0 && html`<span class="badge">${waiting}</span>`}</a>
 
     <${GlobalSearch} />
     <span class="me" title=${me}>${(me ?? '?').split(/\s+/).map((x) => x[0]).join('').slice(0, 2)}</span>
@@ -185,6 +184,8 @@ function GlobalSearch() {
   </div>`;
 }
 
+const NavItem = ({ to, active, label, n, depth = 0, strong }) => html`<a class=${`nav-i${active ? ' on' : ''}${strong ? ' strong' : ''}`} href=${to} style=${depth ? `padding-left:${12 + depth * 14}px` : ''} aria-current=${active ? 'page' : undefined}><span>${label}</span>${n != null && html`<span class="count">${n}</span>`}</a>`;
+
 function Side({ route }) {
   const s = useSession();
   const scope = currentScope(route.section);
@@ -196,7 +197,6 @@ function Side({ route }) {
   const only = (k, v) => sel[k]?.length === 1 && sel[k][0] === v && Object.keys(sel).length === 1;
   const none = Object.keys(sel).length === 0;
   const link = (section, k, v) => href({ section, query: k ? new URLSearchParams({ [`f.${k}`]: enc(v) }) : undefined });
-  const Item = ({ to, active, label, n, depth = 0, strong }) => html`<a class=${`nav-i${active ? ' on' : ''}${strong ? ' strong' : ''}`} href=${to} style=${depth ? `padding-left:${12 + depth * 14}px` : ''} aria-current=${active ? 'page' : undefined}><span>${label}</span>${n != null && html`<span class="count">${n}</span>`}</a>`;
   // A previous scope's counts and categories cannot describe this one.
   const mine = units?.scope === area ? units : null;
   // A section's structure is its types (what the project's files define); categories are how people filed it.
@@ -207,17 +207,17 @@ function Side({ route }) {
   const typePlural = (t) => s.schema?.schema?.types?.[t.value]?.plural ?? t.label;
   return html`<nav class="side" aria-label="Catalog">
     ${scope && html`<div class="nav-caption" title=${scope.description}>${scope.label}</div>
-    <${Item} strong to=${link(area)} active=${route.section === area && none} label=${`All ${scope.label.toLowerCase()}`} n=${mine?.all} />
-    ${types.length > 1 && types.map(t => html`<${Item} to=${link(area, 'type', t.value)} active=${route.section === area && only('type', t.value)} label=${typePlural(t)} n=${t.count} depth=${1} />`)}
+    <${NavItem} strong to=${link(area)} active=${route.section === area && none} label=${`All ${scope.label.toLowerCase()}`} n=${mine?.all} />
+    ${types.length > 1 && types.map(t => html`<${NavItem} key=${t.value} to=${link(area, 'type', t.value)} active=${route.section === area && only('type', t.value)} label=${typePlural(t)} n=${t.count} depth=${1} />`)}
     ${categories.length > 0 && html`<div class="nav-caption nav-subcaption" title="How people filed this section's units: categories set in the catalog or by the project">Categories</div>
-    ${categories.map(c => html`<${Item} to=${link(area, 'cat', c.value)} active=${route.section === area && only('cat', c.value)} label=${c.label} n=${c.count} depth=${1} />`)}`}
+    ${categories.map(c => html`<${NavItem} key=${c.value} to=${link(area, 'cat', c.value)} active=${route.section === area && only('cat', c.value)} label=${c.label} n=${c.count} depth=${1} />`)}`}
     <div class="nav-sep"></div>`}
-    <${Item} to=${link('collections')} active=${route.section === 'collections' && none} label="Collections" n=${cols?.all} />
-    <${Item} to=${link('assets')} active=${route.section === 'assets' && none} label="Assets" n=${assets?.all} />
+    <${NavItem} to=${link('collections')} active=${route.section === 'collections' && none} label="Collections" n=${cols?.all} />
+    <${NavItem} to=${link('assets')} active=${route.section === 'assets' && none} label="Assets" n=${assets?.all} />
     <div class="nav-sep"></div>
-    <${Item} strong to="#/notes" active=${route.section === 'notes'} label="Notes" n=${s.summary.counts.openNotes} />
-    <${Item} strong to="#/reviews" active=${route.section === 'reviews'} label="Reviews" n=${s.summary.counts.waiting || null} />
-    <${Item} strong to="#/organization" active=${route.section === 'organization'} label="Categories & tags" />
+    <${NavItem} strong to="#/notes" active=${route.section === 'notes'} label="Notes" n=${s.summary.counts.openNotes} />
+    <${NavItem} strong to="#/reviews" active=${route.section === 'reviews'} label="Reviews" n=${s.summary.counts.waiting || null} />
+    <${NavItem} strong to="#/organization" active=${route.section === 'organization'} label="Categories & tags" />
   </nav>`;
 }
 
